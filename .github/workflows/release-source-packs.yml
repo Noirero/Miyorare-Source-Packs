@@ -16,23 +16,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-pack:
-    name: Build Miyorare-${{ matrix.pack }}
+  resolve-source:
+    name: Resolve Miyorare beta source
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        pack: [id, en]
+    outputs:
+      source_commit: ${{ steps.source.outputs.commit }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_VERSION: ${{ inputs.version }}
 
     steps:
-      - name: Validate version
+      - name: Validate version and release tag
         shell: bash
         run: |
           set -euo pipefail
-          [[ "${{ inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+          [[ "${SOURCE_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
             echo "::error::Version must use MAJOR.MINOR.PATCH."
             exit 1
           }
+          TAG="miyorare-sources-v${SOURCE_VERSION}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Release $TAG already exists. Source-pack releases are immutable."
+            exit 1
+          fi
 
       - name: Checkout Miyorare beta
         uses: actions/checkout@v5
@@ -42,9 +48,28 @@ jobs:
           path: miyorare
           fetch-depth: 1
 
-      - name: Record source commit
+      - name: Pin source commit
+        id: source
         shell: bash
-        run: echo "MIYORARE_SOURCE_COMMIT=$(git -C miyorare rev-parse HEAD)" >> "$GITHUB_ENV"
+        run: echo "commit=$(git -C miyorare rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  build-pack:
+    name: Build Miyorare-${{ matrix.pack }}
+    needs: resolve-source
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pack: [id, en]
+
+    steps:
+      - name: Checkout pinned Miyorare source
+        uses: actions/checkout@v5
+        with:
+          repository: Noirero/Miyorare
+          ref: ${{ needs.resolve-source.outputs.source_commit }}
+          path: miyorare
+          fetch-depth: 1
 
       - name: Checkout pinned UMA source
         uses: actions/checkout@v5
@@ -103,23 +128,16 @@ jobs:
 
   publish:
     name: Publish official source packs
-    needs: build-pack
+    needs: [resolve-source, build-pack]
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
       SOURCE_VERSION: ${{ inputs.version }}
+      SOURCE_COMMIT: ${{ needs.resolve-source.outputs.source_commit }}
 
     steps:
       - name: Checkout release repository
         uses: actions/checkout@v5
-
-      - name: Checkout Miyorare beta metadata
-        uses: actions/checkout@v5
-        with:
-          repository: Noirero/Miyorare
-          ref: beta
-          path: miyorare
-          fetch-depth: 1
 
       - name: Download verified packs
         uses: actions/download-artifact@v5
@@ -133,7 +151,7 @@ jobs:
         run: |
           set -euo pipefail
           TAG="miyorare-sources-v${SOURCE_VERSION}"
-          [[ "${SOURCE_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test -n "$SOURCE_COMMIT"
           test -f dist/miyorare-id.jar
           test -f dist/miyorare-en.jar
           test -f dist/miyorare-id.jar.sha256
@@ -149,8 +167,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          SOURCE_COMMIT="$(git -C miyorare rev-parse HEAD)"
-          export SOURCE_COMMIT
           python3 - <<'PY'
           import hashlib
           import json
@@ -190,7 +206,6 @@ jobs:
         run: |
           set -euo pipefail
           TAG="miyorare-sources-v${SOURCE_VERSION}"
-          SOURCE_COMMIT="$(git -C miyorare rev-parse HEAD)"
           gh release create "$TAG" \
             dist/miyorare-id.jar \
             dist/miyorare-en.jar \
