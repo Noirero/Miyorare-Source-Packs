@@ -1,0 +1,78 @@
+name: Bootstrap Source Pack v0.2.0
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/bootstrap-v0.2.0.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: miyorare-sources-v0.2.0
+      SOURCE_REPO: Noirero/Miyorare
+
+    steps:
+      - name: Skip when already mirrored
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; nothing to do."
+            echo "SKIP_MIRROR=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Download original assets
+        if: env.SKIP_MIRROR != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          base="https://github.com/${SOURCE_REPO}/releases/download/${TAG}"
+          for asset in \
+            miyorare-en.jar \
+            miyorare-en.jar.sha256 \
+            miyorare-id.jar \
+            miyorare-id.jar.sha256 \
+            miyorare-source-packs.json
+          do
+            curl --fail --location --retry 3 --output "dist/${asset}" "${base}/${asset}"
+          done
+
+      - name: Verify byte-for-byte baseline
+        if: env.SKIP_MIRROR != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > expected.sha256 <<'EOF'
+          7628402fa020177b217f1826bd43f25fdaf93818a45e4ed4a8c069c348434407  dist/miyorare-en.jar
+          13e754f1118fbee97cfcb6b4c2b7c3efb82264775332411caa338659d9234a68  dist/miyorare-en.jar.sha256
+          664ee0ee217a6eea0f6b6200b04d7453ff0912e7a8880d7dc82682ffcb27ece2  dist/miyorare-id.jar
+          00056890e34c17ab15af48d71016a89d1d8ee72b4b058a9f14ff08fe8aeb5108  dist/miyorare-id.jar.sha256
+          c29ab857cfff020aee901d4dc6051fa064d7ba953bfd629873c1dc59c88d89de  dist/miyorare-source-packs.json
+          EOF
+          sha256sum -c expected.sha256
+          (cd dist && sha256sum -c miyorare-en.jar.sha256)
+          (cd dist && sha256sum -c miyorare-id.jar.sha256)
+
+      - name: Publish mirrored baseline
+        if: env.SKIP_MIRROR != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            dist/miyorare-en.jar \
+            dist/miyorare-en.jar.sha256 \
+            dist/miyorare-id.jar \
+            dist/miyorare-id.jar.sha256 \
+            dist/miyorare-source-packs.json \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Miyorare Source Packs v0.2.0" \
+            --notes "Official Miyorare-ID and Miyorare-EN source packs. Byte-for-byte mirror of the original v0.2.0 release from Noirero/Miyorare, source commit b23940dc02daa6a6d83f815b48f0d767e73e7ae5."
