@@ -79,6 +79,14 @@ jobs:
           path: _upstream/uma
           fetch-depth: 1
 
+      - name: Checkout pinned Gekkoushi source
+        uses: actions/checkout@v5
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: 9aa770b7cb699c6385f574f13710990e17ef5517
+          path: _upstream/gekkoushi
+          fetch-depth: 1
+
       - name: Set up Java 17
         uses: actions/setup-java@v5
         with:
@@ -93,7 +101,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
-      - name: Prepare curated source pack
+      - name: Prepare curated UMA shard
         shell: bash
         run: |
           set -euo pipefail
@@ -102,13 +110,13 @@ jobs:
             --upstream _upstream/uma \
             --pack '${{ matrix.pack }}'
 
-      - name: Build dexed Tsuki plugin
+      - name: Build UMA shard with UMA build system
         working-directory: _upstream/uma
         run: |
           chmod +x gradlew
           ./gradlew buildJar --rerun-tasks --no-daemon
 
-      - name: Verify and finalize artifact
+      - name: Finalize UMA shard
         shell: bash
         run: |
           set -euo pipefail
@@ -116,6 +124,43 @@ jobs:
             --manifest miyorare/extensions/miyorare-sources/packs.json \
             --upstream _upstream/uma \
             --pack '${{ matrix.pack }}' \
+            --output build/miyorare-source-packs/${{ matrix.pack }}
+
+      - name: Prepare Gekkoushi shard without modifying its source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 miyorare/extensions/miyorare-sources/tools/prepare_gekkoushi_shard.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --uma-upstream _upstream/uma \
+            --gekkoushi-upstream _upstream/gekkoushi \
+            --pack '${{ matrix.pack }}'
+
+      - name: Build Gekkoushi shard with Gekkoushi build system
+        working-directory: _upstream/gekkoushi
+        run: |
+          chmod +x gradlew
+          ./gradlew buildJar --rerun-tasks --no-daemon
+
+      - name: Finalize Gekkoushi shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 miyorare/extensions/miyorare-sources/tools/finalize_pack.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --upstream _upstream/gekkoushi \
+            --pack '${{ matrix.pack }}' \
+            --output build/miyorare-source-packs/${{ matrix.pack }}
+
+      - name: Finalize logical pack manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 miyorare/extensions/miyorare-sources/tools/finalize_logical_pack.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --pack '${{ matrix.pack }}' \
+            --uma-metadata _upstream/uma/miyorare-pack.json \
+            --gekkoushi-metadata _upstream/gekkoushi/miyorare-pack.json \
             --output build/miyorare-source-packs/${{ matrix.pack }}
 
       - name: Upload release candidate
@@ -152,12 +197,14 @@ jobs:
           set -euo pipefail
           TAG="miyorare-sources-v${SOURCE_VERSION}"
           test -n "$SOURCE_COMMIT"
-          test -f dist/miyorare-id.jar
-          test -f dist/miyorare-en.jar
-          test -f dist/miyorare-id.jar.sha256
-          test -f dist/miyorare-en.jar.sha256
-          (cd dist && sha256sum -c miyorare-id.jar.sha256)
-          (cd dist && sha256sum -c miyorare-en.jar.sha256)
+          for language in id en; do
+            for shard in uma gekkoushi; do
+              test -f "dist/miyorare-${language}-${shard}.jar"
+              test -f "dist/miyorare-${language}-${shard}.jar.sha256"
+              (cd dist && sha256sum -c "miyorare-${language}-${shard}.jar.sha256")
+            done
+            test -f "dist/miyorare-${language}-pack.json"
+          done
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "::error::Release $TAG already exists. Source-pack releases are immutable."
             exit 1
@@ -178,17 +225,27 @@ jobs:
           tag = f'miyorare-sources-v{version}'
           packs = []
           for language in ('id', 'en'):
-              asset = Path('dist') / f'miyorare-{language}.jar'
-              data = asset.read_bytes()
+              logical = json.loads((Path('dist') / f'miyorare-{language}-pack.json').read_text(encoding='utf-8'))
+              shards = []
+              for shard in logical['shards']:
+                  asset = Path('dist') / shard['assetName']
+                  data = asset.read_bytes()
+                  shards.append({
+                      'provider': shard['provider'],
+                      'pluginId': shard['pluginId'],
+                      'assetName': asset.name,
+                      'size': len(data),
+                      'sha256': hashlib.sha256(data).hexdigest(),
+                      'sourceCount': shard['sourceCount'],
+                  })
               packs.append({
-                  'pluginId': f'miyorare-{language}',
+                  'pluginId': logical['packId'],
                   'language': language,
-                  'assetName': asset.name,
-                  'size': len(data),
-                  'sha256': hashlib.sha256(data).hexdigest(),
+                  'sourceCount': logical['sourceCount'],
+                  'shards': shards,
               })
           manifest = {
-              'schema': 1,
+              'schema': 2,
               'version': version,
               'tag': tag,
               'sourceRepository': 'Noirero/Miyorare',
@@ -207,11 +264,17 @@ jobs:
           set -euo pipefail
           TAG="miyorare-sources-v${SOURCE_VERSION}"
           gh release create "$TAG" \
-            dist/miyorare-id.jar \
-            dist/miyorare-en.jar \
-            dist/miyorare-id.jar.sha256 \
-            dist/miyorare-en.jar.sha256 \
+            dist/miyorare-id-uma.jar \
+            dist/miyorare-id-uma.jar.sha256 \
+            dist/miyorare-id-gekkoushi.jar \
+            dist/miyorare-id-gekkoushi.jar.sha256 \
+            dist/miyorare-id-pack.json \
+            dist/miyorare-en-uma.jar \
+            dist/miyorare-en-uma.jar.sha256 \
+            dist/miyorare-en-gekkoushi.jar \
+            dist/miyorare-en-gekkoushi.jar.sha256 \
+            dist/miyorare-en-pack.json \
             dist/miyorare-source-packs.json \
             --target "$GITHUB_SHA" \
             --title "Miyorare Source Packs v${SOURCE_VERSION}" \
-            --notes "Official Miyorare-ID and Miyorare-EN source packs. Built and verified from Noirero/Miyorare beta commit ${SOURCE_COMMIT}."
+            --notes "Official logical Miyorare-ID and Miyorare-EN packs. Each language contains independently built UMA and Gekkoushi shards, verified from Noirero/Miyorare beta commit ${SOURCE_COMMIT}."
