@@ -17,15 +17,23 @@ concurrency:
 
 jobs:
   resolve-source:
-    name: Resolve Miyorare beta source
+    name: Resolve validated source pins
     runs-on: ubuntu-latest
     outputs:
       source_commit: ${{ steps.source.outputs.commit }}
+      uma_commit: ${{ steps.registry.outputs.uma_commit }}
+      gekkoushi_commit: ${{ steps.registry.outputs.gekkoushi_commit }}
+      keiyoushi_commit: ${{ steps.registry.outputs.keiyoushi_commit }}
     env:
       GH_TOKEN: ${{ github.token }}
       SOURCE_VERSION: ${{ inputs.version }}
 
     steps:
+      - name: Checkout Source Packs registry
+        uses: actions/checkout@v5
+        with:
+          path: source-packs
+
       - name: Validate version and release tag
         shell: bash
         run: |
@@ -40,6 +48,24 @@ jobs:
             exit 1
           fi
 
+      - name: Validate upstream registry
+        run: python3 source-packs/tools/upstream_sync.py validate --registry source-packs/upstream/registry.json
+
+      - name: Resolve last-known-good upstream pins
+        id: registry
+        shell: bash
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+
+          registry = json.loads(Path('source-packs/upstream/registry.json').read_text(encoding='utf-8'))
+          providers = registry['providers']
+          print(f"uma_commit={providers['uma']['lastKnownGood']}")
+          print(f"gekkoushi_commit={providers['gekkoushi']['lastKnownGood']}")
+          print(f"keiyoushi_commit={providers['keiyoushi']['lastKnownGood']}")
+          PY
+
       - name: Checkout Miyorare beta
         uses: actions/checkout@v5
         with:
@@ -48,7 +74,7 @@ jobs:
           path: miyorare
           fetch-depth: 1
 
-      - name: Pin source commit
+      - name: Pin Miyorare source commit
         id: source
         shell: bash
         run: echo "commit=$(git -C miyorare rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -63,6 +89,11 @@ jobs:
         pack: [id, en]
 
     steps:
+      - name: Checkout Source Packs registry
+        uses: actions/checkout@v5
+        with:
+          path: source-packs
+
       - name: Checkout pinned Miyorare source
         uses: actions/checkout@v5
         with:
@@ -71,21 +102,67 @@ jobs:
           path: miyorare
           fetch-depth: 1
 
-      - name: Checkout pinned UMA source
+      - name: Checkout validated UMA source
         uses: actions/checkout@v5
         with:
           repository: InvalidDavid/UMA
-          ref: a0ebc9ffc7de02b7b50cbcb620092d0a9263c785
+          ref: ${{ needs.resolve-source.outputs.uma_commit }}
           path: _upstream/uma
           fetch-depth: 1
 
-      - name: Checkout pinned Gekkoushi source
+      - name: Checkout validated Gekkoushi source
         uses: actions/checkout@v5
         with:
           repository: Gekkoushi/plugin-source
-          ref: 9aa770b7cb699c6385f574f13710990e17ef5517
+          ref: ${{ needs.resolve-source.outputs.gekkoushi_commit }}
           path: _upstream/gekkoushi
           fetch-depth: 1
+
+      - name: Checkout validated Keiyoushi source
+        uses: actions/checkout@v5
+        with:
+          repository: keiyoushi/extensions-source
+          ref: ${{ needs.resolve-source.outputs.keiyoushi_commit }}
+          path: _upstream/keiyoushi
+          fetch-depth: 1
+
+      - name: Materialize validated upstream pins
+        run: |
+          python3 source-packs/tools/upstream_sync.py materialize \
+            --registry source-packs/upstream/registry.json \
+            --miyorare-root miyorare
+
+      - name: Verify canonical multi-upstream aliases
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/verify_multi_upstream.py \
+            --manifest miyorare/extensions/miyorare-sources/multi-upstream.json \
+            --packs miyorare/extensions/miyorare-sources/packs.json \
+            --uma _upstream/uma \
+            --keiyoushi _upstream/keiyoushi \
+            --output build/verified-multi-upstream-${{ matrix.pack }}.json
+
+      - name: Apply matching Miyorare Gekkoushi overlays
+        env:
+          PACK: ${{ matrix.pack }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import shutil
+          from pathlib import Path
+
+          pack = os.environ['PACK']
+          root = Path('miyorare/extensions/miyorare-sources/overlays/gekkoushi')
+          if not root.is_dir():
+              raise SystemExit(0)
+          for file in root.rglob('*.kt'):
+              rel = file.relative_to(root)
+              if not rel.parts or rel.parts[0] != pack:
+                  continue
+              target = Path('_upstream/gekkoushi/src/main/kotlin/tsuki/site') / rel
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(file, target)
+              print(f'overlay: {file} -> {target}')
+          PY
 
       - name: Set up Java 17
         uses: actions/setup-java@v5
@@ -126,7 +203,7 @@ jobs:
             --pack '${{ matrix.pack }}' \
             --output build/miyorare-source-packs/${{ matrix.pack }}
 
-      - name: Prepare Gekkoushi shard without modifying its source tree
+      - name: Prepare Gekkoushi shard
         shell: bash
         run: |
           set -euo pipefail
@@ -177,6 +254,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout Source Packs registry
+        uses: actions/checkout@v5
+        with:
+          path: source-packs
+
       - name: Checkout pinned Miyorare source
         uses: actions/checkout@v5
         with:
@@ -185,13 +267,36 @@ jobs:
           path: miyorare
           fetch-depth: 1
 
-      - name: Checkout pinned Gekkoushi source
+      - name: Checkout validated Gekkoushi source
         uses: actions/checkout@v5
         with:
           repository: Gekkoushi/plugin-source
-          ref: 9aa770b7cb699c6385f574f13710990e17ef5517
+          ref: ${{ needs.resolve-source.outputs.gekkoushi_commit }}
           path: _upstream/gekkoushi
           fetch-depth: 1
+
+      - name: Materialize validated upstream pins
+        run: |
+          python3 source-packs/tools/upstream_sync.py materialize \
+            --registry source-packs/upstream/registry.json \
+            --miyorare-root miyorare
+
+      - name: Apply Miyorare Global parser overlays
+        run: |
+          python3 - <<'PY'
+          import shutil
+          from pathlib import Path
+
+          root = Path('miyorare/extensions/miyorare-sources/overlays/gekkoushi/all')
+          if not root.is_dir():
+              raise SystemExit(0)
+          for file in root.rglob('*.kt'):
+              rel = file.relative_to(root)
+              target = Path('_upstream/gekkoushi/src/main/kotlin/tsuki/site/all') / rel
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(file, target)
+              print(f'overlay: {file} -> {target}')
+          PY
 
       - name: Set up Java 17
         uses: actions/setup-java@v5
@@ -206,14 +311,6 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
-
-      - name: Apply Miyorare Global parser overlays
-        shell: bash
-        run: |
-          set -euo pipefail
-          install -Dm644 \
-            miyorare/extensions/miyorare-sources/overlays/gekkoushi/all/Gelbooru.kt \
-            _upstream/gekkoushi/src/main/kotlin/tsuki/site/all/Gelbooru.kt
 
       - name: Prepare global Gekkoushi shard
         run: |
@@ -270,6 +367,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       SOURCE_VERSION: ${{ inputs.version }}
       SOURCE_COMMIT: ${{ needs.resolve-source.outputs.source_commit }}
+      UMA_COMMIT: ${{ needs.resolve-source.outputs.uma_commit }}
+      GEKKOUSHI_COMMIT: ${{ needs.resolve-source.outputs.gekkoushi_commit }}
+      KEIYOUSHI_COMMIT: ${{ needs.resolve-source.outputs.keiyoushi_commit }}
 
     steps:
       - name: Checkout release repository
@@ -288,6 +388,9 @@ jobs:
           set -euo pipefail
           TAG="miyorare-sources-v${SOURCE_VERSION}"
           test -n "$SOURCE_COMMIT"
+          test -n "$UMA_COMMIT"
+          test -n "$GEKKOUSHI_COMMIT"
+          test -n "$KEIYOUSHI_COMMIT"
           for language in id en; do
             for shard in uma gekkoushi; do
               test -f "dist/miyorare-${language}-${shard}.jar"
@@ -346,6 +449,11 @@ jobs:
               'sourceRepository': 'Noirero/Miyorare',
               'sourceBranch': 'beta',
               'sourceCommit': source_commit,
+              'upstreams': {
+                  'uma': os.environ['UMA_COMMIT'],
+                  'gekkoushi': os.environ['GEKKOUSHI_COMMIT'],
+                  'keiyoushi': os.environ['KEIYOUSHI_COMMIT'],
+              },
               'packs': packs,
           }
           Path('dist/miyorare-source-packs.json').write_text(
@@ -375,4 +483,4 @@ jobs:
             dist/miyorare-source-packs.json \
             --target "$GITHUB_SHA" \
             --title "Miyorare Source Packs v${SOURCE_VERSION}" \
-            --notes "Official Miyorare-ID, Miyorare-EN, and Miyorare-Global packs. Global owns locale-independent sources such as E-Hentai/ExHentai and Gelbooru exactly once. Built from Noirero/Miyorare beta commit ${SOURCE_COMMIT}."
+            --notes "Official Miyorare-ID, Miyorare-EN, and Miyorare-Global packs. Built from Miyorare beta ${SOURCE_COMMIT}; validated upstreams: UMA ${UMA_COMMIT}, Gekkoushi ${GEKKOUSHI_COMMIT}, Keiyoushi ${KEIYOUSHI_COMMIT}."

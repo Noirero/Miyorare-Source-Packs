@@ -1,0 +1,172 @@
+name: Persist Upstream Sync Status
+
+on:
+  workflow_run:
+    workflows:
+      - Miyorare Upstream Sync
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: miyorare-upstream-status-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  persist:
+    name: Persist promoted and held provider status
+    if: github.event.workflow_run.event != 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+    steps:
+      - name: Checkout workflow branch after promotion
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.HEAD_BRANCH }}
+          fetch-depth: 0
+
+      - name: Download sync diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _sync-plan _diagnostics/keiyoushi _diagnostics/gekkoushi
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name upstream-sync-plan --dir _sync-plan
+          test -f _sync-plan/sync-plan.json
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name keiyoushi-intake-report --dir _diagnostics/keiyoushi || true
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name gekkoushi-overlay-report --dir _diagnostics/gekkoushi || true
+
+      - name: Resolve final provider and source status
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs > _sync-plan/jobs.json
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          plan = json.loads(Path('_sync-plan/sync-plan.json').read_text(encoding='utf-8'))
+          jobs = json.loads(Path('_sync-plan/jobs.json').read_text(encoding='utf-8')).get('jobs', [])
+          registry = json.loads(Path('upstream/registry.json').read_text(encoding='utf-8'))
+
+          kei_report_path = Path('_diagnostics/keiyoushi/keiyoushi-intake.json')
+          gek_report_path = Path('_diagnostics/gekkoushi/gekkoushi-overlay-report.json')
+          kei_report = json.loads(kei_report_path.read_text(encoding='utf-8')) if kei_report_path.is_file() else None
+          gek_report = json.loads(gek_report_path.read_text(encoding='utf-8')) if gek_report_path.is_file() else None
+
+          conclusions = {job.get('name', ''): job.get('conclusion') for job in jobs}
+
+          def find(prefix):
+              values = [value for name, value in conclusions.items() if name.startswith(prefix)]
+              if not values:
+                  return None
+              if any(value == 'failure' for value in values):
+                  return 'failure'
+              if any(value == 'cancelled' for value in values):
+                  return 'cancelled'
+              if all(value in ('success', 'skipped') for value in values):
+                  return 'success'
+              return values[0]
+
+          result = {
+              'schema': 2,
+              'workflowRunId': int(os.environ['RUN_ID']),
+              'providers': {},
+          }
+
+          for provider, candidate_info in plan['providers'].items():
+              provider_registry = registry['providers'][provider]
+              current = provider_registry['lastKnownGood']
+              candidate = candidate_info['candidate']
+              changed = bool(candidate_info['changed'])
+
+              if not changed:
+                  entry = {
+                      'state': 'synced',
+                      'lastKnownGood': current,
+                  }
+              elif candidate == current:
+                  entry = {
+                      'state': 'promoted',
+                      'candidate': candidate,
+                      'lastKnownGood': current,
+                  }
+              else:
+                  if provider == 'gekkoushi':
+                      validation = find('Validate Gekkoushi ')
+                      reason = 'compatibility-or-build-validation-failure' if validation not in (None, 'success', 'skipped') else 'integration-or-promotion-failure'
+                  elif provider == 'keiyoushi':
+                      validation = find('Validate Keiyoushi candidate')
+                      reason = 'compatibility-or-intake-validation-failure' if validation not in (None, 'success', 'skipped') else 'integration-or-promotion-failure'
+                  else:
+                      validation = find('Validate UMA ')
+                      reason = 'compatibility-or-build-validation-failure' if validation not in (None, 'success', 'skipped') else 'integration-or-promotion-failure'
+
+                  entry = {
+                      'state': 'held',
+                      'candidate': candidate,
+                      'lastKnownGood': current,
+                      'reason': reason,
+                  }
+
+              if provider == 'keiyoushi':
+                  entry['semanticBase'] = provider_registry['semanticBase']
+                  entry['semanticAdapters'] = list(provider_registry.get('semanticAdapters', []))
+                  if kei_report:
+                      affected = []
+                      for source in kei_report.get('sources', []):
+                          if source.get('state') == 'unaffected':
+                              continue
+                          affected.append({
+                              'canonicalId': source.get('canonicalId'),
+                              'pack': source.get('pack'),
+                              'sourceName': source.get('officialSourceName'),
+                              'module': source.get('keiyoushiModule'),
+                              'state': source.get('state'),
+                              'action': source.get('action'),
+                              'changeClasses': source.get('changeClasses', []),
+                              'adapterCoverage': source.get('adapterCoverage', []),
+                              'changedFiles': [item.get('path') for item in source.get('files', [])],
+                          })
+                      entry['sourceStatus'] = affected
+                      entry['sharedRuntimeFiles'] = kei_report.get('sharedRuntimeFiles', [])
+                      entry['affectedSourceCount'] = kei_report.get('affectedSourceCount', len(affected))
+                      entry['blockingSourceCount'] = kei_report.get('blockingSourceCount', 0)
+                  else:
+                      entry['sourceStatus'] = []
+                      entry['affectedSourceCount'] = 0
+                      entry['blockingSourceCount'] = 0
+
+              if provider == 'gekkoushi' and gek_report:
+                  conflicts = gek_report.get('conflicts', [])
+                  entry['overlayConflicts'] = conflicts
+                  entry['overlayConflictDetails'] = gek_report.get('conflictDetails', [])
+                  entry['protectedOverlayTargets'] = gek_report.get('protectedTargets', [])
+                  if conflicts and entry['state'] == 'promoted':
+                      entry['state'] = 'promoted-with-held-sources'
+                      entry['heldSourceReason'] = 'protected-miyorare-overlay-diverged-from-upstream'
+
+              result['providers'][provider] = entry
+
+          Path('upstream/status.json').write_text(json.dumps(result, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+          PY
+
+      - name: Commit status even when every candidate is held
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- upstream/status.json; then
+            echo 'No status change to persist.'
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add upstream/status.json
+          git commit -m "Record upstream sync provider/source status"
+          git push origin "HEAD:${HEAD_BRANCH}"

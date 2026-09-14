@@ -1,0 +1,367 @@
+name: Upstream Sync PR Check
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'upstream/**'
+      - 'tools/upstream_sync.py'
+      - 'tools/keiyoushi_intake.py'
+      - 'tools/keiyoushi_semantic_adapter.py'
+      - 'tests/**'
+      - '.github/workflows/upstream-sync.yml'
+      - '.github/workflows/upstream-sync-status.yml'
+      - '.github/workflows/upstream-sync-pr-check.yml'
+      - '.github/workflows/release-source-packs.yml'
+      - 'README.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-sync-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  static-validation:
+    name: Validate sync engine and workflows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v5
+
+      - name: Compile sync helpers
+        run: |
+          python3 -m py_compile tools/upstream_sync.py
+          python3 -m py_compile tools/keiyoushi_intake.py
+          python3 -m py_compile tools/keiyoushi_semantic_adapter.py
+
+      - name: Run sync helper unit tests
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Validate upstream registry and status JSON
+        run: |
+          python3 tools/upstream_sync.py validate --registry upstream/registry.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          registry = json.loads(Path('upstream/registry.json').read_text(encoding='utf-8'))
+          status = json.loads(Path('upstream/status.json').read_text(encoding='utf-8'))
+          assert status['schema'] == 2
+          assert set(status['providers']) == {'keiyoushi', 'uma', 'gekkoushi'}
+
+          kei_registry = registry['providers']['keiyoushi']
+          registry_adapters = kei_registry.get('semanticAdapters')
+          assert registry_adapters == ['domain-base-url', 'literal-semantic'], registry_adapters
+          assert isinstance(kei_registry.get('semanticBase'), str) and len(kei_registry['semanticBase']) == 40
+
+          kei_status = status['providers']['keiyoushi']
+          assert isinstance(kei_status.get('sourceStatus'), list)
+          assert kei_status.get('semanticAdapters') == registry_adapters
+          assert kei_status.get('semanticBase') == kei_registry['semanticBase']
+          assert isinstance(status['providers']['gekkoushi'].get('overlayConflicts'), list)
+          print('upstream registry/status capability schema is valid')
+          PY
+
+      - name: Validate workflow YAML syntax
+        shell: ruby {0}
+        run: |
+          require 'yaml'
+          Dir.glob('.github/workflows/*.yml').sort.each do |path|
+            YAML.load_file(path, aliases: true)
+            puts "valid yaml: #{path}"
+          end
+
+      - name: Validate registry/materializer against Miyorare beta
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch beta https://github.com/Noirero/Miyorare.git _miyorare
+          python3 -m py_compile _miyorare/extensions/miyorare-sources/tools/prepare_pack.py
+          python3 tools/upstream_sync.py materialize \
+            --registry upstream/registry.json \
+            --miyorare-root _miyorare
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          registry = json.loads(Path('upstream/registry.json').read_text())
+          packs = json.loads(Path('_miyorare/extensions/miyorare-sources/packs.json').read_text())
+          aliases = json.loads(Path('_miyorare/extensions/miyorare-sources/multi-upstream.json').read_text())
+          providers = registry['providers']
+          assert packs['upstream']['commit'] == providers['uma']['lastKnownGood']
+          assert packs['additionalUpstreams']['gekkoushi']['commit'] == providers['gekkoushi']['lastKnownGood']
+          assert aliases['upstreams']['uma']['commit'] == providers['uma']['lastKnownGood']
+          assert aliases['upstreams']['keiyoushi']['commit'] == providers['keiyoushi']['lastKnownGood']
+          print('materialized last-known-good pins match registry')
+          PY
+
+      - name: Smoke test semantic adapter and canonical verifier on last-known-good upstreams
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          providers = json.loads(Path('upstream/registry.json').read_text())['providers']
+          print(f"UMA_SHA={providers['uma']['lastKnownGood']}")
+          print(f"KEI_SHA={providers['keiyoushi']['lastKnownGood']}")
+          print(f"KEI_SEMANTIC_BASE={providers['keiyoushi']['semanticBase']}")
+          PY
+          )"
+
+          mkdir -p _upstream
+          git init _upstream/uma
+          git -C _upstream/uma remote add origin https://github.com/InvalidDavid/UMA.git
+          git -C _upstream/uma fetch --depth 1 origin "$UMA_SHA"
+          git -C _upstream/uma checkout --detach FETCH_HEAD
+
+          git init _upstream/keiyoushi
+          git -C _upstream/keiyoushi remote add origin https://github.com/keiyoushi/extensions-source.git
+          git -C _upstream/keiyoushi fetch --depth 1 origin "$KEI_SHA"
+          if [[ "$KEI_SEMANTIC_BASE" != "$KEI_SHA" ]]; then
+            git -C _upstream/keiyoushi fetch --depth 1 origin "$KEI_SEMANTIC_BASE"
+          fi
+          git -C _upstream/keiyoushi checkout --detach "$KEI_SHA"
+
+          python3 tools/upstream_sync.py materialize \
+            --registry upstream/registry.json \
+            --miyorare-root _miyorare
+
+          test -f build/keiyoushi-semantic-adapter.json
+          test -f _upstream/uma/miyorare-semantic-adapter.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build/keiyoushi-semantic-adapter.json').read_text(encoding='utf-8'))
+          assert report['schema'] == 2
+          assert report['state'] == 'clear'
+          assert set(report['capabilities']) == {'domain-base-url', 'literal-semantic'}
+          print('semantic adapter report schema is valid')
+          PY
+          python3 _miyorare/extensions/miyorare-sources/tools/verify_multi_upstream.py \
+            --manifest _miyorare/extensions/miyorare-sources/multi-upstream.json \
+            --packs _miyorare/extensions/miyorare-sources/packs.json \
+            --uma _upstream/uma \
+            --keiyoushi _upstream/keiyoushi \
+            --output build/pr-verified-multi-upstream.json
+
+  integration-build:
+    name: Build current validated pack (${{ matrix.pack }})
+    needs: static-validation
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pack: [id, en, global]
+
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v5
+
+      - name: Resolve validated pins
+        id: pins
+        shell: bash
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          p = json.loads(Path('upstream/registry.json').read_text(encoding='utf-8'))['providers']
+          print(f"uma={p['uma']['lastKnownGood']}")
+          print(f"gekkoushi={p['gekkoushi']['lastKnownGood']}")
+          print(f"keiyoushi={p['keiyoushi']['lastKnownGood']}")
+          print(f"semantic_base={p['keiyoushi']['semanticBase']}")
+          PY
+
+      - name: Checkout Miyorare beta
+        uses: actions/checkout@v5
+        with:
+          repository: Noirero/Miyorare
+          ref: beta
+          path: miyorare
+          fetch-depth: 1
+
+      - name: Checkout validated Gekkoushi
+        uses: actions/checkout@v5
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ steps.pins.outputs.gekkoushi }}
+          path: _upstream/gekkoushi
+          fetch-depth: 1
+
+      - name: Checkout validated UMA
+        if: matrix.pack != 'global'
+        uses: actions/checkout@v5
+        with:
+          repository: InvalidDavid/UMA
+          ref: ${{ steps.pins.outputs.uma }}
+          path: _upstream/uma
+          fetch-depth: 1
+
+      - name: Checkout validated Keiyoushi with history
+        if: matrix.pack != 'global'
+        uses: actions/checkout@v5
+        with:
+          repository: keiyoushi/extensions-source
+          ref: ${{ steps.pins.outputs.keiyoushi }}
+          path: _upstream/keiyoushi
+          fetch-depth: 0
+
+      - name: Materialize validated pins and semantic adapters
+        run: |
+          python3 tools/upstream_sync.py materialize \
+            --registry upstream/registry.json \
+            --miyorare-root miyorare
+
+      - name: Verify canonical multi-upstream aliases
+        if: matrix.pack != 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/verify_multi_upstream.py \
+            --manifest miyorare/extensions/miyorare-sources/multi-upstream.json \
+            --packs miyorare/extensions/miyorare-sources/packs.json \
+            --uma _upstream/uma \
+            --keiyoushi _upstream/keiyoushi \
+            --output build/integration-verified-${{ matrix.pack }}.json
+
+      - name: Apply matching Miyorare Gekkoushi overlays
+        env:
+          PACK: ${{ matrix.pack }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import shutil
+          from pathlib import Path
+
+          pack = os.environ['PACK']
+          root = Path('miyorare/extensions/miyorare-sources/overlays/gekkoushi')
+          selected = 'all' if pack == 'global' else pack
+          source_root = root / selected
+          if not source_root.is_dir():
+              raise SystemExit(0)
+          for file in source_root.rglob('*.kt'):
+              rel = file.relative_to(source_root)
+              target = Path('_upstream/gekkoushi/src/main/kotlin/tsuki/site') / selected / rel
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(file, target)
+              print(f'overlay: {file} -> {target}')
+          PY
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Prepare UMA language shard
+        if: matrix.pack != 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/prepare_pack.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --upstream _upstream/uma \
+            --pack '${{ matrix.pack }}'
+
+      - name: Build UMA language shard
+        if: matrix.pack != 'global'
+        working-directory: _upstream/uma
+        run: |
+          chmod +x gradlew
+          ./gradlew buildJar --rerun-tasks --no-daemon
+
+      - name: Finalize UMA language shard
+        if: matrix.pack != 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/finalize_pack.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --upstream _upstream/uma \
+            --pack '${{ matrix.pack }}' \
+            --output build/integration-${{ matrix.pack }}
+
+      - name: Prepare Gekkoushi language shard
+        if: matrix.pack != 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/prepare_gekkoushi_shard.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --uma-upstream _upstream/uma \
+            --gekkoushi-upstream _upstream/gekkoushi \
+            --pack '${{ matrix.pack }}'
+
+      - name: Prepare Gekkoushi global shard
+        if: matrix.pack == 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/prepare_global_gekkoushi_shard.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --gekkoushi-upstream _upstream/gekkoushi \
+            --pack global
+
+      - name: Build Gekkoushi shard
+        working-directory: _upstream/gekkoushi
+        run: |
+          chmod +x gradlew
+          ./gradlew buildJar --rerun-tasks --no-daemon
+
+      - name: Finalize Gekkoushi language shard
+        if: matrix.pack != 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/finalize_pack.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --upstream _upstream/gekkoushi \
+            --pack '${{ matrix.pack }}' \
+            --output build/integration-${{ matrix.pack }}
+
+      - name: Finalize Gekkoushi global shard
+        if: matrix.pack == 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/finalize_global_shard.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --upstream _upstream/gekkoushi \
+            --output build/integration-global
+
+      - name: Finalize logical language pack
+        if: matrix.pack != 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/finalize_logical_pack.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --pack '${{ matrix.pack }}' \
+            --uma-metadata _upstream/uma/miyorare-pack.json \
+            --gekkoushi-metadata _upstream/gekkoushi/miyorare-pack.json \
+            --output build/integration-${{ matrix.pack }}
+
+      - name: Finalize logical global pack
+        if: matrix.pack == 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/finalize_global_pack.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --pack global \
+            --gekkoushi-metadata _upstream/gekkoushi/miyorare-pack.json \
+            --output build/integration-global
+
+      - name: Verify finalized pack payload
+        env:
+          PACK: ${{ matrix.pack }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          pack = os.environ['PACK']
+          root = Path(f'build/integration-{pack}')
+          manifest = root / f'miyorare-{pack}-pack.json'
+          assert manifest.is_file() and manifest.stat().st_size > 0, manifest
+          data = json.loads(manifest.read_text(encoding='utf-8'))
+          assert data.get('sourceCount', 0) > 0, data
+          jars = list(root.glob('*.jar'))
+          hashes = list(root.glob('*.jar.sha256'))
+          assert jars and hashes, (jars, hashes)
+          print(f'validated {pack}: {len(jars)} jar(s), {data["sourceCount"]} source(s)')
+          PY

@@ -1,0 +1,728 @@
+name: Miyorare Upstream Sync
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: miyorare-upstream-sync
+  cancel-in-progress: false
+
+env:
+  REGISTRY: upstream/registry.json
+
+jobs:
+  plan:
+    name: Detect upstream updates
+    runs-on: ubuntu-latest
+    outputs:
+      keiyoushi_current: ${{ steps.plan.outputs.KEIYOUSHI_CURRENT }}
+      keiyoushi_candidate: ${{ steps.plan.outputs.KEIYOUSHI_CANDIDATE }}
+      keiyoushi_changed: ${{ steps.plan.outputs.KEIYOUSHI_CHANGED }}
+      uma_current: ${{ steps.plan.outputs.UMA_CURRENT }}
+      uma_candidate: ${{ steps.plan.outputs.UMA_CANDIDATE }}
+      uma_changed: ${{ steps.plan.outputs.UMA_CHANGED }}
+      gekkoushi_current: ${{ steps.plan.outputs.GEKKOUSHI_CURRENT }}
+      gekkoushi_candidate: ${{ steps.plan.outputs.GEKKOUSHI_CANDIDATE }}
+      gekkoushi_changed: ${{ steps.plan.outputs.GEKKOUSHI_CHANGED }}
+    steps:
+      - name: Checkout sync engine
+        uses: actions/checkout@v5
+
+      - name: Validate registry
+        run: python3 tools/upstream_sync.py validate --registry "$REGISTRY"
+
+      - name: Resolve upstream heads
+        id: plan
+        run: |
+          python3 tools/upstream_sync.py plan \
+            --registry "$REGISTRY" \
+            --output upstream/sync-plan.json \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Upload sync plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-sync-plan
+          path: upstream/sync-plan.json
+          retention-days: 7
+
+  validate-keiyoushi:
+    name: Validate Keiyoushi candidate
+    needs: plan
+    if: needs.plan.outputs.keiyoushi_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sync engine
+        uses: actions/checkout@v5
+        with:
+          path: source-packs
+
+      - name: Checkout Miyorare beta
+        uses: actions/checkout@v5
+        with:
+          repository: Noirero/Miyorare
+          ref: beta
+          path: miyorare
+          fetch-depth: 1
+
+      - name: Checkout last-known-good UMA
+        uses: actions/checkout@v5
+        with:
+          repository: InvalidDavid/UMA
+          ref: ${{ needs.plan.outputs.uma_current }}
+          path: _upstream/uma
+          fetch-depth: 1
+
+      - name: Checkout Keiyoushi candidate with history
+        uses: actions/checkout@v5
+        with:
+          repository: keiyoushi/extensions-source
+          ref: ${{ needs.plan.outputs.keiyoushi_candidate }}
+          path: _upstream/keiyoushi
+          fetch-depth: 0
+
+      - name: Materialize candidate pin
+        run: |
+          python3 source-packs/tools/upstream_sync.py materialize \
+            --registry source-packs/$REGISTRY \
+            --miyorare-root miyorare \
+            --override keiyoushi=${{ needs.plan.outputs.keiyoushi_candidate }}
+
+      - name: Classify registered Keiyoushi source impact
+        run: |
+          python3 source-packs/tools/keiyoushi_intake.py \
+            --aliases miyorare/extensions/miyorare-sources/multi-upstream.json \
+            --repo _upstream/keiyoushi \
+            --base ${{ needs.plan.outputs.keiyoushi_current }} \
+            --candidate ${{ needs.plan.outputs.keiyoushi_candidate }} \
+            --output build/keiyoushi-intake.json \
+            --strict
+
+      - name: Verify canonical aliases against candidate
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/verify_multi_upstream.py \
+            --manifest miyorare/extensions/miyorare-sources/multi-upstream.json \
+            --packs miyorare/extensions/miyorare-sources/packs.json \
+            --uma _upstream/uma \
+            --keiyoushi _upstream/keiyoushi \
+            --output build/verified-multi-upstream.json
+
+      - name: Upload Keiyoushi intake report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: keiyoushi-intake-report
+          path: build/keiyoushi-intake.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  validate-uma:
+    name: Validate UMA ${{ matrix.pack }} candidate
+    needs: plan
+    if: needs.plan.outputs.uma_changed == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pack: [id, en]
+    steps:
+      - name: Checkout sync engine
+        uses: actions/checkout@v5
+        with:
+          path: source-packs
+
+      - name: Checkout Miyorare beta
+        uses: actions/checkout@v5
+        with:
+          repository: Noirero/Miyorare
+          ref: beta
+          path: miyorare
+          fetch-depth: 1
+
+      - name: Checkout UMA candidate
+        uses: actions/checkout@v5
+        with:
+          repository: InvalidDavid/UMA
+          ref: ${{ needs.plan.outputs.uma_candidate }}
+          path: _upstream/uma
+          fetch-depth: 1
+
+      - name: Materialize candidate pin
+        run: |
+          python3 source-packs/tools/upstream_sync.py materialize \
+            --registry source-packs/$REGISTRY \
+            --miyorare-root miyorare \
+            --override uma=${{ needs.plan.outputs.uma_candidate }}
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Prepare candidate shard
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/prepare_pack.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --upstream _upstream/uma \
+            --pack '${{ matrix.pack }}'
+
+      - name: Build candidate shard
+        working-directory: _upstream/uma
+        run: |
+          chmod +x gradlew
+          ./gradlew buildJar --rerun-tasks --no-daemon
+
+      - name: Finalize candidate shard
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/finalize_pack.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --upstream _upstream/uma \
+            --pack '${{ matrix.pack }}' \
+            --output build/uma-${{ matrix.pack }}
+
+  gekkoushi-overlay-guard:
+    name: Guard Miyorare Gekkoushi overlays
+    needs: plan
+    if: needs.plan.outputs.gekkoushi_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sync engine
+        uses: actions/checkout@v5
+        with:
+          path: source-packs
+
+      - name: Checkout Miyorare beta
+        uses: actions/checkout@v5
+        with:
+          repository: Noirero/Miyorare
+          ref: beta
+          path: miyorare
+          fetch-depth: 1
+
+      - name: Checkout Gekkoushi candidate with history
+        uses: actions/checkout@v5
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ needs.plan.outputs.gekkoushi_candidate }}
+          path: _upstream/gekkoushi
+          fetch-depth: 0
+
+      - name: Three-way protected overlay guard
+        run: |
+          python3 source-packs/tools/upstream_sync.py overlay-conflicts \
+            --registry source-packs/$REGISTRY \
+            --miyorare-root miyorare \
+            --upstream-repo _upstream/gekkoushi \
+            --provider gekkoushi \
+            --base ${{ needs.plan.outputs.gekkoushi_current }} \
+            --candidate ${{ needs.plan.outputs.gekkoushi_candidate }} \
+            --output build/gekkoushi-overlay-report.json
+
+      - name: Upload overlay report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gekkoushi-overlay-report
+          path: build/gekkoushi-overlay-report.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  validate-gekkoushi:
+    name: Validate Gekkoushi ${{ matrix.pack }} candidate
+    needs: [plan, gekkoushi-overlay-guard]
+    if: needs.plan.outputs.gekkoushi_changed == 'true' && needs.gekkoushi-overlay-guard.result == 'success'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pack: [id, en, global]
+    steps:
+      - name: Checkout sync engine
+        uses: actions/checkout@v5
+        with:
+          path: source-packs
+
+      - name: Checkout Miyorare beta
+        uses: actions/checkout@v5
+        with:
+          repository: Noirero/Miyorare
+          ref: beta
+          path: miyorare
+          fetch-depth: 1
+
+      - name: Checkout last-known-good UMA
+        uses: actions/checkout@v5
+        with:
+          repository: InvalidDavid/UMA
+          ref: ${{ needs.plan.outputs.uma_current }}
+          path: _upstream/uma
+          fetch-depth: 1
+
+      - name: Checkout Gekkoushi candidate
+        uses: actions/checkout@v5
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ needs.plan.outputs.gekkoushi_candidate }}
+          path: _upstream/gekkoushi
+          fetch-depth: 1
+
+      - name: Materialize candidate pin
+        run: |
+          python3 source-packs/tools/upstream_sync.py materialize \
+            --registry source-packs/$REGISTRY \
+            --miyorare-root miyorare \
+            --override gekkoushi=${{ needs.plan.outputs.gekkoushi_candidate }}
+
+      - name: Apply matching Miyorare overlays
+        env:
+          PACK: ${{ matrix.pack }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import shutil
+          from pathlib import Path
+
+          pack = os.environ['PACK']
+          root = Path('miyorare/extensions/miyorare-sources/overlays/gekkoushi')
+          if not root.is_dir():
+              raise SystemExit(0)
+          allowed = {'all'} if pack == 'global' else {pack}
+          for file in root.rglob('*.kt'):
+              rel = file.relative_to(root)
+              if not rel.parts or rel.parts[0] not in allowed:
+                  continue
+              target = Path('_upstream/gekkoushi/src/main/kotlin/tsuki/site') / rel
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(file, target)
+              print(f'overlay: {file} -> {target}')
+          PY
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Prepare language shard
+        if: matrix.pack != 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/prepare_gekkoushi_shard.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --uma-upstream _upstream/uma \
+            --gekkoushi-upstream _upstream/gekkoushi \
+            --pack '${{ matrix.pack }}'
+
+      - name: Prepare global shard
+        if: matrix.pack == 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/prepare_global_gekkoushi_shard.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --gekkoushi-upstream _upstream/gekkoushi \
+            --pack global
+
+      - name: Build candidate shard
+        working-directory: _upstream/gekkoushi
+        run: |
+          chmod +x gradlew
+          ./gradlew buildJar --rerun-tasks --no-daemon
+
+      - name: Finalize language shard
+        if: matrix.pack != 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/finalize_pack.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --upstream _upstream/gekkoushi \
+            --pack '${{ matrix.pack }}' \
+            --output build/gekkoushi-${{ matrix.pack }}
+
+      - name: Finalize global shard
+        if: matrix.pack == 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/finalize_global_shard.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --upstream _upstream/gekkoushi \
+            --output build/gekkoushi-global
+
+  integration:
+    name: Validate combined effective set (${{ matrix.pack }})
+    needs: [plan, validate-keiyoushi, validate-uma, gekkoushi-overlay-guard, validate-gekkoushi]
+    if: >-
+      always() && needs.plan.result == 'success' &&
+      (needs.plan.outputs.keiyoushi_changed == 'true' || needs.plan.outputs.uma_changed == 'true' || needs.plan.outputs.gekkoushi_changed == 'true')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pack: [id, en, global]
+    env:
+      KEI_CHANGED: ${{ needs.plan.outputs.keiyoushi_changed }}
+      KEI_RESULT: ${{ needs.validate-keiyoushi.result }}
+      UMA_CHANGED: ${{ needs.plan.outputs.uma_changed }}
+      UMA_RESULT: ${{ needs.validate-uma.result }}
+      GEK_CHANGED: ${{ needs.plan.outputs.gekkoushi_changed }}
+      GEK_GUARD_RESULT: ${{ needs.gekkoushi-overlay-guard.result }}
+      GEK_RESULT: ${{ needs.validate-gekkoushi.result }}
+    steps:
+      - name: Checkout sync engine
+        uses: actions/checkout@v5
+        with:
+          path: source-packs
+
+      - name: Resolve effective validated refs
+        id: refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          kei='${{ needs.plan.outputs.keiyoushi_current }}'
+          uma='${{ needs.plan.outputs.uma_current }}'
+          gek='${{ needs.plan.outputs.gekkoushi_current }}'
+          if [[ "$KEI_CHANGED" == "true" && "$KEI_RESULT" == "success" ]]; then kei='${{ needs.plan.outputs.keiyoushi_candidate }}'; fi
+          if [[ "$UMA_CHANGED" == "true" && "$UMA_RESULT" == "success" ]]; then uma='${{ needs.plan.outputs.uma_candidate }}'; fi
+          if [[ "$GEK_CHANGED" == "true" && "$GEK_GUARD_RESULT" == "success" && "$GEK_RESULT" == "success" ]]; then gek='${{ needs.plan.outputs.gekkoushi_candidate }}'; fi
+          echo "keiyoushi=$kei" >> "$GITHUB_OUTPUT"
+          echo "uma=$uma" >> "$GITHUB_OUTPUT"
+          echo "gekkoushi=$gek" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout Miyorare beta
+        uses: actions/checkout@v5
+        with:
+          repository: Noirero/Miyorare
+          ref: beta
+          path: miyorare
+          fetch-depth: 1
+
+      - name: Checkout effective UMA
+        uses: actions/checkout@v5
+        with:
+          repository: InvalidDavid/UMA
+          ref: ${{ steps.refs.outputs.uma }}
+          path: _upstream/uma
+          fetch-depth: 1
+
+      - name: Checkout effective Gekkoushi
+        uses: actions/checkout@v5
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ steps.refs.outputs.gekkoushi }}
+          path: _upstream/gekkoushi
+          fetch-depth: 1
+
+      - name: Checkout effective Keiyoushi
+        uses: actions/checkout@v5
+        with:
+          repository: keiyoushi/extensions-source
+          ref: ${{ steps.refs.outputs.keiyoushi }}
+          path: _upstream/keiyoushi
+          fetch-depth: 1
+
+      - name: Materialize effective pins
+        run: |
+          python3 source-packs/tools/upstream_sync.py materialize \
+            --registry source-packs/$REGISTRY \
+            --miyorare-root miyorare \
+            --override keiyoushi=${{ steps.refs.outputs.keiyoushi }} \
+            --override uma=${{ steps.refs.outputs.uma }} \
+            --override gekkoushi=${{ steps.refs.outputs.gekkoushi }}
+
+      - name: Verify canonical aliases
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/verify_multi_upstream.py \
+            --manifest miyorare/extensions/miyorare-sources/multi-upstream.json \
+            --packs miyorare/extensions/miyorare-sources/packs.json \
+            --uma _upstream/uma \
+            --keiyoushi _upstream/keiyoushi \
+            --output build/verified-multi-upstream.json
+
+      - name: Apply matching Miyorare overlays
+        env:
+          PACK: ${{ matrix.pack }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import shutil
+          from pathlib import Path
+
+          pack = os.environ['PACK']
+          root = Path('miyorare/extensions/miyorare-sources/overlays/gekkoushi')
+          if not root.is_dir():
+              raise SystemExit(0)
+          allowed = {'all'} if pack == 'global' else {pack}
+          for file in root.rglob('*.kt'):
+              rel = file.relative_to(root)
+              if not rel.parts or rel.parts[0] not in allowed:
+                  continue
+              target = Path('_upstream/gekkoushi/src/main/kotlin/tsuki/site') / rel
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(file, target)
+          PY
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Prepare UMA language shard
+        if: matrix.pack != 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/prepare_pack.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --upstream _upstream/uma \
+            --pack '${{ matrix.pack }}'
+
+      - name: Build UMA language shard
+        if: matrix.pack != 'global'
+        working-directory: _upstream/uma
+        run: |
+          chmod +x gradlew
+          ./gradlew buildJar --rerun-tasks --no-daemon
+
+      - name: Finalize UMA language shard
+        if: matrix.pack != 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/finalize_pack.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --upstream _upstream/uma \
+            --pack '${{ matrix.pack }}' \
+            --output build/integration-${{ matrix.pack }}
+
+      - name: Prepare Gekkoushi language shard
+        if: matrix.pack != 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/prepare_gekkoushi_shard.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --uma-upstream _upstream/uma \
+            --gekkoushi-upstream _upstream/gekkoushi \
+            --pack '${{ matrix.pack }}'
+
+      - name: Prepare Gekkoushi global shard
+        if: matrix.pack == 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/prepare_global_gekkoushi_shard.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --gekkoushi-upstream _upstream/gekkoushi \
+            --pack global
+
+      - name: Build Gekkoushi shard
+        working-directory: _upstream/gekkoushi
+        run: |
+          chmod +x gradlew
+          ./gradlew buildJar --rerun-tasks --no-daemon
+
+      - name: Finalize Gekkoushi language shard
+        if: matrix.pack != 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/finalize_pack.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --upstream _upstream/gekkoushi \
+            --pack '${{ matrix.pack }}' \
+            --output build/integration-${{ matrix.pack }}
+
+      - name: Finalize Gekkoushi global shard
+        if: matrix.pack == 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/finalize_global_shard.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --upstream _upstream/gekkoushi \
+            --output build/integration-global
+
+      - name: Finalize logical language pack
+        if: matrix.pack != 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/finalize_logical_pack.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --pack '${{ matrix.pack }}' \
+            --uma-metadata _upstream/uma/miyorare-pack.json \
+            --gekkoushi-metadata _upstream/gekkoushi/miyorare-pack.json \
+            --output build/integration-${{ matrix.pack }}
+
+      - name: Finalize logical global pack
+        if: matrix.pack == 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/finalize_global_pack.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --pack global \
+            --gekkoushi-metadata _upstream/gekkoushi/miyorare-pack.json \
+            --output build/integration-global
+
+  promote:
+    name: Promote passing candidates
+    needs: [plan, validate-keiyoushi, validate-uma, gekkoushi-overlay-guard, validate-gekkoushi, integration]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      KEI_CHANGED: ${{ needs.plan.outputs.keiyoushi_changed }}
+      KEI_CURRENT: ${{ needs.plan.outputs.keiyoushi_current }}
+      KEI_CANDIDATE: ${{ needs.plan.outputs.keiyoushi_candidate }}
+      KEI_RESULT: ${{ needs.validate-keiyoushi.result }}
+      UMA_CHANGED: ${{ needs.plan.outputs.uma_changed }}
+      UMA_CURRENT: ${{ needs.plan.outputs.uma_current }}
+      UMA_CANDIDATE: ${{ needs.plan.outputs.uma_candidate }}
+      UMA_RESULT: ${{ needs.validate-uma.result }}
+      GEK_CHANGED: ${{ needs.plan.outputs.gekkoushi_changed }}
+      GEK_CURRENT: ${{ needs.plan.outputs.gekkoushi_current }}
+      GEK_CANDIDATE: ${{ needs.plan.outputs.gekkoushi_candidate }}
+      GEK_GUARD_RESULT: ${{ needs.gekkoushi-overlay-guard.result }}
+      GEK_RESULT: ${{ needs.validate-gekkoushi.result }}
+      INTEGRATION_RESULT: ${{ needs.integration.result }}
+    steps:
+      - name: Checkout sync engine
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Promote only validated candidates and write fail-safe status
+        id: promote
+        shell: bash
+        run: |
+          set -euo pipefail
+          promoted=()
+
+          if [[ "$KEI_CHANGED" == "true" && "$KEI_RESULT" == "success" && "$INTEGRATION_RESULT" == "success" ]]; then
+            python3 tools/upstream_sync.py promote --registry "$REGISTRY" --provider keiyoushi --commit "$KEI_CANDIDATE"
+            promoted+=(keiyoushi)
+          fi
+          if [[ "$UMA_CHANGED" == "true" && "$UMA_RESULT" == "success" && "$INTEGRATION_RESULT" == "success" ]]; then
+            python3 tools/upstream_sync.py promote --registry "$REGISTRY" --provider uma --commit "$UMA_CANDIDATE"
+            promoted+=(uma)
+          fi
+          if [[ "$GEK_CHANGED" == "true" && "$GEK_GUARD_RESULT" == "success" && "$GEK_RESULT" == "success" && "$INTEGRATION_RESULT" == "success" ]]; then
+            python3 tools/upstream_sync.py promote --registry "$REGISTRY" --provider gekkoushi --commit "$GEK_CANDIDATE"
+            promoted+=(gekkoushi)
+          fi
+
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          registry = json.loads(Path(os.environ['REGISTRY']).read_text(encoding='utf-8'))
+
+          def provider_state(name, changed, current, candidate, validation, guard=None):
+              lkg = registry['providers'][name]['lastKnownGood']
+              if changed != 'true':
+                  return {'state': 'synced', 'lastKnownGood': lkg}
+              if lkg == candidate:
+                  return {'state': 'promoted', 'candidate': candidate, 'lastKnownGood': lkg}
+              if guard not in (None, 'success', 'skipped'):
+                  reason = 'protected-overlay-conflict'
+              elif validation not in ('success',):
+                  reason = 'compatibility-or-build-validation-failure'
+              elif os.environ['INTEGRATION_RESULT'] != 'success':
+                  reason = 'combined-integration-validation-failure'
+              else:
+                  reason = 'promotion-not-authorized'
+              return {
+                  'state': 'held',
+                  'candidate': candidate,
+                  'lastKnownGood': current,
+                  'reason': reason,
+              }
+
+          status = {
+              'schema': 1,
+              'providers': {
+                  'keiyoushi': provider_state('keiyoushi', os.environ['KEI_CHANGED'], os.environ['KEI_CURRENT'], os.environ['KEI_CANDIDATE'], os.environ['KEI_RESULT']),
+                  'uma': provider_state('uma', os.environ['UMA_CHANGED'], os.environ['UMA_CURRENT'], os.environ['UMA_CANDIDATE'], os.environ['UMA_RESULT']),
+                  'gekkoushi': provider_state('gekkoushi', os.environ['GEK_CHANGED'], os.environ['GEK_CURRENT'], os.environ['GEK_CANDIDATE'], os.environ['GEK_RESULT'], os.environ['GEK_GUARD_RESULT']),
+              },
+          }
+          Path('upstream/status.json').write_text(json.dumps(status, indent=2) + '\n', encoding='utf-8')
+          PY
+
+          if ((${#promoted[@]})); then
+            echo "promoted=true" >> "$GITHUB_OUTPUT"
+            printf 'providers=%s\n' "$(IFS=,; echo "${promoted[*]}")" >> "$GITHUB_OUTPUT"
+          else
+            echo "promoted=false" >> "$GITHUB_OUTPUT"
+            echo "providers=" >> "$GITHUB_OUTPUT"
+          fi
+
+          if git diff --quiet -- upstream/registry.json upstream/status.json; then
+            echo "state_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "state_changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit registry or held-status advancement
+        if: steps.promote.outputs.state_changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add upstream/registry.json upstream/status.json
+          if [[ "${{ steps.promote.outputs.promoted }}" == "true" ]]; then
+            git commit -m "Promote validated upstream updates: ${{ steps.promote.outputs.providers }}"
+          else
+            git commit -m "Record held upstream update candidates"
+          fi
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Determine next immutable source-pack version
+        if: steps.promote.outputs.promoted == 'true' && github.ref_name == github.event.repository.default_branch
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          next_version="$(python3 - <<'PY'
+          import json
+          import re
+          import subprocess
+
+          raw = subprocess.check_output(
+              ['gh', 'release', 'list', '--limit', '100', '--json', 'tagName'],
+              text=True,
+          )
+          versions = []
+          for item in json.loads(raw):
+              match = re.fullmatch(r'miyorare-sources-v(\d+)\.(\d+)\.(\d+)', item['tagName'])
+              if match:
+                  versions.append(tuple(map(int, match.groups())))
+          if not versions:
+              print('0.1.0')
+          else:
+              major, minor, patch = max(versions)
+              print(f'{major}.{minor}.{patch + 1}')
+          PY
+          )"
+          echo "version=$next_version" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch immutable Source Pack release
+        if: steps.promote.outputs.promoted == 'true' && github.ref_name == github.event.repository.default_branch
+        run: |
+          gh workflow run release-source-packs.yml \
+            --ref "$GITHUB_REF_NAME" \
+            -f version="${{ steps.version.outputs.version }}"
