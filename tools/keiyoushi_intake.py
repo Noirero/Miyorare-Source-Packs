@@ -3,8 +3,8 @@
 
 Keiyoushi and UMA/Tsuki use different source APIs, so Kotlin implementation changes are never treated
 as automatically portable merely because both implementations represent the same website. Reusable
-semantic adapters may explicitly claim narrow supported change classes (currently domain/baseUrl).
-Everything else stays fail-closed.
+semantic adapters may explicitly cover narrow change classes such as domain/baseUrl migration and
+literal-only parser updates. Everything structural or shared-runtime stays fail-closed.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
+KOTLIN_STRING_RE = re.compile(r'"((?:\\.|[^"\\])*)"')
 SHARED_PREFIXES = (
     "lib-multisrc/",
     "core/",
@@ -146,6 +147,58 @@ def build_gradle_kind(diff: str) -> str:
     return "build-definition-change"
 
 
+def normalize_kotlin_line(line: str) -> str:
+    return KOTLIN_STRING_RE.sub('"<STR>"', line.strip())
+
+
+def kotlin_change_kind(diff: str) -> str:
+    """Classify a Kotlin diff as literal-only when code structure is unchanged in every hunk."""
+    removed: list[str] = []
+    added: list[str] = []
+    saw_literal_change = False
+    unsupported = False
+
+    def flush() -> None:
+        nonlocal saw_literal_change, unsupported
+        if not removed and not added:
+            return
+        if len(removed) != len(added):
+            unsupported = True
+            removed.clear()
+            added.clear()
+            return
+        for old_line, new_line in zip(removed, added):
+            old_literals = KOTLIN_STRING_RE.findall(old_line)
+            new_literals = KOTLIN_STRING_RE.findall(new_line)
+            if normalize_kotlin_line(old_line) != normalize_kotlin_line(new_line):
+                unsupported = True
+                continue
+            if len(old_literals) != len(new_literals):
+                unsupported = True
+                continue
+            if any(old != new for old, new in zip(old_literals, new_literals)):
+                saw_literal_change = True
+            else:
+                unsupported = True
+        removed.clear()
+        added.clear()
+
+    for line in diff.splitlines():
+        if line.startswith("@@"):
+            flush()
+        elif line.startswith("---") or line.startswith("+++"):
+            continue
+        elif line.startswith("-"):
+            removed.append(line[1:])
+        elif line.startswith("+"):
+            added.append(line[1:])
+        else:
+            flush()
+    flush()
+
+    return "literal-semantic-change" if saw_literal_change and not unsupported else "parser-code-change"
+
+
 def classify_module(repo: Path, base: str, candidate: str, module: str, paths: list[str], shared_changed: bool) -> dict[str, Any]:
     module_prefix = module.rstrip("/") + "/"
     own = [path for path in paths if path == module or path.startswith(module_prefix)]
@@ -156,7 +209,7 @@ def classify_module(repo: Path, base: str, candidate: str, module: str, paths: l
         if path.endswith("build.gradle.kts"):
             kind = build_gradle_kind(diff_for_path(repo, base, candidate, path))
         elif path.endswith(".kt"):
-            kind = "parser-code-change"
+            kind = kotlin_change_kind(diff_for_path(repo, base, candidate, path))
         elif any(part in path for part in METADATA_PATH_PARTS) or path.endswith((".png", ".webp", ".jpg", ".jpeg", ".xml")):
             kind = "metadata-resource-change"
         else:
@@ -173,7 +226,12 @@ def classify_module(repo: Path, base: str, candidate: str, module: str, paths: l
     elif classes <= {"metadata-only", "metadata-resource-change"}:
         state = "metadata-only"
         action = "validate-only"
-    elif classes <= {"metadata-only", "metadata-resource-change", "semantic-config-change"}:
+    elif classes <= {
+        "metadata-only",
+        "metadata-resource-change",
+        "semantic-config-change",
+        "literal-semantic-change",
+    }:
         state = "semantic-adapter-candidate"
         action = "adapter-required"
     else:
@@ -197,9 +255,16 @@ def adapter_coverage(path: Path | None) -> dict[str, set[str]]:
         if not isinstance(item, dict):
             continue
         canonical = item.get("canonicalId")
-        change_class = item.get("changeClass")
-        if isinstance(canonical, str) and isinstance(change_class, str):
-            result.setdefault(canonical, set()).add(change_class)
+        if not isinstance(canonical, str):
+            continue
+        change_classes = item.get("changeClasses", [])
+        if isinstance(change_classes, list):
+            for change_class in change_classes:
+                if isinstance(change_class, str):
+                    result.setdefault(canonical, set()).add(change_class)
+        legacy_class = item.get("changeClass")
+        if isinstance(legacy_class, str):
+            result.setdefault(canonical, set()).add(legacy_class)
     return result
 
 
@@ -209,17 +274,26 @@ def apply_adapter_coverage(canonical: str | None, result: dict[str, Any], covera
     classes = set(result.get("changeClasses", []))
     supported = coverage[canonical]
 
-    # The current domain adapter covers semantic-config changes only when the adapter report explicitly
-    # recorded a domain/baseUrl rewrite for this canonical source. Parser/shared-runtime changes remain held.
-    if "domain-base-url" in supported and classes <= {
+    required: set[str] = set()
+    unsupported_classes = classes - {
         "metadata-only",
         "metadata-resource-change",
         "semantic-config-change",
-    }:
-        result = dict(result)
-        result["state"] = "adapted"
-        result["action"] = "validate-adapter-output"
-        result["adapterCoverage"] = sorted(supported)
+        "literal-semantic-change",
+    }
+    if unsupported_classes:
+        return result
+    if "semantic-config-change" in classes:
+        required.add("domain-base-url")
+    if "literal-semantic-change" in classes:
+        required.add("literal-semantic")
+    if not required.issubset(supported):
+        return result
+
+    result = dict(result)
+    result["state"] = "adapted" if required else result["state"]
+    result["action"] = "validate-adapter-output" if required else result["action"]
+    result["adapterCoverage"] = sorted(supported)
     return result
 
 
@@ -256,7 +330,7 @@ def analyze(
     affected = [item for item in sources if item["state"] != "unaffected"]
     blocking = [item for item in affected if item["action"] in ("adapter-required", "hold-unless-reusable-adapter-supports-change")]
     return {
-        "schema": 2,
+        "schema": 3,
         "provider": "keiyoushi",
         "base": base,
         "candidate": candidate,
