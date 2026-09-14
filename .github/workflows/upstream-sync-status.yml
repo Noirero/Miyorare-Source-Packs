@@ -116,6 +116,7 @@ jobs:
                   }
 
               if provider == 'keiyoushi':
+                  entry['semanticBase'] = provider_registry['semanticBase']
                   entry['semanticAdapters'] = list(provider_registry.get('semanticAdapters', []))
                   if kei_report:
                       affected = []
