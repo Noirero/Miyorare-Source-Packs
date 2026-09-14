@@ -44,19 +44,23 @@ An upstream change is never published directly. If validation fails, the current
 
 Provider policies intentionally differ:
 
-- **Keiyoushi** — registered canonical source modules are classified per source before promotion. Metadata-only changes can pass validation. The first reusable semantic adapter supports deterministic **domain/baseUrl changes** by safely rewriting the matching temporary UMA host literal and temporary canonical-domain verification metadata before build/test. Parser-code, selector/API logic, login/auth, or shared-runtime changes remain held until a reusable adapter explicitly supports them.
+- **Keiyoushi** — registered canonical source modules are classified per source before promotion. Metadata-only changes can pass validation. Reusable cross-runtime semantic adapters currently cover deterministic **domain/baseUrl migration** and narrow **literal-semantic changes** where the surrounding Kotlin structure is unchanged and an old string literal maps uniquely to the corresponding UMA source. This is intended for safe cases such as selector, endpoint/path, and header/media-value changes that can be proven as one-to-one literal substitutions. Ambiguous literals, structural parser changes, login/auth changes, WebView/challenge changes, and shared-runtime/library changes remain held unless a reusable adapter explicitly supports them.
 - **UMA** — candidate revisions must build the curated ID/EN shards successfully through the existing Miyorare compatibility layer.
 - **Gekkoushi** — protected Miyorare overlays use a per-target reconciliation base. If upstream changes a protected target such as an overridden parser, that source remains on the Miyorare overlay and is reported as held, while unrelated safe Gekkoushi changes may continue through build/integration and promotion.
 
 Miyorare-specific behavior is protected from upstream overwrite, including canonical source identity, legacy download aliases, provider migration rules, E-Hentai EN↔Global compatibility, Miyorare metadata, authentication adaptations, and Miyorare-specific capabilities.
 
-The synchronization registry lives in `upstream/registry.json`. It stores each provider's last-known-good revision and policy. Protected overlay targets may additionally keep their own `overlayBases`, so a provider revision can advance without erasing the unresolved history of a source whose Miyorare overlay diverged from upstream. Reusable Keiyoushi semantic capabilities are also declared in the registry so support is explicit and auditable.
+The synchronization registry lives in `upstream/registry.json`. It stores each provider's last-known-good revision and policy. Protected Gekkoushi targets may additionally keep independent `overlayBases`. Keiyoushi keeps a separate `semanticBase`, allowing the provider's last-known-good revision to advance while releases can continue reproducing already-validated Miyorare semantic adaptations until the Miyorare/UMA baseline is intentionally reconciled.
+
+Reusable Keiyoushi semantic capabilities are declared explicitly in the registry. Unsupported or unknown adapter names are rejected by registry validation rather than silently enabled.
 
 `tools/upstream_sync.py` performs registry validation, upstream planning, reproducible pin materialization, reusable semantic-adapter invocation, per-target overlay conflict tracking, provider promotion, and explicit overlay-base reconciliation after manual review.
 
 `tools/keiyoushi_intake.py` classifies registered Keiyoushi changes per canonical source/module. It is intentionally conservative because Keiyoushi `KeiSource` code and UMA/Tsuki parser code use different runtime APIs; source-code changes are not assumed portable merely because they target the same website.
 
-`tools/keiyoushi_semantic_adapter.py` currently implements the first narrow cross-runtime adapter: verified domain/baseUrl migration. It only rewrites an UMA source when the old registered host is present as a clear string literal (or the new host is already present). Ambiguous dynamic-domain code is blocked. Adapter output is also written beside the disposable UMA checkout so Miyorare pack staging can embed exact `semanticAdapters` provenance in the shard metadata/JAR.
+`tools/keiyoushi_semantic_adapter.py` applies only explicitly supported semantic transformations to disposable CI/release checkouts. It does not copy arbitrary Keiyoushi Kotlin into UMA/Tsuki. The `domain-base-url` adapter requires a clear host mapping. The `literal-semantic` adapter requires unchanged surrounding code structure plus a unique, non-protected old literal in the matching UMA source. Generic, duplicated, protected, or structurally ambiguous changes fail closed.
+
+Adapter output is written beside the disposable UMA checkout. Miyorare pack staging embeds the adapter name, capabilities, semantic base/candidate revisions, affected canonical source, and sanitized change details in `semanticAdapters` provenance inside the shard metadata/JAR.
 
 `.github/workflows/upstream-sync.yml` is the main automation pipeline. Failed candidates are held instead of replacing working revisions. Successful candidates can be promoted and, on the production/default branch, can dispatch a new immutable Source Pack release.
 
@@ -94,9 +98,17 @@ It does **not** blindly transpile arbitrary Keiyoushi Android extension Kotlin i
 
 The auto-sync engine is staged on the Source Packs `beta` branch first. The scheduled workflow only becomes production-authoritative after this branch is reviewed and promoted to the repository default branch. Until then, `main` continues to use the existing release path and validated pins.
 
-Before production activation, the beta PR must keep passing static/unit tests, real last-known-good UMA/Keiyoushi semantic-adapter smoke validation, canonical alias verification, and workflow syntax validation. A failed check is a release blocker, not a reason to bypass the gate.
+Before production activation, the beta PR must pass:
 
-This staging rule prevents an unfinished adapter or workflow change from silently becoming a production updater.
+- sync-helper compilation and unit tests;
+- registry/status contract validation;
+- workflow YAML validation;
+- real last-known-good UMA + Keiyoushi semantic-adapter smoke validation;
+- canonical multi-upstream verification;
+- full build/finalization of **Miyorare-ID, Miyorare-EN, and Miyorare-Global** using the validated pins;
+- finalized logical-pack payload verification, including non-empty source manifests, JAR assets, and SHA-256 sidecars.
+
+A failed check is a release blocker, not a reason to bypass the gate. This staging rule prevents an unfinished adapter or workflow change from silently becoming a production updater.
 
 ## 🔗 Upstream & Attribution
 
@@ -131,7 +143,7 @@ Release tags use the following format:
 
 Use **Actions → Miyorare Source Pack Release → Run workflow** and provide the new Source Pack version when a manual release is required.
 
-The release workflow reads validated last-known-good upstream revisions from the Source Pack registry, builds the curated packs from the Miyorare `beta` source definition, verifies the output, and publishes an immutable versioned release here.
+The release workflow reads validated last-known-good upstream revisions from the Source Pack registry, materializes the same compatibility/semantic-adapter rules used by validation, builds the curated packs from the Miyorare `beta` source definition, verifies the output, and publishes an immutable versioned release here.
 
 Published releases are treated as immutable. An existing Source Pack version is not overwritten; changes are published as a new version.
 
