@@ -1,21 +1,10 @@
 #!/usr/bin/env python3
 """Miyorare Source Pack upstream synchronization helpers.
 
-This tool deliberately separates *detection* from *promotion*:
-
-- ``plan`` resolves the current branch head for every registered provider.
-- ``materialize`` writes last-known-good pins into a checked-out Miyorare beta
-  manifest before a build/test. This keeps release builds reproducible without
-  hard-coding provider SHAs in the workflow.
-- ``overlay-conflicts`` performs the conservative Gekkoushi three-way guard:
-  if upstream changed a file that is also protected by a Miyorare overlay, the
-  candidate is held for manual review instead of being published.
-- ``promote`` advances a provider's base/last-known-good only after CI has
-  completed the provider-specific compatibility/build tests.
-
-It is intentionally provider-generic so future sources inherit the same policy
-through their provider/manifest onboarding instead of receiving one-off updater
-code.
+The sync engine separates upstream detection, compatibility materialization, overlay conflict tracking,
+and promotion. Provider-wide revisions can advance only after CI validation, while protected Miyorare
+overlays keep their own reconciliation base so one conflicting source does not force unrelated sources
+to remain on an old provider revision.
 """
 
 from __future__ import annotations
@@ -112,6 +101,18 @@ def validate_registry(registry: dict[str, Any]) -> None:
         targets = provider.get("protectedOverlayTargets", [])
         if not isinstance(targets, list) or not all(isinstance(item, str) and item for item in targets):
             fail(f"provider {name}.protectedOverlayTargets must be a string list")
+
+        overlay_bases = provider.get("overlayBases", {})
+        if not isinstance(overlay_bases, dict):
+            fail(f"provider {name}.overlayBases must be an object")
+        unknown_bases = sorted(set(overlay_bases) - set(targets))
+        if unknown_bases:
+            fail(f"provider {name}.overlayBases contains unknown protected target(s): {', '.join(unknown_bases)}")
+        for target, sha in overlay_bases.items():
+            if not isinstance(target, str) or not target:
+                fail(f"provider {name}.overlayBases has an invalid target")
+            if not isinstance(sha, str) or not HEX40.fullmatch(sha):
+                fail(f"provider {name}.overlayBases[{target!r}] must be a 40-character git SHA")
 
 
 def remote_head(repository: str, branch: str) -> str:
@@ -223,16 +224,26 @@ def parse_overrides(values: list[str]) -> dict[str, str]:
     return overrides
 
 
-def git_changed_files(repo: Path, base: str, candidate: str) -> set[str]:
+def ensure_git_commits(repo: Path, *commits: str) -> None:
+    for commit in commits:
+        if not HEX40.fullmatch(commit):
+            fail(f"invalid git SHA: {commit!r}")
     try:
         subprocess.run(
-            ["git", "-C", str(repo), "fetch", "--no-tags", "origin", base, candidate],
+            ["git", "-C", str(repo), "fetch", "--no-tags", "origin", *commits],
             check=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             text=True,
             timeout=120,
         )
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        fail(f"could not fetch upstream commits in {repo}: {exc}")
+
+
+def git_changed_files(repo: Path, base: str, candidate: str) -> set[str]:
+    ensure_git_commits(repo, base, candidate)
+    try:
         out = subprocess.check_output(
             ["git", "-C", str(repo), "diff", "--name-only", f"{base}..{candidate}"],
             text=True,
@@ -242,6 +253,25 @@ def git_changed_files(repo: Path, base: str, candidate: str) -> set[str]:
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
         fail(f"could not compare upstream commits in {repo}: {exc}")
     return {line.strip() for line in out.splitlines() if line.strip()}
+
+
+def git_path_changed(repo: Path, base: str, candidate: str, path: str) -> bool:
+    ensure_git_commits(repo, base, candidate)
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(repo), "diff", "--quiet", f"{base}..{candidate}", "--", path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        fail(f"could not compare protected target {path} in {repo}: {exc}")
+    if completed.returncode == 0:
+        return False
+    if completed.returncode == 1:
+        return True
+    fail(f"git diff failed for protected target {path}: {completed.stderr.strip()}")
 
 
 def overlay_targets(registry: dict[str, Any], miyorare_root: Path, provider_name: str) -> set[str]:
@@ -263,6 +293,7 @@ def check_overlay_conflicts(
     base: str,
     candidate: str,
     output: Path | None,
+    strict: bool,
 ) -> None:
     validate_registry(registry)
     provider = registry_providers(registry).get(provider_name)
@@ -270,23 +301,43 @@ def check_overlay_conflicts(
         fail(f"unknown provider {provider_name}")
     if provider["policy"] != "three-way-overlay":
         fail(f"overlay conflict check is only valid for three-way-overlay providers, got {provider['policy']}")
+
     changed = git_changed_files(upstream_repo, base, candidate)
     protected = overlay_targets(registry, miyorare_root, provider_name)
-    conflicts = sorted(changed & protected)
+    overlay_bases = provider.get("overlayBases", {})
+    conflicts: list[str] = []
+    conflict_details: list[dict[str, str]] = []
+
+    for target in sorted(protected):
+        target_base = overlay_bases.get(target, base)
+        if git_path_changed(upstream_repo, target_base, candidate, target):
+            conflicts.append(target)
+            conflict_details.append(
+                {
+                    "target": target,
+                    "overlayBase": target_base,
+                    "candidate": candidate,
+                    "state": "held-by-miyorare-overlay",
+                }
+            )
+
     report = {
-        "schema": 1,
+        "schema": 2,
         "provider": provider_name,
         "base": base,
         "candidate": candidate,
         "changedFileCount": len(changed),
         "protectedTargets": sorted(protected),
         "conflicts": conflicts,
-        "state": "hold" if conflicts else "clear",
+        "conflictDetails": conflict_details,
+        "state": "partial-hold" if conflicts else "clear",
+        "providerMayAdvance": True,
     }
     if output:
         save_json(output, report)
     print(json.dumps(report, indent=2))
-    if conflicts:
+
+    if strict and conflicts:
         fail(
             "candidate touches protected Miyorare overlay target(s): " + ", ".join(conflicts),
             code=3,
@@ -304,6 +355,24 @@ def promote(registry_path: Path, provider_name: str, commit: str) -> None:
     provider = providers[provider_name]
     provider["upstreamBase"] = commit
     provider["lastKnownGood"] = commit
+    save_json(registry_path, registry)
+
+
+def promote_overlay_base(registry_path: Path, provider_name: str, target: str, commit: str) -> None:
+    registry = load_json(registry_path)
+    validate_registry(registry)
+    providers = registry_providers(registry)
+    provider = providers.get(provider_name)
+    if provider is None:
+        fail(f"unknown provider {provider_name}")
+    if provider["policy"] != "three-way-overlay":
+        fail("overlay base promotion is only valid for three-way-overlay providers")
+    targets = set(provider.get("protectedOverlayTargets", []))
+    if target not in targets:
+        fail(f"target is not registered as protected overlay: {target}")
+    if not HEX40.fullmatch(commit):
+        fail("overlay base promotion commit must be a 40-character git SHA")
+    provider.setdefault("overlayBases", {})[target] = commit
     save_json(registry_path, registry)
 
 
@@ -332,11 +401,18 @@ def main() -> None:
     p_conflicts.add_argument("--base", required=True)
     p_conflicts.add_argument("--candidate", required=True)
     p_conflicts.add_argument("--output", type=Path)
+    p_conflicts.add_argument("--strict", action="store_true")
 
     p_promote = sub.add_parser("promote")
     p_promote.add_argument("--registry", type=Path, required=True)
     p_promote.add_argument("--provider", required=True)
     p_promote.add_argument("--commit", required=True)
+
+    p_promote_overlay = sub.add_parser("promote-overlay-base")
+    p_promote_overlay.add_argument("--registry", type=Path, required=True)
+    p_promote_overlay.add_argument("--provider", required=True)
+    p_promote_overlay.add_argument("--target", required=True)
+    p_promote_overlay.add_argument("--commit", required=True)
 
     args = parser.parse_args()
     registry_path = args.registry.resolve()
@@ -365,9 +441,12 @@ def main() -> None:
             base=args.base,
             candidate=args.candidate,
             output=args.output.resolve() if args.output else None,
+            strict=args.strict,
         )
     elif args.command == "promote":
         promote(registry_path, args.provider, args.commit.lower())
+    elif args.command == "promote-overlay-base":
+        promote_overlay_base(registry_path, args.provider, args.target, args.commit.lower())
     else:
         fail(f"unsupported command {args.command}")
 
