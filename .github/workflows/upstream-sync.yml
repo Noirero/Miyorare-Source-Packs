@@ -326,6 +326,14 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
+      - name: Prepare UMA metadata for Gekkoushi language shard
+        if: matrix.pack != 'global'
+        run: |
+          python3 miyorare/extensions/miyorare-sources/tools/prepare_pack.py \
+            --manifest miyorare/extensions/miyorare-sources/packs.json \
+            --upstream _upstream/uma \
+            --pack '${{ matrix.pack }}'
+
       - name: Prepare language shard
         if: matrix.pack != 'global'
         run: |
