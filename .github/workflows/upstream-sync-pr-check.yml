@@ -7,7 +7,10 @@ on:
     paths:
       - 'upstream/**'
       - 'tools/upstream_sync.py'
+      - 'tools/keiyoushi_intake.py'
+      - 'tests/**'
       - '.github/workflows/upstream-sync.yml'
+      - '.github/workflows/upstream-sync-status.yml'
       - '.github/workflows/upstream-sync-pr-check.yml'
       - '.github/workflows/release-source-packs.yml'
       - 'README.md'
@@ -27,8 +30,13 @@ jobs:
       - name: Checkout pull request
         uses: actions/checkout@v5
 
-      - name: Compile sync helper
-        run: python3 -m py_compile tools/upstream_sync.py
+      - name: Compile sync helpers
+        run: |
+          python3 -m py_compile tools/upstream_sync.py
+          python3 -m py_compile tools/keiyoushi_intake.py
+
+      - name: Run sync helper unit tests
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
 
       - name: Validate upstream registry
         run: python3 tools/upstream_sync.py validate --registry upstream/registry.json
