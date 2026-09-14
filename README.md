@@ -94,6 +94,8 @@ It does **not** blindly transpile arbitrary Keiyoushi Android extension Kotlin i
 
 The auto-sync engine is staged on the Source Packs `beta` branch first. The scheduled workflow only becomes production-authoritative after this branch is reviewed and promoted to the repository default branch. Until then, `main` continues to use the existing release path and validated pins.
 
+Before production activation, the beta PR must keep passing static/unit tests, real last-known-good UMA/Keiyoushi semantic-adapter smoke validation, canonical alias verification, and workflow syntax validation. A failed check is a release blocker, not a reason to bypass the gate.
+
 This staging rule prevents an unfinished adapter or workflow change from silently becoming a production updater.
 
 ## 🔗 Upstream & Attribution
