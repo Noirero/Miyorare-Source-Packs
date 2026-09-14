@@ -31,27 +31,34 @@ jobs:
           ref: ${{ env.HEAD_BRANCH }}
           fetch-depth: 0
 
-      - name: Download immutable sync plan
+      - name: Download sync diagnostics
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p _sync-plan
+          mkdir -p _sync-plan _diagnostics/keiyoushi _diagnostics/gekkoushi
           gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name upstream-sync-plan --dir _sync-plan
           test -f _sync-plan/sync-plan.json
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name keiyoushi-intake-report --dir _diagnostics/keiyoushi || true
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name gekkoushi-overlay-report --dir _diagnostics/gekkoushi || true
 
-      - name: Resolve final provider status
+      - name: Resolve final provider and source status
         shell: bash
         run: |
           set -euo pipefail
           gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs > _sync-plan/jobs.json
           python3 - <<'PY'
           import json
+          import os
           from pathlib import Path
 
           plan = json.loads(Path('_sync-plan/sync-plan.json').read_text(encoding='utf-8'))
           jobs = json.loads(Path('_sync-plan/jobs.json').read_text(encoding='utf-8')).get('jobs', [])
-          registry_path = Path('upstream/registry.json')
-          registry = json.loads(registry_path.read_text(encoding='utf-8'))
+          registry = json.loads(Path('upstream/registry.json').read_text(encoding='utf-8'))
+
+          kei_report_path = Path('_diagnostics/keiyoushi/keiyoushi-intake.json')
+          gek_report_path = Path('_diagnostics/gekkoushi/gekkoushi-overlay-report.json')
+          kei_report = json.loads(kei_report_path.read_text(encoding='utf-8')) if kei_report_path.is_file() else None
+          gek_report = json.loads(gek_report_path.read_text(encoding='utf-8')) if gek_report_path.is_file() else None
 
           conclusions = {job.get('name', ''): job.get('conclusion') for job in jobs}
 
@@ -67,51 +74,79 @@ jobs:
                   return 'success'
               return values[0]
 
-          result = {'schema': 1, 'workflowRunId': int(__import__('os').environ['RUN_ID']), 'providers': {}}
+          result = {
+              'schema': 2,
+              'workflowRunId': int(os.environ['RUN_ID']),
+              'providers': {},
+          }
+
           for provider, candidate_info in plan['providers'].items():
               current = registry['providers'][provider]['lastKnownGood']
               candidate = candidate_info['candidate']
               changed = bool(candidate_info['changed'])
 
               if not changed:
-                  result['providers'][provider] = {
+                  entry = {
                       'state': 'synced',
                       'lastKnownGood': current,
                   }
-                  continue
-
-              if candidate == current:
-                  result['providers'][provider] = {
+              elif candidate == current:
+                  entry = {
                       'state': 'promoted',
                       'candidate': candidate,
                       'lastKnownGood': current,
                   }
-                  continue
-
-              if provider == 'gekkoushi':
-                  guard = find('Guard Miyorare Gekkoushi overlays')
-                  validation = find('Validate Gekkoushi ')
-                  if guard not in (None, 'success', 'skipped'):
-                      reason = 'protected-overlay-conflict'
-                  elif validation not in (None, 'success', 'skipped'):
-                      reason = 'compatibility-or-build-validation-failure'
-                  else:
-                      reason = 'integration-or-promotion-failure'
-              elif provider == 'keiyoushi':
-                  validation = find('Validate Keiyoushi candidate')
-                  reason = 'compatibility-validation-failure' if validation not in (None, 'success', 'skipped') else 'integration-or-promotion-failure'
               else:
-                  validation = find('Validate UMA ')
-                  reason = 'compatibility-or-build-validation-failure' if validation not in (None, 'success', 'skipped') else 'integration-or-promotion-failure'
+                  if provider == 'gekkoushi':
+                      guard = find('Guard Miyorare Gekkoushi overlays')
+                      validation = find('Validate Gekkoushi ')
+                      if guard not in (None, 'success', 'skipped'):
+                          reason = 'protected-overlay-conflict'
+                      elif validation not in (None, 'success', 'skipped'):
+                          reason = 'compatibility-or-build-validation-failure'
+                      else:
+                          reason = 'integration-or-promotion-failure'
+                  elif provider == 'keiyoushi':
+                      validation = find('Validate Keiyoushi candidate')
+                      reason = 'compatibility-or-intake-validation-failure' if validation not in (None, 'success', 'skipped') else 'integration-or-promotion-failure'
+                  else:
+                      validation = find('Validate UMA ')
+                      reason = 'compatibility-or-build-validation-failure' if validation not in (None, 'success', 'skipped') else 'integration-or-promotion-failure'
 
-              result['providers'][provider] = {
-                  'state': 'held',
-                  'candidate': candidate,
-                  'lastKnownGood': current,
-                  'reason': reason,
-              }
+                  entry = {
+                      'state': 'held',
+                      'candidate': candidate,
+                      'lastKnownGood': current,
+                      'reason': reason,
+                  }
 
-          Path('upstream/status.json').write_text(json.dumps(result, indent=2) + '\n', encoding='utf-8')
+              if provider == 'keiyoushi' and kei_report:
+                  affected = []
+                  for source in kei_report.get('sources', []):
+                      if source.get('state') == 'unaffected':
+                          continue
+                      affected.append({
+                          'canonicalId': source.get('canonicalId'),
+                          'pack': source.get('pack'),
+                          'sourceName': source.get('officialSourceName'),
+                          'module': source.get('keiyoushiModule'),
+                          'state': source.get('state'),
+                          'action': source.get('action'),
+                          'changeClasses': source.get('changeClasses', []),
+                          'changedFiles': [item.get('path') for item in source.get('files', [])],
+                      })
+                  entry['sourceStatus'] = affected
+                  entry['sharedRuntimeFiles'] = kei_report.get('sharedRuntimeFiles', [])
+                  entry['affectedSourceCount'] = kei_report.get('affectedSourceCount', len(affected))
+                  entry['blockingSourceCount'] = kei_report.get('blockingSourceCount', 0)
+
+              if provider == 'gekkoushi' and gek_report:
+                  entry['overlayConflicts'] = gek_report.get('conflicts', [])
+                  entry['protectedOverlayTargets'] = gek_report.get('protectedTargets', [])
+
+              result['providers'][provider] = entry
+
+          Path('upstream/status.json').write_text(json.dumps(result, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
           PY
 
       - name: Commit status even when every candidate is held
@@ -125,5 +160,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add upstream/status.json
-          git commit -m "Record upstream sync held/promoted status"
+          git commit -m "Record upstream sync provider/source status"
           git push origin "HEAD:${HEAD_BRANCH}"
