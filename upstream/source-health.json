@@ -122,9 +122,9 @@
       "canonicalId": null,
       "probeHost": "azcomix.me",
       "activeCommit": "9aa770b7cb699c6385f574f13710990e17ef5517",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
-      "recoveryState": "IDLE",
+      "runtimeHealth": "BROKEN",
+      "consecutiveFailures": 3,
+      "recoveryState": "ADAPTING_LATEST",
       "healthyHistory": [
         "9aa770b7cb699c6385f574f13710990e17ef5517"
       ],
@@ -132,7 +132,8 @@
         "url": "https://azcomix.me/",
         "detail": "URLError"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "hard-failure",
+      "lastRecoveryDispatchToken": "gekkoushi:en:COMICEXTRA|REFRESH_UPSTREAM|REFRESH_UPSTREAM|9aa770b7cb699c6385f574f13710990e17ef5517"
     },
     "gekkoushi:en:COMIX": {
       "sourceKey": "gekkoushi:en:COMIX",
@@ -296,19 +297,19 @@
       "sourceName": "Hentalk",
       "path": "src/main/kotlin/tsuki/site/en/Hentalk.kt",
       "canonicalId": null,
-      "probeHost": "$domain",
+      "probeHost": "hentalk.pw",
       "activeCommit": "9aa770b7cb699c6385f574f13710990e17ef5517",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
+      "runtimeHealth": "HEALTHY",
+      "consecutiveFailures": 0,
       "recoveryState": "IDLE",
       "healthyHistory": [
         "9aa770b7cb699c6385f574f13710990e17ef5517"
       ],
       "lastProbe": {
-        "url": "https://$domain/",
-        "detail": "URLError"
+        "httpStatus": 200,
+        "url": "https://hentalk.pw/"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "reachable"
     },
     "gekkoushi:en:HEYTOON": {
       "sourceKey": "gekkoushi:en:HEYTOON",
@@ -320,9 +321,9 @@
       "canonicalId": null,
       "probeHost": "heytoon.net",
       "activeCommit": "9aa770b7cb699c6385f574f13710990e17ef5517",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
-      "recoveryState": "IDLE",
+      "runtimeHealth": "BROKEN",
+      "consecutiveFailures": 3,
+      "recoveryState": "ADAPTING_LATEST",
       "healthyHistory": [
         "9aa770b7cb699c6385f574f13710990e17ef5517"
       ],
@@ -330,7 +331,8 @@
         "url": "https://heytoon.net/",
         "detail": "URLError"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "hard-failure",
+      "lastRecoveryDispatchToken": "gekkoushi:en:HEYTOON|REFRESH_UPSTREAM|REFRESH_UPSTREAM|9aa770b7cb699c6385f574f13710990e17ef5517"
     },
     "gekkoushi:en:KDTSCANS": {
       "sourceKey": "gekkoushi:en:KDTSCANS",
@@ -586,9 +588,9 @@
       "canonicalId": null,
       "probeHost": "manhwas.men",
       "activeCommit": "9aa770b7cb699c6385f574f13710990e17ef5517",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
-      "recoveryState": "IDLE",
+      "runtimeHealth": "BROKEN",
+      "consecutiveFailures": 3,
+      "recoveryState": "ADAPTING_LATEST",
       "healthyHistory": [
         "9aa770b7cb699c6385f574f13710990e17ef5517"
       ],
@@ -596,7 +598,8 @@
         "url": "https://manhwas.men/",
         "detail": "URLError"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "hard-failure",
+      "lastRecoveryDispatchToken": "gekkoushi:en:MANHWASMEN|REFRESH_UPSTREAM|REFRESH_UPSTREAM|9aa770b7cb699c6385f574f13710990e17ef5517"
     },
     "gekkoushi:en:MYCOMICLIST": {
       "sourceKey": "gekkoushi:en:MYCOMICLIST",
@@ -631,9 +634,9 @@
       "canonicalId": null,
       "probeHost": "po2scans.com",
       "activeCommit": "9aa770b7cb699c6385f574f13710990e17ef5517",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
-      "recoveryState": "IDLE",
+      "runtimeHealth": "BROKEN",
+      "consecutiveFailures": 3,
+      "recoveryState": "ADAPTING_LATEST",
       "healthyHistory": [
         "9aa770b7cb699c6385f574f13710990e17ef5517"
       ],
@@ -641,7 +644,8 @@
         "url": "https://po2scans.com/",
         "detail": "URLError"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "hard-failure",
+      "lastRecoveryDispatchToken": "gekkoushi:en:PO2SCANS|REFRESH_UPSTREAM|REFRESH_UPSTREAM|9aa770b7cb699c6385f574f13710990e17ef5517"
     },
     "gekkoushi:en:PURURIN": {
       "sourceKey": "gekkoushi:en:PURURIN",
@@ -653,9 +657,9 @@
       "canonicalId": null,
       "probeHost": "pururin.to",
       "activeCommit": "9aa770b7cb699c6385f574f13710990e17ef5517",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
-      "recoveryState": "IDLE",
+      "runtimeHealth": "BROKEN",
+      "consecutiveFailures": 3,
+      "recoveryState": "ADAPTING_LATEST",
       "healthyHistory": [
         "9aa770b7cb699c6385f574f13710990e17ef5517"
       ],
@@ -663,7 +667,8 @@
         "url": "https://pururin.to/",
         "detail": "URLError"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "hard-failure",
+      "lastRecoveryDispatchToken": "gekkoushi:en:PURURIN|REFRESH_UPSTREAM|REFRESH_UPSTREAM|9aa770b7cb699c6385f574f13710990e17ef5517"
     },
     "gekkoushi:en:READONEPIECE": {
       "sourceKey": "gekkoushi:en:READONEPIECE",
@@ -785,9 +790,9 @@
       "canonicalId": null,
       "probeHost": "table.itg",
       "activeCommit": "9aa770b7cb699c6385f574f13710990e17ef5517",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
-      "recoveryState": "IDLE",
+      "runtimeHealth": "BROKEN",
+      "consecutiveFailures": 3,
+      "recoveryState": "ADAPTING_LATEST",
       "healthyHistory": [
         "9aa770b7cb699c6385f574f13710990e17ef5517"
       ],
@@ -795,7 +800,8 @@
         "url": "https://table.itg/",
         "detail": "URLError"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "hard-failure",
+      "lastRecoveryDispatchToken": "gekkoushi:global:EXHENTAI|REFRESH_UPSTREAM|REFRESH_UPSTREAM|9aa770b7cb699c6385f574f13710990e17ef5517"
     },
     "gekkoushi:global:GELBOORU": {
       "sourceKey": "gekkoushi:global:GELBOORU",
@@ -829,9 +835,9 @@
       "canonicalId": null,
       "probeHost": "astralscans.top",
       "activeCommit": "9aa770b7cb699c6385f574f13710990e17ef5517",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
-      "recoveryState": "IDLE",
+      "runtimeHealth": "BROKEN",
+      "consecutiveFailures": 3,
+      "recoveryState": "ADAPTING_LATEST",
       "healthyHistory": [
         "9aa770b7cb699c6385f574f13710990e17ef5517"
       ],
@@ -839,7 +845,8 @@
         "url": "https://astralscans.top/",
         "detail": "URLError"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "hard-failure",
+      "lastRecoveryDispatchToken": "gekkoushi:id:ASTRAL_SCANS|REFRESH_UPSTREAM|REFRESH_UPSTREAM|9aa770b7cb699c6385f574f13710990e17ef5517"
     },
     "gekkoushi:id:CROTPEDIA": {
       "sourceKey": "gekkoushi:id:CROTPEDIA",
@@ -873,9 +880,9 @@
       "canonicalId": null,
       "probeHost": "dailysuka.com",
       "activeCommit": "9aa770b7cb699c6385f574f13710990e17ef5517",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
-      "recoveryState": "IDLE",
+      "runtimeHealth": "BROKEN",
+      "consecutiveFailures": 3,
+      "recoveryState": "ADAPTING_LATEST",
       "healthyHistory": [
         "9aa770b7cb699c6385f574f13710990e17ef5517"
       ],
@@ -883,7 +890,8 @@
         "url": "https://dailysuka.com/",
         "detail": "URLError"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "hard-failure",
+      "lastRecoveryDispatchToken": "gekkoushi:id:DAILYSUKA|REFRESH_UPSTREAM|REFRESH_UPSTREAM|9aa770b7cb699c6385f574f13710990e17ef5517"
     },
     "gekkoushi:id:DOUJINDESU": {
       "sourceKey": "gekkoushi:id:DOUJINDESU",
@@ -1006,9 +1014,9 @@
       "canonicalId": null,
       "probeHost": "v2.komikcast.fit",
       "activeCommit": "9aa770b7cb699c6385f574f13710990e17ef5517",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
-      "recoveryState": "IDLE",
+      "runtimeHealth": "BROKEN",
+      "consecutiveFailures": 3,
+      "recoveryState": "ADAPTING_LATEST",
       "healthyHistory": [
         "9aa770b7cb699c6385f574f13710990e17ef5517"
       ],
@@ -1016,7 +1024,8 @@
         "url": "https://v2.komikcast.fit/",
         "detail": "URLError"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "hard-failure",
+      "lastRecoveryDispatchToken": "gekkoushi:id:KOMIKCAST|REFRESH_UPSTREAM|REFRESH_UPSTREAM|9aa770b7cb699c6385f574f13710990e17ef5517"
     },
     "gekkoushi:id:KOMIKNESIA": {
       "sourceKey": "gekkoushi:id:KOMIKNESIA",
@@ -1057,8 +1066,9 @@
         "9aa770b7cb699c6385f574f13710990e17ef5517"
       ],
       "lastProbe": {
-        "httpStatus": 200,
-        "url": "https://komiknextgonline.com/"
+        "httpStatus": 403,
+        "url": "https://komiknextgonline.com/",
+        "detail": "http-403"
       },
       "probeOutcome": "reachable"
     },
@@ -1360,17 +1370,17 @@
       "canonicalId": null,
       "probeHost": "ryukomik.my.id",
       "activeCommit": "9aa770b7cb699c6385f574f13710990e17ef5517",
-      "runtimeHealth": "HEALTHY",
-      "consecutiveFailures": 0,
+      "runtimeHealth": "DEGRADED",
+      "consecutiveFailures": 1,
       "recoveryState": "IDLE",
       "healthyHistory": [
         "9aa770b7cb699c6385f574f13710990e17ef5517"
       ],
       "lastProbe": {
-        "httpStatus": 200,
-        "url": "https://ryukomik.my.id/"
+        "url": "https://ryukomik.my.id/",
+        "detail": "TimeoutError"
       },
-      "probeOutcome": "reachable"
+      "probeOutcome": "hard-failure"
     },
     "gekkoushi:id:SHINIGAMI": {
       "sourceKey": "gekkoushi:id:SHINIGAMI",
@@ -1939,9 +1949,9 @@
       "canonicalId": null,
       "probeHost": "heytoon.net",
       "activeCommit": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
-      "recoveryState": "IDLE",
+      "runtimeHealth": "BROKEN",
+      "consecutiveFailures": 3,
+      "recoveryState": "ADAPTING_LATEST",
       "healthyHistory": [
         "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
       ],
@@ -1949,7 +1959,8 @@
         "url": "https://heytoon.net/",
         "detail": "URLError"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "hard-failure",
+      "lastRecoveryDispatchToken": "uma:en:HEYTOON|REFRESH_UPSTREAM|REFRESH_UPSTREAM|a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
     },
     "uma:en:HIPERDEX": {
       "sourceKey": "uma:en:HIPERDEX",
@@ -1981,19 +1992,19 @@
       "sourceName": "HiveToons",
       "path": "src/main/kotlin/tsuki/site/en/HiveToons.kt",
       "canonicalId": null,
-      "probeHost": "$domain",
+      "probeHost": "hivetoons.org",
       "activeCommit": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
+      "runtimeHealth": "HEALTHY",
+      "consecutiveFailures": 0,
       "recoveryState": "IDLE",
       "healthyHistory": [
         "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
       ],
       "lastProbe": {
-        "url": "https://$domain/",
-        "detail": "URLError"
+        "httpStatus": 200,
+        "url": "https://hivetoons.org/"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "reachable"
     },
     "uma:en:KALISCAN": {
       "sourceKey": "uma:en:KALISCAN",
@@ -2311,19 +2322,19 @@
       "sourceName": "MangaGeko",
       "path": "src/main/kotlin/tsuki/site/en/MangaGeko.kt",
       "canonicalId": null,
-      "probeHost": "$domain",
+      "probeHost": "www.mgeko.cc",
       "activeCommit": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
+      "runtimeHealth": "HEALTHY",
+      "consecutiveFailures": 0,
       "recoveryState": "IDLE",
       "healthyHistory": [
         "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
       ],
       "lastProbe": {
-        "url": "https://$domain/",
-        "detail": "URLError"
+        "httpStatus": 200,
+        "url": "https://www.mgeko.cc/"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "reachable"
     },
     "uma:en:MANGANATOGG": {
       "sourceKey": "uma:en:MANGANATOGG",
@@ -2534,17 +2545,17 @@
       "canonicalId": null,
       "probeHost": "manhwanex.com",
       "activeCommit": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
-      "runtimeHealth": "HEALTHY",
-      "consecutiveFailures": 0,
+      "runtimeHealth": "DEGRADED",
+      "consecutiveFailures": 1,
       "recoveryState": "IDLE",
       "healthyHistory": [
         "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
       ],
       "lastProbe": {
-        "httpStatus": 200,
-        "url": "https://manhwanex.com/"
+        "url": "https://manhwanex.com/",
+        "detail": "URLError"
       },
-      "probeOutcome": "reachable"
+      "probeOutcome": "hard-failure"
     },
     "uma:en:MANHWAREAD": {
       "sourceKey": "uma:en:MANHWAREAD",
@@ -2554,19 +2565,20 @@
       "sourceName": "ManhwaRead",
       "path": "src/main/kotlin/tsuki/site/en/nsfw/ManhwaRead.kt",
       "canonicalId": null,
-      "probeHost": "$domain",
+      "probeHost": "manhwaread.com",
       "activeCommit": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
+      "runtimeHealth": "HEALTHY",
+      "consecutiveFailures": 0,
       "recoveryState": "IDLE",
       "healthyHistory": [
         "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
       ],
       "lastProbe": {
-        "url": "https://$domain/",
-        "detail": "URLError"
+        "httpStatus": 403,
+        "url": "https://manhwaread.com/",
+        "detail": "http-403"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "reachable"
     },
     "uma:en:MANHWATOP": {
       "sourceKey": "uma:en:MANHWATOP",
@@ -2600,9 +2612,9 @@
       "canonicalId": null,
       "probeHost": "manhwaz.com",
       "activeCommit": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
-      "recoveryState": "IDLE",
+      "runtimeHealth": "BROKEN",
+      "consecutiveFailures": 3,
+      "recoveryState": "ADAPTING_LATEST",
       "healthyHistory": [
         "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
       ],
@@ -2610,7 +2622,8 @@
         "url": "https://manhwaz.com/",
         "detail": "URLError"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "hard-failure",
+      "lastRecoveryDispatchToken": "uma:en:MANHWAZ|REFRESH_UPSTREAM|REFRESH_UPSTREAM|a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
     },
     "uma:en:MGREADIO": {
       "sourceKey": "uma:en:MGREADIO",
@@ -2664,19 +2677,19 @@
       "sourceName": "Mist Scans",
       "path": "src/main/kotlin/tsuki/site/en/MistScans.kt",
       "canonicalId": null,
-      "probeHost": "$domain",
+      "probeHost": "mistscans.com",
       "activeCommit": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
+      "runtimeHealth": "HEALTHY",
+      "consecutiveFailures": 0,
       "recoveryState": "IDLE",
       "healthyHistory": [
         "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
       ],
       "lastProbe": {
-        "url": "https://$domain/",
-        "detail": "URLError"
+        "httpStatus": 200,
+        "url": "https://mistscans.com/"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "reachable"
     },
     "uma:en:NOVELCROW": {
       "sourceKey": "uma:en:NOVELCROW",
@@ -2931,19 +2944,19 @@
       "sourceName": "Vortex Scans",
       "path": "src/main/kotlin/tsuki/site/en/VortexScans.kt",
       "canonicalId": null,
-      "probeHost": "$domain",
+      "probeHost": "vortexscans.org",
       "activeCommit": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
+      "runtimeHealth": "HEALTHY",
+      "consecutiveFailures": 0,
       "recoveryState": "IDLE",
       "healthyHistory": [
         "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
       ],
       "lastProbe": {
-        "url": "https://$domain/",
-        "detail": "URLError"
+        "httpStatus": 200,
+        "url": "https://vortexscans.org/"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "reachable"
     },
     "uma:en:VYMANGA": {
       "sourceKey": "uma:en:VYMANGA",
@@ -3065,19 +3078,19 @@
       "sourceName": "Alawale",
       "path": "src/main/kotlin/tsuki/site/id/Alawale.kt",
       "canonicalId": null,
-      "probeHost": "$domain",
+      "probeHost": "alawale.net",
       "activeCommit": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
+      "runtimeHealth": "HEALTHY",
+      "consecutiveFailures": 0,
       "recoveryState": "IDLE",
       "healthyHistory": [
         "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
       ],
       "lastProbe": {
-        "url": "https://$domain/",
-        "detail": "URLError"
+        "httpStatus": 200,
+        "url": "https://alawale.net/"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "reachable"
     },
     "uma:id:APKOMIK": {
       "sourceKey": "uma:id:APKOMIK",
@@ -3372,19 +3385,19 @@
       "sourceName": "LumosKomik",
       "path": "src/main/kotlin/tsuki/site/id/LumosKomik.kt",
       "canonicalId": null,
-      "probeHost": "$domain",
+      "probeHost": "03.lumosgg.com",
       "activeCommit": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
-      "runtimeHealth": "DEGRADED",
-      "consecutiveFailures": 2,
+      "runtimeHealth": "HEALTHY",
+      "consecutiveFailures": 0,
       "recoveryState": "IDLE",
       "healthyHistory": [
         "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
       ],
       "lastProbe": {
-        "url": "https://$domain/",
-        "detail": "URLError"
+        "httpStatus": 200,
+        "url": "https://03.lumosgg.com/"
       },
-      "probeOutcome": "hard-failure"
+      "probeOutcome": "reachable"
     },
     "uma:id:MANGASUSUKU": {
       "sourceKey": "uma:id:MANGASUSUKU",
