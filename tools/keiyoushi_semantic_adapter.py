@@ -22,6 +22,7 @@ from typing import Any, NoReturn
 from urllib.parse import urlparse
 
 BASE_URL_RE = re.compile(r'(?m)^\s*baseUrl\s*=\s*"([^"]+)"')
+PROVENANCE_FILE = "miyorare-semantic-adapter.json"
 
 
 def fail(message: str, code: int = 1) -> NoReturn:
@@ -193,6 +194,10 @@ def apply_domain_adapters(
         "blocked": blocked,
         "state": "blocked" if blocked else "clear",
     }
+
+    # Keep a copy beside the disposable UMA checkout so the existing Miyorare pack preparation
+    # code can embed exact semantic-adapter provenance in the generated shard metadata/JAR.
+    save_json(uma_root / PROVENANCE_FILE, report)
     if output:
         save_json(output, report)
     return report
