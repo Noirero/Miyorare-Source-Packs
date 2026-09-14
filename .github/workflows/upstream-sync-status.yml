@@ -98,14 +98,8 @@ jobs:
                   }
               else:
                   if provider == 'gekkoushi':
-                      guard = find('Guard Miyorare Gekkoushi overlays')
                       validation = find('Validate Gekkoushi ')
-                      if guard not in (None, 'success', 'skipped'):
-                          reason = 'protected-overlay-conflict'
-                      elif validation not in (None, 'success', 'skipped'):
-                          reason = 'compatibility-or-build-validation-failure'
-                      else:
-                          reason = 'integration-or-promotion-failure'
+                      reason = 'compatibility-or-build-validation-failure' if validation not in (None, 'success', 'skipped') else 'integration-or-promotion-failure'
                   elif provider == 'keiyoushi':
                       validation = find('Validate Keiyoushi candidate')
                       reason = 'compatibility-or-intake-validation-failure' if validation not in (None, 'success', 'skipped') else 'integration-or-promotion-failure'
@@ -141,8 +135,13 @@ jobs:
                   entry['blockingSourceCount'] = kei_report.get('blockingSourceCount', 0)
 
               if provider == 'gekkoushi' and gek_report:
-                  entry['overlayConflicts'] = gek_report.get('conflicts', [])
+                  conflicts = gek_report.get('conflicts', [])
+                  entry['overlayConflicts'] = conflicts
+                  entry['overlayConflictDetails'] = gek_report.get('conflictDetails', [])
                   entry['protectedOverlayTargets'] = gek_report.get('protectedTargets', [])
+                  if conflicts and entry['state'] == 'promoted':
+                      entry['state'] = 'promoted-with-held-sources'
+                      entry['heldSourceReason'] = 'protected-miyorare-overlay-diverged-from-upstream'
 
               result['providers'][provider] = entry
 
