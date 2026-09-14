@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Guard per-source runtime probes against dynamic/interpolated host false positives.
+"""Guard per-source runtime probes against unsafe probe targets and weak evidence.
 
 Kotlin parsers sometimes build URLs with strings such as ``https://$domain`` while the
 real host is declared through ``ConfigKey.Domain``. Such runtime expressions must never
 accumulate hard-failure counts. This guard resolves a static ConfigKey.Domain host when
-possible; otherwise it resets the source to UNKNOWN/no-probe-target rather than BROKEN.
+possible; otherwise it resets the source to UNKNOWN/no-probe-target.
+
+A root-level HTTP probe is also only a reachability signal. Even after repeated failures,
+it may not declare a source BROKEN by itself because CDN policy, geo blocking, DNS, or a
+GitHub-hosted runner can differ from real app runtime. Network-only failures stay DEGRADED
+until a stronger parser/runtime check confirms the source is broken.
 """
 
 from __future__ import annotations
@@ -71,6 +76,23 @@ def resolve_from_source(root: Path | None, relative_path: str | None) -> str | N
     return None
 
 
+def downgrade_unconfirmed_network_breaks(state: dict[str, Any]) -> list[str]:
+    """Keep root/network-only failures at DEGRADED until runtime evidence confirms BROKEN."""
+    downgraded: list[str] = []
+    for key, source in state.get("sources", {}).items():
+        if source.get("runtimeHealth") != "BROKEN":
+            continue
+        if source.get("runtimeConfirmedBroken") is True:
+            continue
+        if source.get("probeOutcome") != "hard-failure":
+            continue
+        source["runtimeHealth"] = "DEGRADED"
+        source["recoveryState"] = "AWAITING_RUNTIME_CONFIRMATION"
+        source["networkFailureStreak"] = int(source.get("consecutiveFailures", 0) or 0)
+        downgraded.append(key)
+    return downgraded
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-health", type=Path, required=True)
@@ -121,13 +143,19 @@ def main() -> None:
         source.pop("lastProbe", None)
         corrections.append({"sourceKey": key, "oldHost": host, "newHost": None, "action": "quarantine-invalid-probe-target"})
 
+    downgraded = downgrade_unconfirmed_network_breaks(state)
     summary = runtime.provider_summary(state)
     queue = runtime.build_recovery_queue(state, status)
     runtime.validate_state(state, queue)
     save_json(args.source_health, state)
     save_json(args.provider_summary, summary)
     save_json(args.recovery_queue, queue)
-    print(json.dumps({"schema": 1, "corrections": corrections, "providerSummary": summary}, indent=2))
+    print(json.dumps({
+        "schema": 1,
+        "corrections": corrections,
+        "networkOnlyBrokenDowngraded": downgraded,
+        "providerSummary": summary,
+    }, indent=2))
 
 
 if __name__ == "__main__":
