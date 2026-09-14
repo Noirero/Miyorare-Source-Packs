@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Miyorare Source Pack upstream synchronization helpers.
 
-The sync engine separates upstream detection, compatibility materialization, overlay conflict tracking,
-and promotion. Provider-wide revisions can advance only after CI validation, while protected Miyorare
-overlays keep their own reconciliation base so one conflicting source does not force unrelated sources
-to remain on an old provider revision.
+The sync engine separates upstream detection, compatibility materialization, semantic adaptation,
+overlay conflict tracking, and promotion. Provider-wide revisions can advance only after CI validation,
+while semantic/overlay reconciliation bases remain independent so releases can reproduce Miyorare
+adaptations until the corresponding baseline is intentionally reconciled.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from typing import Any, NoReturn
 
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 SUPPORTED_POLICIES = {"adapt-validate", "compatibility-layer", "three-way-overlay"}
+SUPPORTED_SEMANTIC_ADAPTERS = {"domain-base-url", "literal-semantic"}
 
 
 def fail(message: str, code: int = 1) -> NoReturn:
@@ -98,6 +99,21 @@ def validate_registry(registry: dict[str, Any]) -> None:
         if provider.get("autoPromote") is not True:
             fail(f"provider {name}.autoPromote must stay true")
 
+        semantic_adapters = provider.get("semanticAdapters", [])
+        if not isinstance(semantic_adapters, list) or not all(isinstance(item, str) and item for item in semantic_adapters):
+            fail(f"provider {name}.semanticAdapters must be a string list")
+        if len(semantic_adapters) != len(set(semantic_adapters)):
+            fail(f"provider {name}.semanticAdapters contains duplicates")
+        unknown_adapters = sorted(set(semantic_adapters) - SUPPORTED_SEMANTIC_ADAPTERS)
+        if unknown_adapters:
+            fail(f"provider {name} has unsupported semantic adapter(s): {', '.join(unknown_adapters)}")
+        if provider["policy"] == "adapt-validate":
+            semantic_base = provider.get("semanticBase")
+            if not isinstance(semantic_base, str) or not HEX40.fullmatch(semantic_base):
+                fail(f"provider {name}.semanticBase must be a 40-character git SHA")
+            if not semantic_adapters:
+                fail(f"provider {name} must declare at least one semantic adapter")
+
         targets = provider.get("protectedOverlayTargets", [])
         if not isinstance(targets, list) or not all(isinstance(item, str) and item for item in targets):
             fail(f"provider {name}.protectedOverlayTargets must be a string list")
@@ -140,7 +156,7 @@ def make_plan(registry: dict[str, Any]) -> dict[str, Any]:
     for name, provider in registry_providers(registry).items():
         candidate = remote_head(provider["repository"], provider["branch"])
         current = provider["lastKnownGood"]
-        providers_out[name] = {
+        item = {
             "repository": provider["repository"],
             "branch": provider["branch"],
             "policy": provider["policy"],
@@ -150,6 +166,10 @@ def make_plan(registry: dict[str, Any]) -> dict[str, Any]:
             "changed": candidate != current,
             "state": "candidate" if candidate != current else "synced",
         }
+        if provider["policy"] == "adapt-validate":
+            item["semanticBase"] = provider["semanticBase"]
+            item["semanticAdapters"] = list(provider.get("semanticAdapters", []))
+        providers_out[name] = item
     return {"schema": 1, "providers": providers_out}
 
 
@@ -215,14 +235,18 @@ def apply_registry_pins(
     uma_root = Path("_upstream/uma")
     keiyoushi_root = Path("_upstream/keiyoushi")
     if uma_root.is_dir() and keiyoushi_root.is_dir():
-        from keiyoushi_semantic_adapter import apply_domain_adapters
+        from keiyoushi_semantic_adapter import apply_semantic_adapters
 
+        kei = providers["keiyoushi"]
         report_path = Path("build/keiyoushi-semantic-adapter.json")
-        report = apply_domain_adapters(
+        report = apply_semantic_adapters(
             aliases_path=aliases_path,
             keiyoushi_root=keiyoushi_root,
             uma_root=uma_root,
             output=report_path,
+            base=kei["semanticBase"],
+            candidate=pins["keiyoushi"],
+            capabilities=set(kei.get("semanticAdapters", [])),
         )
         if report.get("blocked"):
             fail(
@@ -380,6 +404,21 @@ def promote(registry_path: Path, provider_name: str, commit: str) -> None:
     save_json(registry_path, registry)
 
 
+def promote_semantic_base(registry_path: Path, provider_name: str, commit: str) -> None:
+    registry = load_json(registry_path)
+    validate_registry(registry)
+    providers = registry_providers(registry)
+    provider = providers.get(provider_name)
+    if provider is None:
+        fail(f"unknown provider {provider_name}")
+    if provider["policy"] != "adapt-validate":
+        fail("semantic base promotion is only valid for adapt-validate providers")
+    if not HEX40.fullmatch(commit):
+        fail("semantic base promotion commit must be a 40-character git SHA")
+    provider["semanticBase"] = commit
+    save_json(registry_path, registry)
+
+
 def promote_overlay_base(registry_path: Path, provider_name: str, target: str, commit: str) -> None:
     registry = load_json(registry_path)
     validate_registry(registry)
@@ -430,6 +469,11 @@ def main() -> None:
     p_promote.add_argument("--provider", required=True)
     p_promote.add_argument("--commit", required=True)
 
+    p_promote_semantic = sub.add_parser("promote-semantic-base")
+    p_promote_semantic.add_argument("--registry", type=Path, required=True)
+    p_promote_semantic.add_argument("--provider", required=True)
+    p_promote_semantic.add_argument("--commit", required=True)
+
     p_promote_overlay = sub.add_parser("promote-overlay-base")
     p_promote_overlay.add_argument("--registry", type=Path, required=True)
     p_promote_overlay.add_argument("--provider", required=True)
@@ -467,6 +511,8 @@ def main() -> None:
         )
     elif args.command == "promote":
         promote(registry_path, args.provider, args.commit.lower())
+    elif args.command == "promote-semantic-base":
+        promote_semantic_base(registry_path, args.provider, args.commit.lower())
     elif args.command == "promote-overlay-base":
         promote_overlay_base(registry_path, args.provider, args.target, args.commit.lower())
     else:
