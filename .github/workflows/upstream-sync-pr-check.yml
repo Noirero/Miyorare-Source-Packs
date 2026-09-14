@@ -46,13 +46,23 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
+
+          registry = json.loads(Path('upstream/registry.json').read_text(encoding='utf-8'))
           status = json.loads(Path('upstream/status.json').read_text(encoding='utf-8'))
           assert status['schema'] == 2
           assert set(status['providers']) == {'keiyoushi', 'uma', 'gekkoushi'}
-          assert isinstance(status['providers']['keiyoushi'].get('sourceStatus'), list)
-          assert 'domain-base-url' in status['providers']['keiyoushi'].get('semanticAdapters', [])
+
+          registry_adapters = registry['providers']['keiyoushi'].get('semanticAdapters')
+          assert isinstance(registry_adapters, list) and registry_adapters
+          assert len(registry_adapters) == len(set(registry_adapters))
+          assert all(isinstance(item, str) and item for item in registry_adapters)
+          assert registry_adapters == ['domain-base-url'], registry_adapters
+
+          kei_status = status['providers']['keiyoushi']
+          assert isinstance(kei_status.get('sourceStatus'), list)
+          assert kei_status.get('semanticAdapters') == registry_adapters
           assert isinstance(status['providers']['gekkoushi'].get('overlayConflicts'), list)
-          print('upstream status schema is valid')
+          print('upstream registry/status capability schema is valid')
           PY
 
       - name: Validate workflow YAML syntax
@@ -69,6 +79,7 @@ jobs:
         run: |
           set -euo pipefail
           git clone --depth 1 --branch beta https://github.com/Noirero/Miyorare.git _miyorare
+          python3 -m py_compile _miyorare/extensions/miyorare-sources/tools/prepare_pack.py
           python3 tools/upstream_sync.py materialize \
             --registry upstream/registry.json \
             --miyorare-root _miyorare
