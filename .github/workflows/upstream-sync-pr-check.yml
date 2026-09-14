@@ -85,3 +85,39 @@ jobs:
           assert aliases['upstreams']['keiyoushi']['commit'] == providers['keiyoushi']['lastKnownGood']
           print('materialized last-known-good pins match registry')
           PY
+
+      - name: Smoke test semantic adapter and canonical verifier on last-known-good upstreams
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          providers = json.loads(Path('upstream/registry.json').read_text())['providers']
+          print(f"UMA_SHA={providers['uma']['lastKnownGood']}")
+          print(f"KEI_SHA={providers['keiyoushi']['lastKnownGood']}")
+          PY
+          )"
+
+          mkdir -p _upstream
+          git init _upstream/uma
+          git -C _upstream/uma remote add origin https://github.com/InvalidDavid/UMA.git
+          git -C _upstream/uma fetch --depth 1 origin "$UMA_SHA"
+          git -C _upstream/uma checkout --detach FETCH_HEAD
+
+          git init _upstream/keiyoushi
+          git -C _upstream/keiyoushi remote add origin https://github.com/keiyoushi/extensions-source.git
+          git -C _upstream/keiyoushi fetch --depth 1 origin "$KEI_SHA"
+          git -C _upstream/keiyoushi checkout --detach FETCH_HEAD
+
+          python3 tools/upstream_sync.py materialize \
+            --registry upstream/registry.json \
+            --miyorare-root _miyorare
+
+          test -f build/keiyoushi-semantic-adapter.json
+          python3 _miyorare/extensions/miyorare-sources/tools/verify_multi_upstream.py \
+            --manifest _miyorare/extensions/miyorare-sources/multi-upstream.json \
+            --packs _miyorare/extensions/miyorare-sources/packs.json \
+            --uma _upstream/uma \
+            --keiyoushi _upstream/keiyoushi \
+            --output build/pr-verified-multi-upstream.json
