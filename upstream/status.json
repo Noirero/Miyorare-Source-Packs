@@ -1,112 +1,11 @@
 {
-  "schema": 2,
-  "workflowRunId": 34878733438,
+  "schema": 1,
   "providers": {
     "keiyoushi": {
       "state": "held",
       "candidate": "8652f11f03a2f925e3b9ed303a4035c64a11a1c1",
       "lastKnownGood": "2025891752e4705effc28e87a043f7205014cde3",
-      "reason": "compatibility-or-intake-validation-failure",
-      "semanticBase": "2025891752e4705effc28e87a043f7205014cde3",
-      "semanticAdapters": [
-        "domain-base-url",
-        "literal-semantic"
-      ],
-      "sourceStatus": [
-        {
-          "canonicalId": "miyorare:miyorare-id:BACAMI",
-          "pack": "id",
-          "sourceName": "BACAMI",
-          "module": "src/id/bacami",
-          "state": "review-required",
-          "action": "hold-unless-reusable-adapter-supports-change",
-          "changeClasses": [
-            "shared-runtime-change"
-          ],
-          "adapterCoverage": [],
-          "changedFiles": []
-        },
-        {
-          "canonicalId": "miyorare:miyorare-id:KIRYUU",
-          "pack": "id",
-          "sourceName": "KIRYUU",
-          "module": "src/id/kiryuu",
-          "state": "review-required",
-          "action": "hold-unless-reusable-adapter-supports-change",
-          "changeClasses": [
-            "shared-runtime-change"
-          ],
-          "adapterCoverage": [],
-          "changedFiles": []
-        },
-        {
-          "canonicalId": "miyorare:miyorare-id:KOMIKU",
-          "pack": "id",
-          "sourceName": "KOMIKU",
-          "module": "src/id/komiku",
-          "state": "review-required",
-          "action": "hold-unless-reusable-adapter-supports-change",
-          "changeClasses": [
-            "build-definition-change",
-            "parser-code-change",
-            "shared-runtime-change"
-          ],
-          "adapterCoverage": [],
-          "changedFiles": [
-            "src/id/komiku/build.gradle.kts",
-            "src/id/komiku/src/eu/kanade/tachiyomi/extension/id/komiku/Komiku.kt"
-          ]
-        },
-        {
-          "canonicalId": "miyorare:miyorare-en:ASURASCANS",
-          "pack": "en",
-          "sourceName": "ASURASCANS",
-          "module": "src/en/asurascans",
-          "state": "review-required",
-          "action": "hold-unless-reusable-adapter-supports-change",
-          "changeClasses": [
-            "shared-runtime-change"
-          ],
-          "adapterCoverage": [],
-          "changedFiles": []
-        },
-        {
-          "canonicalId": "miyorare:miyorare-en:AQUAMANGA",
-          "pack": "en",
-          "sourceName": "AQUAMANGA",
-          "module": "src/en/aquamanga",
-          "state": "review-required",
-          "action": "hold-unless-reusable-adapter-supports-change",
-          "changeClasses": [
-            "shared-runtime-change"
-          ],
-          "adapterCoverage": [],
-          "changedFiles": []
-        },
-        {
-          "canonicalId": "miyorare:miyorare-en:BATCAVE",
-          "pack": "en",
-          "sourceName": "BATCAVE",
-          "module": "src/en/batcave",
-          "state": "review-required",
-          "action": "hold-unless-reusable-adapter-supports-change",
-          "changeClasses": [
-            "shared-runtime-change"
-          ],
-          "adapterCoverage": [],
-          "changedFiles": []
-        }
-      ],
-      "sharedRuntimeFiles": [
-        "core/src/main/kotlin/keiyoushi/utils/SeedRandom.kt",
-        "lib-multisrc/inkstory/build.gradle.kts",
-        "lib-multisrc/inkstory/src/eu/kanade/tachiyomi/multisrc/inkstory/Dto.kt",
-        "lib-multisrc/inkstory/src/eu/kanade/tachiyomi/multisrc/inkstory/InkStory.kt",
-        "lib-multisrc/natsuid/build.gradle.kts",
-        "lib-multisrc/natsuid/src/eu/kanade/tachiyomi/multisrc/natsuid/Dto.kt"
-      ],
-      "affectedSourceCount": 6,
-      "blockingSourceCount": 6
+      "reason": "compatibility-or-build-validation-failure"
     },
     "uma": {
       "state": "synced",
