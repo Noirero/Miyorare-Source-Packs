@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - beta
+    paths-ignore:
+      - upstream/status.json
+      - upstream/runtime-health.json
+      - upstream/source-health.json
+      - upstream/recovery-queue.json
   workflow_dispatch:
     inputs:
       provider:
@@ -33,6 +38,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: miyorare-runtime-health-beta
@@ -40,9 +46,11 @@ concurrency:
 
 jobs:
   reconcile:
-    name: Reconcile update and runtime health state
+    name: Reconcile per-source runtime health and recovery
     if: github.ref_name == 'beta'
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout beta
         uses: actions/checkout@v5
@@ -50,14 +58,14 @@ jobs:
           ref: beta
           fetch-depth: 0
 
-      - name: Reconcile persistent runtime health
+      - name: Reconcile persistent provider runtime health
         run: |
           python3 tools/runtime_health.py sync \
             --registry upstream/registry.json \
             --status upstream/status.json \
             --health-store upstream/runtime-health.json
 
-      - name: Record requested runtime health
+      - name: Record requested provider runtime health
         if: github.event_name == 'workflow_dispatch' && inputs.provider != 'none'
         env:
           PROVIDER: ${{ inputs.provider }}
@@ -77,26 +85,181 @@ jobs:
           fi
           python3 tools/runtime_health.py "${args[@]}"
 
-      - name: Validate state machine
+      - name: Resolve active provider commits
+        id: refs
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          status = json.loads(Path('upstream/status.json').read_text(encoding='utf-8'))
+          registry = json.loads(Path('upstream/registry.json').read_text(encoding='utf-8'))
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+              for provider in ('keiyoushi', 'uma', 'gekkoushi'):
+                  current = status.get('providers', {}).get(provider, {}).get('activeCommit')
+                  if not current:
+                      current = registry['providers'][provider]['lastKnownGood']
+                  fh.write(f'{provider}={current}\n')
+          PY
+
+      - name: Checkout Miyorare beta
+        uses: actions/checkout@v5
+        with:
+          repository: Noirero/Miyorare
+          ref: beta
+          path: miyorare
+          fetch-depth: 1
+
+      - name: Checkout active UMA
+        uses: actions/checkout@v5
+        with:
+          repository: InvalidDavid/UMA
+          ref: ${{ steps.refs.outputs.uma }}
+          path: _upstream/uma
+          fetch-depth: 1
+
+      - name: Checkout active Gekkoushi
+        uses: actions/checkout@v5
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ steps.refs.outputs.gekkoushi }}
+          path: _upstream/gekkoushi
+          fetch-depth: 1
+
+      - name: Apply active Miyorare Gekkoushi overlays for probing
+        run: |
+          python3 - <<'PY'
+          import shutil
+          from pathlib import Path
+
+          root = Path('miyorare/extensions/miyorare-sources/overlays/gekkoushi')
+          if root.is_dir():
+              for file in root.rglob('*.kt'):
+                  rel = file.relative_to(root)
+                  target = Path('_upstream/gekkoushi/src/main/kotlin/tsuki/site') / rel
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copy2(file, target)
+                  print(f'probe overlay: {file} -> {target}')
+          PY
+
+      - name: Checkout active Keiyoushi
+        uses: actions/checkout@v5
+        with:
+          repository: keiyoushi/extensions-source
+          ref: ${{ steps.refs.outputs.keiyoushi }}
+          path: _upstream/keiyoushi
+          fetch-depth: 1
+
+      - name: Probe every active Miyorare source independently
+        run: |
+          python3 tools/source_runtime.py probe \
+            --packs miyorare/extensions/miyorare-sources/packs.json \
+            --aliases miyorare/extensions/miyorare-sources/multi-upstream.json \
+            --uma-root _upstream/uma \
+            --gekkoushi-root _upstream/gekkoushi \
+            --keiyoushi-root _upstream/keiyoushi \
+            --status upstream/status.json \
+            --source-health upstream/source-health.json \
+            --probe-output build/source-runtime-probes.json \
+            --provider-summary build/provider-runtime-health.json \
+            --recovery-queue upstream/recovery-queue.json \
+            --timeout 8 \
+            --workers 12 \
+            --fail-threshold 3
+
+      - name: Reconcile provider health from isolated source health
+        run: |
+          python3 - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+
+          summary = json.loads(Path('build/provider-runtime-health.json').read_text(encoding='utf-8'))
+          for provider, item in summary['providers'].items():
+              subprocess.run(
+                  [
+                      'python3', 'tools/runtime_health.py', 'health',
+                      '--registry', 'upstream/registry.json',
+                      '--status', 'upstream/status.json',
+                      '--health-store', 'upstream/runtime-health.json',
+                      '--provider', provider,
+                      '--health', item['runtimeHealth'],
+                      '--reason', 'per-source-runtime-probe',
+                  ],
+                  check=True,
+              )
+          PY
+
+      - name: Validate provider and source state machines
         run: |
           python3 tools/runtime_health.py validate \
             --registry upstream/registry.json \
             --status upstream/status.json \
             --health-store upstream/runtime-health.json
+          python3 tools/source_runtime.py validate \
+            --source-health upstream/source-health.json \
+            --recovery-queue upstream/recovery-queue.json
 
       - name: Run source-pack engine tests
         run: python3 -m unittest discover -s tests -v
 
-      - name: Persist reconciled beta state
+      - name: Upload per-source runtime diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: beta-source-runtime-health
+          path: |
+            build/source-runtime-probes.json
+            build/provider-runtime-health.json
+            upstream/recovery-queue.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Request one upstream adaptation pass for newly broken sources
+        id: recovery
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- upstream/registry.json upstream/status.json upstream/runtime-health.json; then
+          dispatch="$(
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          queue = json.loads(Path('upstream/recovery-queue.json').read_text(encoding='utf-8'))
+          print('true' if any(item.get('dispatchNeeded') for item in queue.get('queue', [])) else 'false')
+          PY
+          )"
+          echo "dispatch=$dispatch" >> "$GITHUB_OUTPUT"
+          if [[ "$dispatch" != "true" ]]; then
+            echo "No new recovery dispatch is needed."
+            exit 0
+          fi
+
+          gh workflow run upstream-sync.yml --ref beta
+
+          python3 tools/source_runtime.py acknowledge-dispatch \
+            --source-health upstream/source-health.json \
+            --recovery-queue upstream/recovery-queue.json
+
+      - name: Persist isolated beta runtime state
+        shell: bash
+        run: |
+          set -euo pipefail
+          tracked=(
+            upstream/registry.json
+            upstream/status.json
+            upstream/runtime-health.json
+            upstream/source-health.json
+            upstream/recovery-queue.json
+          )
+          if git diff --quiet -- "${tracked[@]}"; then
             echo "No runtime-health state changes."
             exit 0
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add upstream/registry.json upstream/status.json upstream/runtime-health.json
-          git commit -m "Reconcile beta runtime health state"
+          git add "${tracked[@]}"
+          git commit -m "Update beta per-source runtime health"
           git push origin HEAD:beta
