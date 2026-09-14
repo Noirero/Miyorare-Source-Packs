@@ -1,0 +1,99 @@
+name: Runtime Health State (Beta)
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Optional provider health state to record
+        required: false
+        default: none
+        type: choice
+        options:
+          - none
+          - keiyoushi
+          - uma
+          - gekkoushi
+      health:
+        description: Runtime health when provider is selected
+        required: false
+        default: UNKNOWN
+        type: choice
+        options:
+          - UNKNOWN
+          - HEALTHY
+          - DEGRADED
+          - BROKEN
+      reason:
+        description: Optional health reason
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: miyorare-runtime-health-beta
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Reconcile update and runtime health state
+    if: github.ref_name == 'beta'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout beta
+        uses: actions/checkout@v5
+        with:
+          ref: beta
+          fetch-depth: 0
+
+      - name: Reconcile persistent runtime health
+        run: |
+          python3 tools/runtime_health.py sync \
+            --registry upstream/registry.json \
+            --status upstream/status.json \
+            --health-store upstream/runtime-health.json
+
+      - name: Record requested runtime health
+        if: inputs.provider != 'none'
+        env:
+          PROVIDER: ${{ inputs.provider }}
+          HEALTH: ${{ inputs.health }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          args=(
+            health
+            --registry upstream/registry.json
+            --status upstream/status.json
+            --health-store upstream/runtime-health.json
+            --provider "$PROVIDER"
+            --health "$HEALTH"
+          )
+          if [[ -n "$REASON" ]]; then
+            args+=(--reason "$REASON")
+          fi
+          python3 tools/runtime_health.py "${args[@]}"
+
+      - name: Validate state machine
+        run: |
+          python3 tools/runtime_health.py validate \
+            --registry upstream/registry.json \
+            --status upstream/status.json \
+            --health-store upstream/runtime-health.json
+
+      - name: Run source-pack engine tests
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Persist reconciled beta state
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- upstream/registry.json upstream/status.json upstream/runtime-health.json; then
+            echo "No runtime-health state changes."
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add upstream/registry.json upstream/status.json upstream/runtime-health.json
+          git commit -m "Reconcile beta runtime health state"
+          git push origin HEAD:beta

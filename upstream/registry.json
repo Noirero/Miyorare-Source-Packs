@@ -13,7 +13,16 @@
     "publishOnlyAfterValidation": true,
     "keepLastKnownGoodOnFailure": true,
     "perSourceFailSafe": true,
-    "protectMiyorareCustomization": true
+    "protectMiyorareCustomization": true,
+    "autoAdaptUntilCompatible": true,
+    "retryLatestCandidateOnFailure": true,
+    "separateRuntimeHealth": true,
+    "maintainHealthyHistory": true,
+    "emergencyAutoRepair": true,
+    "validatedCanonicalFallback": true,
+    "temporarilyUnavailableOnNoHealthyOption": true,
+    "perSourceIsolation": true,
+    "latestCandidateWinsOnRetry": true
   },
   "protectedAreas": [
     "canonical-source-identity",
@@ -32,6 +41,13 @@
       "policy": "adapt-validate",
       "upstreamBase": "2025891752e4705effc28e87a043f7205014cde3",
       "lastKnownGood": "2025891752e4705effc28e87a043f7205014cde3",
+      "healthyHistory": [
+        "2025891752e4705effc28e87a043f7205014cde3"
+      ],
+      "healthyHistoryLimit": 5,
+      "retryLatestCandidate": true,
+      "runtimeHealthRequired": true,
+      "emergencyAutoRepair": true,
       "semanticBase": "2025891752e4705effc28e87a043f7205014cde3",
       "autoPromote": true,
       "role": "canonical-alias-and-mihon-compatible-upstream",
@@ -47,6 +63,13 @@
       "policy": "compatibility-layer",
       "upstreamBase": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
       "lastKnownGood": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
+      "healthyHistory": [
+        "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
+      ],
+      "healthyHistoryLimit": 5,
+      "retryLatestCandidate": true,
+      "runtimeHealthRequired": true,
+      "emergencyAutoRepair": true,
       "autoPromote": true,
       "role": "tsuki-source-shard"
     },
@@ -57,6 +80,13 @@
       "policy": "three-way-overlay",
       "upstreamBase": "9aa770b7cb699c6385f574f13710990e17ef5517",
       "lastKnownGood": "9aa770b7cb699c6385f574f13710990e17ef5517",
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
+      "healthyHistoryLimit": 5,
+      "retryLatestCandidate": true,
+      "runtimeHealthRequired": true,
+      "emergencyAutoRepair": true,
       "autoPromote": true,
       "role": "tsuki-source-shard",
       "protectedOverlayTargets": [
