@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "miyorare": {
+    "repository": "Noirero/Miyorare",
+    "branch": "beta",
+    "packsManifest": "extensions/miyorare-sources/packs.json",
+    "aliasManifest": "extensions/miyorare-sources/multi-upstream.json",
+    "overlayRoot": "extensions/miyorare-sources/overlays"
+  },
+  "policy": {
+    "autoUpdateByDefault": true,
+    "manualOnlyOnIncompatibility": true,
+    "publishOnlyAfterValidation": true,
+    "keepLastKnownGoodOnFailure": true,
+    "perSourceFailSafe": true,
+    "protectMiyorareCustomization": true
+  },
+  "protectedAreas": [
+    "canonical-source-identity",
+    "download-alias-and-legacy-compatibility",
+    "keiyoushi-gekkoushi-migration-rules",
+    "ehentai-en-global-family-compatibility",
+    "miyorare-metadata",
+    "miyorare-authentication-adaptations",
+    "miyorare-specific-ui-capabilities"
+  ],
+  "providers": {
+    "keiyoushi": {
+      "repository": "keiyoushi/extensions-source",
+      "branch": "main",
+      "license": "Apache-2.0",
+      "policy": "adapt-validate",
+      "upstreamBase": "2025891752e4705effc28e87a043f7205014cde3",
+      "lastKnownGood": "2025891752e4705effc28e87a043f7205014cde3",
+      "autoPromote": true,
+      "role": "canonical-alias-and-mihon-compatible-upstream"
+    },
+    "uma": {
+      "repository": "InvalidDavid/UMA",
+      "branch": "master",
+      "license": "GPL-3.0",
+      "policy": "compatibility-layer",
+      "upstreamBase": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
+      "lastKnownGood": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
+      "autoPromote": true,
+      "role": "tsuki-source-shard"
+    },
+    "gekkoushi": {
+      "repository": "Gekkoushi/plugin-source",
+      "branch": "master",
+      "license": "GPL-3.0",
+      "policy": "three-way-overlay",
+      "upstreamBase": "9aa770b7cb699c6385f574f13710990e17ef5517",
+      "lastKnownGood": "9aa770b7cb699c6385f574f13710990e17ef5517",
+      "autoPromote": true,
+      "role": "tsuki-source-shard",
+      "protectedOverlayTargets": [
+        "src/main/kotlin/tsuki/site/all/Gelbooru.kt"
+      ],
+      "conflictPolicy": "hold-provider-candidate-and-keep-last-known-good"
+    }
+  }
+}
