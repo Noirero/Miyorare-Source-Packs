@@ -52,15 +52,15 @@ jobs:
           assert status['schema'] == 2
           assert set(status['providers']) == {'keiyoushi', 'uma', 'gekkoushi'}
 
-          registry_adapters = registry['providers']['keiyoushi'].get('semanticAdapters')
-          assert isinstance(registry_adapters, list) and registry_adapters
-          assert len(registry_adapters) == len(set(registry_adapters))
-          assert all(isinstance(item, str) and item for item in registry_adapters)
-          assert registry_adapters == ['domain-base-url'], registry_adapters
+          kei_registry = registry['providers']['keiyoushi']
+          registry_adapters = kei_registry.get('semanticAdapters')
+          assert registry_adapters == ['domain-base-url', 'literal-semantic'], registry_adapters
+          assert isinstance(kei_registry.get('semanticBase'), str) and len(kei_registry['semanticBase']) == 40
 
           kei_status = status['providers']['keiyoushi']
           assert isinstance(kei_status.get('sourceStatus'), list)
           assert kei_status.get('semanticAdapters') == registry_adapters
+          assert kei_status.get('semanticBase') == kei_registry['semanticBase']
           assert isinstance(status['providers']['gekkoushi'].get('overlayConflicts'), list)
           print('upstream registry/status capability schema is valid')
           PY
@@ -108,6 +108,7 @@ jobs:
           providers = json.loads(Path('upstream/registry.json').read_text())['providers']
           print(f"UMA_SHA={providers['uma']['lastKnownGood']}")
           print(f"KEI_SHA={providers['keiyoushi']['lastKnownGood']}")
+          print(f"KEI_SEMANTIC_BASE={providers['keiyoushi']['semanticBase']}")
           PY
           )"
 
@@ -120,7 +121,10 @@ jobs:
           git init _upstream/keiyoushi
           git -C _upstream/keiyoushi remote add origin https://github.com/keiyoushi/extensions-source.git
           git -C _upstream/keiyoushi fetch --depth 1 origin "$KEI_SHA"
-          git -C _upstream/keiyoushi checkout --detach FETCH_HEAD
+          if [[ "$KEI_SEMANTIC_BASE" != "$KEI_SHA" ]]; then
+            git -C _upstream/keiyoushi fetch --depth 1 origin "$KEI_SEMANTIC_BASE"
+          fi
+          git -C _upstream/keiyoushi checkout --detach "$KEI_SHA"
 
           python3 tools/upstream_sync.py materialize \
             --registry upstream/registry.json \
@@ -128,6 +132,15 @@ jobs:
 
           test -f build/keiyoushi-semantic-adapter.json
           test -f _upstream/uma/miyorare-semantic-adapter.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build/keiyoushi-semantic-adapter.json').read_text(encoding='utf-8'))
+          assert report['schema'] == 2
+          assert report['state'] == 'clear'
+          assert set(report['capabilities']) == {'domain-base-url', 'literal-semantic'}
+          print('semantic adapter report schema is valid')
+          PY
           python3 _miyorare/extensions/miyorare-sources/tools/verify_multi_upstream.py \
             --manifest _miyorare/extensions/miyorare-sources/multi-upstream.json \
             --packs _miyorare/extensions/miyorare-sources/packs.json \
