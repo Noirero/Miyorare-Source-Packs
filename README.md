@@ -50,7 +50,7 @@ Provider policies intentionally differ:
 
 Miyorare-specific behavior is protected from upstream overwrite, including canonical source identity, legacy download aliases, provider migration rules, E-Hentai EN↔Global compatibility, Miyorare metadata, authentication adaptations, and Miyorare-specific capabilities.
 
-The synchronization registry lives in `upstream/registry.json`. It stores each provider's last-known-good revision and policy. Protected overlay targets may additionally keep their own `overlayBases`, so a provider revision can advance without erasing the unresolved history of a source whose Miyorare overlay diverged from upstream.
+The synchronization registry lives in `upstream/registry.json`. It stores each provider's last-known-good revision and policy. Protected overlay targets may additionally keep their own `overlayBases`, so a provider revision can advance without erasing the unresolved history of a source whose Miyorare overlay diverged from upstream. Reusable Keiyoushi semantic capabilities are also declared in the registry so support is explicit and auditable.
 
 `tools/upstream_sync.py` performs registry validation, upstream planning, reproducible pin materialization, reusable semantic-adapter invocation, per-target overlay conflict tracking, provider promotion, and explicit overlay-base reconciliation after manual review.
 
