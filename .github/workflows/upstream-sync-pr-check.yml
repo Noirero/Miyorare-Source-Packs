@@ -50,6 +50,7 @@ jobs:
           assert status['schema'] == 2
           assert set(status['providers']) == {'keiyoushi', 'uma', 'gekkoushi'}
           assert isinstance(status['providers']['keiyoushi'].get('sourceStatus'), list)
+          assert 'domain-base-url' in status['providers']['keiyoushi'].get('semanticAdapters', [])
           assert isinstance(status['providers']['gekkoushi'].get('overlayConflicts'), list)
           print('upstream status schema is valid')
           PY
@@ -115,6 +116,7 @@ jobs:
             --miyorare-root _miyorare
 
           test -f build/keiyoushi-semantic-adapter.json
+          test -f _upstream/uma/miyorare-semantic-adapter.json
           python3 _miyorare/extensions/miyorare-sources/tools/verify_multi_upstream.py \
             --manifest _miyorare/extensions/miyorare-sources/multi-upstream.json \
             --packs _miyorare/extensions/miyorare-sources/packs.json \
