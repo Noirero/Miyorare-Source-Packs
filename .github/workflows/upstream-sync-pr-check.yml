@@ -1,0 +1,66 @@
+name: Upstream Sync PR Check
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'upstream/**'
+      - 'tools/upstream_sync.py'
+      - '.github/workflows/upstream-sync.yml'
+      - '.github/workflows/upstream-sync-pr-check.yml'
+      - '.github/workflows/release-source-packs.yml'
+      - 'README.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-sync-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  static-validation:
+    name: Validate sync engine and workflows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v5
+
+      - name: Compile sync helper
+        run: python3 -m py_compile tools/upstream_sync.py
+
+      - name: Validate upstream registry
+        run: python3 tools/upstream_sync.py validate --registry upstream/registry.json
+
+      - name: Validate workflow YAML syntax
+        shell: ruby {0}
+        run: |
+          require 'yaml'
+          Dir.glob('.github/workflows/*.yml').sort.each do |path|
+            YAML.load_file(path, aliases: true)
+            puts "valid yaml: #{path}"
+          end
+
+      - name: Validate registry/materializer against Miyorare beta
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch beta https://github.com/Noirero/Miyorare.git _miyorare
+          python3 tools/upstream_sync.py materialize \
+            --registry upstream/registry.json \
+            --miyorare-root _miyorare
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          registry = json.loads(Path('upstream/registry.json').read_text())
+          packs = json.loads(Path('_miyorare/extensions/miyorare-sources/packs.json').read_text())
+          aliases = json.loads(Path('_miyorare/extensions/miyorare-sources/multi-upstream.json').read_text())
+          providers = registry['providers']
+          assert packs['upstream']['commit'] == providers['uma']['lastKnownGood']
+          assert packs['additionalUpstreams']['gekkoushi']['commit'] == providers['gekkoushi']['lastKnownGood']
+          assert aliases['upstreams']['uma']['commit'] == providers['uma']['lastKnownGood']
+          assert aliases['upstreams']['keiyoushi']['commit'] == providers['keiyoushi']['lastKnownGood']
+          print('materialized last-known-good pins match registry')
+          PY
