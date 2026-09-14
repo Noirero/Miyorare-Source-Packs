@@ -21,11 +21,18 @@ HEX40 = re.compile(r"^[0-9a-f]{40}$")
 KOTLIN_STRING_RE = re.compile(r'"((?:\\.|[^"\\])*)"')
 SHARED_PREFIXES = (
     "lib-multisrc/",
+    "common/",
+    "compiler/",
     "core/",
     "gradle/",
     "build-logic/",
     "buildSrc/",
 )
+SHARED_EXACT_PATHS = {
+    "build.gradle.kts",
+    "settings.gradle.kts",
+    "gradle.properties",
+}
 METADATA_PATH_PARTS = (
     "/res/mipmap-",
     "/res/drawable",
@@ -114,14 +121,25 @@ def aliases(alias_manifest: dict[str, Any]) -> list[dict[str, Any]]:
     return result
 
 
-def build_gradle_kind(diff: str) -> str:
-    changed = []
+def changed_diff_lines(diff: str) -> list[str]:
+    changed: list[str] = []
     for line in diff.splitlines():
         if not line or line.startswith(("+++", "---", "@@")):
             continue
         if line[0] not in "+-":
             continue
         changed.append(line[1:].strip())
+    return changed
+
+
+def build_gradle_kind(diff: str) -> str:
+    """Classify module Gradle edits conservatively.
+
+    Mixed/unknown build-definition changes are never hidden merely because a baseUrl line also changed.
+    A semantic-config classification is returned only when every changed line is a known metadata or
+    known semantic setting and at least one semantic setting changed.
+    """
+    changed = changed_diff_lines(diff)
     if not changed:
         return "metadata-only"
 
@@ -140,11 +158,19 @@ def build_gradle_kind(diff: str) -> str:
         "themePkg",
     )
 
-    if all(any(token in line for token in metadata_patterns) for line in changed):
-        return "metadata-only"
-    if any(any(token in line for token in semantic_patterns) for line in changed):
+    def category(line: str) -> str:
+        if any(token in line for token in metadata_patterns):
+            return "metadata"
+        if any(token in line for token in semantic_patterns):
+            return "semantic"
+        return "unknown"
+
+    categories = [category(line) for line in changed]
+    if any(kind == "unknown" for kind in categories):
+        return "build-definition-change"
+    if any(kind == "semantic" for kind in categories):
         return "semantic-config-change"
-    return "build-definition-change"
+    return "metadata-only"
 
 
 def normalize_kotlin_line(line: str) -> str:
@@ -197,6 +223,10 @@ def kotlin_change_kind(diff: str) -> str:
     flush()
 
     return "literal-semantic-change" if saw_literal_change and not unsupported else "parser-code-change"
+
+
+def is_shared_path(path: str) -> bool:
+    return path in SHARED_EXACT_PATHS or path.startswith(SHARED_PREFIXES)
 
 
 def classify_module(repo: Path, base: str, candidate: str, module: str, paths: list[str], shared_changed: bool) -> dict[str, Any]:
@@ -306,7 +336,7 @@ def analyze(
 ) -> dict[str, Any]:
     manifest = load_json(alias_manifest_path)
     paths = changed_files(repo, base, candidate)
-    shared_paths = [path for path in paths if path.startswith(SHARED_PREFIXES)]
+    shared_paths = [path for path in paths if is_shared_path(path)]
     shared_changed = bool(shared_paths)
     coverage = adapter_coverage(adapter_report)
 
