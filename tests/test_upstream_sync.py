@@ -45,8 +45,10 @@ def registry():
                 "license": "Apache-2.0",
                 "policy": "adapt-validate",
                 "upstreamBase": BASE,
+                "semanticBase": BASE,
                 "lastKnownGood": BASE,
                 "autoPromote": True,
+                "semanticAdapters": ["domain-base-url", "literal-semantic"],
             },
             "uma": {
                 "repository": "InvalidDavid/UMA",
@@ -73,14 +75,37 @@ def registry():
 
 
 class UpstreamSyncRegistryTests(unittest.TestCase):
-    def test_overlay_base_registry_is_valid(self):
+    def test_registry_with_semantic_and_overlay_bases_is_valid(self):
         MODULE.validate_registry(registry())
+
+    def test_unknown_semantic_adapter_is_rejected(self):
+        data = registry()
+        data["providers"]["keiyoushi"]["semanticAdapters"].append("unsafe-magic")
+        with self.assertRaises(SystemExit):
+            MODULE.validate_registry(data)
+
+    def test_missing_semantic_base_is_rejected(self):
+        data = registry()
+        del data["providers"]["keiyoushi"]["semanticBase"]
+        with self.assertRaises(SystemExit):
+            MODULE.validate_registry(data)
 
     def test_unknown_overlay_base_target_is_rejected(self):
         data = registry()
         data["providers"]["gekkoushi"]["overlayBases"]["other.kt"] = BASE
         with self.assertRaises(SystemExit):
             MODULE.validate_registry(data)
+
+    def test_provider_promotion_does_not_advance_semantic_base(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "registry.json"
+            path.write_text(json.dumps(registry()), encoding="utf-8")
+            MODULE.promote(path, "keiyoushi", NEXT)
+            updated = json.loads(path.read_text(encoding="utf-8"))
+            provider = updated["providers"]["keiyoushi"]
+            self.assertEqual(NEXT, provider["lastKnownGood"])
+            self.assertEqual(NEXT, provider["upstreamBase"])
+            self.assertEqual(BASE, provider["semanticBase"])
 
     def test_overlay_base_can_advance_independently_from_provider_pin(self):
         with tempfile.TemporaryDirectory() as tmp:
