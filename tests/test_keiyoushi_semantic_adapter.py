@@ -60,10 +60,14 @@ class KeiyoushiSemanticAdapterTests(unittest.TestCase):
             )
             report = MODULE.apply_domain_adapters(aliases, kei, uma)
             self.assertEqual("clear", report["state"])
+            self.assertEqual(2, report["schema"])
             self.assertEqual(["miyorare:miyorare-id:EXAMPLE"], report["appliedCanonicalIds"])
             self.assertIn('"new.example"', uma_file.read_text(encoding="utf-8"))
             updated_aliases = json.loads(aliases.read_text(encoding="utf-8"))
             self.assertEqual("new.example", updated_aliases["aliases"][0]["verifiedDomain"])
+            change = report["applied"][0]["changes"][0]
+            self.assertEqual("domain-base-url", change["changeClass"])
+            self.assertEqual("literal-host-rewrite", change["mode"])
 
     def test_accepts_already_compatible_uma_host(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -74,7 +78,8 @@ class KeiyoushiSemanticAdapterTests(unittest.TestCase):
             )
             report = MODULE.apply_domain_adapters(aliases, kei, uma)
             self.assertEqual("clear", report["state"])
-            self.assertEqual("already-compatible", report["applied"][0]["mode"])
+            change = report["applied"][0]["changes"][0]
+            self.assertEqual("already-compatible", change["mode"])
 
     def test_blocks_ambiguous_domain_rewrite(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -86,6 +91,50 @@ class KeiyoushiSemanticAdapterTests(unittest.TestCase):
             report = MODULE.apply_domain_adapters(aliases, kei, uma)
             self.assertEqual("blocked", report["state"])
             self.assertEqual("old-verified-host-not-found-as-safe-uma-literal", report["blocked"][0]["reason"])
+
+    def test_extracts_literal_only_selector_change(self):
+        diff = (
+            '@@ -1 +1 @@\n'
+            '-    override val selectPage = "#reader img"\n'
+            '+    override val selectPage = "#reader-area img"\n'
+        )
+        pairs, unsupported = MODULE.changed_literal_pairs(diff)
+        self.assertFalse(unsupported)
+        self.assertEqual([("#reader img", "#reader-area img")], pairs)
+
+    def test_rejects_structural_parser_change_as_literal_only(self):
+        diff = (
+            '@@ -1 +1 @@\n'
+            '-    override val selectPage = "#reader img"\n'
+            '+    override fun pages() = select("#reader-area img")\n'
+        )
+        pairs, unsupported = MODULE.changed_literal_pairs(diff)
+        self.assertTrue(unsupported)
+        self.assertEqual([], pairs)
+
+    def test_unique_literal_semantic_rewrite(self):
+        text = 'override val selectPage = "#reader img"\n'
+        updated, detail, reason = MODULE.apply_literal_pair(
+            text,
+            "#reader img",
+            "#reader-area img",
+            set(),
+        )
+        self.assertIsNone(reason)
+        self.assertIsNotNone(detail)
+        self.assertIn('"#reader-area img"', updated)
+        self.assertEqual("unique-literal-rewrite", detail["mode"])
+
+    def test_literal_semantic_refuses_protected_identity(self):
+        text = 'val sourceName = "EXAMPLE"\n'
+        _, detail, reason = MODULE.apply_literal_pair(
+            text,
+            "EXAMPLE",
+            "EXAMPLE2",
+            {"EXAMPLE"},
+        )
+        self.assertIsNone(detail)
+        self.assertEqual("protected-identity-literal", reason)
 
 
 if __name__ == "__main__":
