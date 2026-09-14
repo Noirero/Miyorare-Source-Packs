@@ -169,6 +169,19 @@ jobs:
             --workers 12 \
             --fail-threshold 3
 
+      - name: Guard dynamic probe hosts and re-probe resolved domains
+        run: |
+          python3 tools/probe_host_guard.py \
+            --source-health upstream/source-health.json \
+            --provider-summary build/provider-runtime-health.json \
+            --recovery-queue upstream/recovery-queue.json \
+            --status upstream/status.json \
+            --uma-root _upstream/uma \
+            --gekkoushi-root _upstream/gekkoushi \
+            --keiyoushi-root _upstream/keiyoushi \
+            --timeout 8 \
+            --fail-threshold 3
+
       - name: Reconcile provider health from isolated source health
         run: |
           python3 - <<'PY'
