@@ -1,6 +1,9 @@
 name: Runtime Health State (Beta)
 
 on:
+  push:
+    branches:
+      - beta
   workflow_dispatch:
     inputs:
       provider:
@@ -55,7 +58,7 @@ jobs:
             --health-store upstream/runtime-health.json
 
       - name: Record requested runtime health
-        if: inputs.provider != 'none'
+        if: github.event_name == 'workflow_dispatch' && inputs.provider != 'none'
         env:
           PROVIDER: ${{ inputs.provider }}
           HEALTH: ${{ inputs.health }}
