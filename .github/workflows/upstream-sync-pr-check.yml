@@ -8,6 +8,7 @@ on:
       - 'upstream/**'
       - 'tools/upstream_sync.py'
       - 'tools/keiyoushi_intake.py'
+      - 'tools/keiyoushi_semantic_adapter.py'
       - 'tests/**'
       - '.github/workflows/upstream-sync.yml'
       - '.github/workflows/upstream-sync-status.yml'
@@ -34,6 +35,7 @@ jobs:
         run: |
           python3 -m py_compile tools/upstream_sync.py
           python3 -m py_compile tools/keiyoushi_intake.py
+          python3 -m py_compile tools/keiyoushi_semantic_adapter.py
 
       - name: Run sync helper unit tests
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
