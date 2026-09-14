@@ -81,7 +81,8 @@ jobs:
           }
 
           for provider, candidate_info in plan['providers'].items():
-              current = registry['providers'][provider]['lastKnownGood']
+              provider_registry = registry['providers'][provider]
+              current = provider_registry['lastKnownGood']
               candidate = candidate_info['candidate']
               changed = bool(candidate_info['changed'])
 
@@ -114,25 +115,32 @@ jobs:
                       'reason': reason,
                   }
 
-              if provider == 'keiyoushi' and kei_report:
-                  affected = []
-                  for source in kei_report.get('sources', []):
-                      if source.get('state') == 'unaffected':
-                          continue
-                      affected.append({
-                          'canonicalId': source.get('canonicalId'),
-                          'pack': source.get('pack'),
-                          'sourceName': source.get('officialSourceName'),
-                          'module': source.get('keiyoushiModule'),
-                          'state': source.get('state'),
-                          'action': source.get('action'),
-                          'changeClasses': source.get('changeClasses', []),
-                          'changedFiles': [item.get('path') for item in source.get('files', [])],
-                      })
-                  entry['sourceStatus'] = affected
-                  entry['sharedRuntimeFiles'] = kei_report.get('sharedRuntimeFiles', [])
-                  entry['affectedSourceCount'] = kei_report.get('affectedSourceCount', len(affected))
-                  entry['blockingSourceCount'] = kei_report.get('blockingSourceCount', 0)
+              if provider == 'keiyoushi':
+                  entry['semanticAdapters'] = list(provider_registry.get('semanticAdapters', []))
+                  if kei_report:
+                      affected = []
+                      for source in kei_report.get('sources', []):
+                          if source.get('state') == 'unaffected':
+                              continue
+                          affected.append({
+                              'canonicalId': source.get('canonicalId'),
+                              'pack': source.get('pack'),
+                              'sourceName': source.get('officialSourceName'),
+                              'module': source.get('keiyoushiModule'),
+                              'state': source.get('state'),
+                              'action': source.get('action'),
+                              'changeClasses': source.get('changeClasses', []),
+                              'adapterCoverage': source.get('adapterCoverage', []),
+                              'changedFiles': [item.get('path') for item in source.get('files', [])],
+                          })
+                      entry['sourceStatus'] = affected
+                      entry['sharedRuntimeFiles'] = kei_report.get('sharedRuntimeFiles', [])
+                      entry['affectedSourceCount'] = kei_report.get('affectedSourceCount', len(affected))
+                      entry['blockingSourceCount'] = kei_report.get('blockingSourceCount', 0)
+                  else:
+                      entry['sourceStatus'] = []
+                      entry['affectedSourceCount'] = 0
+                      entry['blockingSourceCount'] = 0
 
               if provider == 'gekkoushi' and gek_report:
                   conflicts = gek_report.get('conflicts', [])
