@@ -9,7 +9,8 @@ Supported reusable adapters are intentionally narrow:
 
 The tool modifies disposable CI/release checkouts only. It never copies arbitrary KeiSource Kotlin
 into Tsuki code. Structural parser changes, shared-runtime changes, ambiguous literals, and protected
-identity values remain fail-closed.
+identity values remain fail-closed. Adaptations are transactional per source: neither its UMA file nor
+its temporary canonical-domain metadata is written when any required adaptation for that source blocks.
 """
 
 from __future__ import annotations
@@ -97,8 +98,7 @@ def keiyoushi_module_host(repo: Path, module: str) -> str:
     build = repo / module / "build.gradle.kts"
     if not build.is_file():
         fail(f"Keiyoushi module build file missing: {build}")
-    text = build.read_text(encoding="utf-8")
-    match = BASE_URL_RE.search(text)
+    match = BASE_URL_RE.search(build.read_text(encoding="utf-8"))
     if match is None:
         fail(f"could not parse baseUrl from {build}")
     return host(match.group(1))
@@ -138,7 +138,7 @@ def changed_module_kotlin_files(repo: Path, base: str, candidate: str, module: s
 
 
 def changed_literal_pairs(diff: str) -> tuple[list[tuple[str, str]], bool]:
-    """Return safe structural old/new string pairs and whether unsupported structure was observed."""
+    """Return structurally identical old/new literal pairs plus an unsupported-structure flag."""
     pairs: list[tuple[str, str]] = []
     unsupported = False
     removed: list[str] = []
@@ -168,7 +168,6 @@ def changed_literal_pairs(diff: str) -> tuple[list[tuple[str, str]], bool]:
                     pairs.append((old, new))
                     changed = True
             if not changed:
-                # A non-literal textual change reached this hunk. Do not claim semantic coverage.
                 unsupported = True
         removed.clear()
         added.clear()
@@ -202,8 +201,11 @@ def literal_kind(value: str) -> str | None:
         return "host"
     if value.startswith(("/", "?")) or ("/" in value and not value.isspace()):
         return "endpoint-or-path"
-    if any(token in value for token in ("#", "[", "]", ">", ":nth-", ":has(", ".")):
-        return "selector-or-token"
+    if (
+        value.startswith(("#", ".", "["))
+        or any(token in value for token in (" > ", ":nth-", ":has(", ":contains(", "[", "]"))
+    ):
+        return "selector"
     if any(token in lower for token in (";q=", "application/", "text/html", "image/", "accept-language", "user-agent", "referer")):
         return "header-or-media-value"
     return None
@@ -227,10 +229,12 @@ def protected_literals(alias: dict[str, Any]) -> set[str]:
 
 
 def apply_literal_pair(text: str, old: str, new: str, protected: set[str]) -> tuple[str, dict[str, Any] | None, str | None]:
-    kind = literal_kind(old)
+    old_kind = literal_kind(old)
     new_kind = literal_kind(new)
-    if kind is None or new_kind is None:
+    if old_kind is None or new_kind is None:
         return text, None, "unsupported-or-too-generic-literal"
+    if old_kind != new_kind:
+        return text, None, f"literal-kind-changed:{old_kind}-to-{new_kind}"
     if old in protected or new in protected:
         return text, None, "protected-identity-literal"
 
@@ -243,7 +247,7 @@ def apply_literal_pair(text: str, old: str, new: str, protected: set[str]) -> tu
         return text, {
             "oldLiteral": old,
             "newLiteral": new,
-            "kind": kind,
+            "kind": old_kind,
             "mode": "already-compatible",
             "replacementCount": 0,
         }, None
@@ -255,7 +259,7 @@ def apply_literal_pair(text: str, old: str, new: str, protected: set[str]) -> tu
     return text.replace(old_token, new_token, 1), {
         "oldLiteral": old,
         "newLiteral": new,
-        "kind": kind,
+        "kind": old_kind,
         "mode": "unique-literal-rewrite",
         "replacementCount": 1,
     }, None
@@ -312,7 +316,10 @@ def apply_semantic_adapters(
             )
             continue
 
-        text = target.read_text(encoding="utf-8")
+        original_text = target.read_text(encoding="utf-8")
+        text = original_text
+        pending_verified_domain: str | None = None
+        covered_domain_pair: tuple[str, str] | None = None
         changes: list[dict[str, Any]] = []
         change_classes: set[str] = set()
         source_blocked = False
@@ -333,6 +340,7 @@ def apply_semantic_adapters(
                 continue
 
             if new_host != old_host:
+                covered_domain_pair = (old_host, new_host)
                 if any(token in text for token in (f'"{new_host}"', f'"https://{new_host}"', f'"http://{new_host}"')):
                     replacement_count = 0
                     mode = "already-compatible"
@@ -353,7 +361,7 @@ def apply_semantic_adapters(
                     else:
                         mode = "literal-host-rewrite"
                 if not source_blocked:
-                    item["verifiedDomain"] = new_host
+                    pending_verified_domain = new_host
                     change_classes.add("domain-base-url")
                     changes.append(
                         {
@@ -370,22 +378,24 @@ def apply_semantic_adapters(
 
         if base and candidate and base != candidate and "literal-semantic" in enabled:
             module_pairs: list[tuple[str, str, str]] = []
-            structural_unsupported = False
             for path in changed_module_kotlin_files(keiyoushi_root, base, candidate, module):
                 diff = git(keiyoushi_root, "diff", "--unified=0", f"{base}..{candidate}", "--", path)
-                pairs, unsupported = changed_literal_pairs(diff)
-                structural_unsupported = structural_unsupported or unsupported
+                pairs, _ = changed_literal_pairs(diff)
                 for old, new in pairs:
                     module_pairs.append((old, new, path))
 
-            # Structural parser changes are not rewritten here. The intake classifier will hold them.
-            # Literal changes can still be prepared so its report can prove exactly what was adapted.
             seen_pairs: set[tuple[str, str]] = set()
             for old, new, path in module_pairs:
                 pair_key = (old, new)
                 if pair_key in seen_pairs:
                     continue
                 seen_pairs.add(pair_key)
+
+                # A direct host literal matching the baseUrl migration was already handled atomically by
+                # domain-base-url. Do not reject the same proven migration again as protected identity.
+                if covered_domain_pair == pair_key:
+                    continue
+
                 updated, detail, reason = apply_literal_pair(text, old, new, protected_literals(item))
                 if reason:
                     blocked.append(
@@ -408,14 +418,15 @@ def apply_semantic_adapters(
                 changes.append(detail)
                 change_classes.add("literal-semantic")
 
-            if structural_unsupported and not module_pairs:
-                # Do not duplicate classifier failure details when there is no safe literal work to apply.
-                pass
-
         if source_blocked:
+            # Transactional per source: discard every pending change for this source.
             continue
 
-        target.write_text(text, encoding="utf-8")
+        if text != original_text:
+            target.write_text(text, encoding="utf-8")
+        if pending_verified_domain is not None:
+            item["verifiedDomain"] = pending_verified_domain
+
         if changes:
             applied.append(
                 {
