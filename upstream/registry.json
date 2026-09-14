@@ -57,7 +57,10 @@
       "protectedOverlayTargets": [
         "src/main/kotlin/tsuki/site/all/Gelbooru.kt"
       ],
-      "conflictPolicy": "hold-provider-candidate-and-keep-last-known-good"
+      "overlayBases": {
+        "src/main/kotlin/tsuki/site/all/Gelbooru.kt": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "conflictPolicy": "hold-conflicting-overlay-source-and-promote-safe-provider-remainder"
     }
   }
 }
