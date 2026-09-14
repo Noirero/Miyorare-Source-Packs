@@ -88,6 +88,12 @@ Keiyoushi APK extensions and UMA/Gekkoushi Tsuki JAR shards use different runtim
 
 It does **not** blindly transpile arbitrary Keiyoushi Android extension Kotlin into a Tsuki JAR. Cross-runtime adoption requires an explicit semantic adapter/runtime path and must pass the same safety gates rather than silently changing source identity, downloads, Favourite/History continuity, or authentication behavior.
 
+### Staged activation
+
+The auto-sync engine is staged on the Source Packs `beta` branch first. The scheduled workflow only becomes production-authoritative after this branch is reviewed and promoted to the repository default branch. Until then, `main` continues to use the existing release path and validated pins.
+
+This staging rule prevents an unfinished adapter or workflow change from silently becoming a production updater.
+
 ## 🔗 Upstream & Attribution
 
 | Upstream | Use in Miyorare |
