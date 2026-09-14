@@ -44,7 +44,7 @@ An upstream change is never published directly. If validation fails, the current
 
 Provider policies intentionally differ:
 
-- **Keiyoushi** — registered canonical source modules are classified per source before promotion. Metadata-only changes can pass validation; semantic configuration, parser-code, or shared-runtime changes are held unless a reusable semantic adapter explicitly supports them. Canonical identity and compatibility checks still run after classification.
+- **Keiyoushi** — registered canonical source modules are classified per source before promotion. Metadata-only changes can pass validation. The first reusable semantic adapter supports deterministic **domain/baseUrl changes** by safely rewriting the matching temporary UMA host literal and temporary canonical-domain verification metadata before build/test. Parser-code, selector/API logic, login/auth, or shared-runtime changes remain held until a reusable adapter explicitly supports them.
 - **UMA** — candidate revisions must build the curated ID/EN shards successfully through the existing Miyorare compatibility layer.
 - **Gekkoushi** — protected Miyorare overlays use a per-target reconciliation base. If upstream changes a protected target such as an overridden parser, that source remains on the Miyorare overlay and is reported as held, while unrelated safe Gekkoushi changes may continue through build/integration and promotion.
 
@@ -52,9 +52,11 @@ Miyorare-specific behavior is protected from upstream overwrite, including canon
 
 The synchronization registry lives in `upstream/registry.json`. It stores each provider's last-known-good revision and policy. Protected overlay targets may additionally keep their own `overlayBases`, so a provider revision can advance without erasing the unresolved history of a source whose Miyorare overlay diverged from upstream.
 
-`tools/upstream_sync.py` performs registry validation, upstream planning, reproducible pin materialization, per-target overlay conflict tracking, provider promotion, and explicit overlay-base reconciliation after manual review.
+`tools/upstream_sync.py` performs registry validation, upstream planning, reproducible pin materialization, reusable semantic-adapter invocation, per-target overlay conflict tracking, provider promotion, and explicit overlay-base reconciliation after manual review.
 
 `tools/keiyoushi_intake.py` classifies registered Keiyoushi changes per canonical source/module. It is intentionally conservative because Keiyoushi `KeiSource` code and UMA/Tsuki parser code use different runtime APIs; source-code changes are not assumed portable merely because they target the same website.
+
+`tools/keiyoushi_semantic_adapter.py` currently implements the first narrow cross-runtime adapter: verified domain/baseUrl migration. It only rewrites an UMA source when the old registered host is present as a clear string literal (or the new host is already present). Ambiguous dynamic-domain code is blocked. Adapter output is also written beside the disposable UMA checkout so Miyorare pack staging can embed exact `semanticAdapters` provenance in the shard metadata/JAR.
 
 `.github/workflows/upstream-sync.yml` is the main automation pipeline. Failed candidates are held instead of replacing working revisions. Successful candidates can be promoted and, on the production/default branch, can dispatch a new immutable Source Pack release.
 
