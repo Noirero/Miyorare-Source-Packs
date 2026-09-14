@@ -209,6 +209,28 @@ def apply_registry_pins(
     save_json(packs_path, packs)
     save_json(aliases_path, aliases)
 
+    # Reusable cross-runtime semantic adapters operate only on disposable CI/release checkouts.
+    # If the expected upstream checkouts are absent (for example static PR validation), materialize
+    # remains a pure manifest pin operation.
+    uma_root = Path("_upstream/uma")
+    keiyoushi_root = Path("_upstream/keiyoushi")
+    if uma_root.is_dir() and keiyoushi_root.is_dir():
+        from keiyoushi_semantic_adapter import apply_domain_adapters
+
+        report_path = Path("build/keiyoushi-semantic-adapter.json")
+        report = apply_domain_adapters(
+            aliases_path=aliases_path,
+            keiyoushi_root=keiyoushi_root,
+            uma_root=uma_root,
+            output=report_path,
+        )
+        if report.get("blocked"):
+            fail(
+                "Keiyoushi semantic adaptation blocked for: "
+                + ", ".join(item.get("canonicalId", "unknown") for item in report["blocked"]),
+                code=3,
+            )
+
 
 def parse_overrides(values: list[str]) -> dict[str, str]:
     overrides: dict[str, str] = {}
