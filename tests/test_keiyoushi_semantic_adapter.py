@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -125,6 +126,17 @@ class KeiyoushiSemanticAdapterTests(unittest.TestCase):
         self.assertIn('"#reader-area img"', updated)
         self.assertEqual("unique-literal-rewrite", detail["mode"])
 
+    def test_literal_semantic_rejects_kind_change(self):
+        text = 'override val selectPage = "#reader img"\n'
+        _, detail, reason = MODULE.apply_literal_pair(
+            text,
+            "#reader img",
+            "https://example.org/pages",
+            set(),
+        )
+        self.assertIsNone(detail)
+        self.assertEqual("literal-kind-changed:selector-to-url", reason)
+
     def test_generic_literal_is_refused_before_guessing(self):
         text = 'val sourceName = "EXAMPLE"\n'
         _, detail, reason = MODULE.apply_literal_pair(
@@ -146,6 +158,57 @@ class KeiyoushiSemanticAdapterTests(unittest.TestCase):
         )
         self.assertIsNone(detail)
         self.assertEqual("protected-identity-literal", reason)
+
+    def test_blocked_literal_rolls_back_pending_domain_and_alias(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            aliases, kei, uma, uma_file = self.make_fixture(
+                root,
+                'class Example : Parser("old.example") {\n'
+                '    val selector = "#old-list"\n'
+                '}\n',
+            )
+            module = kei / "src/id/example"
+            source = module / "src/Example.kt"
+            source.parent.mkdir(parents=True)
+
+            # Build an actual two-commit Keiyoushi history so the adapter reads a real semantic diff.
+            (module / "build.gradle.kts").write_text(
+                'keiyoushi {\n  source {\n    lang = "id"\n    baseUrl = "https://old.example"\n  }\n}\n',
+                encoding="utf-8",
+            )
+            source.write_text('val selector = "#old-list"\n', encoding="utf-8")
+            subprocess.run(["git", "init"], cwd=kei, check=True, stdout=subprocess.DEVNULL)
+            subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=kei, check=True)
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=kei, check=True)
+            subprocess.run(["git", "add", "."], cwd=kei, check=True)
+            subprocess.run(["git", "commit", "-m", "base"], cwd=kei, check=True, stdout=subprocess.DEVNULL)
+            base = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=kei, text=True).strip()
+
+            (module / "build.gradle.kts").write_text(
+                'keiyoushi {\n  source {\n    lang = "id"\n    baseUrl = "https://new.example"\n  }\n}\n',
+                encoding="utf-8",
+            )
+            source.write_text('val selector = "https://new.example/pages"\n', encoding="utf-8")
+            subprocess.run(["git", "add", "."], cwd=kei, check=True)
+            subprocess.run(["git", "commit", "-m", "candidate"], cwd=kei, check=True, stdout=subprocess.DEVNULL)
+            candidate = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=kei, text=True).strip()
+
+            report = MODULE.apply_semantic_adapters(
+                aliases,
+                kei,
+                uma,
+                base=base,
+                candidate=candidate,
+                capabilities={"domain-base-url", "literal-semantic"},
+            )
+
+            self.assertEqual("blocked", report["state"])
+            self.assertIn("literal-kind-changed:selector-to-url", [item["reason"] for item in report["blocked"]])
+            self.assertIn('"old.example"', uma_file.read_text(encoding="utf-8"))
+            self.assertIn('"#old-list"', uma_file.read_text(encoding="utf-8"))
+            updated_aliases = json.loads(aliases.read_text(encoding="utf-8"))
+            self.assertEqual("old.example", updated_aliases["aliases"][0]["verifiedDomain"])
 
 
 if __name__ == "__main__":
