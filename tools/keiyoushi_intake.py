@@ -1,15 +1,10 @@
 #!/usr/bin/env python3
 """Classify Keiyoushi upstream changes for Miyorare Source Pack intake.
 
-This is deliberately conservative. Keiyoushi and UMA/Tsuki use different source APIs, so Kotlin
-implementation changes are never treated as automatically portable merely because both implementations
-represent the same website. The classifier answers two questions before an adapter is allowed to run:
-
-1. Which registered Miyorare canonical sources are affected by an upstream revision?
-2. Is the change metadata-only, source-local semantic/config, parser implementation, or shared-runtime?
-
-Future semantic adapters can consume this report and explicitly claim supported change classes. Until
-then parser/shared-runtime changes are held instead of silently advancing a misleading upstream pin.
+Keiyoushi and UMA/Tsuki use different source APIs, so Kotlin implementation changes are never treated
+as automatically portable merely because both implementations represent the same website. Reusable
+semantic adapters may explicitly claim narrow supported change classes (currently domain/baseUrl).
+Everything else stays fail-closed.
 """
 
 from __future__ import annotations
@@ -142,7 +137,6 @@ def build_gradle_kind(diff: str) -> str:
         "apiUrl",
         "sourceUrl",
         "themePkg",
-        "baseUrl =",
     )
 
     if all(any(token in line for token in metadata_patterns) for line in changed):
@@ -194,20 +188,64 @@ def classify_module(repo: Path, base: str, candidate: str, module: str, paths: l
     }
 
 
-def analyze(alias_manifest_path: Path, repo: Path, base: str, candidate: str) -> dict[str, Any]:
+def adapter_coverage(path: Path | None) -> dict[str, set[str]]:
+    if path is None or not path.is_file():
+        return {}
+    report = load_json(path)
+    result: dict[str, set[str]] = {}
+    for item in report.get("applied", []):
+        if not isinstance(item, dict):
+            continue
+        canonical = item.get("canonicalId")
+        change_class = item.get("changeClass")
+        if isinstance(canonical, str) and isinstance(change_class, str):
+            result.setdefault(canonical, set()).add(change_class)
+    return result
+
+
+def apply_adapter_coverage(canonical: str | None, result: dict[str, Any], coverage: dict[str, set[str]]) -> dict[str, Any]:
+    if not canonical or canonical not in coverage:
+        return result
+    classes = set(result.get("changeClasses", []))
+    supported = coverage[canonical]
+
+    # The current domain adapter covers semantic-config changes only when the adapter report explicitly
+    # recorded a domain/baseUrl rewrite for this canonical source. Parser/shared-runtime changes remain held.
+    if "domain-base-url" in supported and classes <= {
+        "metadata-only",
+        "metadata-resource-change",
+        "semantic-config-change",
+    }:
+        result = dict(result)
+        result["state"] = "adapted"
+        result["action"] = "validate-adapter-output"
+        result["adapterCoverage"] = sorted(supported)
+    return result
+
+
+def analyze(
+    alias_manifest_path: Path,
+    repo: Path,
+    base: str,
+    candidate: str,
+    adapter_report: Path | None = None,
+) -> dict[str, Any]:
     manifest = load_json(alias_manifest_path)
     paths = changed_files(repo, base, candidate)
     shared_paths = [path for path in paths if path.startswith(SHARED_PREFIXES)]
     shared_changed = bool(shared_paths)
+    coverage = adapter_coverage(adapter_report)
 
     sources = []
     for item in aliases(manifest):
         kei = item["keiyoushi"]
         official = item["official"]
+        canonical = item.get("canonicalId")
         result = classify_module(repo, base, candidate, kei["module"], paths, shared_changed)
+        result = apply_adapter_coverage(canonical, result, coverage)
         sources.append(
             {
-                "canonicalId": item.get("canonicalId"),
+                "canonicalId": canonical,
                 "pack": official.get("pack"),
                 "officialSourceName": official.get("sourceName"),
                 "keiyoushiModule": kei["module"],
@@ -218,7 +256,7 @@ def analyze(alias_manifest_path: Path, repo: Path, base: str, candidate: str) ->
     affected = [item for item in sources if item["state"] != "unaffected"]
     blocking = [item for item in affected if item["action"] in ("adapter-required", "hold-unless-reusable-adapter-supports-change")]
     return {
-        "schema": 1,
+        "schema": 2,
         "provider": "keiyoushi",
         "base": base,
         "candidate": candidate,
@@ -239,14 +277,17 @@ def main() -> None:
     parser.add_argument("--base", required=True)
     parser.add_argument("--candidate", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--adapter-report", type=Path)
     parser.add_argument("--strict", action="store_true", help="Exit 3 when registered sources need an adapter/review")
     args = parser.parse_args()
 
+    adapter_report = args.adapter_report.resolve() if args.adapter_report else Path("build/keiyoushi-semantic-adapter.json").resolve()
     report = analyze(
         args.aliases.resolve(),
         args.repo.resolve(),
         args.base.lower(),
         args.candidate.lower(),
+        adapter_report=adapter_report,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
