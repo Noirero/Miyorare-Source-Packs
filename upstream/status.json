@@ -1,9 +1,12 @@
 {
-  "schema": 1,
+  "schema": 2,
   "providers": {
     "keiyoushi": {
       "state": "synced",
-      "lastKnownGood": "2025891752e4705effc28e87a043f7205014cde3"
+      "lastKnownGood": "2025891752e4705effc28e87a043f7205014cde3",
+      "sourceStatus": [],
+      "affectedSourceCount": 0,
+      "blockingSourceCount": 0
     },
     "uma": {
       "state": "synced",
@@ -11,7 +14,11 @@
     },
     "gekkoushi": {
       "state": "synced",
-      "lastKnownGood": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      "lastKnownGood": "9aa770b7cb699c6385f574f13710990e17ef5517",
+      "overlayConflicts": [],
+      "protectedOverlayTargets": [
+        "src/main/kotlin/tsuki/site/all/Gelbooru.kt"
+      ]
     }
   }
 }
