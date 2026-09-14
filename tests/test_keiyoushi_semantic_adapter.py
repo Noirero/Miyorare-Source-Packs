@@ -125,13 +125,24 @@ class KeiyoushiSemanticAdapterTests(unittest.TestCase):
         self.assertIn('"#reader-area img"', updated)
         self.assertEqual("unique-literal-rewrite", detail["mode"])
 
-    def test_literal_semantic_refuses_protected_identity(self):
+    def test_generic_literal_is_refused_before_guessing(self):
         text = 'val sourceName = "EXAMPLE"\n'
         _, detail, reason = MODULE.apply_literal_pair(
             text,
             "EXAMPLE",
             "EXAMPLE2",
-            {"EXAMPLE"},
+            set(),
+        )
+        self.assertIsNone(detail)
+        self.assertEqual("unsupported-or-too-generic-literal", reason)
+
+    def test_literal_semantic_refuses_protected_identity(self):
+        text = 'val host = "old.example"\n'
+        _, detail, reason = MODULE.apply_literal_pair(
+            text,
+            "old.example",
+            "new.example",
+            {"old.example"},
         )
         self.assertIsNone(detail)
         self.assertEqual("protected-identity-literal", reason)
