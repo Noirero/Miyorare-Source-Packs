@@ -36,6 +36,24 @@ class ParserHarnessAggregateTests(unittest.TestCase):
             ],
         }
 
+    @staticmethod
+    def repair(provider, canonical_id):
+        return {
+            "schemaVersion": 1,
+            "recipeId": "forward-parser-request-headers-to-http-get",
+            "provider": provider,
+            "canonicalId": canonical_id,
+            "sourcePath": "_upstream/provider/Source.kt",
+            "status": "APPLIED",
+            "changes": 5,
+            "alreadyAppliedCalls": 0,
+            "beforeSha256": "a" * 64,
+            "afterSha256": "b" * 64,
+            "ownerActionRequired": False,
+            "publishEligible": False,
+            "requiresRetest": True,
+        }
+
     def test_partial_cross_provider_evidence_stays_non_publishable(self):
         aggregate = aggregate_reports(
             self.registry,
@@ -47,6 +65,7 @@ class ParserHarnessAggregateTests(unittest.TestCase):
         self.assertEqual(aggregate["suiteStatus"], "PASS")
         self.assertEqual(aggregate["coverage"]["canonicalExecuted"], 3)
         self.assertEqual(aggregate["coverage"]["totalRegisteredSources"], 12)
+        self.assertEqual(aggregate["repairEvidence"]["reportedMemberships"], 0)
         self.assertFalse(aggregate["candidatePass"])
         self.assertFalse(aggregate["publishEligible"])
         self.assertFalse(aggregate["ownerActionRequired"])
@@ -75,6 +94,50 @@ class ParserHarnessAggregateTests(unittest.TestCase):
         b = self.report("uma", "miyorare:miyorare-id:KOMIKU")
         with self.assertRaises(AggregateError):
             aggregate_reports(self.registry, [a, b])
+
+    def test_auto_repair_is_bound_to_membership_and_real_parser_retest(self):
+        canonical_id = "miyorare:miyorare-id:SHINIGAMI"
+        aggregate = aggregate_reports(
+            self.registry,
+            [
+                self.report("uma", canonical_id),
+                self.report("gekkoushi", canonical_id),
+            ],
+            [self.repair("gekkoushi", canonical_id)],
+        )
+        self.assertEqual(aggregate["repairEvidence"]["reportedMemberships"], 1)
+        self.assertEqual(aggregate["repairEvidence"]["validatedByRealParserRetest"], 1)
+        self.assertEqual(aggregate["repairEvidence"]["failedRealParserRetest"], 0)
+
+        source = next(x for x in aggregate["results"] if x["canonicalId"] == canonical_id)
+        self.assertEqual(source["status"], "PASS")
+        self.assertTrue(source["fullyExercised"])
+        self.assertEqual(source["maintenanceOutcome"], "AUTO_REPAIRED")
+        self.assertEqual(source["autoRepairedProviders"], ["gekkoushi"])
+        execution = next(x for x in source["providerExecutions"] if x["provider"] == "gekkoushi")
+        self.assertEqual(execution["maintenanceOutcome"], "AUTO_REPAIRED")
+        self.assertTrue(execution["repairEvidence"]["retestValidated"])
+        self.assertEqual(execution["repairEvidence"]["changes"], 5)
+
+    def test_repair_without_real_parser_retest_is_rejected(self):
+        canonical_id = "miyorare:miyorare-id:SHINIGAMI"
+        with self.assertRaises(AggregateError):
+            aggregate_reports(
+                self.registry,
+                [self.report("uma", canonical_id)],
+                [self.repair("gekkoushi", canonical_id)],
+            )
+
+    def test_repair_that_requires_owner_action_is_rejected(self):
+        canonical_id = "miyorare:miyorare-id:SHINIGAMI"
+        repair = self.repair("gekkoushi", canonical_id)
+        repair["ownerActionRequired"] = True
+        with self.assertRaises(AggregateError):
+            aggregate_reports(
+                self.registry,
+                [self.report("gekkoushi", canonical_id)],
+                [repair],
+            )
 
 
 if __name__ == "__main__":
