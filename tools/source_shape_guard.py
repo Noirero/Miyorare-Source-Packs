@@ -4,6 +4,11 @@
 This is a structural guard, not a substitute for behavioral parser execution. It verifies
 that a fixture still points at the registered upstream file and that the source preserves
 family-level parser/auth/header signals expected by the Compatibility Farm.
+
+A canonical source may have different implementations in different upstream providers.
+Family contracts therefore support common token groups plus provider-specific groups;
+this avoids source-name special cases while still failing closed when a provider changes
+an important implementation pattern.
 """
 
 from __future__ import annotations
@@ -35,6 +40,36 @@ def _index_sources(registry: dict[str, Any]) -> dict[str, dict[str, Any]]:
             raise ShapeError("invalid source registry entry")
         result[source["canonicalId"]] = source
     return result
+
+
+def _validated_groups(value: Any, label: str, allow_empty: bool = False) -> list[list[str]]:
+    if not isinstance(value, list) or (not value and not allow_empty):
+        raise ShapeError(f"{label} must be {'a' if not allow_empty else 'a possibly empty'} list")
+    groups: list[list[str]] = []
+    for group in value:
+        if not isinstance(group, list) or not group or not all(isinstance(token, str) and token for token in group):
+            raise ShapeError(f"{label} contains an invalid token group")
+        groups.append(group)
+    return groups
+
+
+def _family_groups(family_name: str, family: dict[str, Any], provider: str) -> list[list[str]]:
+    # schema-1 backward compatibility: requiredTokenGroups acts as the common contract.
+    common_raw = family.get("commonRequiredTokenGroups", family.get("requiredTokenGroups"))
+    common = _validated_groups(common_raw, f"{family_name}.commonRequiredTokenGroups")
+
+    provider_map = family.get("providerRequiredTokenGroups", {})
+    if not isinstance(provider_map, dict):
+        raise ShapeError(f"{family_name}.providerRequiredTokenGroups must be an object")
+    unknown = [key for key, value in provider_map.items() if not isinstance(key, str) or not isinstance(value, list)]
+    if unknown:
+        raise ShapeError(f"{family_name}.providerRequiredTokenGroups is invalid")
+    provider_groups = _validated_groups(
+        provider_map.get(provider, []),
+        f"{family_name}.providerRequiredTokenGroups.{provider}",
+        allow_empty=True,
+    )
+    return common + provider_groups
 
 
 def validate_shapes(
@@ -79,9 +114,7 @@ def validate_shapes(
         family = family_map.get(family_name)
         if not isinstance(family, dict):
             raise ShapeError(f"{canonical_id}: no shape contract for adapter family {family_name!r}")
-        groups = family.get("requiredTokenGroups")
-        if not isinstance(groups, list) or not groups:
-            raise ShapeError(f"{family_name}: requiredTokenGroups must be non-empty")
+        groups = _family_groups(family_name, family, provider)
 
         path = root / relative
         if not path.is_file():
@@ -90,8 +123,6 @@ def validate_shapes(
 
         missing_groups: list[list[str]] = []
         for group in groups:
-            if not isinstance(group, list) or not group or not all(isinstance(token, str) and token for token in group):
-                raise ShapeError(f"{family_name}: invalid required token group")
             if not any(token in text for token in group):
                 missing_groups.append(group)
 
