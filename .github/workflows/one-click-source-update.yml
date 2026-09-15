@@ -1,0 +1,50 @@
+name: One-Click Source Update
+run-name: One-Click Source Update
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: miyorare-one-click-source-update
+  cancel-in-progress: false
+
+jobs:
+  start:
+    name: Start automatic source update
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Start full upstream sync
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run upstream-sync.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main
+
+      - name: Show what happens next
+        shell: bash
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          # ✅ Source update started
+
+          Your manual work is finished.
+
+          Miyorare will now automatically:
+          1. Check Keiyoushi, UMA, and Gekkoushi.
+          2. Detect and classify upstream changes.
+          3. Apply supported adapters and protected Miyorare overlays.
+          4. Build and validate the effective Source Pack set.
+          5. Promote and release candidates that pass all safety checks.
+          6. Keep the last-known-good version automatically for anything unsafe or incompatible.
+          7. Write a readable Source Sync Result summary after the run finishes.
+
+          **You do not need to inspect logs or manually repair a held candidate.** A held candidate is not published and the current healthy source remains active.
+
+          [Open Miyorare Upstream Sync](https://github.com/Noirero/Miyorare-Source-Packs/actions/workflows/upstream-sync.yml)
+          EOF
