@@ -28,10 +28,12 @@ internal data class FixtureResponse(
  * requests fail closed instead of reaching the public network.
  *
  * Seeded cookies model host-provided authenticated state without contacting a real site.
+ * The responder intentionally remains the final constructor parameter so existing
+ * deterministic tests can keep using Kotlin trailing-lambda call syntax.
  */
 internal class DeterministicMangaLoaderContext(
-    private val responder: (Request) -> FixtureResponse,
     seededCookies: List<Cookie> = emptyList(),
+    private val responder: (Request) -> FixtureResponse,
 ) : MangaLoaderContext() {
 
     private val storedCookies = seededCookies.toMutableList()
