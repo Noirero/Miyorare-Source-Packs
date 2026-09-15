@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Attach machine-readable auto-repair outcomes to real parser aggregate evidence."""
+"""Attach validated auto-repair outcomes to real-parser aggregate evidence.
+
+This layer intentionally sits after raw parser aggregation. A repair is credited only
+when the exact canonical-source/provider membership was actually executed again by the
+real Kotlin parser harness. Repair evidence can never make a partial farm publishable.
+"""
 
 from __future__ import annotations
 
@@ -30,23 +35,35 @@ def enrich_aggregate(aggregate: dict[str, Any], repair_reports: list[dict[str, A
     if not isinstance(results, list):
         raise RepairEvidenceError("aggregate.results must be a list")
 
+    sources: dict[str, dict[str, Any]] = {}
     executions: dict[tuple[str, str], dict[str, Any]] = {}
     for source in results:
         if not isinstance(source, dict) or not isinstance(source.get("canonicalId"), str):
             raise RepairEvidenceError("invalid aggregate source result")
         canonical_id = source["canonicalId"]
+        if canonical_id in sources:
+            raise RepairEvidenceError(f"duplicate aggregate source result: {canonical_id}")
+        sources[canonical_id] = source
+
         provider_executions = source.get("providerExecutions")
         if not isinstance(provider_executions, list):
             raise RepairEvidenceError(f"{canonical_id}: providerExecutions must be a list")
         for execution in provider_executions:
             if not isinstance(execution, dict) or not isinstance(execution.get("provider"), str):
                 raise RepairEvidenceError(f"{canonical_id}: invalid provider execution")
-            executions[(canonical_id, execution["provider"])] = execution
+            membership = (canonical_id, execution["provider"])
+            if membership in executions:
+                raise RepairEvidenceError(
+                    f"duplicate aggregate parser execution: {canonical_id}@{execution['provider']}"
+                )
+            executions[membership] = execution
 
     seen: set[tuple[str, str]] = set()
     successful = 0
     failed_retests = 0
     applied_changes = 0
+    validated_memberships: list[dict[str, Any]] = []
+
     for repair in repair_reports:
         canonical_id = repair.get("canonicalId")
         provider = repair.get("provider")
@@ -59,6 +76,10 @@ def enrich_aggregate(aggregate: dict[str, Any], repair_reports: list[dict[str, A
             raise RepairEvidenceError(f"{canonical_id}@{provider}: invalid repair status {status!r}")
         if not isinstance(changes, int) or changes < 0:
             raise RepairEvidenceError(f"{canonical_id}@{provider}: changes must be a non-negative integer")
+        if status == "APPLIED" and changes <= 0:
+            raise RepairEvidenceError(f"{canonical_id}@{provider}: APPLIED repair must contain a source change")
+        if status == "ALREADY_APPLIED" and changes != 0:
+            raise RepairEvidenceError(f"{canonical_id}@{provider}: ALREADY_APPLIED repair must have zero changes")
         if repair.get("requiresRetest") is not True:
             raise RepairEvidenceError(f"{canonical_id}@{provider}: repair must require retest")
         if repair.get("ownerActionRequired") is not False or repair.get("publishEligible") is not False:
@@ -69,25 +90,49 @@ def enrich_aggregate(aggregate: dict[str, Any], repair_reports: list[dict[str, A
             raise RepairEvidenceError(f"duplicate repair evidence for {canonical_id}@{provider}")
         seen.add(membership)
         execution = executions.get(membership)
-        if execution is None:
+        source = sources.get(canonical_id)
+        if execution is None or source is None:
             raise RepairEvidenceError(f"repair evidence has no matching parser execution: {canonical_id}@{provider}")
 
         retest_passed = execution.get("status") == "PASS"
+        maintenance_outcome = "AUTO_REPAIRED" if retest_passed else "AUTO_REPAIR_RETEST_FAILED"
+        execution["maintenanceOutcome"] = maintenance_outcome
         execution["repairEvidence"] = {
             "autoRepair": True,
             "recipeId": recipe_id,
             "status": status,
             "changes": changes,
+            "alreadyAppliedCalls": repair.get("alreadyAppliedCalls", 0),
             "beforeSha256": repair.get("beforeSha256"),
             "afterSha256": repair.get("afterSha256"),
             "retestPassed": retest_passed,
             "ownerActionRequired": False,
+            "publishEligible": False,
         }
+
+        repaired_providers = source.setdefault("autoRepairedProviders", [])
+        if not isinstance(repaired_providers, list):
+            raise RepairEvidenceError(f"{canonical_id}: autoRepairedProviders must be a list")
+        if provider not in repaired_providers:
+            repaired_providers.append(provider)
+            repaired_providers.sort()
+        source["maintenanceOutcome"] = maintenance_outcome
+
         applied_changes += changes
         if retest_passed:
             successful += 1
         else:
             failed_retests += 1
+        validated_memberships.append(
+            {
+                "canonicalId": canonical_id,
+                "provider": provider,
+                "recipeId": recipe_id,
+                "repairStatus": status,
+                "retestPassed": retest_passed,
+                "maintenanceOutcome": maintenance_outcome,
+            }
+        )
 
     coverage = output.setdefault("coverage", {})
     if not isinstance(coverage, dict):
@@ -100,8 +145,15 @@ def enrich_aggregate(aggregate: dict[str, Any], repair_reports: list[dict[str, A
             "autoRepairChanges": applied_changes,
         }
     )
+
     output["executionMode"] = "real-kotlin-parser-aggregate-with-repair-evidence"
     output["repairEvidencePresent"] = bool(repair_reports)
+    output["repairEvidence"] = {
+        "reportedMemberships": len(repair_reports),
+        "validatedByRealParserRetest": successful,
+        "failedRealParserRetest": failed_retests,
+        "validatedMemberships": validated_memberships,
+    }
     output["ownerActionRequired"] = False
     output["publishEligible"] = False
     return output
