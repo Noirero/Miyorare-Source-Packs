@@ -15,6 +15,7 @@ on:
       - 'tools/parser_harness_report.py'
       - 'tools/parser_harness_aggregate.py'
       - 'tools/repair_engine.py'
+      - 'tools/repair_evidence.py'
       - 'tests/test_compatibility_contract.py'
       - 'tests/test_source_registry.py'
       - 'tests/test_deterministic_farm.py'
@@ -23,6 +24,7 @@ on:
       - 'tests/test_parser_harness_report.py'
       - 'tests/test_parser_harness_aggregate.py'
       - 'tests/test_repair_engine.py'
+      - 'tests/test_repair_evidence.py'
       - '.github/workflows/compatibility-farm-foundation.yml'
   pull_request:
     branches:
@@ -38,6 +40,7 @@ on:
       - 'tools/parser_harness_report.py'
       - 'tools/parser_harness_aggregate.py'
       - 'tools/repair_engine.py'
+      - 'tools/repair_evidence.py'
       - 'tests/test_compatibility_contract.py'
       - 'tests/test_source_registry.py'
       - 'tests/test_deterministic_farm.py'
@@ -46,6 +49,7 @@ on:
       - 'tests/test_parser_harness_report.py'
       - 'tests/test_parser_harness_aggregate.py'
       - 'tests/test_repair_engine.py'
+      - 'tests/test_repair_evidence.py'
       - '.github/workflows/compatibility-farm-foundation.yml'
 
 permissions:
@@ -121,6 +125,7 @@ jobs:
           tools/parser_harness_report.py
           tools/parser_harness_aggregate.py
           tools/repair_engine.py
+          tools/repair_evidence.py
 
       - name: Validate machine-readable compatibility contract
         run: python3 tools/compatibility_contract.py validate --contract compatibility/contract.json
@@ -188,13 +193,14 @@ jobs:
           cp compatibility/harness/uma/*.kt _upstream/uma/src/test/kotlin/compatibilityfarm/
           cp -R compatibility/harness/uma/resources/. _upstream/uma/src/test/resources/compatibility-farm/
 
-      - name: Execute real UMA Kotlin parser harness seed
+      - name: Execute real UMA Kotlin parser harness seed including COOKIE auth
         working-directory: _upstream/uma
         run: |
           chmod +x gradlew
           ./gradlew test \
             --tests compatibilityfarm.KomikuParserHarnessTest \
             --tests compatibilityfarm.ShinigamiParserHarnessTest \
+            --tests compatibilityfarm.WeebCentralAuthParserHarnessTest \
             --no-daemon
 
       - name: Normalize UMA real parser execution evidence
@@ -205,6 +211,7 @@ jobs:
           --provider uma
           --source miyorare:miyorare-id:KOMIKU=compatibilityfarm.KomikuParserHarnessTest
           --source miyorare:miyorare-id:SHINIGAMI=compatibilityfarm.ShinigamiParserHarnessTest
+          --source miyorare:miyorare-en:WEEBCENTRAL=compatibilityfarm.WeebCentralAuthParserHarnessTest
           --output build/real-parser-harness-uma-report.json
 
       - name: Isolate upstream Gekkoushi tests and install real parser harness
@@ -313,8 +320,14 @@ jobs:
           --report build/real-parser-harness-uma-report.json
           --report build/real-parser-harness-gekkoushi-report.json
           --report build/real-parser-harness-keiyoushi-report.json
-          --repair-report build/repair-shinigami-gekkoushi.json
           --output build/real-parser-harness-aggregate.json
+
+      - name: Attach auto-repair outcome to aggregate evidence
+        run: >-
+          python3 tools/repair_evidence.py
+          --aggregate build/real-parser-harness-aggregate.json
+          --repair-report build/repair-shinigami-gekkoushi.json
+          --output build/real-parser-harness-evidence.json
 
       - name: Run repository unit tests
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
@@ -334,6 +347,7 @@ jobs:
             build/real-parser-harness-gekkoushi-report.json
             build/real-parser-harness-keiyoushi-report.json
             build/real-parser-harness-aggregate.json
+            build/real-parser-harness-evidence.json
             _upstream/uma/build/test-results/test/*.xml
             _upstream/gekkoushi/build/test-results/test/*.xml
             _upstream/keiyoushi/src/id/komiku/build/test-results/testDebugUnitTest/*.xml
