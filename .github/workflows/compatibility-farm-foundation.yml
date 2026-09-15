@@ -193,7 +193,7 @@ jobs:
           cp compatibility/harness/uma/*.kt _upstream/uma/src/test/kotlin/compatibilityfarm/
           cp -R compatibility/harness/uma/resources/. _upstream/uma/src/test/resources/compatibility-farm/
 
-      - name: Execute real UMA Kotlin parser harness seed including COOKIE auth and Natsu
+      - name: Execute real UMA Kotlin parser harness seed including COOKIE auth, Natsu and Madara
         working-directory: _upstream/uma
         run: |
           chmod +x gradlew
@@ -202,6 +202,7 @@ jobs:
             --tests compatibilityfarm.ShinigamiParserHarnessTest \
             --tests compatibilityfarm.WeebCentralAuthParserHarnessTest \
             --tests compatibilityfarm.KiryuuNatsuParserHarnessTest \
+            --tests compatibilityfarm.AquaReaderMadaraParserHarnessTest \
             --no-daemon
 
       - name: Normalize UMA real parser execution evidence
@@ -214,6 +215,7 @@ jobs:
           --source miyorare:miyorare-id:SHINIGAMI=compatibilityfarm.ShinigamiParserHarnessTest
           --source miyorare:miyorare-en:WEEBCENTRAL=compatibilityfarm.WeebCentralAuthParserHarnessTest
           --source miyorare:miyorare-id:KIRYUU=compatibilityfarm.KiryuuNatsuParserHarnessTest
+          --source miyorare:miyorare-en:AQUAMANGA=compatibilityfarm.AquaReaderMadaraParserHarnessTest
           --output build/real-parser-harness-uma-report.json
 
       - name: Isolate upstream Gekkoushi tests and install real parser harness
