@@ -15,6 +15,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: source-lab-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   debug-build:
     runs-on: ubuntu-latest
@@ -53,8 +57,8 @@ jobs:
         with:
           gradle-version: '8.10.2'
 
-      - name: Assemble Source Lab debug APK
-        run: gradle -p source-lab :app:assembleDebug --stacktrace
+      - name: Lint and assemble Source Lab debug APK
+        run: gradle -p source-lab :app:lintDebug :app:assembleDebug --stacktrace
 
       - name: Upload Source Lab debug APK
         uses: actions/upload-artifact@v4
