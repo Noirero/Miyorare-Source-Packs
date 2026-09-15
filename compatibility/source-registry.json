@@ -1,0 +1,303 @@
+{
+  "schemaVersion": 1,
+  "scope": {
+    "languages": ["id", "en"],
+    "providers": ["keiyoushi", "uma", "gekkoushi"],
+    "cohort": "seed-12",
+    "targetSize": 12
+  },
+  "providerBaselines": {
+    "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
+    "uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
+    "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+  },
+  "defaults": {
+    "updateState": "PROMOTED",
+    "runtimeHealth": "UNKNOWN",
+    "approvalState": "NOT_READY",
+    "baselineStatus": "PENDING",
+    "ownerActionRequired": false,
+    "repairPolicy": {
+      "autoDiagnose": true,
+      "safeSelfRepair": true,
+      "keepLastKnownGood": true,
+      "validatedCanonicalFallback": true,
+      "holdRequiresOwnerAction": false
+    }
+  },
+  "sources": [
+    {
+      "canonicalId": "miyorare:miyorare-id:BACAMI",
+      "displayName": "Bacami",
+      "language": "id",
+      "contentProfile": "manga",
+      "authType": "NO_AUTH",
+      "adapterFamily": "custom-paged-html-json-script",
+      "providers": ["uma", "keiyoushi"],
+      "upstreamIdentities": {
+        "uma": {"file": "src/main/kotlin/tsuki/site/id/Bacami.kt", "sourceName": "BACAMI"},
+        "keiyoushi": {"module": "src/id/bacami", "sourceName": "Bacami", "sourceId": 2677079941490683989}
+      },
+      "currentVersion": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785", "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"},
+      "lastKnownGood": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785", "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"},
+      "healthyHistory": [],
+      "updateState": "PROMOTED",
+      "runtimeHealth": "UNKNOWN",
+      "approvalState": "NOT_READY",
+      "protectedOverlays": ["canonical-source-identity", "download-alias-and-legacy-compatibility"],
+      "compatibilityBaseline": {"status": "PENDING", "capabilities": ["load", "browse", "search", "details", "chapters", "content", "authenticate", "download", "reader"]},
+      "repairPolicy": {"autoDiagnose": true, "safeSelfRepair": true, "keepLastKnownGood": true, "validatedCanonicalFallback": true, "holdRequiresOwnerAction": false},
+      "selectionReasons": ["cross-provider-identity", "custom-html", "pagination", "script-page-list"]
+    },
+    {
+      "canonicalId": "miyorare:miyorare-id:KIRYUU",
+      "displayName": "Kiryuu",
+      "language": "id",
+      "contentProfile": "manga",
+      "authType": "NO_AUTH",
+      "adapterFamily": "natsu",
+      "providers": ["uma", "keiyoushi"],
+      "upstreamIdentities": {
+        "uma": {"file": "src/main/kotlin/tsuki/site/id/Kiryuu.kt", "sourceName": "KIRYUU"},
+        "keiyoushi": {"module": "src/id/kiryuu", "sourceName": "Kiryuu", "sourceId": 3639673976007021338}
+      },
+      "currentVersion": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785", "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"},
+      "lastKnownGood": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785", "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"},
+      "healthyHistory": [],
+      "updateState": "PROMOTED",
+      "runtimeHealth": "UNKNOWN",
+      "approvalState": "NOT_READY",
+      "protectedOverlays": ["canonical-source-identity", "download-alias-and-legacy-compatibility"],
+      "compatibilityBaseline": {"status": "PENDING", "capabilities": ["load", "browse", "search", "details", "chapters", "content", "authenticate", "download", "reader"]},
+      "repairPolicy": {"autoDiagnose": true, "safeSelfRepair": true, "keepLastKnownGood": true, "validatedCanonicalFallback": true, "holdRequiresOwnerAction": false},
+      "selectionReasons": ["cross-provider-identity", "shared-parser-family", "pagination"]
+    },
+    {
+      "canonicalId": "miyorare:miyorare-id:KOMIKU",
+      "displayName": "Komiku",
+      "language": "id",
+      "contentProfile": "manga",
+      "authType": "NO_AUTH",
+      "adapterFamily": "manga-reader-plus-api",
+      "providers": ["uma", "keiyoushi"],
+      "upstreamIdentities": {
+        "uma": {"file": "src/main/kotlin/tsuki/site/id/Komiku.kt", "sourceName": "KOMIKU"},
+        "keiyoushi": {"module": "src/id/komiku", "sourceName": "Komiku", "sourceId": 4838485846640015979}
+      },
+      "currentVersion": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785", "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"},
+      "lastKnownGood": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785", "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"},
+      "healthyHistory": [],
+      "updateState": "PROMOTED",
+      "runtimeHealth": "UNKNOWN",
+      "approvalState": "NOT_READY",
+      "protectedOverlays": ["canonical-source-identity", "download-alias-and-legacy-compatibility"],
+      "compatibilityBaseline": {"status": "PENDING", "capabilities": ["load", "browse", "search", "details", "chapters", "content", "authenticate", "download", "reader"]},
+      "repairPolicy": {"autoDiagnose": true, "safeSelfRepair": true, "keepLastKnownGood": true, "validatedCanonicalFallback": true, "holdRequiresOwnerAction": false},
+      "selectionReasons": ["cross-provider-identity", "manga-reader-family", "api-and-html", "complex-filters"]
+    },
+    {
+      "canonicalId": "miyorare:miyorare-id:SHINIGAMI",
+      "displayName": "Shinigami",
+      "language": "id",
+      "contentProfile": "manga",
+      "authType": "NO_AUTH",
+      "adapterFamily": "custom-rest-json",
+      "providers": ["uma", "gekkoushi"],
+      "upstreamIdentities": {
+        "uma": {"file": "src/main/kotlin/tsuki/site/id/Shinigami.kt", "sourceName": "SHINIGAMI"},
+        "gekkoushi": {"file": "src/main/kotlin/tsuki/site/id/Shinigami.kt", "sourceName": "SHINIGAMI"}
+      },
+      "currentVersion": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785", "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"},
+      "lastKnownGood": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785", "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"},
+      "healthyHistory": [],
+      "updateState": "PROMOTED",
+      "runtimeHealth": "UNKNOWN",
+      "approvalState": "NOT_READY",
+      "protectedOverlays": ["miyorare-metadata"],
+      "compatibilityBaseline": {"status": "PENDING", "capabilities": ["load", "browse", "search", "details", "chapters", "content", "authenticate", "download", "reader"]},
+      "repairPolicy": {"autoDiagnose": true, "safeSelfRepair": true, "keepLastKnownGood": true, "validatedCanonicalFallback": true, "holdRequiresOwnerAction": false},
+      "selectionReasons": ["multi-provider", "rest-api", "json", "custom-headers", "referer"]
+    },
+    {
+      "canonicalId": "miyorare:miyorare-id:DOUJINDESU",
+      "displayName": "DoujinDesu.tv",
+      "language": "id",
+      "contentProfile": "manga",
+      "authType": "NO_AUTH",
+      "adapterFamily": "custom-paged-html-xhr",
+      "providers": ["gekkoushi"],
+      "upstreamIdentities": {
+        "gekkoushi": {"file": "src/main/kotlin/tsuki/site/id/DoujinDesuParser.kt", "sourceName": "DOUJINDESU"}
+      },
+      "currentVersion": {"gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"},
+      "lastKnownGood": {"gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"},
+      "healthyHistory": [],
+      "updateState": "PROMOTED",
+      "runtimeHealth": "UNKNOWN",
+      "approvalState": "NOT_READY",
+      "protectedOverlays": [],
+      "compatibilityBaseline": {"status": "PENDING", "capabilities": ["load", "browse", "search", "details", "chapters", "content", "authenticate", "download", "reader"]},
+      "repairPolicy": {"autoDiagnose": true, "safeSelfRepair": true, "keepLastKnownGood": true, "validatedCanonicalFallback": true, "holdRequiresOwnerAction": false},
+      "selectionReasons": ["gekkoushi-native", "xhr-header", "pagination", "adult-content-path"]
+    },
+    {
+      "canonicalId": "miyorare:miyorare-en:ASURASCANS",
+      "displayName": "Asura Scans",
+      "language": "en",
+      "contentProfile": "manga",
+      "authType": "NO_AUTH",
+      "adapterFamily": "custom-paged-html-json",
+      "providers": ["uma", "keiyoushi", "gekkoushi"],
+      "upstreamIdentities": {
+        "uma": {"file": "src/main/kotlin/tsuki/site/en/AsuraScan.kt", "sourceName": "ASURASCANS"},
+        "keiyoushi": {"module": "src/en/asurascans", "sourceName": "Asura Scans", "sourceId": 6247824327199706550},
+        "gekkoushi": {"file": "src/main/kotlin/tsuki/site/en/AsuraScansParser.kt", "sourceName": "ASURASCANS"}
+      },
+      "currentVersion": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785", "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3", "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"},
+      "lastKnownGood": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785", "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3", "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"},
+      "healthyHistory": [],
+      "updateState": "PROMOTED",
+      "runtimeHealth": "UNKNOWN",
+      "approvalState": "NOT_READY",
+      "protectedOverlays": ["canonical-source-identity", "download-alias-and-legacy-compatibility"],
+      "compatibilityBaseline": {"status": "PENDING", "capabilities": ["load", "browse", "search", "details", "chapters", "content", "authenticate", "download", "reader"]},
+      "repairPolicy": {"autoDiagnose": true, "safeSelfRepair": true, "keepLastKnownGood": true, "validatedCanonicalFallback": true, "holdRequiresOwnerAction": false},
+      "selectionReasons": ["three-provider-parity", "custom-parser", "complex-filters", "upstream-diff-reference"]
+    },
+    {
+      "canonicalId": "miyorare:miyorare-en:AQUAMANGA",
+      "displayName": "Aqua Manga",
+      "language": "en",
+      "contentProfile": "manga",
+      "authType": "NO_AUTH",
+      "adapterFamily": "madara",
+      "providers": ["uma", "keiyoushi"],
+      "upstreamIdentities": {
+        "uma": {"file": "src/main/kotlin/tsuki/site/en/AquaReader.kt", "sourceName": "AQUAMANGA"},
+        "keiyoushi": {"module": "src/en/aquamanga", "sourceName": "Aqua Manga", "sourceId": 626267698662819838}
+      },
+      "currentVersion": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785", "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"},
+      "lastKnownGood": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785", "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"},
+      "healthyHistory": [],
+      "updateState": "PROMOTED",
+      "runtimeHealth": "UNKNOWN",
+      "approvalState": "NOT_READY",
+      "protectedOverlays": ["canonical-source-identity", "download-alias-and-legacy-compatibility"],
+      "compatibilityBaseline": {"status": "PENDING", "capabilities": ["load", "browse", "search", "details", "chapters", "content", "authenticate", "download", "reader"]},
+      "repairPolicy": {"autoDiagnose": true, "safeSelfRepair": true, "keepLastKnownGood": true, "validatedCanonicalFallback": true, "holdRequiresOwnerAction": false},
+      "selectionReasons": ["cross-provider-identity", "madara-family", "html", "pagination"]
+    },
+    {
+      "canonicalId": "miyorare:miyorare-en:BATCAVE",
+      "displayName": "BatCave",
+      "language": "en",
+      "contentProfile": "manga",
+      "authType": "NO_AUTH",
+      "adapterFamily": "custom-paged-form-api",
+      "providers": ["uma", "keiyoushi", "gekkoushi"],
+      "upstreamIdentities": {
+        "uma": {"file": "src/main/kotlin/tsuki/site/en/Batcave.kt", "sourceName": "BATCAVE"},
+        "keiyoushi": {"module": "src/en/batcave", "sourceName": "BatCave", "sourceId": 7422099479605463706},
+        "gekkoushi": {"file": "src/main/kotlin/tsuki/site/en/BatCave.kt", "sourceName": "BATCAVE"}
+      },
+      "currentVersion": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785", "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3", "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"},
+      "lastKnownGood": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785", "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3", "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"},
+      "healthyHistory": [],
+      "updateState": "PROMOTED",
+      "runtimeHealth": "UNKNOWN",
+      "approvalState": "NOT_READY",
+      "protectedOverlays": ["canonical-source-identity", "download-alias-and-legacy-compatibility"],
+      "compatibilityBaseline": {"status": "PENDING", "capabilities": ["load", "browse", "search", "details", "chapters", "content", "authenticate", "download", "reader"]},
+      "repairPolicy": {"autoDiagnose": true, "safeSelfRepair": true, "keepLastKnownGood": true, "validatedCanonicalFallback": true, "holdRequiresOwnerAction": false},
+      "selectionReasons": ["three-provider-parity", "form-post", "custom-http-client", "referer-routing"]
+    },
+    {
+      "canonicalId": "miyorare:miyorare-en:LIKEMANGA",
+      "displayName": "LikeManga",
+      "language": "en",
+      "contentProfile": "manga",
+      "authType": "NO_AUTH",
+      "adapterFamily": "like-manga",
+      "providers": ["uma"],
+      "upstreamIdentities": {
+        "uma": {"file": "src/main/kotlin/tsuki/site/en/LikeManga.kt", "sourceName": "LIKEMANGA"}
+      },
+      "currentVersion": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"},
+      "lastKnownGood": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"},
+      "healthyHistory": [],
+      "updateState": "PROMOTED",
+      "runtimeHealth": "UNKNOWN",
+      "approvalState": "NOT_READY",
+      "protectedOverlays": [],
+      "compatibilityBaseline": {"status": "PENDING", "capabilities": ["load", "browse", "search", "details", "chapters", "content", "authenticate", "download", "reader"]},
+      "repairPolicy": {"autoDiagnose": true, "safeSelfRepair": true, "keepLastKnownGood": true, "validatedCanonicalFallback": true, "holdRequiresOwnerAction": false},
+      "selectionReasons": ["shared-parser-family", "custom-user-agent", "header-interceptor"]
+    },
+    {
+      "canonicalId": "miyorare:miyorare-en:WEEBCENTRAL",
+      "displayName": "Weeb Central",
+      "language": "en",
+      "contentProfile": "manga",
+      "authType": "COOKIE",
+      "adapterFamily": "custom-auth-cookie-html",
+      "providers": ["uma"],
+      "upstreamIdentities": {
+        "uma": {"file": "src/main/kotlin/tsuki/site/en/WeebCentral.kt", "sourceName": "WEEBCENTRAL"}
+      },
+      "currentVersion": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"},
+      "lastKnownGood": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"},
+      "healthyHistory": [],
+      "updateState": "PROMOTED",
+      "runtimeHealth": "UNKNOWN",
+      "approvalState": "NOT_READY",
+      "protectedOverlays": ["miyorare-authentication-adaptations"],
+      "compatibilityBaseline": {"status": "PENDING", "capabilities": ["load", "browse", "search", "details", "chapters", "content", "authenticate", "download", "reader"]},
+      "repairPolicy": {"autoDiagnose": true, "safeSelfRepair": true, "keepLastKnownGood": true, "validatedCanonicalFallback": true, "holdRequiresOwnerAction": false},
+      "selectionReasons": ["cookie-auth", "auth-aware-testing", "custom-html", "session-state"]
+    },
+    {
+      "canonicalId": "miyorare:miyorare-en:MANGAPILL",
+      "displayName": "MangaPill",
+      "language": "en",
+      "contentProfile": "manga",
+      "authType": "NO_AUTH",
+      "adapterFamily": "custom-paged-html",
+      "providers": ["uma"],
+      "upstreamIdentities": {
+        "uma": {"file": "src/main/kotlin/tsuki/site/en/MangaPill.kt", "sourceName": "MANGAPILL"}
+      },
+      "currentVersion": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"},
+      "lastKnownGood": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"},
+      "healthyHistory": [],
+      "updateState": "PROMOTED",
+      "runtimeHealth": "UNKNOWN",
+      "approvalState": "NOT_READY",
+      "protectedOverlays": [],
+      "compatibilityBaseline": {"status": "PENDING", "capabilities": ["load", "browse", "search", "details", "chapters", "content", "authenticate", "download", "reader"]},
+      "repairPolicy": {"autoDiagnose": true, "safeSelfRepair": true, "keepLastKnownGood": true, "validatedCanonicalFallback": true, "holdRequiresOwnerAction": false},
+      "selectionReasons": ["large-page-size", "complex-filters", "mixed-content-types", "custom-html"]
+    },
+    {
+      "canonicalId": "miyorare:miyorare-id:THEMANGA",
+      "displayName": "TheManga",
+      "language": "id",
+      "contentProfile": "manga",
+      "authType": "NO_AUTH",
+      "adapterFamily": "custom-paged-html",
+      "providers": ["uma"],
+      "upstreamIdentities": {
+        "uma": {"file": "src/main/kotlin/tsuki/site/id/TheManga.kt", "sourceName": "THEMANGA"}
+      },
+      "currentVersion": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"},
+      "lastKnownGood": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"},
+      "healthyHistory": [],
+      "updateState": "PROMOTED",
+      "runtimeHealth": "UNKNOWN",
+      "approvalState": "NOT_READY",
+      "protectedOverlays": [],
+      "compatibilityBaseline": {"status": "PENDING", "capabilities": ["load", "browse", "search", "details", "chapters", "content", "authenticate", "download", "reader"]},
+      "repairPolicy": {"autoDiagnose": true, "safeSelfRepair": true, "keepLastKnownGood": true, "validatedCanonicalFallback": true, "holdRequiresOwnerAction": false},
+      "selectionReasons": ["custom-html", "year-filter", "author-search", "pagination"]
+    }
+  ]
+}
