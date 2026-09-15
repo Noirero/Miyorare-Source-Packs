@@ -10,9 +10,11 @@ on:
       - 'tools/compatibility_contract.py'
       - 'tools/source_registry.py'
       - 'tools/deterministic_farm.py'
+      - 'tools/source_shape_guard.py'
       - 'tests/test_compatibility_contract.py'
       - 'tests/test_source_registry.py'
       - 'tests/test_deterministic_farm.py'
+      - 'tests/test_source_shape_guard.py'
       - '.github/workflows/compatibility-farm-foundation.yml'
   pull_request:
     branches:
@@ -23,9 +25,11 @@ on:
       - 'tools/compatibility_contract.py'
       - 'tools/source_registry.py'
       - 'tools/deterministic_farm.py'
+      - 'tools/source_shape_guard.py'
       - 'tests/test_compatibility_contract.py'
       - 'tests/test_source_registry.py'
       - 'tests/test_deterministic_farm.py'
+      - 'tests/test_source_shape_guard.py'
       - '.github/workflows/compatibility-farm-foundation.yml'
 
 permissions:
@@ -43,12 +47,35 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: Resolve pinned UMA baseline
+        id: provider-refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          uma="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('compatibility/source-registry.json').read_text(encoding='utf-8'))
+          print(data['providerBaselines']['uma'])
+          PY
+          )"
+          echo "uma=$uma" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout pinned UMA source
+        uses: actions/checkout@v5
+        with:
+          repository: InvalidDavid/UMA
+          ref: ${{ steps.provider-refs.outputs.uma }}
+          path: _upstream/uma
+          fetch-depth: 1
+
       - name: Compile Compatibility Farm helpers
         run: >-
           python3 -m py_compile
           tools/compatibility_contract.py
           tools/source_registry.py
           tools/deterministic_farm.py
+          tools/source_shape_guard.py
 
       - name: Validate machine-readable compatibility contract
         run: python3 tools/compatibility_contract.py validate --contract compatibility/contract.json
@@ -66,6 +93,16 @@ jobs:
           --registry compatibility/source-registry.json
           --fixtures compatibility/fixtures/deterministic-seed-3.json
 
+      - name: Verify fixture families against pinned UMA Kotlin source
+        run: >-
+          python3 tools/source_shape_guard.py
+          --registry compatibility/source-registry.json
+          --fixtures compatibility/fixtures/deterministic-seed-3.json
+          --families compatibility/adapter-families.json
+          --provider uma
+          --root _upstream/uma
+          --output build/source-shape-uma.json
+
       - name: Run deterministic Compatibility Farm seed
         run: >-
           python3 tools/deterministic_farm.py run
@@ -77,11 +114,13 @@ jobs:
       - name: Run repository unit tests
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
 
-      - name: Upload deterministic farm report
+      - name: Upload deterministic farm reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: deterministic-compatibility-seed-report
-          path: build/deterministic-seed-report.json
+          path: |
+            build/deterministic-seed-report.json
+            build/source-shape-uma.json
           if-no-files-found: error
           retention-days: 14
