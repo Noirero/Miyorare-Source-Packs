@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "executionMode": "response-fixture-contract",
+  "parserExecution": false,
+  "cohort": "behavioral-seed-4",
+  "purpose": "Exercise provider-neutral browse/search/details/chapters/content extraction semantics without claiming upstream Kotlin parser execution.",
+  "sources": [
+    {
+      "canonicalId": "miyorare:miyorare-id:KOMIKU",
+      "providerVersions": {
+        "uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "cases": {
+        "browse": {
+          "response": {"format": "html", "body": "<div class='bge'><a href='/manga/alpha'>Alpha</a></div><div class='bge'><a href='/manga/beta'>Beta</a></div>"},
+          "extractor": {"kind": "regex-list", "pattern": "<div class='bge'><a href='(?P<url>[^']+)'>(?P<title>[^<]+)</a></div>"},
+          "expected": [{"url": "/manga/alpha", "title": "Alpha"}, {"url": "/manga/beta", "title": "Beta"}]
+        },
+        "search": {
+          "response": {"format": "html", "body": "<div class='bge'><a href='/manga/alpha'>Alpha</a></div>"},
+          "extractor": {"kind": "regex-list", "pattern": "<div class='bge'><a href='(?P<url>[^']+)'>(?P<title>[^<]+)</a></div>"},
+          "expected": [{"url": "/manga/alpha", "title": "Alpha"}]
+        },
+        "details": {
+          "response": {"format": "html", "body": "<h1>Alpha</h1><div id='Sinopsis'><p>Alpha synopsis</p></div><img class='cover' src='https://img.example/alpha.jpg'>"},
+          "extractor": {"kind": "regex-object", "fields": {"title": "<h1>([^<]+)</h1>", "description": "<div id='Sinopsis'><p>([^<]+)</p></div>", "cover": "<img class='cover' src='([^']+)'"}},
+          "expected": {"title": "Alpha", "description": "Alpha synopsis", "cover": "https://img.example/alpha.jpg"}
+        },
+        "chapters": {
+          "response": {"format": "html", "body": "<tr class='chapter'><a href='/alpha/ch-2'>Chapter 2</a></tr><tr class='chapter'><a href='/alpha/ch-1'>Chapter 1</a></tr>"},
+          "extractor": {"kind": "regex-list", "pattern": "<tr class='chapter'><a href='(?P<url>[^']+)'>(?P<title>[^<]+)</a></tr>"},
+          "expected": [{"url": "/alpha/ch-2", "title": "Chapter 2"}, {"url": "/alpha/ch-1", "title": "Chapter 1"}]
+        },
+        "content": {
+          "response": {"format": "html", "body": "<div id='Baca_Komik'><img src='https://img.example/1.jpg'><img src='https://img.example/2.jpg'></div>"},
+          "extractor": {"kind": "regex-list", "pattern": "<img src='(?P<url>[^']+)'"},
+          "expected": [{"url": "https://img.example/1.jpg"}, {"url": "https://img.example/2.jpg"}]
+        }
+      }
+    },
+    {
+      "canonicalId": "miyorare:miyorare-id:SHINIGAMI",
+      "providerVersions": {
+        "uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "cases": {
+        "browse": {
+          "response": {"format": "json", "body": "{\"data\":[{\"id\":\"s1\",\"title\":\"Shinigami Alpha\"},{\"id\":\"s2\",\"title\":\"Shinigami Beta\"}]}"},
+          "extractor": {"kind": "json-list", "path": "data", "fields": {"id": "id", "title": "title"}},
+          "expected": [{"id": "s1", "title": "Shinigami Alpha"}, {"id": "s2", "title": "Shinigami Beta"}]
+        },
+        "search": {
+          "response": {"format": "json", "body": "{\"data\":[{\"id\":\"s1\",\"title\":\"Shinigami Alpha\"}]}"},
+          "extractor": {"kind": "json-list", "path": "data", "fields": {"id": "id", "title": "title"}},
+          "expected": [{"id": "s1", "title": "Shinigami Alpha"}]
+        },
+        "details": {
+          "response": {"format": "json", "body": "{\"data\":{\"title\":\"Shinigami Alpha\",\"description\":\"API synopsis\",\"cover\":\"https://cdn.example/s1.jpg\"}}"},
+          "extractor": {"kind": "json-object", "path": "data", "fields": {"title": "title", "description": "description", "cover": "cover"}},
+          "expected": {"title": "Shinigami Alpha", "description": "API synopsis", "cover": "https://cdn.example/s1.jpg"}
+        },
+        "chapters": {
+          "response": {"format": "json", "body": "{\"data\":[{\"id\":\"c2\",\"title\":\"Chapter 2\"},{\"id\":\"c1\",\"title\":\"Chapter 1\"}]}"},
+          "extractor": {"kind": "json-list", "path": "data", "fields": {"id": "id", "title": "title"}},
+          "expected": [{"id": "c2", "title": "Chapter 2"}, {"id": "c1", "title": "Chapter 1"}]
+        },
+        "content": {
+          "response": {"format": "json", "body": "{\"data\":{\"pages\":[\"https://cdn.example/p1.jpg\",\"https://cdn.example/p2.jpg\"]}}"},
+          "extractor": {"kind": "json-scalar-list", "path": "data.pages"},
+          "expected": ["https://cdn.example/p1.jpg", "https://cdn.example/p2.jpg"]
+        }
+      }
+    },
+    {
+      "canonicalId": "miyorare:miyorare-en:WEEBCENTRAL",
+      "providerVersions": {"uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"},
+      "cases": {
+        "browse": {
+          "response": {"format": "html", "body": "<article data-series><a href='/series/w1'>Weeb One</a></article><article data-series><a href='/series/w2'>Weeb Two</a></article>"},
+          "extractor": {"kind": "regex-list", "pattern": "<article data-series><a href='(?P<url>[^']+)'>(?P<title>[^<]+)</a></article>"},
+          "expected": [{"url": "/series/w1", "title": "Weeb One"}, {"url": "/series/w2", "title": "Weeb Two"}]
+        },
+        "search": {
+          "response": {"format": "html", "body": "<article data-series><a href='/series/w1'>Weeb One</a></article>"},
+          "extractor": {"kind": "regex-list", "pattern": "<article data-series><a href='(?P<url>[^']+)'>(?P<title>[^<]+)</a></article>"},
+          "expected": [{"url": "/series/w1", "title": "Weeb One"}]
+        },
+        "details": {
+          "response": {"format": "html", "body": "<h1>Weeb One</h1><meta property='og:image' content='https://img.example/w1.jpg'><p class='description'>Weeb synopsis</p>"},
+          "extractor": {"kind": "regex-object", "fields": {"title": "<h1>([^<]+)</h1>", "cover": "property='og:image' content='([^']+)'", "description": "<p class='description'>([^<]+)</p>"}},
+          "expected": {"title": "Weeb One", "cover": "https://img.example/w1.jpg", "description": "Weeb synopsis"}
+        },
+        "chapters": {
+          "response": {"format": "html", "body": "<a data-chapter href='/series/w1/2'>Chapter 2</a><a data-chapter href='/series/w1/1'>Chapter 1</a>"},
+          "extractor": {"kind": "regex-list", "pattern": "<a data-chapter href='(?P<url>[^']+)'>(?P<title>[^<]+)</a>"},
+          "expected": [{"url": "/series/w1/2", "title": "Chapter 2"}, {"url": "/series/w1/1", "title": "Chapter 1"}]
+        },
+        "content": {
+          "response": {"format": "html", "body": "<img data-page src='https://img.example/w1-1.jpg'><img data-page src='https://img.example/w1-2.jpg'>"},
+          "extractor": {"kind": "regex-list", "pattern": "<img data-page src='(?P<url>[^']+)'"},
+          "expected": [{"url": "https://img.example/w1-1.jpg"}, {"url": "https://img.example/w1-2.jpg"}]
+        }
+      }
+    },
+    {
+      "canonicalId": "miyorare:miyorare-id:DOUJINDESU",
+      "providerVersions": {"gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"},
+      "cases": {
+        "browse": {
+          "response": {"format": "html", "body": "<div class='entry'><a class='metadata' href='/manga/d1' title='Doujin One'>Doujin One</a></div><div class='entry'><a class='metadata' href='/manga/d2' title='Doujin Two'>Doujin Two</a></div>"},
+          "extractor": {"kind": "regex-list", "pattern": "<div class='entry'><a class='metadata' href='(?P<url>[^']+)' title='(?P<title>[^']+)'>"},
+          "expected": [{"url": "/manga/d1", "title": "Doujin One"}, {"url": "/manga/d2", "title": "Doujin Two"}]
+        },
+        "search": {
+          "response": {"format": "html", "body": "<div class='entry'><a class='metadata' href='/manga/d1' title='Doujin One'>Doujin One</a></div>"},
+          "extractor": {"kind": "regex-list", "pattern": "<div class='entry'><a class='metadata' href='(?P<url>[^']+)' title='(?P<title>[^']+)'>"},
+          "expected": [{"url": "/manga/d1", "title": "Doujin One"}]
+        },
+        "details": {
+          "response": {"format": "html", "body": "<h1>Doujin One</h1><div class='summary'>Adult fixture synopsis</div><img class='thumb' src='https://img.example/d1.jpg'>"},
+          "extractor": {"kind": "regex-object", "fields": {"title": "<h1>([^<]+)</h1>", "description": "<div class='summary'>([^<]+)</div>", "cover": "<img class='thumb' src='([^']+)'"}},
+          "expected": {"title": "Doujin One", "description": "Adult fixture synopsis", "cover": "https://img.example/d1.jpg"}
+        },
+        "chapters": {
+          "response": {"format": "html", "body": "<a class='chapter' href='/reader/d1/2'>Chapter 2</a><a class='chapter' href='/reader/d1/1'>Chapter 1</a>"},
+          "extractor": {"kind": "regex-list", "pattern": "<a class='chapter' href='(?P<url>[^']+)'>(?P<title>[^<]+)</a>"},
+          "expected": [{"url": "/reader/d1/2", "title": "Chapter 2"}, {"url": "/reader/d1/1", "title": "Chapter 1"}]
+        },
+        "content": {
+          "response": {"format": "html", "body": "<img class='page' src='https://img.example/d1-1.jpg'><img class='page' src='https://img.example/d1-2.jpg'>"},
+          "extractor": {"kind": "regex-list", "pattern": "<img class='page' src='(?P<url>[^']+)'"},
+          "expected": [{"url": "https://img.example/d1-1.jpg"}, {"url": "https://img.example/d1-2.jpg"}]
+        }
+      }
+    }
+  ]
+}
