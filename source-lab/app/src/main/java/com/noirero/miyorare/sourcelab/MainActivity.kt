@@ -16,6 +16,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,7 +48,14 @@ private data class ProviderStat(
     val name: String,
     val memberships: Int,
     val runtimeHealth: String,
+    val updateState: String = "PROMOTED",
 )
+
+private sealed interface SyncState {
+    data object Loading : SyncState
+    data class Ready(val snapshot: LiveFarmSnapshot) : SyncState
+    data class Failed(val message: String) : SyncState
+}
 
 private object Seed12 {
     const val authoritativeRun = "35002747386"
@@ -99,6 +108,37 @@ private fun SourceLabTheme(content: @Composable () -> Unit) {
 private fun SourceLabApp() {
     var screen by remember { mutableStateOf(Screen.Dashboard) }
     var selectedSource by remember { mutableStateOf<SourceItem?>(null) }
+    var refreshGeneration by remember { mutableIntStateOf(0) }
+    var syncState by remember { mutableStateOf<SyncState>(SyncState.Loading) }
+
+    LaunchedEffect(refreshGeneration) {
+        syncState = SyncState.Loading
+        syncState = try {
+            val snapshot = withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
+            SyncState.Ready(snapshot)
+        } catch (error: Throwable) {
+            SyncState.Failed(error.message ?: error.javaClass.simpleName)
+        }
+    }
+
+    val liveSnapshot = (syncState as? SyncState.Ready)?.snapshot
+    val sources = liveSnapshot?.sources?.map { source ->
+        SourceItem(
+            name = source.displayName,
+            language = source.language,
+            providers = source.providers.map { it.prettyProviderName() },
+            repairValidated = source.displayName == "Shinigami" || source.displayName == "BatCave",
+        )
+    } ?: Seed12.sources
+
+    val providers = liveSnapshot?.providers?.map { provider ->
+        ProviderStat(
+            name = provider.id.prettyProviderName(),
+            memberships = liveSnapshot.sources.count { provider.id in it.providers },
+            runtimeHealth = provider.runtimeHealth,
+            updateState = provider.updateState,
+        )
+    } ?: Seed12.providers
 
     Scaffold(
         bottomBar = {
@@ -124,17 +164,29 @@ private fun SourceLabApp() {
             selectedSource?.let { source ->
                 SourceDetailScreen(source = source, onBack = { selectedSource = null })
             } ?: when (screen) {
-                Screen.Dashboard -> DashboardScreen(onOpenSources = { screen = Screen.Sources })
-                Screen.Sources -> SourcesScreen(onOpen = { selectedSource = it })
-                Screen.Tests -> TestsScreen()
-                Screen.Report -> ReportScreen()
+                Screen.Dashboard -> DashboardScreen(
+                    providers = providers,
+                    sourceCount = sources.size,
+                    syncState = syncState,
+                    onRefresh = { refreshGeneration++ },
+                    onOpenSources = { screen = Screen.Sources },
+                )
+                Screen.Sources -> SourcesScreen(sources = sources, onOpen = { selectedSource = it })
+                Screen.Tests -> TestsScreen(syncState = syncState)
+                Screen.Report -> ReportScreen(syncState = syncState)
             }
         }
     }
 }
 
 @Composable
-private fun DashboardScreen(onOpenSources: () -> Unit) {
+private fun DashboardScreen(
+    providers: List<ProviderStat>,
+    sourceCount: Int,
+    syncState: SyncState,
+    onRefresh: () -> Unit,
+    onOpenSources: () -> Unit,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(20.dp),
@@ -143,7 +195,11 @@ private fun DashboardScreen(onOpenSources: () -> Unit) {
         item {
             Text("Miyorare Source Lab", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
-            Text("Compatibility Farm control panel · read-only foundation", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Compatibility Farm control panel · read-only live sync", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        item {
+            LiveSyncCard(syncState = syncState, onRefresh = onRefresh)
         }
 
         item {
@@ -156,13 +212,13 @@ private fun DashboardScreen(onOpenSources: () -> Unit) {
 
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatCard("12/12", "Canonical", Modifier.weight(1f))
-                StatCard("21/21", "Memberships", Modifier.weight(1f))
+                StatCard("$sourceCount/12", "Registry sources", Modifier.weight(1f))
+                StatCard("21/21", "Seed memberships", Modifier.weight(1f))
             }
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatCard("0", "Failures", Modifier.weight(1f))
+                StatCard("0", "Seed failures", Modifier.weight(1f))
                 StatCard("2/2", "Auto-repair", Modifier.weight(1f))
             }
         }
@@ -170,7 +226,7 @@ private fun DashboardScreen(onOpenSources: () -> Unit) {
         item {
             SectionTitle("Provider runtime vs seed evidence")
         }
-        items(Seed12.providers) { provider ->
+        items(providers, key = { it.name }) { provider ->
             ProviderCard(provider)
         }
 
@@ -180,18 +236,45 @@ private fun DashboardScreen(onOpenSources: () -> Unit) {
 
         item {
             Button(onClick = onOpenSources, modifier = Modifier.fillMaxWidth()) {
-                Text("Browse 12 verified sources")
+                Text("Browse $sourceCount registered sources")
             }
         }
     }
 }
 
 @Composable
-private fun SourcesScreen(onOpen: (SourceItem) -> Unit) {
+private fun LiveSyncCard(syncState: SyncState, onRefresh: () -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            when (syncState) {
+                SyncState.Loading -> {
+                    Text("Repository sync", fontWeight = FontWeight.Bold)
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    Text("Reading Compatibility Farm registry and runtime state…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                is SyncState.Ready -> {
+                    Text("LIVE · READ ONLY", fontWeight = FontWeight.Bold, color = Color(0xFF75E8B0))
+                    Text("${syncState.snapshot.cohort} · ${syncState.snapshot.sources.size}/${syncState.snapshot.targetSize} sources")
+                    Text("Branch: ${syncState.snapshot.branch}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedButton(onClick = onRefresh) { Text("Refresh") }
+                }
+                is SyncState.Failed -> {
+                    Text("LIVE SYNC UNAVAILABLE", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                    Text("Showing the verified embedded checkpoint instead. No state is mutated.")
+                    Text(syncState.message, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    OutlinedButton(onClick = onRefresh) { Text("Retry") }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SourcesScreen(sources: List<SourceItem>, onOpen: (SourceItem) -> Unit) {
     var query by remember { mutableStateOf("") }
     var language by remember { mutableStateOf("ALL") }
-    val visible = remember(query, language) {
-        Seed12.sources.filter {
+    val visible = remember(sources, query, language) {
+        sources.filter {
             (language == "ALL" || it.language == language) &&
                 it.name.contains(query.trim(), ignoreCase = true)
         }
@@ -204,7 +287,7 @@ private fun SourcesScreen(onOpen: (SourceItem) -> Unit) {
     ) {
         item {
             Text("Sources", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("Seed-12 canonical registry", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Live registry with embedded seed fallback", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = query,
@@ -232,7 +315,7 @@ private fun SourcesScreen(onOpen: (SourceItem) -> Unit) {
 }
 
 @Composable
-private fun TestsScreen() {
+private fun TestsScreen(syncState: SyncState) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(20.dp),
@@ -263,13 +346,27 @@ private fun TestsScreen() {
         item {
             Card {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Live registry link", fontWeight = FontWeight.Bold)
+                    val text = when (syncState) {
+                        SyncState.Loading -> "Loading Compatibility Farm state…"
+                        is SyncState.Ready -> "Connected read-only to ${syncState.snapshot.branch}. This does not count as parser evidence."
+                        is SyncState.Failed -> "Offline/fallback mode. Authoritative seed evidence remains available."
+                    }
+                    Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+
+        item {
+            Card {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Remote test control", fontWeight = FontWeight.Bold)
                     Text(
-                        "The Android shell is ready for CI controls, but workflow dispatch/auth is deliberately not wired in this first foundation commit.",
+                        "Repository viewing is live, but workflow dispatch/auth stays locked until a dedicated secure control path exists. No GitHub token is embedded in the APK.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
-                        Text("Run Full Farm · wiring pending")
+                        Text("Run Full Farm · secure wiring pending")
                     }
                 }
             }
@@ -279,7 +376,7 @@ private fun TestsScreen() {
             Card {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Approval", fontWeight = FontWeight.Bold)
-                    Text("Exact-SHA approval UI is visible only as a safety placeholder until P0 upstream authorization wiring is complete.")
+                    Text("Exact-SHA approval remains locked until P0 upstream authorization wiring is complete.")
                     Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
                         Text("Approve exact candidate · locked")
                     }
@@ -291,7 +388,7 @@ private fun TestsScreen() {
 }
 
 @Composable
-private fun ReportScreen() {
+private fun ReportScreen(syncState: SyncState) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(20.dp),
@@ -306,6 +403,10 @@ private fun ReportScreen() {
         item { ReportLine("Approval engine", Seed12.approvalFoundationCommit) }
         item { ReportLine("Artifact", Seed12.artifactId) }
         item { ReportLine("Digest", Seed12.artifactDigest) }
+        if (syncState is SyncState.Ready) {
+            item { ReportLine("Live registry branch", syncState.snapshot.branch) }
+            item { ReportLine("Live registry cohort", syncState.snapshot.cohort) }
+        }
         item {
             Card {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -344,7 +445,7 @@ private fun SourceDetailScreen(source: SourceItem, onBack: () -> Unit) {
             StatusCard(
                 title = "Seed compatibility evidence",
                 status = "PASS",
-                supporting = "${source.providers.size}/${source.providers.size} provider memberships exercised with real-parser coverage.",
+                supporting = "${source.providers.size}/${source.providers.size} provider memberships exercised with real-parser coverage for the verified seed checkpoint.",
             )
         }
 
@@ -394,7 +495,7 @@ private fun SourceCard(source: SourceItem, onClick: () -> Unit) {
                 Text(source.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${source.language} · ${source.providers.joinToString(" / ")}", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text(if (source.repairValidated) "REPAIRED ✓" else "PASS ✓", color = Color(0xFF75E8B0), style = MaterialTheme.typography.labelMedium)
+            Text(if (source.repairValidated) "REPAIRED ✓" else "REGISTERED", color = Color(0xFF75E8B0), style = MaterialTheme.typography.labelMedium)
         }
     }
 }
@@ -405,7 +506,7 @@ private fun ProviderCard(stat: ProviderStat) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(stat.name, fontWeight = FontWeight.Bold)
-                Text("Seed evidence ${stat.memberships}/${stat.memberships} PASS", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${stat.memberships} registered memberships · ${stat.updateState}", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(stat.runtimeHealth, fontWeight = FontWeight.Bold)
@@ -433,9 +534,11 @@ private fun SafetyCard() {
     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF171C2C))) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text("Safety boundary", fontWeight = FontWeight.Bold)
+            Text("• live repository access is read-only")
             Text("• PASS does not promote")
             Text("• LKG does not move before exact approval")
             Text("• stale approval must fail closed")
+            Text("• no embedded GitHub write token")
             Text("• no sign / release / publish from this foundation")
         }
     }
@@ -479,4 +582,11 @@ private fun BadgeText(text: String) {
     Surface(shape = RoundedCornerShape(999.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
         Text(text, modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium)
     }
+}
+
+private fun String.prettyProviderName(): String = when (lowercase()) {
+    "keiyoushi" -> "Keiyoushi"
+    "uma" -> "UMA"
+    "gekkoushi" -> "Gekkoushi"
+    else -> replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
 }
