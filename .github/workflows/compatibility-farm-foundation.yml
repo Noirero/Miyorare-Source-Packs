@@ -12,11 +12,13 @@ on:
       - 'tools/deterministic_farm.py'
       - 'tools/source_shape_guard.py'
       - 'tools/behavioral_fixture.py'
+      - 'tools/parser_harness_report.py'
       - 'tests/test_compatibility_contract.py'
       - 'tests/test_source_registry.py'
       - 'tests/test_deterministic_farm.py'
       - 'tests/test_source_shape_guard.py'
       - 'tests/test_behavioral_fixture.py'
+      - 'tests/test_parser_harness_report.py'
       - '.github/workflows/compatibility-farm-foundation.yml'
   pull_request:
     branches:
@@ -29,11 +31,13 @@ on:
       - 'tools/deterministic_farm.py'
       - 'tools/source_shape_guard.py'
       - 'tools/behavioral_fixture.py'
+      - 'tools/parser_harness_report.py'
       - 'tests/test_compatibility_contract.py'
       - 'tests/test_source_registry.py'
       - 'tests/test_deterministic_farm.py'
       - 'tests/test_source_shape_guard.py'
       - 'tests/test_behavioral_fixture.py'
+      - 'tests/test_parser_harness_report.py'
       - '.github/workflows/compatibility-farm-foundation.yml'
 
 permissions:
@@ -97,6 +101,7 @@ jobs:
           tools/deterministic_farm.py
           tools/source_shape_guard.py
           tools/behavioral_fixture.py
+          tools/parser_harness_report.py
 
       - name: Validate machine-readable compatibility contract
         run: python3 tools/compatibility_contract.py validate --contract compatibility/contract.json
@@ -170,6 +175,15 @@ jobs:
           chmod +x gradlew
           ./gradlew test --tests compatibilityfarm.KomikuParserHarnessTest --no-daemon
 
+      - name: Normalize real parser execution evidence
+        run: >-
+          python3 tools/parser_harness_report.py
+          --registry compatibility/source-registry.json
+          --results-dir _upstream/uma/build/test-results/test
+          --provider uma
+          --source miyorare:miyorare-id:KOMIKU=compatibilityfarm.KomikuParserHarnessTest
+          --output build/real-parser-harness-report.json
+
       - name: Run repository unit tests
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
 
@@ -183,6 +197,7 @@ jobs:
             build/source-shape-uma.json
             build/source-shape-gekkoushi.json
             build/behavioral-seed-report.json
+            build/real-parser-harness-report.json
             _upstream/uma/build/test-results/test/*.xml
           if-no-files-found: error
           retention-days: 14
