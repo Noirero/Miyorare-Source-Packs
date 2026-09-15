@@ -19,6 +19,8 @@ import okhttp3.OkHttpClient
 abstract class HttpSource {
     protected val network: NetworkHelper = NetworkHelper()
 
+    abstract val name: String
+    abstract val lang: String
     abstract val baseUrl: String
 
     open val versionId: Int = 1
