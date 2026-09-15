@@ -26,19 +26,40 @@ internal data class FixtureResponse(
  * JVM-only deterministic context used by Compatibility Farm parser execution tests.
  * Every network request must be satisfied by the supplied fixture responder; unexpected
  * requests fail closed instead of reaching the public network.
+ *
+ * Seeded cookies model host-provided authenticated state without contacting a real site.
  */
 internal class DeterministicMangaLoaderContext(
     private val responder: (Request) -> FixtureResponse,
+    seededCookies: List<Cookie> = emptyList(),
 ) : MangaLoaderContext() {
 
+    private val storedCookies = seededCookies.toMutableList()
+
     override val cookieJar: CookieJar = object : CookieJar {
-        override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) = Unit
-        override fun loadForRequest(url: HttpUrl): List<Cookie> = emptyList()
+        override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+            cookies.forEach { incoming ->
+                storedCookies.removeAll {
+                    it.name == incoming.name && it.domain == incoming.domain && it.path == incoming.path
+                }
+                storedCookies += incoming
+            }
+        }
+
+        override fun loadForRequest(url: HttpUrl): List<Cookie> = storedCookies.filter { it.matches(url) }
     }
 
     override val httpClient: OkHttpClient = OkHttpClient.Builder()
         .addInterceptor { chain ->
-            val request = chain.request()
+            val original = chain.request()
+            val cookies = cookieJar.loadForRequest(original.url)
+            val request = if (cookies.isEmpty()) {
+                original
+            } else {
+                original.newBuilder()
+                    .header("Cookie", cookies.joinToString("; ") { "${it.name}=${it.value}" })
+                    .build()
+            }
             val fixture = responder(request)
             Response.Builder()
                 .request(request)
