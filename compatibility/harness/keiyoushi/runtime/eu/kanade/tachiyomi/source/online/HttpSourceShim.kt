@@ -24,8 +24,8 @@ abstract class HttpSource {
     open val versionId: Int = 1
     open val id: Long = 0L
 
-    val headers: Headers
-        get() = headersBuilder().build()
+    // KeiSource replaces this delegate reflectively during initialization, matching the host app.
+    val headers: Headers by lazy { headersBuilder().build() }
 
     open val client: OkHttpClient
         get() = network.client
