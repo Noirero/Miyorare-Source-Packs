@@ -1,0 +1,45 @@
+name: Compatibility Farm Foundation
+
+on:
+  push:
+    branches:
+      - beta
+      - 'compatibility-farm-*'
+    paths:
+      - 'compatibility/**'
+      - 'tools/compatibility_contract.py'
+      - 'tests/test_compatibility_contract.py'
+      - '.github/workflows/compatibility-farm-foundation.yml'
+  pull_request:
+    branches:
+      - beta
+      - main
+    paths:
+      - 'compatibility/**'
+      - 'tools/compatibility_contract.py'
+      - 'tests/test_compatibility_contract.py'
+      - '.github/workflows/compatibility-farm-foundation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compatibility-farm-foundation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract-and-regression-invariants:
+    name: Validate approve-only safety invariants
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Compile Compatibility Farm helper
+        run: python3 -m py_compile tools/compatibility_contract.py
+
+      - name: Validate machine-readable compatibility contract
+        run: python3 tools/compatibility_contract.py validate --contract compatibility/contract.json
+
+      - name: Run repository unit tests
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
