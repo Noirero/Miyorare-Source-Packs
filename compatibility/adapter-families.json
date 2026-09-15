@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "families": {
+    "manga-reader-plus-api": {
+      "requiredTokenGroups": [
+        ["@MangaSourceParser("],
+        ["MangaReaderParser("],
+        ["selectPage"],
+        ["selectChapter"],
+        ["apiDomain", "getPages"]
+      ]
+    },
+    "custom-rest-json": {
+      "requiredTokenGroups": [
+        ["@MangaSourceParser("],
+        ["PagedMangaParser("],
+        ["getRequestHeaders", "getApiHeaders"],
+        ["parseJson", "JSONObject", "mapJSON"],
+        ["getPages"]
+      ]
+    },
+    "custom-auth-cookie-html": {
+      "requiredTokenGroups": [
+        ["@MangaSourceParser("],
+        ["MangaParserAuthProvider"],
+        ["isAuthorized"],
+        ["getCookies"],
+        ["access_token"],
+        ["getPages"]
+      ]
+    }
+  }
+}
