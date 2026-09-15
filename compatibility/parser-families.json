@@ -79,6 +79,37 @@
       ]
     },
     {
+      "id": "uma-bacami-script-pages",
+      "provider": "uma",
+      "registryAdapterFamily": "custom-paged-html-json-script",
+      "providerParserFamily": "html-script-page-list",
+      "runner": "gradle-jvm-test",
+      "members": [
+        {"canonicalId": "miyorare:miyorare-id:BACAMI", "testClass": "compatibilityfarm.BacamiParserHarnessTest"}
+      ]
+    },
+    {
+      "id": "uma-like-manga",
+      "provider": "uma",
+      "registryAdapterFamily": "like-manga",
+      "providerParserFamily": "like-manga-shared-parser",
+      "runner": "gradle-jvm-test",
+      "members": [
+        {"canonicalId": "miyorare:miyorare-en:LIKEMANGA", "testClass": "compatibilityfarm.LikeMangaParserHarnessTest"}
+      ]
+    },
+    {
+      "id": "uma-custom-paged-html",
+      "provider": "uma",
+      "registryAdapterFamily": "custom-paged-html",
+      "providerParserFamily": "paged-html",
+      "runner": "gradle-jvm-test",
+      "members": [
+        {"canonicalId": "miyorare:miyorare-en:MANGAPILL", "testClass": "compatibilityfarm.MangaPillParserHarnessTest"},
+        {"canonicalId": "miyorare:miyorare-id:THEMANGA", "testClass": "compatibilityfarm.TheMangaParserHarnessTest"}
+      ]
+    },
+    {
       "id": "gekkoushi-html-xhr",
       "provider": "gekkoushi",
       "registryAdapterFamily": "custom-paged-html-xhr",
