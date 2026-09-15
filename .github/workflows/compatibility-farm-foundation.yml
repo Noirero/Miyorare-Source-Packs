@@ -313,6 +313,7 @@ jobs:
           --report build/real-parser-harness-uma-report.json
           --report build/real-parser-harness-gekkoushi-report.json
           --report build/real-parser-harness-keiyoushi-report.json
+          --repair-report build/repair-shinigami-gekkoushi.json
           --output build/real-parser-harness-aggregate.json
 
       - name: Run repository unit tests
