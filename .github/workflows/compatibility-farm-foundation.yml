@@ -236,7 +236,7 @@ jobs:
           cp -R compatibility/harness/gekkoushi/resources/. _upstream/gekkoushi/src/test/resources/compatibility-farm/
           cp -R compatibility/harness/uma/resources/shinigami/. _upstream/gekkoushi/src/test/resources/compatibility-farm/shinigami/
 
-      - name: Auto-repair recognized Gekkoushi request-header forwarding gap
+      - name: Auto-repair recognized Shinigami request-header forwarding gap
         run: >-
           python3 tools/repair_engine.py
           --recipes compatibility/repair-recipes.json
@@ -247,6 +247,17 @@ jobs:
           --path src/main/kotlin/tsuki/site/id/Shinigami.kt
           --output build/repair-shinigami-gekkoushi.json
 
+      - name: Auto-repair recognized BatCave request-header forwarding gap
+        run: >-
+          python3 tools/repair_engine.py
+          --recipes compatibility/repair-recipes.json
+          --recipe forward-parser-request-headers-to-http-get
+          --provider gekkoushi
+          --canonical-id miyorare:miyorare-en:BATCAVE
+          --root _upstream/gekkoushi
+          --path src/main/kotlin/tsuki/site/en/BatCave.kt
+          --output build/repair-batcave-gekkoushi.json
+
       - name: Execute real Gekkoushi Kotlin parser harness seed after repair
         working-directory: _upstream/gekkoushi
         run: |
@@ -254,6 +265,8 @@ jobs:
           ./gradlew test \
             --tests compatibilityfarm.DoujinDesuParserHarnessTest \
             --tests compatibilityfarm.ShinigamiGekkoushiParserHarnessTest \
+            --tests compatibilityfarm.BatCaveGekkoushiParserHarnessTest \
+            --tests compatibilityfarm.AsuraScansGekkoushiParserHarnessTest \
             --no-daemon
 
       - name: Normalize Gekkoushi real parser execution evidence
@@ -264,6 +277,8 @@ jobs:
           --provider gekkoushi
           --source miyorare:miyorare-id:DOUJINDESU=compatibilityfarm.DoujinDesuParserHarnessTest
           --source miyorare:miyorare-id:SHINIGAMI=compatibilityfarm.ShinigamiGekkoushiParserHarnessTest
+          --source miyorare:miyorare-en:BATCAVE=compatibilityfarm.BatCaveGekkoushiParserHarnessTest
+          --source miyorare:miyorare-en:ASURASCANS=compatibilityfarm.AsuraScansGekkoushiParserHarnessTest
           --output build/real-parser-harness-gekkoushi-report.json
 
       - name: Install real Keiyoushi parser harness into disposable checkout
@@ -335,6 +350,7 @@ jobs:
           python3 tools/repair_evidence.py
           --aggregate build/real-parser-harness-aggregate.json
           --repair-report build/repair-shinigami-gekkoushi.json
+          --repair-report build/repair-batcave-gekkoushi.json
           --output build/real-parser-harness-evidence.json
 
       - name: Run repository unit tests
@@ -351,6 +367,7 @@ jobs:
             build/source-shape-gekkoushi.json
             build/behavioral-seed-report.json
             build/repair-shinigami-gekkoushi.json
+            build/repair-batcave-gekkoushi.json
             build/real-parser-harness-uma-report.json
             build/real-parser-harness-gekkoushi-report.json
             build/real-parser-harness-keiyoushi-report.json
