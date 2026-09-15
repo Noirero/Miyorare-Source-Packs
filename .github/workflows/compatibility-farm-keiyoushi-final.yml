@@ -61,6 +61,10 @@ jobs:
           mkdir -p "$module/compatibility-farm-test"
           cp compatibility/harness/keiyoushi/KeiyoushiBacamiParserHarnessTest.kt "$module/compatibility-farm-test/"
           cp -R compatibility/harness/keiyoushi/runtime/. "$module/compatibility-farm-test/"
+          # ConfigurableSource/PreferenceScreen are Asura-only host ABI. Do not make
+          # unrelated parser families compile against UI preference types.
+          rm -f "$module/compatibility-farm-test/eu/kanade/tachiyomi/source/ConfigurableSourceShim.kt"
+          rm -rf "$module/compatibility-farm-test/androidx/preference"
           cat >> "$module/build.gradle.kts" <<'EOF'
 
           android {
