@@ -27,9 +27,21 @@ internal data class LiveSourceState(
     val approvalState: String,
 )
 
+internal data class LiveFarmRun(
+    val id: Long,
+    val runNumber: Int,
+    val status: String,
+    val conclusion: String?,
+    val headSha: String,
+    val title: String,
+    val createdAt: String,
+    val htmlUrl: String,
+)
+
 internal data class LiveFarmSnapshot(
     val sources: List<LiveSourceState>,
     val providers: List<LiveProviderState>,
+    val recentRuns: List<LiveFarmRun>,
     val cohort: String,
     val targetSize: Int,
     val branch: String,
@@ -39,8 +51,10 @@ internal data class LiveFarmSnapshot(
 internal object SourceLabRepository {
     const val farmBranch = "compatibility-farm-foundation"
 
+    private const val repository = "Noirero/Miyorare-Source-Packs"
     private const val rawBase =
-        "https://raw.githubusercontent.com/Noirero/Miyorare-Source-Packs/$farmBranch"
+        "https://raw.githubusercontent.com/$repository/$farmBranch"
+    private const val apiBase = "https://api.github.com/repos/$repository"
 
     fun loadSnapshot(): LiveFarmSnapshot {
         val registry = JSONObject(fetchText("$rawBase/compatibility/source-registry.json"))
@@ -88,9 +102,14 @@ internal object SourceLabRepository {
             )
         }.sortedBy { it.id }.toList()
 
+        // Workflow history is supplemental. A GitHub API/rate-limit failure must not
+        // hide the registry/runtime snapshot that is still available from raw content.
+        val recentRuns = runCatching { loadRecentFarmRuns() }.getOrDefault(emptyList())
+
         return LiveFarmSnapshot(
             sources = sources,
             providers = providers,
+            recentRuns = recentRuns,
             cohort = scope.optString("cohort", "unknown"),
             targetSize = scope.optInt("targetSize", sources.size),
             branch = farmBranch,
@@ -98,12 +117,37 @@ internal object SourceLabRepository {
         )
     }
 
+    private fun loadRecentFarmRuns(): List<LiveFarmRun> {
+        val url = "$apiBase/actions/workflows/compatibility-farm-accelerated.yml/runs" +
+            "?branch=$farmBranch&per_page=5"
+        val payload = JSONObject(fetchText(url))
+        val runs = payload.getJSONArray("workflow_runs")
+        return buildList {
+            for (index in 0 until runs.length()) {
+                val run = runs.getJSONObject(index)
+                add(
+                    LiveFarmRun(
+                        id = run.getLong("id"),
+                        runNumber = run.optInt("run_number"),
+                        status = run.optString("status", "unknown"),
+                        conclusion = run.optString("conclusion").takeIf { it.isNotBlank() && it != "null" },
+                        headSha = run.optString("head_sha"),
+                        title = run.optString("display_title", "Compatibility Farm"),
+                        createdAt = run.optString("created_at"),
+                        htmlUrl = run.optString("html_url"),
+                    )
+                )
+            }
+        }
+    }
+
     private fun fetchText(url: String): String {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 10_000
             readTimeout = 15_000
-            setRequestProperty("Accept", "application/json")
+            setRequestProperty("Accept", "application/vnd.github+json")
+            setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
             setRequestProperty("User-Agent", "Miyorare-Source-Lab/0.1")
             useCaches = false
         }
