@@ -1,0 +1,115 @@
+name: Compatibility Farm Final Keiyoushi Seed
+
+on:
+  push:
+    branches:
+      - cf-keiyoushi-final
+    paths:
+      - 'compatibility/source-registry.json'
+      - 'compatibility/harness/keiyoushi/**'
+      - 'tools/parser_harness_report.py'
+      - '.github/workflows/compatibility-farm-keiyoushi-final.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compatibility-farm-keiyoushi-final-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bacami:
+    name: Execute pinned Keiyoushi Bacami parser
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Compatibility Farm
+        uses: actions/checkout@v5
+
+      - name: Resolve pinned Keiyoushi baseline
+        id: provider-ref
+        shell: bash
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          data = json.loads(Path('compatibility/source-registry.json').read_text(encoding='utf-8'))
+          print(f"keiyoushi={data['providerBaselines']['keiyoushi']}")
+          PY
+
+      - name: Checkout pinned Keiyoushi source
+        uses: actions/checkout@v5
+        with:
+          repository: keiyoushi/extensions-source
+          ref: ${{ steps.provider-ref.outputs.keiyoushi }}
+          path: _upstream/keiyoushi
+          fetch-depth: 1
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Install deterministic Bacami harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          module=_upstream/keiyoushi/src/id/bacami
+          mkdir -p "$module/compatibility-farm-test"
+          cp compatibility/harness/keiyoushi/KeiyoushiBacamiParserHarnessTest.kt "$module/compatibility-farm-test/"
+          cp -R compatibility/harness/keiyoushi/runtime/. "$module/compatibility-farm-test/"
+          cat >> "$module/build.gradle.kts" <<'EOF'
+
+          android {
+              sourceSets {
+                  named("test") {
+                      java.directories.add("compatibility-farm-test")
+                      kotlin.directories.add("compatibility-farm-test")
+                  }
+              }
+              testOptions {
+                  unitTests.isReturnDefaultValues = true
+              }
+          }
+
+          dependencies {
+              testImplementation(libs.junit)
+              testImplementation(libs.bundles.common)
+          }
+
+          tasks.matching { it.name == "kspDebugUnitTestKotlin" }.configureEach {
+              enabled = false
+          }
+          EOF
+
+      - name: Execute real Keiyoushi Bacami parser harness
+        working-directory: _upstream/keiyoushi
+        run: |
+          chmod +x gradlew
+          ./gradlew :src:id:bacami:testDebugUnitTest \
+            --tests compatibilityfarm.KeiyoushiBacamiParserHarnessTest \
+            --no-daemon
+
+      - name: Normalize Bacami parser evidence
+        if: always()
+        run: >-
+          python3 tools/parser_harness_report.py
+          --registry compatibility/source-registry.json
+          --results-dir _upstream/keiyoushi/src/id/bacami/build/test-results/testDebugUnitTest
+          --provider keiyoushi
+          --source miyorare:miyorare-id:BACAMI=compatibilityfarm.KeiyoushiBacamiParserHarnessTest
+          --output build/real-parser-harness-keiyoushi-bacami-report.json
+
+      - name: Upload Bacami parser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compatibility-farm-keiyoushi-bacami-report
+          path: |
+            build/real-parser-harness-keiyoushi-bacami-report.json
+            _upstream/keiyoushi/src/id/bacami/build/test-results/testDebugUnitTest/*.xml
+          if-no-files-found: warn
+          retention-days: 14
