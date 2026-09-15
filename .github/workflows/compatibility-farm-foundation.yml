@@ -260,6 +260,12 @@ jobs:
               testImplementation(libs.junit)
               testImplementation(libs.bundles.common)
           }
+
+          // Main KSP must remain enabled because it generates keiyoushi.source.Generated.
+          // Test KSP is irrelevant to the parser harness and fails when it sees no test @Source.
+          tasks.matching { it.name == "kspDebugUnitTestKotlin" }.configureEach {
+              enabled = false
+          }
           EOF
 
       - name: Execute real Keiyoushi Komiku parser harness seed
