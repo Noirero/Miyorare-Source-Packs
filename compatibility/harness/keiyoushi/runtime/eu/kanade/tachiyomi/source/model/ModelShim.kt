@@ -88,6 +88,12 @@ class Page(
 data class MangasPage(val mangas: List<SManga>, val hasNextPage: Boolean)
 
 @Suppress("unused")
+data class SMangaUpdate(
+    val manga: SManga,
+    val chapters: List<SChapter>,
+)
+
+@Suppress("unused")
 sealed class Filter<T>(val name: String, var state: T) {
     open class Header(name: String) : Filter<Any>(name, 0)
     open class Separator(name: String = "") : Filter<Any>(name, 0)
