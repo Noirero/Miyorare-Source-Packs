@@ -51,6 +51,9 @@ jobs:
           mkdir -p "$module/compatibility-farm-test"
           cp compatibility/harness/keiyoushi/KeiyoushiBatCaveParserHarnessTest.kt "$module/compatibility-farm-test/"
           cp -R compatibility/harness/keiyoushi/runtime/. "$module/compatibility-farm-test/"
+          # Keep parser-family host ABI isolated. BatCave is not ConfigurableSource.
+          rm -f "$module/compatibility-farm-test/eu/kanade/tachiyomi/source/ConfigurableSourceShim.kt"
+          rm -rf "$module/compatibility-farm-test/androidx/preference"
           cat >> "$module/build.gradle.kts" <<'EOF'
 
           android {
