@@ -4,6 +4,19 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val sourceLabVersionCode = System.getenv("SOURCE_LAB_VERSION_CODE")?.toIntOrNull() ?: 1
+val sourceLabVersionName = System.getenv("SOURCE_LAB_VERSION_NAME") ?: "0.1.0"
+val updateStorePath = System.getenv("SOURCE_LAB_KEYSTORE_PATH")
+val updateStorePassword = System.getenv("SOURCE_LAB_KEYSTORE_PASSWORD")
+val updateKeyAlias = System.getenv("SOURCE_LAB_KEY_ALIAS")
+val updateKeyPassword = System.getenv("SOURCE_LAB_KEY_PASSWORD")
+val hasStableUpdateSigning = listOf(
+    updateStorePath,
+    updateStorePassword,
+    updateKeyAlias,
+    updateKeyPassword,
+).all { !it.isNullOrBlank() }
+
 android {
     namespace = "com.noirero.miyorare.sourcelab"
     compileSdk = 35
@@ -12,11 +25,25 @@ android {
         applicationId = "com.noirero.miyorare.sourcelab"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = sourceLabVersionCode
+        versionName = sourceLabVersionName
+    }
+
+    val stableUpdateSigning = if (hasStableUpdateSigning) {
+        signingConfigs.create("sourceLabStableUpdate") {
+            storeFile = file(updateStorePath!!)
+            storePassword = updateStorePassword
+            keyAlias = updateKeyAlias
+            keyPassword = updateKeyPassword
+        }
+    } else {
+        null
     }
 
     buildTypes {
+        getByName("debug") {
+            stableUpdateSigning?.let { signingConfig = it }
+        }
         release {
             isMinifyEnabled = false
         }
