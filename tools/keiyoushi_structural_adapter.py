@@ -2,9 +2,9 @@
 """Deterministic structural adapters from Keiyoushi semantics to Miyorare's UMA/Tsuki runtime.
 
 This is deliberately fail-closed. A structural profile is applied only when:
-- the registered canonical source changed upstream,
+- the registered canonical source or a runtime it actually uses changed upstream,
 - the candidate matches a known upstream generation/signature, and
-- the UMA target still matches either the known pre-adaptation form or the already-adapted form.
+- the UMA target still matches either the known pre-adaptation form or a proven runtime-equivalent form.
 
 The adapter never copies KeiSource Kotlin into UMA. It translates known semantic changes into the
 native Tsuki implementation and records provenance in the existing semantic-adapter report.
@@ -22,6 +22,9 @@ PROVENANCE_FILE = "miyorare-semantic-adapter.json"
 PROFILE_CAPABILITY = "structural-profile"
 KOMIKU_CANONICAL = "miyorare:miyorare-id:KOMIKU"
 KOMIKU_PROFILE = "komiku-keisource-1.6"
+KIRYUU_CANONICAL = "miyorare:miyorare-id:KIRYUU"
+KIRYUU_PROFILE = "natsuid-alt-title-1.6"
+NATSUID_ROOT = "lib-multisrc/natsuid"
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -45,11 +48,15 @@ def git(repo: Path, *args: str) -> str:
     )
 
 
-def module_changed(repo: Path, base: str, candidate: str, module: str) -> bool:
+def changed_paths(repo: Path, base: str, candidate: str, path: str) -> list[str]:
     if not base or not candidate or base == candidate:
-        return False
-    out = git(repo, "diff", "--name-only", f"{base}..{candidate}", "--", module)
-    return bool(out.strip())
+        return []
+    out = git(repo, "diff", "--name-only", f"{base}..{candidate}", "--", path)
+    return sorted({line.strip() for line in out.splitlines() if line.strip()})
+
+
+def module_changed(repo: Path, base: str, candidate: str, module: str) -> bool:
+    return bool(changed_paths(repo, base, candidate, module))
 
 
 def alias_by_canonical(manifest: dict[str, Any], canonical: str) -> dict[str, Any] | None:
@@ -222,6 +229,114 @@ def adapt_komiku(alias: dict[str, Any], keiyoushi_root: Path, uma_root: Path) ->
     }, None
 
 
+def adapt_kiryuu_natsuid(
+    alias: dict[str, Any],
+    keiyoushi_root: Path,
+    uma_root: Path,
+    base: str,
+    candidate: str,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Prove the known NatsuId 1.6 alternative-title update is already covered by Tsuki."""
+    kei = alias.get("keiyoushi") or {}
+    uma = alias.get("uma") or {}
+    module = kei.get("module")
+    uma_file = uma.get("file")
+    if not isinstance(module, str) or not isinstance(uma_file, str):
+        return None, {"canonicalId": KIRYUU_CANONICAL, "reason": "profile-metadata-missing"}
+
+    natsu_changes = changed_paths(keiyoushi_root, base, candidate, NATSUID_ROOT)
+    expected_changes = {
+        f"{NATSUID_ROOT}/build.gradle.kts",
+        f"{NATSUID_ROOT}/src/eu/kanade/tachiyomi/multisrc/natsuid/Dto.kt",
+    }
+    if set(natsu_changes) != expected_changes:
+        return None, {
+            "canonicalId": KIRYUU_CANONICAL,
+            "module": module,
+            "reason": "unknown-natsuid-runtime-generation",
+            "changedFiles": natsu_changes,
+        }
+
+    dto = keiyoushi_root / NATSUID_ROOT / "src/eu/kanade/tachiyomi/multisrc/natsuid/Dto.kt"
+    runtime_build = keiyoushi_root / NATSUID_ROOT / "build.gradle.kts"
+    kiryuu_sources = sorted((keiyoushi_root / module).rglob("Kiryuu.kt"))
+    uma_source = uma_root / uma_file
+    natsu_parser = uma_root / "src/main/kotlin/tsuki/parsers/NatsuParser.kt"
+    if not dto.is_file() or not runtime_build.is_file() or len(kiryuu_sources) != 1 or not uma_source.is_file() or not natsu_parser.is_file():
+        return None, {
+            "canonicalId": KIRYUU_CANONICAL,
+            "module": module,
+            "umaFile": uma_file,
+            "reason": "profile-input-missing",
+        }
+
+    dto_text = dto.read_text(encoding="utf-8")
+    runtime_build_text = runtime_build.read_text(encoding="utf-8")
+    kiryuu_text = kiryuu_sources[0].read_text(encoding="utf-8")
+    uma_source_text = uma_source.read_text(encoding="utf-8")
+    natsu_text = natsu_parser.read_text(encoding="utf-8")
+
+    upstream_signatures = (
+        '@JsonNames("metadata")',
+        'val meta: MangaMeta? = null',
+        '@SerialName("alternative_title")',
+        'append("Alternative Names:\\n")',
+        'baseVersionCode = 6',
+        'libVersion = "1.6"',
+        'abstract class Kiryuu : NatsuId()',
+        'setQueryParameter("page", "1")',
+    )
+    combined_upstream = "\n".join((dto_text, runtime_build_text, kiryuu_text))
+    missing_upstream = [marker for marker in upstream_signatures if marker not in combined_upstream]
+    if missing_upstream:
+        return None, {
+            "canonicalId": KIRYUU_CANONICAL,
+            "module": module,
+            "reason": "unknown-natsuid-alt-title-signature",
+            "missingSignatures": missing_upstream,
+        }
+
+    runtime_equivalence = (
+        'NatsuParser(context, MangaParserSource.KIRYUU, "v7.kiryuu.to")',
+        'private suspend fun fetchAltTitlesFromPage(pageUrl: String): Set<String>',
+        "val altTitles = fetchAltTitlesFromPage",
+        "altTitles = altTitles",
+    )
+    combined_uma = "\n".join((uma_source_text, natsu_text))
+    missing_runtime = [marker for marker in runtime_equivalence if marker not in combined_uma]
+    if missing_runtime:
+        return None, {
+            "canonicalId": KIRYUU_CANONICAL,
+            "module": module,
+            "umaFile": uma_file,
+            "reason": "natsuid-runtime-equivalence-not-proven",
+            "missingMarkers": missing_runtime,
+        }
+
+    return {
+        "canonicalId": KIRYUU_CANONICAL,
+        "module": module,
+        "umaFile": uma_file,
+        "changeClasses": [PROFILE_CAPABILITY],
+        "changes": [
+            {
+                "changeClass": PROFILE_CAPABILITY,
+                "profile": KIRYUU_PROFILE,
+                "rule": "natsuid-alternative-title-metadata",
+                "mode": "already-compatible-runtime-equivalent",
+                "note": "Keiyoushi now reads alternative_title from REST metadata; Tsuki NatsuParser already resolves alternate titles from the manga page and stores them in Manga.altTitles.",
+            },
+            {
+                "changeClass": PROFILE_CAPABILITY,
+                "profile": KIRYUU_PROFILE,
+                "rule": "natsuid-version-bump",
+                "mode": "metadata-only-after-runtime-equivalence",
+                "note": "NatsuId baseVersionCode changed 5 -> 6; no additional runtime source file changed beyond the recognized DTO behavior.",
+            },
+        ],
+    }, None
+
+
 def merge_applied(report: dict[str, Any], item: dict[str, Any]) -> None:
     applied = report.setdefault("applied", [])
     for existing in applied:
@@ -233,6 +348,13 @@ def merge_applied(report: dict[str, Any], item: dict[str, Any]) -> None:
         existing.setdefault("changes", []).extend(item.get("changes", []))
         return
     applied.append(item)
+
+
+def clear_blocked(report: dict[str, Any], canonical: str) -> None:
+    report["blocked"] = [
+        item for item in report.get("blocked", [])
+        if not isinstance(item, dict) or item.get("canonicalId") != canonical
+    ]
 
 
 def apply_structural_adapters(
@@ -261,19 +383,33 @@ def apply_structural_adapters(
     base = report.get("base")
     candidate = report.get("candidate")
 
-    alias = alias_by_canonical(manifest, KOMIKU_CANONICAL)
-    if alias and isinstance(base, str) and isinstance(candidate, str):
-        module = (alias.get("keiyoushi") or {}).get("module")
-        if isinstance(module, str) and module_changed(keiyoushi_root, base, candidate, module):
-            applied, blocked = adapt_komiku(alias, keiyoushi_root, uma_root)
+    if isinstance(base, str) and isinstance(candidate, str):
+        komiku_alias = alias_by_canonical(manifest, KOMIKU_CANONICAL)
+        if komiku_alias:
+            module = (komiku_alias.get("keiyoushi") or {}).get("module")
+            if isinstance(module, str) and module_changed(keiyoushi_root, base, candidate, module):
+                applied, blocked = adapt_komiku(komiku_alias, keiyoushi_root, uma_root)
+                if applied:
+                    merge_applied(report, applied)
+                    clear_blocked(report, KOMIKU_CANONICAL)
+                elif blocked:
+                    clear_blocked(report, KOMIKU_CANONICAL)
+                    report.setdefault("blocked", []).append(blocked)
+
+        kiryuu_alias = alias_by_canonical(manifest, KIRYUU_CANONICAL)
+        if kiryuu_alias and changed_paths(keiyoushi_root, base, candidate, NATSUID_ROOT):
+            applied, blocked = adapt_kiryuu_natsuid(
+                kiryuu_alias,
+                keiyoushi_root,
+                uma_root,
+                base,
+                candidate,
+            )
             if applied:
                 merge_applied(report, applied)
-                blocked_items = [
-                    item for item in report.get("blocked", [])
-                    if not isinstance(item, dict) or item.get("canonicalId") != KOMIKU_CANONICAL
-                ]
-                report["blocked"] = blocked_items
+                clear_blocked(report, KIRYUU_CANONICAL)
             elif blocked:
+                clear_blocked(report, KIRYUU_CANONICAL)
                 report.setdefault("blocked", []).append(blocked)
 
     report["appliedCanonicalIds"] = sorted({
@@ -281,7 +417,7 @@ def apply_structural_adapters(
         if isinstance(item, dict) and isinstance(item.get("canonicalId"), str)
     })
     report["state"] = "blocked" if report.get("blocked") else "clear"
-    report["structuralProfiles"] = [KOMIKU_PROFILE]
+    report["structuralProfiles"] = [KOMIKU_PROFILE, KIRYUU_PROFILE]
 
     save_json(output, report)
     save_json(uma_root / PROVENANCE_FILE, report)
