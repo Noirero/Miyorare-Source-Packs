@@ -2,7 +2,6 @@ import importlib.util
 import json
 import sys
 import unittest
-from copy import deepcopy
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,6 +72,30 @@ class CandidateGateTests(unittest.TestCase):
         self.assertEqual("WAITING_FOR_APPROVAL", decision["releaseGate"])
         self.assertEqual("WAIT_FOR_APPROVAL", decision["nextAction"])
         self.assertFalse(decision["publishEligible"])
+
+    def test_validated_auto_repair_evidence_can_reach_waiting_for_approval(self):
+        evidence = aggregate(candidate_pass=True, release_gate="REAL_PARSER_READY", full=True)
+        evidence["executionMode"] = "real-kotlin-parser-aggregate-with-repair-evidence"
+        decision = MODULE.derive_candidate_gate(
+            CONTRACT,
+            evidence,
+            {"currentRuntimeHealth": "HEALTHY"},
+        )
+        self.assertEqual("WAITING_FOR_APPROVAL", decision["approvalState"])
+        self.assertEqual("WAITING_FOR_APPROVAL", decision["releaseGate"])
+        self.assertEqual(2, decision["evidence"]["repairEvidence"]["validatedByRealParserRetest"])
+        self.assertFalse(decision["publishEligible"])
+
+    def test_failed_auto_repair_retest_is_rejected_by_approval_gate(self):
+        evidence = aggregate(candidate_pass=False, release_gate="BLOCKED_REAL_PARSER_FAILURE", full=False)
+        evidence["executionMode"] = "real-kotlin-parser-aggregate-with-repair-evidence"
+        evidence["repairEvidence"] = {
+            "reportedMemberships": 2,
+            "validatedByRealParserRetest": 1,
+            "failedRealParserRetest": 1,
+        }
+        with self.assertRaisesRegex(MODULE.CandidateGateError, "failed auto-repair retest"):
+            MODULE.derive_candidate_gate(CONTRACT, evidence)
 
     def test_approval_remains_dry_run_while_candidate_mode_is_enabled(self):
         decision = MODULE.derive_candidate_gate(
