@@ -16,9 +16,13 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.lang.reflect.Method
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 
 class KeiyoushiAquaMangaParserHarnessTest {
     private val source: Any by lazy {
+        installMadaraLegacyEnglishBundle()
         val generated = Class.forName("keiyoushi.source.Generated")
         generated.getDeclaredConstructor().apply { isAccessible = true }.newInstance()
     }
@@ -160,6 +164,32 @@ class KeiyoushiAquaMangaParserHarnessTest {
         ) as Request
         assertEquals(first.imageUrl, imageRequest.url.toString())
         assertEquals(first.url, imageRequest.header("Referer"))
+    }
+
+    private fun installMadaraLegacyEnglishBundle() {
+        val sourceBundle = Path.of(
+            System.getProperty("user.dir"),
+            "lib-multisrc",
+            "madaralegacy",
+            "assets",
+            "i18n",
+            "messages_en.properties",
+        )
+        check(Files.isRegularFile(sourceBundle)) { "Pinned MadaraLegacy English bundle not found: $sourceBundle" }
+
+        val classRoot = Path.of(
+            KeiyoushiAquaMangaParserHarnessTest::class.java.protectionDomain.codeSource.location.toURI(),
+        )
+        check(Files.isDirectory(classRoot)) { "Expected writable unit-test class directory, got: $classRoot" }
+
+        val target = classRoot.resolve("assets/i18n/messages_en.properties")
+        Files.createDirectories(target.parent)
+        Files.copy(sourceBundle, target, StandardCopyOption.REPLACE_EXISTING)
+
+        check(
+            KeiyoushiAquaMangaParserHarnessTest::class.java.classLoader
+                ?.getResource("assets/i18n/messages_en.properties") != null,
+        ) { "MadaraLegacy English bundle was not visible to the unit-test classloader" }
     }
 
     private fun call(name: String, parameterTypes: Array<Class<*>>, vararg args: Any?): Any? {
