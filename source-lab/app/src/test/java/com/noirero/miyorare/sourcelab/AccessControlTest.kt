@@ -67,6 +67,15 @@ class AccessControlTest {
         assertEquals("REPOSITORY_MISMATCH", decision.reason)
     }
 
+    @Test
+    fun publicDeviceFlowConfigMatchesAuthorizationPolicy() {
+        assertEquals(SourceLabAccessPolicy.ownerGithubUserId, GitHubAppPublicConfig.ownerGithubUserId)
+        assertEquals(SourceLabAccessPolicy.githubAppId, GitHubAppPublicConfig.appId)
+        assertEquals(SourceLabAccessPolicy.installationId, GitHubAppPublicConfig.installationId)
+        assertEquals(SourceLabAccessPolicy.repository, GitHubAppPublicConfig.repository)
+        assertTrue(GitHubAppPublicConfig.clientId.isNotBlank())
+    }
+
     private fun validSession(
         githubUserId: Long = SourceLabAccessPolicy.ownerGithubUserId,
         githubAppId: Long = SourceLabAccessPolicy.githubAppId,
