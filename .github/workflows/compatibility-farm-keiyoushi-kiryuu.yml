@@ -1,0 +1,127 @@
+name: Compatibility Farm Keiyoushi Kiryuu
+
+on:
+  push:
+    branches:
+      - compatibility-farm-foundation
+    paths:
+      - 'compatibility/source-registry.json'
+      - 'compatibility/harness/keiyoushi/KeiyoushiKiryuuParserHarnessTest.kt'
+      - 'compatibility/harness/keiyoushi/runtime/**'
+      - 'tools/parser_harness_report.py'
+      - '.github/workflows/compatibility-farm-keiyoushi-kiryuu.yml'
+  pull_request:
+    branches:
+      - beta
+      - main
+    paths:
+      - 'compatibility/source-registry.json'
+      - 'compatibility/harness/keiyoushi/KeiyoushiKiryuuParserHarnessTest.kt'
+      - 'compatibility/harness/keiyoushi/runtime/**'
+      - 'tools/parser_harness_report.py'
+      - '.github/workflows/compatibility-farm-keiyoushi-kiryuu.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compatibility-farm-keiyoushi-kiryuu-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-parser-kiryuu:
+    name: Execute pinned Keiyoushi Kiryuu parser
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Compatibility Farm
+        uses: actions/checkout@v5
+
+      - name: Resolve pinned Keiyoushi baseline
+        id: provider-ref
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          data = json.loads(Path('compatibility/source-registry.json').read_text(encoding='utf-8'))
+          print(f"keiyoushi={data['providerBaselines']['keiyoushi']}")
+          PY
+
+      - name: Checkout pinned Keiyoushi source
+        uses: actions/checkout@v5
+        with:
+          repository: keiyoushi/extensions-source
+          ref: ${{ steps.provider-ref.outputs.keiyoushi }}
+          path: _upstream/keiyoushi
+          fetch-depth: 1
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Install deterministic Kiryuu parser harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          module=_upstream/keiyoushi/src/id/kiryuu
+          mkdir -p "$module/compatibility-farm-test"
+          cp compatibility/harness/keiyoushi/KeiyoushiKiryuuParserHarnessTest.kt "$module/compatibility-farm-test/"
+          cp -R compatibility/harness/keiyoushi/runtime/. "$module/compatibility-farm-test/"
+          cat >> "$module/build.gradle.kts" <<'EOF'
+
+          // Compatibility Farm test-only wiring. This exists only in the disposable CI checkout.
+          android {
+              sourceSets {
+                  named("test") {
+                      java.directories.add("compatibility-farm-test")
+                      kotlin.directories.add("compatibility-farm-test")
+                  }
+              }
+              testOptions {
+                  unitTests.isReturnDefaultValues = true
+              }
+          }
+
+          dependencies {
+              testImplementation(libs.junit)
+              testImplementation(libs.bundles.common)
+          }
+
+          tasks.matching { it.name == "kspDebugUnitTestKotlin" }.configureEach {
+              enabled = false
+          }
+          EOF
+
+      - name: Execute real Keiyoushi Kiryuu NatsuId parser harness
+        working-directory: _upstream/keiyoushi
+        run: |
+          chmod +x gradlew
+          ./gradlew :src:id:kiryuu:testDebugUnitTest \
+            --tests compatibilityfarm.KeiyoushiKiryuuParserHarnessTest \
+            --no-daemon
+
+      - name: Normalize Kiryuu real parser evidence
+        run: >-
+          python3 tools/parser_harness_report.py
+          --registry compatibility/source-registry.json
+          --results-dir _upstream/keiyoushi/src/id/kiryuu/build/test-results/testDebugUnitTest
+          --provider keiyoushi
+          --source miyorare:miyorare-id:KIRYUU=compatibilityfarm.KeiyoushiKiryuuParserHarnessTest
+          --output build/real-parser-harness-keiyoushi-kiryuu-report.json
+
+      - name: Upload Kiryuu parser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compatibility-farm-keiyoushi-kiryuu-report
+          path: |
+            build/real-parser-harness-keiyoushi-kiryuu-report.json
+            _upstream/keiyoushi/src/id/kiryuu/build/test-results/testDebugUnitTest/*.xml
+          if-no-files-found: error
+          retention-days: 14
