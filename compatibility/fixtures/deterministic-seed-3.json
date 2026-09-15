@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "executionMode": "normalized-adapter-fixture",
+  "cohort": "deterministic-seed-3",
+  "purpose": "Exercise provider-neutral Compatibility Farm evidence and auth semantics without live requests. Fixtures are bound to last-known-good upstream SHAs so stale evidence cannot silently pass after an upstream update.",
+  "sources": [
+    {
+      "canonicalId": "miyorare:miyorare-id:KOMIKU",
+      "adapterFamily": "manga-reader-plus-api",
+      "contentProfile": "manga",
+      "authType": "NO_AUTH",
+      "providerVersions": {
+        "uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "protectedOverlays": [
+        "canonical-source-identity",
+        "download-alias-and-legacy-compatibility"
+      ],
+      "capabilities": {
+        "load": {"status": "PASS", "evidence": {"registered": true, "identityStable": true}},
+        "browse": {"status": "PASS", "evidence": {"items": 2, "paginationObserved": true}},
+        "search": {"status": "PASS", "evidence": {"items": 1, "queryPreserved": true}},
+        "details": {"status": "PASS", "evidence": {"title": true, "cover": true, "description": true}},
+        "chapters": {"status": "PASS", "evidence": {"items": 2, "stableIds": true}},
+        "content": {"status": "PASS", "evidence": {"chapter": true, "page_list": true, "image_fetch": true, "decode": true, "download": true, "reader": true}},
+        "authenticate": {"status": "PASS", "evidence": {"mode": "NO_AUTH"}},
+        "download": {"status": "PASS", "evidence": {"chapterIdentityPreserved": true, "offlineReadable": true}},
+        "reader": {"status": "PASS", "evidence": {"opens": true, "pageOrderStable": true}}
+      }
+    },
+    {
+      "canonicalId": "miyorare:miyorare-id:SHINIGAMI",
+      "adapterFamily": "custom-rest-json",
+      "contentProfile": "manga",
+      "authType": "NO_AUTH",
+      "providerVersions": {
+        "uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "protectedOverlays": ["miyorare-metadata"],
+      "capabilities": {
+        "load": {"status": "PASS", "evidence": {"registered": true, "identityStable": true}},
+        "browse": {"status": "PASS", "evidence": {"items": 2, "apiJson": true}},
+        "search": {"status": "PASS", "evidence": {"items": 1, "filtersPreserved": true}},
+        "details": {"status": "PASS", "evidence": {"title": true, "metadata": true, "headersPreserved": true}},
+        "chapters": {"status": "PASS", "evidence": {"items": 2, "stableIds": true}},
+        "content": {"status": "PASS", "evidence": {"chapter": true, "page_list": true, "image_fetch": true, "decode": true, "download": true, "reader": true}},
+        "authenticate": {"status": "PASS", "evidence": {"mode": "NO_AUTH"}},
+        "download": {"status": "PASS", "evidence": {"refererPreserved": true, "offlineReadable": true}},
+        "reader": {"status": "PASS", "evidence": {"opens": true, "pageOrderStable": true}}
+      }
+    },
+    {
+      "canonicalId": "miyorare:miyorare-en:WEEBCENTRAL",
+      "adapterFamily": "custom-auth-cookie-html",
+      "contentProfile": "manga",
+      "authType": "COOKIE",
+      "providerVersions": {
+        "uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
+      },
+      "protectedOverlays": ["miyorare-authentication-adaptations"],
+      "capabilities": {
+        "load": {"status": "PASS", "evidence": {"registered": true, "identityStable": true}},
+        "browse": {"status": "PASS", "evidence": {"anonymousAllowed": true, "items": 2}},
+        "search": {"status": "PASS", "evidence": {"anonymousAllowed": true, "items": 1}},
+        "details": {"status": "PASS", "evidence": {"title": true, "cover": true, "metadata": true}},
+        "chapters": {"status": "PASS", "evidence": {"items": 2, "stableIds": true}},
+        "content": {"status": "PASS", "evidence": {"chapter": true, "page_list": true, "image_fetch": true, "decode": true, "download": true, "reader": true}},
+        "authenticate": {"status": "PASS", "evidence": {"mode": "COOKIE", "anonymous": "AUTH_REQUIRED", "credentialed": "PASS", "sessionCookie": "access_token"}},
+        "download": {"status": "PASS", "evidence": {"sessionAware": true, "offlineReadable": true}},
+        "reader": {"status": "PASS", "evidence": {"opens": true, "pageOrderStable": true}}
+      }
+    }
+  ]
+}
