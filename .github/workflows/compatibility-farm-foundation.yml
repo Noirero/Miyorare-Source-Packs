@@ -188,10 +188,13 @@ jobs:
           --source miyorare:miyorare-id:SHINIGAMI=compatibilityfarm.ShinigamiParserHarnessTest
           --output build/real-parser-harness-uma-report.json
 
-      - name: Install real Kotlin parser harness into disposable Gekkoushi checkout
+      - name: Isolate upstream Gekkoushi tests and install real parser harness
         shell: bash
         run: |
           set -euo pipefail
+          if [[ -d _upstream/gekkoushi/src/test ]]; then
+            mv _upstream/gekkoushi/src/test _upstream/gekkoushi/_compatibility-upstream-tests
+          fi
           mkdir -p _upstream/gekkoushi/src/test/kotlin/compatibilityfarm
           mkdir -p _upstream/gekkoushi/src/test/resources/compatibility-farm
           cp compatibility/harness/uma/DeterministicMangaLoaderContext.kt _upstream/gekkoushi/src/test/kotlin/compatibilityfarm/
