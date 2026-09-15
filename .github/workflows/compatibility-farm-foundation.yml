@@ -47,19 +47,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Resolve pinned UMA baseline
+      - name: Resolve pinned provider baselines
         id: provider-refs
         shell: bash
         run: |
           set -euo pipefail
-          uma="$(python3 - <<'PY'
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           from pathlib import Path
           data = json.loads(Path('compatibility/source-registry.json').read_text(encoding='utf-8'))
-          print(data['providerBaselines']['uma'])
+          print(f"uma={data['providerBaselines']['uma']}")
+          print(f"gekkoushi={data['providerBaselines']['gekkoushi']}")
           PY
-          )"
-          echo "uma=$uma" >> "$GITHUB_OUTPUT"
 
       - name: Checkout pinned UMA source
         uses: actions/checkout@v5
@@ -67,6 +66,14 @@ jobs:
           repository: InvalidDavid/UMA
           ref: ${{ steps.provider-refs.outputs.uma }}
           path: _upstream/uma
+          fetch-depth: 1
+
+      - name: Checkout pinned Gekkoushi source
+        uses: actions/checkout@v5
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ steps.provider-refs.outputs.gekkoushi }}
+          path: _upstream/gekkoushi
           fetch-depth: 1
 
       - name: Compile Compatibility Farm helpers
@@ -86,29 +93,39 @@ jobs:
       - name: Show seed cohort summary
         run: python3 tools/source_registry.py summary --registry compatibility/source-registry.json
 
-      - name: Validate baseline-bound deterministic fixtures
+      - name: Validate expanded baseline-bound deterministic fixtures
         run: >-
           python3 tools/deterministic_farm.py validate
           --contract compatibility/contract.json
           --registry compatibility/source-registry.json
-          --fixtures compatibility/fixtures/deterministic-seed-3.json
+          --fixtures compatibility/fixtures/deterministic-seed-8.json
 
-      - name: Verify fixture families against pinned UMA Kotlin source
+      - name: Verify expanded fixtures against pinned UMA Kotlin source
         run: >-
           python3 tools/source_shape_guard.py
           --registry compatibility/source-registry.json
-          --fixtures compatibility/fixtures/deterministic-seed-3.json
+          --fixtures compatibility/fixtures/deterministic-seed-8.json
           --families compatibility/adapter-families.json
           --provider uma
           --root _upstream/uma
           --output build/source-shape-uma.json
 
-      - name: Run deterministic Compatibility Farm seed
+      - name: Verify Gekkoushi-backed fixtures against pinned Kotlin source
+        run: >-
+          python3 tools/source_shape_guard.py
+          --registry compatibility/source-registry.json
+          --fixtures compatibility/fixtures/deterministic-seed-8.json
+          --families compatibility/adapter-families.json
+          --provider gekkoushi
+          --root _upstream/gekkoushi
+          --output build/source-shape-gekkoushi.json
+
+      - name: Run expanded deterministic Compatibility Farm seed
         run: >-
           python3 tools/deterministic_farm.py run
           --contract compatibility/contract.json
           --registry compatibility/source-registry.json
-          --fixtures compatibility/fixtures/deterministic-seed-3.json
+          --fixtures compatibility/fixtures/deterministic-seed-8.json
           --output build/deterministic-seed-report.json
 
       - name: Run repository unit tests
@@ -122,5 +139,6 @@ jobs:
           path: |
             build/deterministic-seed-report.json
             build/source-shape-uma.json
+            build/source-shape-gekkoushi.json
           if-no-files-found: error
           retention-days: 14
