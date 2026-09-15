@@ -128,7 +128,7 @@ def validate_shapes(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--registry", default="compatibility/source-registry.json")
-    parser.add_argument("--fixtures", default="compatibility/fixtures/deterministic-seed-3.json")
+    parser.add_argument("--fixtures", default="compatibility/fixtures/deterministic-seed-8.json")
     parser.add_argument("--families", default="compatibility/adapter-families.json")
     parser.add_argument("--provider", required=True)
     parser.add_argument("--root", type=Path, required=True)
