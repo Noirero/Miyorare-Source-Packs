@@ -80,6 +80,15 @@ jobs:
           path: _upstream/gekkoushi
           fetch-depth: 1
 
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
       - name: Compile Compatibility Farm helpers
         run: >-
           python3 -m py_compile
@@ -146,6 +155,21 @@ jobs:
           --fixtures compatibility/fixtures/behavioral-seed-4.json
           --output build/behavioral-seed-report.json
 
+      - name: Install real Kotlin parser harness into disposable UMA checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _upstream/uma/src/test/kotlin/compatibilityfarm
+          mkdir -p _upstream/uma/src/test/resources/compatibility-farm/komiku
+          cp compatibility/harness/uma/*.kt _upstream/uma/src/test/kotlin/compatibilityfarm/
+          cp compatibility/harness/uma/resources/komiku/* _upstream/uma/src/test/resources/compatibility-farm/komiku/
+
+      - name: Execute real Komiku Kotlin parser harness
+        working-directory: _upstream/uma
+        run: |
+          chmod +x gradlew
+          ./gradlew test --tests compatibilityfarm.KomikuParserHarnessTest --no-daemon
+
       - name: Run repository unit tests
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
 
@@ -159,5 +183,6 @@ jobs:
             build/source-shape-uma.json
             build/source-shape-gekkoushi.json
             build/behavioral-seed-report.json
+            _upstream/uma/build/test-results/test/*.xml
           if-no-files-found: error
           retention-days: 14
