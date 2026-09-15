@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "recipes": [
+    {
+      "id": "forward-parser-request-headers-to-http-get",
+      "description": "Forward a parser's declared getRequestHeaders() into simple webClient.httpGet(...) calls that omit explicit headers.",
+      "providers": ["gekkoushi", "uma"],
+      "operation": "append-http-get-header-argument",
+      "argument": "getRequestHeaders()",
+      "requiresTokens": [
+        "getRequestHeaders()",
+        "webClient.httpGet("
+      ],
+      "safety": {
+        "minChanges": 1,
+        "maxChanges": 20,
+        "idempotent": true,
+        "failClosed": true
+      }
+    }
+  ]
+}
