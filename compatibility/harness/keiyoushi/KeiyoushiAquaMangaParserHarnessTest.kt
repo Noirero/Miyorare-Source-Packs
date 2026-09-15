@@ -167,15 +167,13 @@ class KeiyoushiAquaMangaParserHarnessTest {
     }
 
     private fun installMadaraLegacyEnglishBundle() {
-        val sourceBundle = Path.of(
-            System.getProperty("user.dir"),
-            "lib-multisrc",
-            "madaralegacy",
-            "assets",
-            "i18n",
-            "messages_en.properties",
-        )
-        check(Files.isRegularFile(sourceBundle)) { "Pinned MadaraLegacy English bundle not found: $sourceBundle" }
+        val workingDir = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize()
+        val sourceBundle = generateSequence(workingDir) { it.parent }
+            .map { root ->
+                root.resolve("lib-multisrc/madaralegacy/assets/i18n/messages_en.properties")
+            }
+            .firstOrNull(Files::isRegularFile)
+            ?: error("Pinned MadaraLegacy English bundle not found from working directory: $workingDir")
 
         val classRoot = Path.of(
             KeiyoushiAquaMangaParserHarnessTest::class.java.protectionDomain.codeSource.location.toURI(),
