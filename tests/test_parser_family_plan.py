@@ -23,23 +23,31 @@ class ParserFamilyPlanTests(unittest.TestCase):
         cls.registry = json.loads((ROOT / "compatibility/source-registry.json").read_text(encoding="utf-8"))
         cls.plan = json.loads((ROOT / "compatibility/parser-families.json").read_text(encoding="utf-8"))
 
-    def test_repository_plan_is_valid(self):
+    def test_repository_plan_is_valid_and_covers_seed_memberships(self):
         result = validate_plan(self.plan, self.registry)
         self.assertEqual("VALID", result["status"])
-        self.assertGreaterEqual(result["familyCount"], 10)
-        self.assertGreaterEqual(result["membershipCount"], 14)
+        self.assertEqual(21, result["membershipCount"])
         self.assertEqual(
-            result["membershipCount"],
-            sum(result["providerMembershipCounts"].values()),
+            {"gekkoushi": 4, "keiyoushi": 6, "uma": 11},
+            result["providerMembershipCounts"],
         )
 
     def test_provider_plan_is_machine_readable_and_filtered(self):
         result = execution_plan(self.plan, self.registry, "keiyoushi")
         self.assertEqual("keiyoushi", result["provider"])
-        self.assertTrue(result["include"])
+        self.assertEqual(6, result["membershipCount"])
         self.assertTrue(all(entry["provider"] == "keiyoushi" for entry in result["include"]))
         self.assertTrue(all(entry["testClass"].startswith("compatibilityfarm.") for entry in result["include"]))
         self.assertIn("miyorare:miyorare-id:KIRYUU", {entry["canonicalId"] for entry in result["include"]})
+        self.assertTrue(all(entry["runtimeProfile"] for entry in result["include"]))
+
+    def test_asura_uses_configurable_runtime_profile_and_others_default_common(self):
+        result = execution_plan(self.plan, self.registry, "keiyoushi")
+        profiles = {entry["canonicalId"]: entry["runtimeProfile"] for entry in result["include"]}
+        self.assertEqual("configurable", profiles["miyorare:miyorare-en:ASURASCANS"])
+        for canonical_id, profile in profiles.items():
+            if canonical_id != "miyorare:miyorare-en:ASURASCANS":
+                self.assertEqual("common", profile)
 
     def test_duplicate_provider_membership_fails_closed(self):
         broken = copy.deepcopy(self.plan)
@@ -67,6 +75,20 @@ class ParserFamilyPlanTests(unittest.TestCase):
         family = next(item for item in broken["families"] if item["id"] == "keiyoushi-natsuid")
         family["members"][0]["module"] = "src/id/not-kiryuu"
         with self.assertRaisesRegex(ParserFamilyPlanError, "does not match registry identity"):
+            validate_plan(broken, self.registry)
+
+    def test_runtime_profile_must_be_non_empty_string(self):
+        broken = copy.deepcopy(self.plan)
+        family = next(item for item in broken["families"] if item["id"] == "keiyoushi-asura-configurable")
+        family["members"][0]["runtimeProfile"] = ""
+        with self.assertRaisesRegex(ParserFamilyPlanError, "runtimeProfile must be a non-empty string"):
+            validate_plan(broken, self.registry)
+
+    def test_non_keiyoushi_cannot_request_optional_runtime_profile(self):
+        broken = copy.deepcopy(self.plan)
+        family = next(item for item in broken["families"] if item["provider"] == "uma")
+        family["members"][0]["runtimeProfile"] = "configurable"
+        with self.assertRaisesRegex(ParserFamilyPlanError, "runtimeProfile is only supported for keiyoushi"):
             validate_plan(broken, self.registry)
 
 

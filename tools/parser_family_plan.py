@@ -142,6 +142,16 @@ def validate_plan(plan: dict[str, Any], registry: dict[str, Any]) -> dict[str, A
                         f"identity {identity.get('module')!r}"
                     )
 
+            runtime_profile = member.get("runtimeProfile", "common")
+            if not isinstance(runtime_profile, str) or not runtime_profile:
+                raise ParserFamilyPlanError(
+                    f"{family_id}/{canonical_id}: runtimeProfile must be a non-empty string"
+                )
+            if provider != "keiyoushi" and runtime_profile != "common":
+                raise ParserFamilyPlanError(
+                    f"{family_id}/{canonical_id}: runtimeProfile is only supported for keiyoushi"
+                )
+
             repair_recipes = member.get("repairRecipes", [])
             if not isinstance(repair_recipes, list) or any(
                 not isinstance(recipe, str) or not recipe for recipe in repair_recipes
@@ -182,6 +192,7 @@ def execution_plan(
                 "runner": family["runner"],
                 "canonicalId": member["canonicalId"],
                 "testClass": member["testClass"],
+                "runtimeProfile": member.get("runtimeProfile", "common"),
                 "repairRecipes": member.get("repairRecipes", []),
             }
             if "module" in member:

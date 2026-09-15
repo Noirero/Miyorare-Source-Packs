@@ -79,6 +79,37 @@
       ]
     },
     {
+      "id": "uma-bacami-script-pages",
+      "provider": "uma",
+      "registryAdapterFamily": "custom-paged-html-json-script",
+      "providerParserFamily": "html-script-page-list",
+      "runner": "gradle-jvm-test",
+      "members": [
+        {"canonicalId": "miyorare:miyorare-id:BACAMI", "testClass": "compatibilityfarm.BacamiParserHarnessTest"}
+      ]
+    },
+    {
+      "id": "uma-like-manga",
+      "provider": "uma",
+      "registryAdapterFamily": "like-manga",
+      "providerParserFamily": "like-manga-shared-parser",
+      "runner": "gradle-jvm-test",
+      "members": [
+        {"canonicalId": "miyorare:miyorare-en:LIKEMANGA", "testClass": "compatibilityfarm.LikeMangaParserHarnessBehaviorTest"}
+      ]
+    },
+    {
+      "id": "uma-custom-paged-html",
+      "provider": "uma",
+      "registryAdapterFamily": "custom-paged-html",
+      "providerParserFamily": "paged-html",
+      "runner": "gradle-jvm-test",
+      "members": [
+        {"canonicalId": "miyorare:miyorare-en:MANGAPILL", "testClass": "compatibilityfarm.MangaPillParserHarnessTest"},
+        {"canonicalId": "miyorare:miyorare-id:THEMANGA", "testClass": "compatibilityfarm.TheMangaParserHarnessTest"}
+      ]
+    },
+    {
       "id": "gekkoushi-html-xhr",
       "provider": "gekkoushi",
       "registryAdapterFamily": "custom-paged-html-xhr",
@@ -154,6 +185,36 @@
       "runner": "android-gradle-unit-test",
       "members": [
         {"canonicalId": "miyorare:miyorare-id:KIRYUU", "module": "src/id/kiryuu", "testClass": "compatibilityfarm.KeiyoushiKiryuuParserHarnessTest"}
+      ]
+    },
+    {
+      "id": "keiyoushi-bacami-custom",
+      "provider": "keiyoushi",
+      "registryAdapterFamily": "custom-paged-html-json-script",
+      "providerParserFamily": "custom-http-source-script-pages",
+      "runner": "android-gradle-unit-test",
+      "members": [
+        {"canonicalId": "miyorare:miyorare-id:BACAMI", "module": "src/id/bacami", "testClass": "compatibilityfarm.KeiyoushiBacamiParserHarnessTest"}
+      ]
+    },
+    {
+      "id": "keiyoushi-batcave-custom",
+      "provider": "keiyoushi",
+      "registryAdapterFamily": "custom-paged-form-api",
+      "providerParserFamily": "custom-form-json-reader",
+      "runner": "android-gradle-unit-test",
+      "members": [
+        {"canonicalId": "miyorare:miyorare-en:BATCAVE", "module": "src/en/batcave", "testClass": "compatibilityfarm.KeiyoushiBatCaveParserHarnessTest"}
+      ]
+    },
+    {
+      "id": "keiyoushi-asura-configurable",
+      "provider": "keiyoushi",
+      "registryAdapterFamily": "custom-paged-html-json",
+      "providerParserFamily": "api-astro-configurable",
+      "runner": "android-gradle-unit-test",
+      "members": [
+        {"canonicalId": "miyorare:miyorare-en:ASURASCANS", "module": "src/en/asurascans", "testClass": "compatibilityfarm.KeiyoushiAsuraScansParserHarnessTest", "runtimeProfile": "configurable"}
       ]
     }
   ]

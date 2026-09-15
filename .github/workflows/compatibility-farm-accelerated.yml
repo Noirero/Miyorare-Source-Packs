@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - compatibility-farm-foundation
-      - cf-parallel-work
     paths:
       - 'compatibility/**'
       - 'tools/compatibility_contract.py'
@@ -211,7 +210,7 @@ jobs:
           retention-days: 14
 
   uma-parser:
-    name: UMA real parser family seed
+    name: UMA real parser seed-12
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Compatibility Farm
@@ -254,7 +253,7 @@ jobs:
           cp compatibility/harness/uma/*.kt _upstream/uma/src/test/kotlin/compatibilityfarm/
           cp -R compatibility/harness/uma/resources/. _upstream/uma/src/test/resources/compatibility-farm/
 
-      - name: Execute UMA real parser families
+      - name: Execute all UMA real parser memberships
         id: parser-tests
         continue-on-error: true
         working-directory: _upstream/uma
@@ -268,6 +267,10 @@ jobs:
             --tests compatibilityfarm.AquaReaderMadaraParserHarnessTest \
             --tests compatibilityfarm.BatcaveParserHarnessTest \
             --tests compatibilityfarm.AsuraScansParserHarnessTest \
+            --tests compatibilityfarm.BacamiParserHarnessTest \
+            --tests compatibilityfarm.LikeMangaParserHarnessBehaviorTest \
+            --tests compatibilityfarm.MangaPillParserHarnessTest \
+            --tests compatibilityfarm.TheMangaParserHarnessTest \
             --no-daemon
 
       - name: Normalize UMA parser evidence
@@ -286,6 +289,10 @@ jobs:
           --source miyorare:miyorare-en:AQUAMANGA=compatibilityfarm.AquaReaderMadaraParserHarnessTest
           --source miyorare:miyorare-en:BATCAVE=compatibilityfarm.BatcaveParserHarnessTest
           --source miyorare:miyorare-en:ASURASCANS=compatibilityfarm.AsuraScansParserHarnessTest
+          --source miyorare:miyorare-id:BACAMI=compatibilityfarm.BacamiParserHarnessTest
+          --source miyorare:miyorare-en:LIKEMANGA=compatibilityfarm.LikeMangaParserHarnessBehaviorTest
+          --source miyorare:miyorare-en:MANGAPILL=compatibilityfarm.MangaPillParserHarnessTest
+          --source miyorare:miyorare-id:THEMANGA=compatibilityfarm.TheMangaParserHarnessTest
           --output build/real-parser-harness-uma-report.json
 
       - name: Upload UMA evidence
@@ -307,7 +314,7 @@ jobs:
           [[ "${{ steps.report.outcome }}" == "success" ]]
 
   gekkoushi-parser:
-    name: Gekkoushi real parser family seed
+    name: Gekkoushi real parser seed
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Compatibility Farm
@@ -468,6 +475,7 @@ jobs:
         env:
           MODULE: ${{ matrix.module }}
           TEST_CLASS: ${{ matrix.testClass }}
+          RUNTIME_PROFILE: ${{ matrix.runtimeProfile }}
         run: |
           set -euo pipefail
           module="_upstream/keiyoushi/$MODULE"
@@ -476,6 +484,11 @@ jobs:
           mkdir -p "$module/compatibility-farm-resources/compatibility-farm"
           cp "compatibility/harness/keiyoushi/$harness" "$module/compatibility-farm-test/"
           cp -R compatibility/harness/keiyoushi/runtime/. "$module/compatibility-farm-test/"
+          if [[ "$RUNTIME_PROFILE" != "common" ]]; then
+            profile="compatibility/harness/keiyoushi/runtime-profiles/$RUNTIME_PROFILE"
+            test -d "$profile"
+            cp -R "$profile/." "$module/compatibility-farm-test/"
+          fi
           cp -R compatibility/harness/keiyoushi/resources/. "$module/compatibility-farm-resources/compatibility-farm/"
           cat >> "$module/build.gradle.kts" <<'EOF'
 
