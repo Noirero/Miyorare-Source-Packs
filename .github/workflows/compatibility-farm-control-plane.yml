@@ -1,0 +1,97 @@
+name: Compatibility Farm Control Plane
+
+on:
+  push:
+    branches:
+      - compatibility-farm-foundation
+      - cf-accel-work
+    paths:
+      - 'compatibility/contract.json'
+      - 'compatibility/source-registry.json'
+      - 'compatibility/parser-families.json'
+      - 'tools/compatibility_contract.py'
+      - 'tools/parser_family_plan.py'
+      - 'tools/candidate_gate.py'
+      - 'tests/test_compatibility_contract.py'
+      - 'tests/test_parser_family_plan.py'
+      - 'tests/test_candidate_gate.py'
+      - '.github/workflows/compatibility-farm-control-plane.yml'
+  pull_request:
+    branches:
+      - beta
+      - main
+    paths:
+      - 'compatibility/contract.json'
+      - 'compatibility/source-registry.json'
+      - 'compatibility/parser-families.json'
+      - 'tools/compatibility_contract.py'
+      - 'tools/parser_family_plan.py'
+      - 'tools/candidate_gate.py'
+      - 'tests/test_compatibility_contract.py'
+      - 'tests/test_parser_family_plan.py'
+      - 'tests/test_candidate_gate.py'
+      - '.github/workflows/compatibility-farm-control-plane.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compatibility-farm-control-plane-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-control-plane:
+    name: Validate declarative planner and approve-only gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Compile control-plane helpers
+        run: >-
+          python3 -m py_compile
+          tools/compatibility_contract.py
+          tools/parser_family_plan.py
+          tools/candidate_gate.py
+
+      - name: Validate approve-only contract
+        run: python3 tools/compatibility_contract.py validate --contract compatibility/contract.json
+
+      - name: Validate declarative parser family plan
+        run: >-
+          python3 tools/parser_family_plan.py
+          --registry compatibility/source-registry.json
+          --families compatibility/parser-families.json
+          validate
+          --output build/parser-family-plan-validation.json
+
+      - name: Emit provider execution plans
+        run: |
+          set -euo pipefail
+          for provider in uma gekkoushi keiyoushi; do
+            python3 tools/parser_family_plan.py \
+              --registry compatibility/source-registry.json \
+              --families compatibility/parser-families.json \
+              plan --provider "$provider" \
+              --output "build/parser-plan-${provider}.json"
+          done
+
+      - name: Run control-plane unit tests
+        run: >-
+          python3 -m unittest -v
+          tests.test_compatibility_contract
+          tests.test_parser_family_plan
+          tests.test_candidate_gate
+
+      - name: Upload control-plane evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compatibility-farm-control-plane
+          path: |
+            build/parser-family-plan-validation.json
+            build/parser-plan-uma.json
+            build/parser-plan-gekkoushi.json
+            build/parser-plan-keiyoushi.json
+          if-no-files-found: error
+          retention-days: 14
