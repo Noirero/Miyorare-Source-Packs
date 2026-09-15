@@ -71,6 +71,10 @@ jobs:
           set -euo pipefail
           module=_upstream/keiyoushi/src/en/aquamanga
           mkdir -p "$module/compatibility-farm-test"
+          # The Aqua harness resolves the pinned MadaraLegacy i18n bundle relative to
+          # the module test working directory. Expose the real upstream lib tree there
+          # without copying or modifying upstream source files.
+          ln -s ../../../lib-multisrc "$module/lib-multisrc"
           cp compatibility/harness/keiyoushi/KeiyoushiAquaMangaParserHarnessTest.kt "$module/compatibility-farm-test/"
           cp -R compatibility/harness/keiyoushi/runtime/. "$module/compatibility-farm-test/"
           cat >> "$module/build.gradle.kts" <<'EOF'
