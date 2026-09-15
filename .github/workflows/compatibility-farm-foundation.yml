@@ -8,7 +8,9 @@ on:
     paths:
       - 'compatibility/**'
       - 'tools/compatibility_contract.py'
+      - 'tools/source_registry.py'
       - 'tests/test_compatibility_contract.py'
+      - 'tests/test_source_registry.py'
       - '.github/workflows/compatibility-farm-foundation.yml'
   pull_request:
     branches:
@@ -17,7 +19,9 @@ on:
     paths:
       - 'compatibility/**'
       - 'tools/compatibility_contract.py'
+      - 'tools/source_registry.py'
       - 'tests/test_compatibility_contract.py'
+      - 'tests/test_source_registry.py'
       - '.github/workflows/compatibility-farm-foundation.yml'
 
 permissions:
@@ -35,11 +39,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Compile Compatibility Farm helper
-        run: python3 -m py_compile tools/compatibility_contract.py
+      - name: Compile Compatibility Farm helpers
+        run: python3 -m py_compile tools/compatibility_contract.py tools/source_registry.py
 
       - name: Validate machine-readable compatibility contract
         run: python3 tools/compatibility_contract.py validate --contract compatibility/contract.json
+
+      - name: Validate ID EN seed source registry
+        run: python3 tools/source_registry.py validate --registry compatibility/source-registry.json
+
+      - name: Show seed cohort summary
+        run: python3 tools/source_registry.py summary --registry compatibility/source-registry.json
 
       - name: Run repository unit tests
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
