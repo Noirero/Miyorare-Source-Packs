@@ -78,7 +78,7 @@ jobs:
              [ -n "${SOURCE_LAB_KEYSTORE_PASSWORD:-}" ] && \
              [ -n "${SOURCE_LAB_KEY_ALIAS:-}" ] && \
              [ -n "${SOURCE_LAB_KEY_PASSWORD:-}" ]; then
-            KEYSTORE="$RUNNER_TEMP/miyorare-source-lab-update.jks"
+            KEYSTORE="$RUNNER_TEMP/miyorare-source-lab-update.p12"
             printf '%s' "$SOURCE_LAB_KEYSTORE_B64" | base64 --decode > "$KEYSTORE"
             chmod 600 "$KEYSTORE"
             echo "SOURCE_LAB_KEYSTORE_PATH=$KEYSTORE" >> "$GITHUB_ENV"
