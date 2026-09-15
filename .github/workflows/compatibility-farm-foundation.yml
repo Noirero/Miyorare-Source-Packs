@@ -178,7 +178,7 @@ jobs:
             --tests compatibilityfarm.ShinigamiParserHarnessTest \
             --no-daemon
 
-      - name: Normalize real parser execution evidence
+      - name: Normalize UMA real parser execution evidence
         run: >-
           python3 tools/parser_harness_report.py
           --registry compatibility/source-registry.json
@@ -186,7 +186,32 @@ jobs:
           --provider uma
           --source miyorare:miyorare-id:KOMIKU=compatibilityfarm.KomikuParserHarnessTest
           --source miyorare:miyorare-id:SHINIGAMI=compatibilityfarm.ShinigamiParserHarnessTest
-          --output build/real-parser-harness-report.json
+          --output build/real-parser-harness-uma-report.json
+
+      - name: Install real Kotlin parser harness into disposable Gekkoushi checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _upstream/gekkoushi/src/test/kotlin/compatibilityfarm
+          mkdir -p _upstream/gekkoushi/src/test/resources/compatibility-farm
+          cp compatibility/harness/uma/DeterministicMangaLoaderContext.kt _upstream/gekkoushi/src/test/kotlin/compatibilityfarm/
+          cp compatibility/harness/gekkoushi/*.kt _upstream/gekkoushi/src/test/kotlin/compatibilityfarm/
+          cp -R compatibility/harness/gekkoushi/resources/. _upstream/gekkoushi/src/test/resources/compatibility-farm/
+
+      - name: Execute real Gekkoushi Kotlin parser harness seed
+        working-directory: _upstream/gekkoushi
+        run: |
+          chmod +x gradlew
+          ./gradlew test --tests compatibilityfarm.DoujinDesuParserHarnessTest --no-daemon
+
+      - name: Normalize Gekkoushi real parser execution evidence
+        run: >-
+          python3 tools/parser_harness_report.py
+          --registry compatibility/source-registry.json
+          --results-dir _upstream/gekkoushi/build/test-results/test
+          --provider gekkoushi
+          --source miyorare:miyorare-id:DOUJINDESU=compatibilityfarm.DoujinDesuParserHarnessTest
+          --output build/real-parser-harness-gekkoushi-report.json
 
       - name: Run repository unit tests
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
@@ -201,7 +226,9 @@ jobs:
             build/source-shape-uma.json
             build/source-shape-gekkoushi.json
             build/behavioral-seed-report.json
-            build/real-parser-harness-report.json
+            build/real-parser-harness-uma-report.json
+            build/real-parser-harness-gekkoushi-report.json
             _upstream/uma/build/test-results/test/*.xml
+            _upstream/gekkoushi/build/test-results/test/*.xml
           if-no-files-found: error
           retention-days: 14
