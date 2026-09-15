@@ -19,6 +19,24 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
+      - name: Require main branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_NAME" != "main" ]]; then
+            {
+              echo '# ❌ Source update not started'
+              echo
+              echo 'One-Click Source Update hanya boleh dijalankan dari branch `main`.'
+              echo
+              echo "Branch yang dipilih: \`$GITHUB_REF_NAME\`"
+              echo
+              echo 'Jalankan ulang workflow dan biarkan branch tetap `main`.'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Wrong branch::One-Click Source Update only runs from main. Selected branch: $GITHUB_REF_NAME"
+            exit 1
+          fi
+
       - name: Start full upstream sync
         shell: bash
         run: |
