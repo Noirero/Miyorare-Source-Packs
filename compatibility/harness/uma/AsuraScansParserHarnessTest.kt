@@ -17,7 +17,7 @@ internal class AsuraScansParserHarnessTest {
             val body = when {
                 request.url.encodedPath == "/browse" -> {
                     assertEquals("GET", request.method)
-                    assertEquals("0", request.url.queryParameter("page"))
+                    assertEquals("1", request.url.queryParameter("page"))
                     listHtml()
                 }
 
