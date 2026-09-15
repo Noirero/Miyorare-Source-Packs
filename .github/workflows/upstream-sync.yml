@@ -173,6 +173,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
 
       - name: Prepare candidate shard
         run: |
@@ -325,6 +327,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
 
       - name: Prepare UMA metadata for Gekkoushi language shard
         if: matrix.pack != 'global'
@@ -500,6 +504,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
 
       - name: Prepare UMA language shard
         if: matrix.pack != 'global'
