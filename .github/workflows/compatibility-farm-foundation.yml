@@ -13,12 +13,14 @@ on:
       - 'tools/source_shape_guard.py'
       - 'tools/behavioral_fixture.py'
       - 'tools/parser_harness_report.py'
+      - 'tools/parser_harness_aggregate.py'
       - 'tests/test_compatibility_contract.py'
       - 'tests/test_source_registry.py'
       - 'tests/test_deterministic_farm.py'
       - 'tests/test_source_shape_guard.py'
       - 'tests/test_behavioral_fixture.py'
       - 'tests/test_parser_harness_report.py'
+      - 'tests/test_parser_harness_aggregate.py'
       - '.github/workflows/compatibility-farm-foundation.yml'
   pull_request:
     branches:
@@ -32,12 +34,14 @@ on:
       - 'tools/source_shape_guard.py'
       - 'tools/behavioral_fixture.py'
       - 'tools/parser_harness_report.py'
+      - 'tools/parser_harness_aggregate.py'
       - 'tests/test_compatibility_contract.py'
       - 'tests/test_source_registry.py'
       - 'tests/test_deterministic_farm.py'
       - 'tests/test_source_shape_guard.py'
       - 'tests/test_behavioral_fixture.py'
       - 'tests/test_parser_harness_report.py'
+      - 'tests/test_parser_harness_aggregate.py'
       - '.github/workflows/compatibility-farm-foundation.yml'
 
 permissions:
@@ -102,6 +106,7 @@ jobs:
           tools/source_shape_guard.py
           tools/behavioral_fixture.py
           tools/parser_harness_report.py
+          tools/parser_harness_aggregate.py
 
       - name: Validate machine-readable compatibility contract
         run: python3 tools/compatibility_contract.py validate --contract compatibility/contract.json
@@ -216,6 +221,14 @@ jobs:
           --source miyorare:miyorare-id:DOUJINDESU=compatibilityfarm.DoujinDesuParserHarnessTest
           --output build/real-parser-harness-gekkoushi-report.json
 
+      - name: Aggregate real parser evidence across providers
+        run: >-
+          python3 tools/parser_harness_aggregate.py
+          --registry compatibility/source-registry.json
+          --report build/real-parser-harness-uma-report.json
+          --report build/real-parser-harness-gekkoushi-report.json
+          --output build/real-parser-harness-aggregate.json
+
       - name: Run repository unit tests
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
 
@@ -231,6 +244,7 @@ jobs:
             build/behavioral-seed-report.json
             build/real-parser-harness-uma-report.json
             build/real-parser-harness-gekkoushi-report.json
+            build/real-parser-harness-aggregate.json
             _upstream/uma/build/test-results/test/*.xml
             _upstream/gekkoushi/build/test-results/test/*.xml
           if-no-files-found: error
