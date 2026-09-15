@@ -6,15 +6,30 @@ import eu.kanade.tachiyomi.network.DeterministicNetwork
 import eu.kanade.tachiyomi.network.DeterministicNetwork.FixtureResponse
 import eu.kanade.tachiyomi.source.model.FilterList
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
 import okio.Buffer
 import okhttp3.Request
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.BeforeClass
 import org.junit.Test
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.addSingleton
 import java.util.Collections
 
 class KeiyoushiKiryuuParserHarnessTest {
+
+    companion object {
+        @JvmStatic
+        @BeforeClass
+        fun installHostServices() {
+            // Keiyoushi's real jsonInstance is resolved from Injekt. The Android host
+            // registers this service; the deterministic JVM harness must provide the
+            // same host contract before NatsuId touches keiyoushi.utils.JsonKt.
+            Injekt.addSingleton(Json { ignoreUnknownKeys = true })
+        }
+    }
 
     @Test
     fun executesPinnedKiryuuNatsuParserEndToEndWithoutLiveNetwork() = runBlocking {
