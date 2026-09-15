@@ -28,6 +28,50 @@
         ["access_token"],
         ["getPages"]
       ]
+    },
+    "natsu": {
+      "requiredTokenGroups": [
+        ["@MangaSourceParser("],
+        ["NatsuParser("]
+      ]
+    },
+    "madara": {
+      "requiredTokenGroups": [
+        ["@MangaSourceParser("],
+        ["MadaraParser("],
+        ["selectChapter", "getDetails", "getPages"]
+      ]
+    },
+    "custom-paged-form-api": {
+      "requiredTokenGroups": [
+        ["@MangaSourceParser("],
+        ["PagedMangaParser("],
+        ["FormBody", "RequestBody"],
+        ["refererInterceptor", "Referer"],
+        ["requestBrowserAction", "dleGuardInterceptor"],
+        ["getPages"]
+      ]
+    },
+    "custom-paged-html-json": {
+      "requiredTokenGroups": [
+        ["@MangaSourceParser("],
+        ["PagedMangaParser("],
+        ["parseHtml", "JSONObject", "toJSONObjectOrNull"],
+        ["getListPage"],
+        ["getDetails"],
+        ["getPages"]
+      ]
+    },
+    "custom-paged-html-xhr": {
+      "requiredTokenGroups": [
+        ["@MangaSourceParser("],
+        ["PagedMangaParser("],
+        ["X_REQUESTED_WITH", "XMLHttpRequest"],
+        ["REFERER", "Referer"],
+        ["getListPage"],
+        ["getDetails"],
+        ["getPages"]
+      ]
     }
   }
 }
