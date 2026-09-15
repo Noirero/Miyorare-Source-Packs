@@ -57,8 +57,8 @@ jobs:
         with:
           gradle-version: '8.10.2'
 
-      - name: Lint and assemble Source Lab debug APK
-        run: gradle -p source-lab :app:lintDebug :app:assembleDebug --stacktrace
+      - name: Test, lint and assemble Source Lab debug APK
+        run: gradle -p source-lab :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --stacktrace
 
       - name: Upload Source Lab debug APK
         uses: actions/upload-artifact@v4
