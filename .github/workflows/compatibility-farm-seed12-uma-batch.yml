@@ -78,7 +78,7 @@ jobs:
           chmod +x gradlew
           ./gradlew test \
             --tests compatibilityfarm.BacamiParserHarnessTest \
-            --tests compatibilityfarm.LikeMangaParserHarnessTest \
+            --tests compatibilityfarm.LikeMangaParserHarnessBehaviorTest \
             --tests compatibilityfarm.MangaPillParserHarnessTest \
             --tests compatibilityfarm.TheMangaParserHarnessTest \
             --no-daemon
@@ -91,7 +91,7 @@ jobs:
           --results-dir _upstream/uma/build/test-results/test
           --provider uma
           --source miyorare:miyorare-id:BACAMI=compatibilityfarm.BacamiParserHarnessTest
-          --source miyorare:miyorare-en:LIKEMANGA=compatibilityfarm.LikeMangaParserHarnessTest
+          --source miyorare:miyorare-en:LIKEMANGA=compatibilityfarm.LikeMangaParserHarnessBehaviorTest
           --source miyorare:miyorare-en:MANGAPILL=compatibilityfarm.MangaPillParserHarnessTest
           --source miyorare:miyorare-id:THEMANGA=compatibilityfarm.TheMangaParserHarnessTest
           --output build/real-parser-harness-uma-remaining-seed-report.json
