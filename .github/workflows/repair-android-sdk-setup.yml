@@ -1,0 +1,72 @@
+name: Repair Android SDK Setup
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/repair-android-sdk-setup.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-source-pack-android-sdk-setup
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: Replace obsolete Android SDK tools package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Patch Source Pack workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path('.github/workflows')
+          needle = "      - name: Set up Android SDK\n        uses: android-actions/setup-android@v4\n"
+          replacement = needle + "        with:\n          packages: platform-tools\n"
+          changed = []
+
+          for path in sorted([*root.glob('*.yml'), *root.glob('*.yaml')]):
+              if path.name == 'repair-android-sdk-setup.yml':
+                  continue
+              text = path.read_text(encoding='utf-8')
+              if needle not in text:
+                  continue
+              updated = text.replace(needle, replacement)
+              if updated == text:
+                  continue
+              path.write_text(updated, encoding='utf-8')
+              changed.append(path.as_posix())
+
+          if not changed:
+              print('No obsolete setup-android package defaults found.')
+          else:
+              print('Patched:')
+              for item in changed:
+                  print(f' - {item}')
+          PY
+
+      - name: Commit repaired workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- .github/workflows; then
+            echo 'No workflow changes to commit.'
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .github/workflows
+          git commit -m "Use supported Android SDK packages in Source Pack CI"
+          git push origin HEAD:main
