@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Classify Keiyoushi upstream changes for Miyorare Source Pack intake.
+"""Dependency-aware Keiyoushi intake classifier for Miyorare Source Packs.
 
-Keiyoushi and UMA/Tsuki use different source APIs, so Kotlin implementation changes are never treated
-as automatically portable merely because both implementations represent the same website. Reusable
-semantic adapters may explicitly cover narrow change classes such as domain/baseUrl migration and
-literal-only parser updates. Everything structural or shared-runtime stays fail-closed.
+The classifier is fail-closed, but no longer treats every Keiyoushi shared-runtime edit as a change to
+every registered Miyorare source. Shared changes are associated with a source only when its module
+references the affected runtime/multisrc symbol. Known cross-runtime structural migrations may be
+accepted only when a deterministic structural adapter has produced audited provenance.
 """
 
 from __future__ import annotations
@@ -37,6 +37,18 @@ METADATA_PATH_PARTS = (
     "/res/mipmap-",
     "/res/drawable",
 )
+BASE_ALLOWED_CLASSES = {
+    "metadata-only",
+    "metadata-resource-change",
+    "semantic-config-change",
+    "literal-semantic-change",
+}
+STRUCTURAL_CLASSES = {
+    "build-definition-change",
+    "parser-code-change",
+    "module-resource-or-structure-change",
+    "shared-runtime-change",
+}
 
 
 def fail(message: str, code: int = 1) -> NoReturn:
@@ -54,6 +66,11 @@ def load_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def save_json(path: Path, value: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
 def git(repo: Path, *args: str) -> str:
     try:
         return subprocess.check_output(
@@ -69,26 +86,25 @@ def git(repo: Path, *args: str) -> str:
 def ensure_commit(repo: Path, commit: str) -> None:
     if not HEX40.fullmatch(commit):
         fail(f"invalid git SHA: {commit!r}")
+    probe = subprocess.run(
+        ["git", "-C", str(repo), "cat-file", "-e", f"{commit}^{{commit}}"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    if probe.returncode == 0:
+        return
     try:
         subprocess.run(
-            ["git", "-C", str(repo), "cat-file", "-e", f"{commit}^{{commit}}"],
+            ["git", "-C", str(repo), "fetch", "--no-tags", "origin", commit],
             check=True,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=30,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=120,
         )
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        try:
-            subprocess.run(
-                ["git", "-C", str(repo), "fetch", "--no-tags", "origin", commit],
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=120,
-            )
-        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
-            fail(f"could not fetch commit {commit}: {exc}")
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        fail(f"could not fetch commit {commit}: {exc}")
 
 
 def changed_files(repo: Path, base: str, candidate: str) -> list[str]:
@@ -115,9 +131,8 @@ def aliases(alias_manifest: dict[str, Any]) -> list[dict[str, Any]]:
         if not isinstance(kei, dict) or not isinstance(official, dict):
             continue
         module = kei.get("module")
-        if not isinstance(module, str) or not module:
-            continue
-        result.append(item)
+        if isinstance(module, str) and module:
+            result.append(item)
     return result
 
 
@@ -126,37 +141,18 @@ def changed_diff_lines(diff: str) -> list[str]:
     for line in diff.splitlines():
         if not line or line.startswith(("+++", "---", "@@")):
             continue
-        if line[0] not in "+-":
-            continue
-        changed.append(line[1:].strip())
+        if line[0] in "+-":
+            changed.append(line[1:].strip())
     return changed
 
 
 def build_gradle_kind(diff: str) -> str:
-    """Classify module Gradle edits conservatively.
-
-    Mixed/unknown build-definition changes are never hidden merely because a baseUrl line also changed.
-    A semantic-config classification is returned only when every changed line is a known metadata or
-    known semantic setting and at least one semantic setting changed.
-    """
     changed = changed_diff_lines(diff)
     if not changed:
         return "metadata-only"
 
-    metadata_patterns = (
-        "versionCode",
-        "versionId",
-        "isNsfw",
-        "name =",
-        "lang =",
-    )
-    semantic_patterns = (
-        "baseUrl",
-        "webUrl",
-        "apiUrl",
-        "sourceUrl",
-        "themePkg",
-    )
+    metadata_patterns = ("versionCode", "versionId", "isNsfw", "name =", "lang =")
+    semantic_patterns = ("baseUrl", "webUrl", "apiUrl", "sourceUrl", "themePkg")
 
     def category(line: str) -> str:
         if any(token in line for token in metadata_patterns):
@@ -178,7 +174,6 @@ def normalize_kotlin_line(line: str) -> str:
 
 
 def kotlin_change_kind(diff: str) -> str:
-    """Classify a Kotlin diff as literal-only when code structure is unchanged in every hunk."""
     removed: list[str] = []
     added: list[str] = []
     saw_literal_change = False
@@ -221,7 +216,6 @@ def kotlin_change_kind(diff: str) -> str:
         else:
             flush()
     flush()
-
     return "literal-semantic-change" if saw_literal_change and not unsupported else "parser-code-change"
 
 
@@ -229,7 +223,55 @@ def is_shared_path(path: str) -> bool:
     return path in SHARED_EXACT_PATHS or path.startswith(SHARED_PREFIXES)
 
 
-def classify_module(repo: Path, base: str, candidate: str, module: str, paths: list[str], shared_changed: bool) -> dict[str, Any]:
+def module_text(repo: Path, module: str) -> str:
+    root = repo / module
+    if not root.is_dir():
+        return ""
+    parts: list[str] = []
+    for path in sorted(root.rglob("*")):
+        if path.is_file() and path.suffix in (".kt", ".kts"):
+            try:
+                parts.append(path.read_text(encoding="utf-8"))
+            except OSError:
+                continue
+    return "\n".join(parts)
+
+
+def shared_dependency_tokens(path: str) -> set[str]:
+    parts = Path(path).parts
+    tokens: set[str] = set()
+    if len(parts) >= 2 and parts[0] in ("lib-multisrc", "lib"):
+        name = parts[1]
+        tokens.update({name, f"multisrc.{name}", f"lib.{name}"})
+    stem = Path(path).stem
+    if stem not in {"build", "settings", "gradle", "properties", "Dto"}:
+        tokens.add(stem)
+    return {token.lower() for token in tokens if token}
+
+
+def relevant_shared_paths(repo: Path, module: str, shared_paths: list[str]) -> list[str]:
+    if not shared_paths:
+        return []
+    text = module_text(repo, module).lower()
+    result: list[str] = []
+    for path in shared_paths:
+        if path in SHARED_EXACT_PATHS:
+            result.append(path)
+            continue
+        tokens = shared_dependency_tokens(path)
+        if tokens and any(token in text for token in tokens):
+            result.append(path)
+    return result
+
+
+def classify_module(
+    repo: Path,
+    base: str,
+    candidate: str,
+    module: str,
+    paths: list[str],
+    source_shared_paths: list[str],
+) -> dict[str, Any]:
     module_prefix = module.rstrip("/") + "/"
     own = [path for path in paths if path == module or path.startswith(module_prefix)]
     classes: set[str] = set()
@@ -247,21 +289,16 @@ def classify_module(repo: Path, base: str, candidate: str, module: str, paths: l
         classes.add(kind)
         details.append({"path": path, "class": kind})
 
-    if shared_changed:
+    if source_shared_paths:
         classes.add("shared-runtime-change")
 
-    if not own and not shared_changed:
+    if not own and not source_shared_paths:
         state = "unaffected"
         action = "none"
     elif classes <= {"metadata-only", "metadata-resource-change"}:
         state = "metadata-only"
         action = "validate-only"
-    elif classes <= {
-        "metadata-only",
-        "metadata-resource-change",
-        "semantic-config-change",
-        "literal-semantic-change",
-    }:
+    elif classes <= BASE_ALLOWED_CLASSES:
         state = "semantic-adapter-candidate"
         action = "adapter-required"
     else:
@@ -273,6 +310,7 @@ def classify_module(repo: Path, base: str, candidate: str, module: str, paths: l
         "action": action,
         "changeClasses": sorted(classes),
         "files": details,
+        "sharedRuntimeFiles": source_shared_paths,
     }
 
 
@@ -287,11 +325,9 @@ def adapter_coverage(path: Path | None) -> dict[str, set[str]]:
         canonical = item.get("canonicalId")
         if not isinstance(canonical, str):
             continue
-        change_classes = item.get("changeClasses", [])
-        if isinstance(change_classes, list):
-            for change_class in change_classes:
-                if isinstance(change_class, str):
-                    result.setdefault(canonical, set()).add(change_class)
+        for change_class in item.get("changeClasses", []):
+            if isinstance(change_class, str):
+                result.setdefault(canonical, set()).add(change_class)
         legacy_class = item.get("changeClass")
         if isinstance(legacy_class, str):
             result.setdefault(canonical, set()).add(legacy_class)
@@ -303,28 +339,26 @@ def apply_adapter_coverage(canonical: str | None, result: dict[str, Any], covera
         return result
     classes = set(result.get("changeClasses", []))
     supported = coverage[canonical]
+    unknown = classes - BASE_ALLOWED_CLASSES - STRUCTURAL_CLASSES
+    if unknown:
+        return result
 
     required: set[str] = set()
-    unsupported_classes = classes - {
-        "metadata-only",
-        "metadata-resource-change",
-        "semantic-config-change",
-        "literal-semantic-change",
-    }
-    if unsupported_classes:
-        return result
     if "semantic-config-change" in classes:
         required.add("domain-base-url")
     if "literal-semantic-change" in classes:
         required.add("literal-semantic")
+    if classes & STRUCTURAL_CLASSES:
+        required.add("structural-profile")
     if not required.issubset(supported):
         return result
 
-    result = dict(result)
-    result["state"] = "adapted" if required else result["state"]
-    result["action"] = "validate-adapter-output" if required else result["action"]
-    result["adapterCoverage"] = sorted(supported)
-    return result
+    updated = dict(result)
+    if required:
+        updated["state"] = "adapted"
+        updated["action"] = "validate-adapter-output"
+    updated["adapterCoverage"] = sorted(supported)
+    return updated
 
 
 def analyze(
@@ -337,7 +371,6 @@ def analyze(
     manifest = load_json(alias_manifest_path)
     paths = changed_files(repo, base, candidate)
     shared_paths = [path for path in paths if is_shared_path(path)]
-    shared_changed = bool(shared_paths)
     coverage = adapter_coverage(adapter_report)
 
     sources = []
@@ -345,22 +378,25 @@ def analyze(
         kei = item["keiyoushi"]
         official = item["official"]
         canonical = item.get("canonicalId")
-        result = classify_module(repo, base, candidate, kei["module"], paths, shared_changed)
+        source_shared = relevant_shared_paths(repo, kei["module"], shared_paths)
+        result = classify_module(repo, base, candidate, kei["module"], paths, source_shared)
         result = apply_adapter_coverage(canonical, result, coverage)
-        sources.append(
-            {
-                "canonicalId": canonical,
-                "pack": official.get("pack"),
-                "officialSourceName": official.get("sourceName"),
-                "keiyoushiModule": kei["module"],
-                **result,
-            }
-        )
+        sources.append({
+            "canonicalId": canonical,
+            "pack": official.get("pack"),
+            "officialSourceName": official.get("sourceName"),
+            "keiyoushiModule": kei["module"],
+            **result,
+        })
 
     affected = [item for item in sources if item["state"] != "unaffected"]
-    blocking = [item for item in affected if item["action"] in ("adapter-required", "hold-unless-reusable-adapter-supports-change")]
+    blocking = [
+        item for item in affected
+        if item["action"] in ("adapter-required", "hold-unless-reusable-adapter-supports-change")
+    ]
     return {
-        "schema": 3,
+        "schema": 4,
+        "classifier": "dependency-aware-structural-v2",
         "provider": "keiyoushi",
         "base": base,
         "candidate": candidate,
@@ -374,6 +410,51 @@ def analyze(
     }
 
 
+def apply_structural_profile_if_available(
+    aliases_path: Path,
+    repo: Path,
+    base: str,
+    candidate: str,
+    adapter_report: Path,
+) -> None:
+    uma_root = Path("_upstream/uma").resolve()
+    if not uma_root.is_dir():
+        return
+
+    if not adapter_report.is_file():
+        save_json(adapter_report, {
+            "schema": 2,
+            "adapter": "keiyoushi-semantic",
+            "capabilities": [],
+            "base": base,
+            "candidate": candidate,
+            "applied": [],
+            "appliedCanonicalIds": [],
+            "unchangedCanonicalIds": [],
+            "blocked": [],
+            "state": "clear",
+        })
+
+    try:
+        from keiyoushi_structural_adapter import apply_structural_adapters
+        report = apply_structural_adapters(
+            aliases_path=aliases_path,
+            keiyoushi_root=repo,
+            uma_root=uma_root,
+            output=adapter_report,
+        )
+    except (ImportError, OSError, subprocess.CalledProcessError, json.JSONDecodeError) as exc:
+        fail(f"structural adapter failed: {exc}", code=3)
+
+    if report.get("state") == "blocked":
+        blocked = ", ".join(
+            item.get("canonicalId", "unknown")
+            for item in report.get("blocked", [])
+            if isinstance(item, dict)
+        )
+        fail(f"structural adapter blocked for: {blocked or 'unknown'}", code=3)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--aliases", type=Path, required=True)
@@ -382,17 +463,17 @@ def main() -> None:
     parser.add_argument("--candidate", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--adapter-report", type=Path)
-    parser.add_argument("--strict", action="store_true", help="Exit 3 when registered sources need an adapter/review")
+    parser.add_argument("--strict", action="store_true", help="Exit 3 when registered sources still need an adapter/review")
     args = parser.parse_args()
 
+    aliases_path = args.aliases.resolve()
+    repo = args.repo.resolve()
+    base = args.base.lower()
+    candidate = args.candidate.lower()
     adapter_report = args.adapter_report.resolve() if args.adapter_report else Path("build/keiyoushi-semantic-adapter.json").resolve()
-    report = analyze(
-        args.aliases.resolve(),
-        args.repo.resolve(),
-        args.base.lower(),
-        args.candidate.lower(),
-        adapter_report=adapter_report,
-    )
+
+    apply_structural_profile_if_available(aliases_path, repo, base, candidate, adapter_report)
+    report = analyze(aliases_path, repo, base, candidate, adapter_report=adapter_report)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(json.dumps(report, indent=2, ensure_ascii=False))
