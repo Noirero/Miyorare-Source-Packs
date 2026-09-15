@@ -14,6 +14,7 @@ on:
       - 'tools/behavioral_fixture.py'
       - 'tools/parser_harness_report.py'
       - 'tools/parser_harness_aggregate.py'
+      - 'tools/repair_engine.py'
       - 'tests/test_compatibility_contract.py'
       - 'tests/test_source_registry.py'
       - 'tests/test_deterministic_farm.py'
@@ -21,6 +22,7 @@ on:
       - 'tests/test_behavioral_fixture.py'
       - 'tests/test_parser_harness_report.py'
       - 'tests/test_parser_harness_aggregate.py'
+      - 'tests/test_repair_engine.py'
       - '.github/workflows/compatibility-farm-foundation.yml'
   pull_request:
     branches:
@@ -35,6 +37,7 @@ on:
       - 'tools/behavioral_fixture.py'
       - 'tools/parser_harness_report.py'
       - 'tools/parser_harness_aggregate.py'
+      - 'tools/repair_engine.py'
       - 'tests/test_compatibility_contract.py'
       - 'tests/test_source_registry.py'
       - 'tests/test_deterministic_farm.py'
@@ -42,6 +45,7 @@ on:
       - 'tests/test_behavioral_fixture.py'
       - 'tests/test_parser_harness_report.py'
       - 'tests/test_parser_harness_aggregate.py'
+      - 'tests/test_repair_engine.py'
       - '.github/workflows/compatibility-farm-foundation.yml'
 
 permissions:
@@ -116,6 +120,7 @@ jobs:
           tools/behavioral_fixture.py
           tools/parser_harness_report.py
           tools/parser_harness_aggregate.py
+          tools/repair_engine.py
 
       - name: Validate machine-readable compatibility contract
         run: python3 tools/compatibility_contract.py validate --contract compatibility/contract.json
@@ -216,7 +221,18 @@ jobs:
           cp -R compatibility/harness/gekkoushi/resources/. _upstream/gekkoushi/src/test/resources/compatibility-farm/
           cp -R compatibility/harness/uma/resources/shinigami/. _upstream/gekkoushi/src/test/resources/compatibility-farm/shinigami/
 
-      - name: Execute real Gekkoushi Kotlin parser harness seed
+      - name: Auto-repair recognized Gekkoushi request-header forwarding gap
+        run: >-
+          python3 tools/repair_engine.py
+          --recipes compatibility/repair-recipes.json
+          --recipe forward-parser-request-headers-to-http-get
+          --provider gekkoushi
+          --canonical-id miyorare:miyorare-id:SHINIGAMI
+          --root _upstream/gekkoushi
+          --path src/main/kotlin/tsuki/site/id/Shinigami.kt
+          --output build/repair-shinigami-gekkoushi.json
+
+      - name: Execute real Gekkoushi Kotlin parser harness seed after repair
         working-directory: _upstream/gekkoushi
         run: |
           chmod +x gradlew
@@ -312,6 +328,7 @@ jobs:
             build/source-shape-uma.json
             build/source-shape-gekkoushi.json
             build/behavioral-seed-report.json
+            build/repair-shinigami-gekkoushi.json
             build/real-parser-harness-uma-report.json
             build/real-parser-harness-gekkoushi-report.json
             build/real-parser-harness-keiyoushi-report.json
