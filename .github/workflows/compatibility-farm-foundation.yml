@@ -9,8 +9,10 @@ on:
       - 'compatibility/**'
       - 'tools/compatibility_contract.py'
       - 'tools/source_registry.py'
+      - 'tools/deterministic_farm.py'
       - 'tests/test_compatibility_contract.py'
       - 'tests/test_source_registry.py'
+      - 'tests/test_deterministic_farm.py'
       - '.github/workflows/compatibility-farm-foundation.yml'
   pull_request:
     branches:
@@ -20,8 +22,10 @@ on:
       - 'compatibility/**'
       - 'tools/compatibility_contract.py'
       - 'tools/source_registry.py'
+      - 'tools/deterministic_farm.py'
       - 'tests/test_compatibility_contract.py'
       - 'tests/test_source_registry.py'
+      - 'tests/test_deterministic_farm.py'
       - '.github/workflows/compatibility-farm-foundation.yml'
 
 permissions:
@@ -40,7 +44,11 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Compile Compatibility Farm helpers
-        run: python3 -m py_compile tools/compatibility_contract.py tools/source_registry.py
+        run: >-
+          python3 -m py_compile
+          tools/compatibility_contract.py
+          tools/source_registry.py
+          tools/deterministic_farm.py
 
       - name: Validate machine-readable compatibility contract
         run: python3 tools/compatibility_contract.py validate --contract compatibility/contract.json
@@ -51,5 +59,29 @@ jobs:
       - name: Show seed cohort summary
         run: python3 tools/source_registry.py summary --registry compatibility/source-registry.json
 
+      - name: Validate baseline-bound deterministic fixtures
+        run: >-
+          python3 tools/deterministic_farm.py validate
+          --contract compatibility/contract.json
+          --registry compatibility/source-registry.json
+          --fixtures compatibility/fixtures/deterministic-seed-3.json
+
+      - name: Run deterministic Compatibility Farm seed
+        run: >-
+          python3 tools/deterministic_farm.py run
+          --contract compatibility/contract.json
+          --registry compatibility/source-registry.json
+          --fixtures compatibility/fixtures/deterministic-seed-3.json
+          --output build/deterministic-seed-report.json
+
       - name: Run repository unit tests
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Upload deterministic farm report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deterministic-compatibility-seed-report
+          path: build/deterministic-seed-report.json
+          if-no-files-found: error
+          retention-days: 14
