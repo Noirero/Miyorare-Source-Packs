@@ -68,6 +68,7 @@ jobs:
           import json
           from pathlib import Path
           data = json.loads(Path('compatibility/source-registry.json').read_text(encoding='utf-8'))
+          print(f"keiyoushi={data['providerBaselines']['keiyoushi']}")
           print(f"uma={data['providerBaselines']['uma']}")
           print(f"gekkoushi={data['providerBaselines']['gekkoushi']}")
           PY
@@ -86,6 +87,14 @@ jobs:
           repository: Gekkoushi/plugin-source
           ref: ${{ steps.provider-refs.outputs.gekkoushi }}
           path: _upstream/gekkoushi
+          fetch-depth: 1
+
+      - name: Checkout pinned Keiyoushi source
+        uses: actions/checkout@v5
+        with:
+          repository: keiyoushi/extensions-source
+          ref: ${{ steps.provider-refs.outputs.keiyoushi }}
+          path: _upstream/keiyoushi
           fetch-depth: 1
 
       - name: Set up Java 17
@@ -221,12 +230,62 @@ jobs:
           --source miyorare:miyorare-id:DOUJINDESU=compatibilityfarm.DoujinDesuParserHarnessTest
           --output build/real-parser-harness-gekkoushi-report.json
 
+      - name: Install real Keiyoushi parser harness into disposable checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          module=_upstream/keiyoushi/src/id/komiku
+          mkdir -p "$module/compatibility-farm-test"
+          mkdir -p "$module/compatibility-farm-resources/compatibility-farm"
+          cp compatibility/harness/keiyoushi/KeiyoushiKomikuParserHarnessTest.kt "$module/compatibility-farm-test/"
+          cp -R compatibility/harness/keiyoushi/runtime/. "$module/compatibility-farm-test/"
+          cp -R compatibility/harness/keiyoushi/resources/. "$module/compatibility-farm-resources/compatibility-farm/"
+          cat >> "$module/build.gradle.kts" <<'EOF'
+
+          // Compatibility Farm test-only wiring. This exists only in the disposable CI checkout.
+          android {
+              sourceSets {
+                  named("test") {
+                      java.directories.add("compatibility-farm-test")
+                      kotlin.directories.add("compatibility-farm-test")
+                      resources.directories.add("compatibility-farm-resources")
+                  }
+              }
+              testOptions {
+                  unitTests.isReturnDefaultValues = true
+              }
+          }
+
+          dependencies {
+              testImplementation(libs.junit)
+              testImplementation(libs.bundles.common)
+          }
+          EOF
+
+      - name: Execute real Keiyoushi Komiku parser harness seed
+        working-directory: _upstream/keiyoushi
+        run: |
+          chmod +x gradlew
+          ./gradlew :src:id:komiku:testDebugUnitTest \
+            --tests compatibilityfarm.KeiyoushiKomikuParserHarnessTest \
+            --no-daemon
+
+      - name: Normalize Keiyoushi real parser execution evidence
+        run: >-
+          python3 tools/parser_harness_report.py
+          --registry compatibility/source-registry.json
+          --results-dir _upstream/keiyoushi/src/id/komiku/build/test-results/testDebugUnitTest
+          --provider keiyoushi
+          --source miyorare:miyorare-id:KOMIKU=compatibilityfarm.KeiyoushiKomikuParserHarnessTest
+          --output build/real-parser-harness-keiyoushi-report.json
+
       - name: Aggregate real parser evidence across providers
         run: >-
           python3 tools/parser_harness_aggregate.py
           --registry compatibility/source-registry.json
           --report build/real-parser-harness-uma-report.json
           --report build/real-parser-harness-gekkoushi-report.json
+          --report build/real-parser-harness-keiyoushi-report.json
           --output build/real-parser-harness-aggregate.json
 
       - name: Run repository unit tests
@@ -244,8 +303,10 @@ jobs:
             build/behavioral-seed-report.json
             build/real-parser-harness-uma-report.json
             build/real-parser-harness-gekkoushi-report.json
+            build/real-parser-harness-keiyoushi-report.json
             build/real-parser-harness-aggregate.json
             _upstream/uma/build/test-results/test/*.xml
             _upstream/gekkoushi/build/test-results/test/*.xml
+            _upstream/keiyoushi/src/id/komiku/build/test-results/testDebugUnitTest/*.xml
           if-no-files-found: error
           retention-days: 14
