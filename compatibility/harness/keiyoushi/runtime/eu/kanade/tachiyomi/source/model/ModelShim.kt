@@ -1,6 +1,8 @@
 package eu.kanade.tachiyomi.source.model
 
 import android.net.Uri
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 
 @Suppress("unused")
 enum class UpdateStrategy {
@@ -20,6 +22,7 @@ interface SManga {
     var thumbnail_url: String?
     var update_strategy: UpdateStrategy
     var initialized: Boolean
+    var memo: JsonObject
 
     companion object {
         const val UNKNOWN = 0
@@ -46,6 +49,7 @@ private class MangaImpl : SManga {
     override var thumbnail_url: String? = null
     override var update_strategy: UpdateStrategy = UpdateStrategy.ALWAYS_UPDATE
     override var initialized: Boolean = false
+    override var memo: JsonObject = buildJsonObject {}
 }
 
 @Suppress("unused", "PropertyName")
@@ -55,6 +59,7 @@ interface SChapter {
     var date_upload: Long
     var chapter_number: Float
     var scanlator: String?
+    var memo: JsonObject
 
     companion object {
         @JvmStatic
@@ -68,6 +73,7 @@ private class ChapterImpl : SChapter {
     override var date_upload: Long = 0L
     override var chapter_number: Float = -1f
     override var scanlator: String? = null
+    override var memo: JsonObject = buildJsonObject {}
 }
 
 @Suppress("unused")
