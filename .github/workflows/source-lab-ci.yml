@@ -57,13 +57,67 @@ jobs:
         with:
           gradle-version: '8.10.2'
 
+      - name: Set monotonic Source Lab version
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "SOURCE_LAB_VERSION_CODE=$((100000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+          echo "SOURCE_LAB_VERSION_NAME=0.1.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+
+      - name: Prepare stable update signing
+        id: signing
+        shell: bash
+        env:
+          SOURCE_LAB_KEYSTORE_B64: ${{ secrets.SOURCE_LAB_KEYSTORE_B64 }}
+          SOURCE_LAB_KEYSTORE_PASSWORD: ${{ secrets.SOURCE_LAB_KEYSTORE_PASSWORD }}
+          SOURCE_LAB_KEY_ALIAS: ${{ secrets.SOURCE_LAB_KEY_ALIAS }}
+          SOURCE_LAB_KEY_PASSWORD: ${{ secrets.SOURCE_LAB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -n "${SOURCE_LAB_KEYSTORE_B64:-}" ] && \
+             [ -n "${SOURCE_LAB_KEYSTORE_PASSWORD:-}" ] && \
+             [ -n "${SOURCE_LAB_KEY_ALIAS:-}" ] && \
+             [ -n "${SOURCE_LAB_KEY_PASSWORD:-}" ]; then
+            KEYSTORE="$RUNNER_TEMP/miyorare-source-lab-update.jks"
+            printf '%s' "$SOURCE_LAB_KEYSTORE_B64" | base64 --decode > "$KEYSTORE"
+            chmod 600 "$KEYSTORE"
+            echo "SOURCE_LAB_KEYSTORE_PATH=$KEYSTORE" >> "$GITHUB_ENV"
+            echo "SOURCE_LAB_KEYSTORE_PASSWORD=$SOURCE_LAB_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "SOURCE_LAB_KEY_ALIAS=$SOURCE_LAB_KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "SOURCE_LAB_KEY_PASSWORD=$SOURCE_LAB_KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "SOURCE_LAB_STABLE_SIGNING=true" >> "$GITHUB_ENV"
+            echo "stable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "SOURCE_LAB_STABLE_SIGNING=false" >> "$GITHUB_ENV"
+            echo "stable=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stable Source Lab signing secrets are not configured. Installable APK artifact will be withheld to avoid future signature conflicts."
+          fi
+
       - name: Test, lint and assemble Source Lab debug APK
         run: gradle -p source-lab :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --stacktrace
 
-      - name: Upload Source Lab debug APK
+      - name: Verify stable APK signature
+        if: steps.signing.outputs.stable == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="source-lab/app/build/outputs/apk/debug/app-debug.apk"
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          APKSIGNER="$SDK_ROOT/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
+      - name: Upload updateable Source Lab debug APK
+        if: steps.signing.outputs.stable == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: miyorare-source-lab-debug
+          name: miyorare-source-lab-updateable-debug
           path: source-lab/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Explain withheld APK
+        if: steps.signing.outputs.stable != 'true'
+        shell: bash
+        run: |
+          echo "Build/tests completed, but APK upload is intentionally withheld until stable signing secrets are configured."
+          echo "This prevents users from installing APKs signed by different ephemeral CI debug keys."
