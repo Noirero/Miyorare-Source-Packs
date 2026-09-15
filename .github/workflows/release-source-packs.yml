@@ -177,6 +177,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
 
       - name: Prepare curated UMA shard
         shell: bash
@@ -311,6 +313,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
 
       - name: Prepare global Gekkoushi shard
         run: |
