@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "families": {
     "manga-reader-plus-api": {
-      "requiredTokenGroups": [
+      "commonRequiredTokenGroups": [
         ["@MangaSourceParser("],
         ["MangaReaderParser("],
         ["selectPage"],
@@ -11,7 +11,7 @@
       ]
     },
     "custom-rest-json": {
-      "requiredTokenGroups": [
+      "commonRequiredTokenGroups": [
         ["@MangaSourceParser("],
         ["PagedMangaParser("],
         ["getRequestHeaders", "getApiHeaders"],
@@ -20,7 +20,7 @@
       ]
     },
     "custom-auth-cookie-html": {
-      "requiredTokenGroups": [
+      "commonRequiredTokenGroups": [
         ["@MangaSourceParser("],
         ["MangaParserAuthProvider"],
         ["isAuthorized"],
@@ -30,30 +30,40 @@
       ]
     },
     "natsu": {
-      "requiredTokenGroups": [
+      "commonRequiredTokenGroups": [
         ["@MangaSourceParser("],
         ["NatsuParser("]
       ]
     },
     "madara": {
-      "requiredTokenGroups": [
+      "commonRequiredTokenGroups": [
         ["@MangaSourceParser("],
         ["MadaraParser("],
         ["selectChapter", "getDetails", "getPages"]
       ]
     },
     "custom-paged-form-api": {
-      "requiredTokenGroups": [
+      "commonRequiredTokenGroups": [
         ["@MangaSourceParser("],
         ["PagedMangaParser("],
-        ["FormBody", "RequestBody"],
-        ["refererInterceptor", "Referer"],
-        ["requestBrowserAction", "dleGuardInterceptor"],
         ["getPages"]
-      ]
+      ],
+      "providerRequiredTokenGroups": {
+        "uma": [
+          ["FormBody", "RequestBody"],
+          ["refererInterceptor", "Referer"],
+          ["requestBrowserAction", "dleGuardInterceptor"]
+        ],
+        "gekkoushi": [
+          ["CommonHeaders.REFERER", "REFERER"],
+          ["JSONObject"],
+          ["parseHtml"],
+          ["__DATA__"]
+        ]
+      }
     },
     "custom-paged-html-json": {
-      "requiredTokenGroups": [
+      "commonRequiredTokenGroups": [
         ["@MangaSourceParser("],
         ["PagedMangaParser("],
         ["parseHtml", "JSONObject", "toJSONObjectOrNull"],
@@ -63,7 +73,7 @@
       ]
     },
     "custom-paged-html-xhr": {
-      "requiredTokenGroups": [
+      "commonRequiredTokenGroups": [
         ["@MangaSourceParser("],
         ["PagedMangaParser("],
         ["X_REQUESTED_WITH", "XMLHttpRequest"],
