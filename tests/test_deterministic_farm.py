@@ -16,20 +16,31 @@ class DeterministicFarmTests(unittest.TestCase):
         cls.contract = json.loads((ROOT / "compatibility/contract.json").read_text(encoding="utf-8"))
         cls.registry = json.loads((ROOT / "compatibility/source-registry.json").read_text(encoding="utf-8"))
         cls.suite = json.loads(
-            (ROOT / "compatibility/fixtures/deterministic-seed-3.json").read_text(encoding="utf-8")
+            (ROOT / "compatibility/fixtures/deterministic-seed-8.json").read_text(encoding="utf-8")
         )
 
     def test_seed_suite_is_valid_but_cannot_unlock_candidate(self):
         validate_suite(self.contract, self.registry, self.suite)
         report = run_suite(self.contract, self.registry, self.suite)
         self.assertEqual(report["suiteStatus"], "PASS")
-        self.assertEqual(report["coverage"]["covered"], 3)
+        self.assertEqual(report["coverage"]["covered"], 8)
         self.assertEqual(report["coverage"]["totalRegistered"], 12)
         self.assertFalse(report["coverage"]["full"])
         self.assertFalse(report["candidatePass"])
         self.assertFalse(report["publishEligible"])
         self.assertFalse(report["ownerActionRequired"])
         self.assertEqual(report["releaseGate"], "NOT_READY_PARTIAL_COVERAGE")
+
+    def test_expanded_seed_covers_both_languages_and_all_providers(self):
+        source_index = {item["canonicalId"]: item for item in self.registry["sources"]}
+        languages = set()
+        providers = set()
+        for fixture in self.suite["sources"]:
+            source = source_index[fixture["canonicalId"]]
+            languages.add(source["language"])
+            providers.update(source["providers"])
+        self.assertEqual(languages, {"id", "en"})
+        self.assertEqual(providers, {"keiyoushi", "uma", "gekkoushi"})
 
     def test_fixture_bound_to_last_known_good_becomes_stale(self):
         suite = copy.deepcopy(self.suite)
