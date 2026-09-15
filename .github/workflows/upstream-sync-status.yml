@@ -1,4 +1,4 @@
-name: Persist Upstream Sync Status
+name: Miyorare Source Sync Result
 
 on:
   workflow_run:
@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   persist:
-    name: Persist promoted and held provider status
+    name: Build readable Source Sync Result
     if: github.event.workflow_run.event != 'pull_request'
     runs-on: ubuntu-latest
     env:
@@ -155,6 +155,91 @@ jobs:
               result['providers'][provider] = entry
 
           Path('upstream/status.json').write_text(json.dumps(result, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+          PY
+
+      - name: Write readable Actions summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          status = json.loads(Path('upstream/status.json').read_text(encoding='utf-8'))
+          summary_path = Path(os.environ['GITHUB_STEP_SUMMARY'])
+
+          labels = {
+              'synced': ('🟢', 'SYNCED', 'Tidak ada update baru. Versi aktif tetap aman.'),
+              'promoted': ('🔵', 'UPDATED', 'Kandidat lolos dan sudah dipromosikan.'),
+              'held': ('🟠', 'HELD', 'Kandidat baru ditahan. Last-known-good tetap dipakai.'),
+              'promoted-with-held-sources': ('🟠', 'PARTIAL', 'Provider dipromosikan, tetapi source tertentu tetap ditahan.'),
+              'waiting-approval': ('🟡', 'READY', 'Sudah lolos pemeriksaan dan menunggu satu klik approval.'),
+              'broken': ('🔴', 'BROKEN', 'Versi aktif bermasalah dan perlu fail-safe.'),
+              'unknown': ('⚪', 'UNKNOWN', 'Status belum dapat dipastikan.'),
+          }
+
+          lines = [
+              '# Miyorare Source Sync Result',
+              '',
+              f'Upstream workflow run: `{status.get("workflowRunId", "unknown")}`',
+              '',
+              '| Provider | Status | Hasil |',
+              '|---|---|---|',
+          ]
+
+          held = []
+          promoted = []
+          for provider in ('keiyoushi', 'uma', 'gekkoushi'):
+              info = status.get('providers', {}).get(provider, {})
+              state = info.get('state', 'unknown')
+              icon, label, message = labels.get(state, labels['unknown'])
+              lines.append(f'| {provider.capitalize()} | {icon} **{label}** | {message} |')
+              if state in ('held', 'promoted-with-held-sources'):
+                  held.append((provider, info))
+              if state == 'promoted':
+                  promoted.append(provider)
+
+          lines.extend(['', '## Kesimpulan'])
+          if held:
+              lines.append('⚠️ Ada update upstream yang **tidak aman untuk dipublish**. Sistem otomatis mempertahankan versi last-known-good, jadi Anda tidak perlu memperbaiki atau menganalisis log secara manual.')
+          elif promoted:
+              lines.append('✅ Update yang lolos pemeriksaan sudah dipromosikan. Proses release otomatis akan menangani tahap berikutnya.')
+          else:
+              lines.append('✅ Semua provider aman dan tidak ada tindakan manual yang diperlukan.')
+
+          if held:
+              lines.extend(['', '## Yang ditahan'])
+              for provider, info in held:
+                  reason = info.get('reason') or info.get('heldSourceReason') or 'validation-safety-check'
+                  lines.append(f'### {provider.capitalize()}')
+                  lines.append(f'- Alasan: `{reason}`')
+                  lines.append(f'- Last-known-good: `{info.get("lastKnownGood", "unknown")}`')
+                  candidate = info.get('candidate')
+                  if candidate:
+                      lines.append(f'- Kandidat: `{candidate}`')
+                  source_status = info.get('sourceStatus', [])
+                  blocking = [item for item in source_status if item.get('state') not in (None, 'unaffected')]
+                  if blocking:
+                      lines.append('- Source terdampak:')
+                      for item in blocking:
+                          name = item.get('sourceName') or item.get('canonicalId') or 'unknown'
+                          change_classes = ', '.join(item.get('changeClasses', [])) or 'unknown change'
+                          lines.append(f'  - **{name}** — {change_classes}')
+
+          lines.extend([
+              '',
+              '## Satu tindakan manual',
+              'Jika Anda ingin memulai pemeriksaan + update lengkap kapan saja, buka workflow berikut lalu tekan **Run workflow**. Setelah itu seluruh proses berjalan otomatis.',
+              '',
+              '[▶ One-Click Source Update](https://github.com/Noirero/Miyorare-Source-Packs/actions/workflows/one-click-source-update.yml)',
+          ])
+
+          summary_path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+
+          for provider, info in held:
+              count = info.get('blockingSourceCount') or len(info.get('sourceStatus', []))
+              print(f'::warning title={provider.capitalize()} update held::{count} source(s) are held; last-known-good remains active.')
           PY
 
       - name: Commit status even when every candidate is held
