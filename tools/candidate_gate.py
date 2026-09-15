@@ -27,6 +27,12 @@ PARTIAL_GATES = {
     "NOT_READY_NO_PARSER_HARNESS",
 }
 
+VALID_EXECUTION_MODES = {
+    "real-kotlin-parser-aggregate",
+    "real-kotlin-parser-aggregate-with-repair-evidence",
+    "real-kotlin-parser-maintenance-evidence",
+}
+
 
 def _bool(value: Any, name: str) -> bool:
     if not isinstance(value, bool):
@@ -45,10 +51,7 @@ def _context(context: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def validate_aggregate(aggregate: dict[str, Any]) -> None:
-    if aggregate.get("executionMode") not in {
-        "real-kotlin-parser-aggregate",
-        "real-kotlin-parser-maintenance-evidence",
-    }:
+    if aggregate.get("executionMode") not in VALID_EXECUTION_MODES:
         raise CandidateGateError("aggregate must come from real Kotlin parser aggregation")
     if aggregate.get("parserExecution") is not True:
         raise CandidateGateError("aggregate.parserExecution must be true")
@@ -76,6 +79,20 @@ def validate_aggregate(aggregate: dict[str, Any]) -> None:
         if not coverage["fullCanonicalCoverage"] or not coverage["fullProviderMembershipCoverage"]:
             raise CandidateGateError("passing candidate requires full real-parser coverage")
 
+    if aggregate.get("executionMode") == "real-kotlin-parser-aggregate-with-repair-evidence":
+        repair = aggregate.get("repairEvidence")
+        if not isinstance(repair, dict):
+            raise CandidateGateError("repair-enriched aggregate requires repairEvidence")
+        reported = repair.get("reportedMemberships")
+        validated = repair.get("validatedByRealParserRetest")
+        failed = repair.get("failedRealParserRetest")
+        if not all(isinstance(value, int) and value >= 0 for value in (reported, validated, failed)):
+            raise CandidateGateError("repair evidence counters must be non-negative integers")
+        if validated + failed != reported:
+            raise CandidateGateError("every reported auto-repair must have a real-parser retest outcome")
+        if failed:
+            raise CandidateGateError("failed auto-repair retest cannot enter the approval gate")
+
 
 def derive_candidate_gate(
     contract: dict[str, Any],
@@ -102,7 +119,6 @@ def derive_candidate_gate(
             "publishEligible": False,
         }
     else:
-        failure_class = "PARSER_FAILURE"
         evidence = {
             "candidatePass": aggregate["candidatePass"],
             "currentRuntimeHealth": current_health,
@@ -112,7 +128,7 @@ def derive_candidate_gate(
             "approvalState": approval,
         }
         if not aggregate["candidatePass"]:
-            evidence["failureClass"] = failure_class
+            evidence["failureClass"] = "PARSER_FAILURE"
         try:
             decision = evaluate_candidate(contract, evidence)
         except ContractError as exc:
