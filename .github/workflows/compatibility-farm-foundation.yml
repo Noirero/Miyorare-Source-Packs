@@ -336,6 +336,56 @@ jobs:
           --source miyorare:miyorare-id:KOMIKU=compatibilityfarm.KeiyoushiKomikuParserHarnessTest
           --output build/real-parser-harness-keiyoushi-report.json
 
+      - name: Install real Keiyoushi Aqua Manga parser harness into disposable checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          module=_upstream/keiyoushi/src/en/aquamanga
+          mkdir -p "$module/compatibility-farm-test"
+          cp compatibility/harness/keiyoushi/KeiyoushiAquaMangaParserHarnessTest.kt "$module/compatibility-farm-test/"
+          cp -R compatibility/harness/keiyoushi/runtime/. "$module/compatibility-farm-test/"
+          cat >> "$module/build.gradle.kts" <<'EOF'
+
+          // Compatibility Farm test-only wiring. This exists only in the disposable CI checkout.
+          android {
+              sourceSets {
+                  named("test") {
+                      java.directories.add("compatibility-farm-test")
+                      kotlin.directories.add("compatibility-farm-test")
+                  }
+              }
+              testOptions {
+                  unitTests.isReturnDefaultValues = true
+              }
+          }
+
+          dependencies {
+              testImplementation(libs.junit)
+              testImplementation(libs.bundles.common)
+          }
+
+          tasks.matching { it.name == "kspDebugUnitTestKotlin" }.configureEach {
+              enabled = false
+          }
+          EOF
+
+      - name: Execute real Keiyoushi Aqua Manga parser harness seed
+        working-directory: _upstream/keiyoushi
+        run: |
+          chmod +x gradlew
+          ./gradlew :src:en:aquamanga:testDebugUnitTest \
+            --tests compatibilityfarm.KeiyoushiAquaMangaParserHarnessTest \
+            --no-daemon
+
+      - name: Normalize Keiyoushi Aqua Manga real parser execution evidence
+        run: >-
+          python3 tools/parser_harness_report.py
+          --registry compatibility/source-registry.json
+          --results-dir _upstream/keiyoushi/src/en/aquamanga/build/test-results/testDebugUnitTest
+          --provider keiyoushi
+          --source miyorare:miyorare-en:AQUAMANGA=compatibilityfarm.KeiyoushiAquaMangaParserHarnessTest
+          --output build/real-parser-harness-keiyoushi-aquamanga-report.json
+
       - name: Aggregate real parser evidence across providers
         run: >-
           python3 tools/parser_harness_aggregate.py
@@ -343,6 +393,7 @@ jobs:
           --report build/real-parser-harness-uma-report.json
           --report build/real-parser-harness-gekkoushi-report.json
           --report build/real-parser-harness-keiyoushi-report.json
+          --report build/real-parser-harness-keiyoushi-aquamanga-report.json
           --output build/real-parser-harness-aggregate.json
 
       - name: Attach auto-repair outcome to aggregate evidence
@@ -371,10 +422,12 @@ jobs:
             build/real-parser-harness-uma-report.json
             build/real-parser-harness-gekkoushi-report.json
             build/real-parser-harness-keiyoushi-report.json
+            build/real-parser-harness-keiyoushi-aquamanga-report.json
             build/real-parser-harness-aggregate.json
             build/real-parser-harness-evidence.json
             _upstream/uma/build/test-results/test/*.xml
             _upstream/gekkoushi/build/test-results/test/*.xml
             _upstream/keiyoushi/src/id/komiku/build/test-results/testDebugUnitTest/*.xml
+            _upstream/keiyoushi/src/en/aquamanga/build/test-results/testDebugUnitTest/*.xml
           if-no-files-found: error
           retention-days: 14
