@@ -165,15 +165,18 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p _upstream/uma/src/test/kotlin/compatibilityfarm
-          mkdir -p _upstream/uma/src/test/resources/compatibility-farm/komiku
+          mkdir -p _upstream/uma/src/test/resources/compatibility-farm
           cp compatibility/harness/uma/*.kt _upstream/uma/src/test/kotlin/compatibilityfarm/
-          cp compatibility/harness/uma/resources/komiku/* _upstream/uma/src/test/resources/compatibility-farm/komiku/
+          cp -R compatibility/harness/uma/resources/. _upstream/uma/src/test/resources/compatibility-farm/
 
-      - name: Execute real Komiku Kotlin parser harness
+      - name: Execute real UMA Kotlin parser harness seed
         working-directory: _upstream/uma
         run: |
           chmod +x gradlew
-          ./gradlew test --tests compatibilityfarm.KomikuParserHarnessTest --no-daemon
+          ./gradlew test \
+            --tests compatibilityfarm.KomikuParserHarnessTest \
+            --tests compatibilityfarm.ShinigamiParserHarnessTest \
+            --no-daemon
 
       - name: Normalize real parser execution evidence
         run: >-
@@ -182,6 +185,7 @@ jobs:
           --results-dir _upstream/uma/build/test-results/test
           --provider uma
           --source miyorare:miyorare-id:KOMIKU=compatibilityfarm.KomikuParserHarnessTest
+          --source miyorare:miyorare-id:SHINIGAMI=compatibilityfarm.ShinigamiParserHarnessTest
           --output build/real-parser-harness-report.json
 
       - name: Run repository unit tests
