@@ -11,10 +11,12 @@ on:
       - 'tools/source_registry.py'
       - 'tools/deterministic_farm.py'
       - 'tools/source_shape_guard.py'
+      - 'tools/behavioral_fixture.py'
       - 'tests/test_compatibility_contract.py'
       - 'tests/test_source_registry.py'
       - 'tests/test_deterministic_farm.py'
       - 'tests/test_source_shape_guard.py'
+      - 'tests/test_behavioral_fixture.py'
       - '.github/workflows/compatibility-farm-foundation.yml'
   pull_request:
     branches:
@@ -26,10 +28,12 @@ on:
       - 'tools/source_registry.py'
       - 'tools/deterministic_farm.py'
       - 'tools/source_shape_guard.py'
+      - 'tools/behavioral_fixture.py'
       - 'tests/test_compatibility_contract.py'
       - 'tests/test_source_registry.py'
       - 'tests/test_deterministic_farm.py'
       - 'tests/test_source_shape_guard.py'
+      - 'tests/test_behavioral_fixture.py'
       - '.github/workflows/compatibility-farm-foundation.yml'
 
 permissions:
@@ -83,6 +87,7 @@ jobs:
           tools/source_registry.py
           tools/deterministic_farm.py
           tools/source_shape_guard.py
+          tools/behavioral_fixture.py
 
       - name: Validate machine-readable compatibility contract
         run: python3 tools/compatibility_contract.py validate --contract compatibility/contract.json
@@ -128,17 +133,31 @@ jobs:
           --fixtures compatibility/fixtures/deterministic-seed-8.json
           --output build/deterministic-seed-report.json
 
+      - name: Validate behavioral response fixtures
+        run: >-
+          python3 tools/behavioral_fixture.py validate
+          --registry compatibility/source-registry.json
+          --fixtures compatibility/fixtures/behavioral-seed-4.json
+
+      - name: Run behavioral response fixture suite
+        run: >-
+          python3 tools/behavioral_fixture.py run
+          --registry compatibility/source-registry.json
+          --fixtures compatibility/fixtures/behavioral-seed-4.json
+          --output build/behavioral-seed-report.json
+
       - name: Run repository unit tests
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
 
-      - name: Upload deterministic farm reports
+      - name: Upload Compatibility Farm reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: deterministic-compatibility-seed-report
+          name: compatibility-farm-foundation-reports
           path: |
             build/deterministic-seed-report.json
             build/source-shape-uma.json
             build/source-shape-gekkoushi.json
+            build/behavioral-seed-report.json
           if-no-files-found: error
           retention-days: 14
