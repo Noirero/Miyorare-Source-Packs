@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "maintenanceMode": "APPROVE_ONLY",
+  "scope": {
+    "languages": ["id", "en"],
+    "providers": ["keiyoushi", "uma", "gekkoushi"],
+    "candidateMode": true
+  },
+  "capabilities": [
+    "load",
+    "browse",
+    "search",
+    "details",
+    "chapters",
+    "content",
+    "authenticate",
+    "download",
+    "reader"
+  ],
+  "contentProfiles": {
+    "manga": [
+      "chapter",
+      "page_list",
+      "image_fetch",
+      "decode",
+      "download",
+      "reader"
+    ],
+    "novel": [
+      "chapter",
+      "html_or_text",
+      "parsing",
+      "formatting",
+      "offline_if_supported",
+      "novel_reader"
+    ]
+  },
+  "authenticationTypes": [
+    "NO_AUTH",
+    "COOKIE",
+    "FORM",
+    "WEBVIEW",
+    "TOKEN",
+    "INTERACTIVE_REQUIRED",
+    "UNSUPPORTED"
+  ],
+  "failureClasses": [
+    "MIYORARE_REGRESSION",
+    "UPSTREAM_CHANGED",
+    "SOURCE_DOWN",
+    "AUTH_REQUIRED",
+    "RATE_LIMITED",
+    "NETWORK_FAILURE",
+    "PARSER_FAILURE",
+    "CONTENT_FAILURE",
+    "DOWNLOAD_FAILURE",
+    "READER_FAILURE",
+    "UNKNOWN"
+  ],
+  "updateStates": ["CANDIDATE", "PROMOTED", "HELD"],
+  "runtimeHealthStates": ["HEALTHY", "DEGRADED", "BROKEN", "UNKNOWN"],
+  "approvalStates": [
+    "NOT_READY",
+    "WAITING_FOR_APPROVAL",
+    "APPROVED",
+    "REJECTED"
+  ],
+  "policies": {
+    "unknownTriggersAutoDiagnose": true,
+    "safeSelfRepairBeforeHold": true,
+    "holdRequiresOwnerAction": false,
+    "keepLastKnownGood": true,
+    "maintainHealthyHistory": true,
+    "validatedCanonicalFallback": true,
+    "protectMiyorareCustomization": true,
+    "publishRequiresApproval": true,
+    "publishFromCandidateMode": false,
+    "regressionBudget": 0,
+    "candidateFailureDoesNotImplyCurrentBroken": true
+  }
+}
