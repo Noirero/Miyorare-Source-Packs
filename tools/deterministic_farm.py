@@ -264,7 +264,7 @@ def build_parser() -> argparse.ArgumentParser:
         command = sub.add_parser(name)
         command.add_argument("--contract", default="compatibility/contract.json")
         command.add_argument("--registry", default="compatibility/source-registry.json")
-        command.add_argument("--fixtures", default="compatibility/fixtures/deterministic-seed-3.json")
+        command.add_argument("--fixtures", default="compatibility/fixtures/deterministic-seed-8.json")
         if name == "run":
             command.add_argument("--output")
             command.set_defaults(func=_cmd_run)
