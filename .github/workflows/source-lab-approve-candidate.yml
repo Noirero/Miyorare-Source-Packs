@@ -1,0 +1,180 @@
+name: Source Lab Approve Candidate
+run-name: Source Lab approve ${{ inputs.candidate_set_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_set_id:
+        description: Exact staged candidateSetId shown by Source Lab
+        required: true
+        type: string
+      farm_evidence_sha256:
+        description: Exact real-parser aggregate digest shown by Source Lab
+        required: true
+        type: string
+      gate_sha256:
+        description: Exact candidate gate digest shown by Source Lab
+        required: true
+        type: string
+      repair_evidence_sha256:
+        description: Exact repair evidence-set digest shown by Source Lab
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: source-lab-approve-${{ inputs.candidate_set_id }}
+  cancel-in-progress: false
+
+jobs:
+  approve:
+    name: Verify owner and record exact approval
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail closed on caller and request shape
+        env:
+          EXPECTED_OWNER_ID: '149634319'
+          CANDIDATE_SET_ID: ${{ inputs.candidate_set_id }}
+          FARM_EVIDENCE_SHA256: ${{ inputs.farm_evidence_sha256 }}
+          GATE_SHA256: ${{ inputs.gate_sha256 }}
+          REPAIR_EVIDENCE_SHA256: ${{ inputs.repair_evidence_sha256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+          [[ "$CANDIDATE_SET_ID" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$FARM_EVIDENCE_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$GATE_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$REPAIR_EVIDENCE_SHA256" =~ ^[0-9a-f]{64}$ ]]
+
+      - name: Checkout authoritative Compatibility Farm foundation
+        uses: actions/checkout@v5
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 1
+
+      - name: Extract and revalidate staged candidate
+        env:
+          CANDIDATE_SET_ID: ${{ inputs.candidate_set_id }}
+          FARM_EVIDENCE_SHA256: ${{ inputs.farm_evidence_sha256 }}
+          GATE_SHA256: ${{ inputs.gate_sha256 }}
+          REPAIR_EVIDENCE_SHA256: ${{ inputs.repair_evidence_sha256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          status_path = Path('farm/upstream/status.json')
+          status = json.loads(status_path.read_text(encoding='utf-8'))
+          if status.get('schema') != 3:
+              raise SystemExit('upstream status schema must be 3')
+          pending = status.get('approvalCandidate')
+          if not isinstance(pending, dict):
+              raise SystemExit('no staged approvalCandidate is waiting in authoritative status')
+          if pending.get('candidateSetId') != os.environ['CANDIDATE_SET_ID']:
+              raise SystemExit('candidateSetId changed; approval request is stale')
+          if pending.get('state') != 'WAITING_FOR_APPROVAL':
+              raise SystemExit('candidate is no longer WAITING_FOR_APPROVAL')
+          if pending.get('publishEligible') is not False:
+              raise SystemExit('candidate unexpectedly became publish eligible')
+
+          binding = pending.get('evidenceBinding')
+          if not isinstance(binding, dict):
+              raise SystemExit('candidate has no evidence binding')
+          expected = {
+              'farmEvidenceSha256': os.environ['FARM_EVIDENCE_SHA256'],
+              'gateSha256': os.environ['GATE_SHA256'],
+              'repairEvidenceSha256': os.environ['REPAIR_EVIDENCE_SHA256'],
+          }
+          for key, value in expected.items():
+              if binding.get(key) != value:
+                  raise SystemExit(f'{key} changed; approval request is stale')
+
+          providers = status.get('providers')
+          if not isinstance(providers, dict):
+              raise SystemExit('status.providers is invalid')
+          for provider, item in pending.get('providers', {}).items():
+              state = providers.get(provider)
+              if not isinstance(state, dict):
+                  raise SystemExit(f'provider {provider} disappeared from status')
+              candidate = state.get('candidate')
+              if state.get('updateState') != 'CANDIDATE' or not isinstance(candidate, dict):
+                  raise SystemExit(f'provider {provider} is no longer a staged candidate')
+              if state.get('activeCommit') != item.get('current') or state.get('lastKnownGood') != item.get('current'):
+                  raise SystemExit(f'provider {provider} active/LKG changed; approval is stale')
+              if candidate.get('commit') != item.get('candidate'):
+                  raise SystemExit(f'provider {provider} candidate SHA changed')
+              if candidate.get('candidateSetId') != pending.get('candidateSetId'):
+                  raise SystemExit(f'provider {provider} candidateSetId changed')
+              if candidate.get('approvalState') != 'WAITING_FOR_APPROVAL':
+                  raise SystemExit(f'provider {provider} is no longer waiting for approval')
+              if candidate.get('evidenceBinding') != binding:
+                  raise SystemExit(f'provider {provider} evidence binding changed')
+
+          Path('build/pending-approval.json').write_text(
+              json.dumps(pending, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          PY
+
+          python3 farm/tools/approval_state.py approve \
+            --pending build/pending-approval.json \
+            --candidate-set-id "$CANDIDATE_SET_ID" \
+            --actor "$GITHUB_ACTOR:$GITHUB_ACTOR_ID" \
+            --output build/approval-proof.json
+
+      - name: Emit immutable workflow receipt
+        env:
+          CANDIDATE_SET_ID: ${{ inputs.candidate_set_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          approval = json.loads(Path('build/approval-proof.json').read_text(encoding='utf-8'))
+          receipt = {
+              'schemaVersion': 1,
+              'maintenanceMode': 'APPROVE_ONLY',
+              'approvalState': 'APPROVED',
+              'candidateSetId': os.environ['CANDIDATE_SET_ID'],
+              'workflowRunId': int(os.environ['GITHUB_RUN_ID']),
+              'workflowRunAttempt': int(os.environ['GITHUB_RUN_ATTEMPT']),
+              'repository': os.environ['GITHUB_REPOSITORY'],
+              'ref': os.environ['GITHUB_REF'],
+              'actor': os.environ['GITHUB_ACTOR'],
+              'actorId': os.environ['GITHUB_ACTOR_ID'],
+              'approval': approval,
+              'publishEligible': False,
+              'promotionPerformed': False,
+              'signingPerformed': False,
+              'releasePerformed': False,
+              'publishPerformed': False,
+          }
+          Path('build/source-lab-approval-receipt.json').write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          PY
+
+      - name: Upload approval proof only
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-lab-approval-${{ inputs.candidate_set_id }}
+          path: |
+            build/pending-approval.json
+            build/approval-proof.json
+            build/source-lab-approval-receipt.json
+          if-no-files-found: error
+          retention-days: 30
