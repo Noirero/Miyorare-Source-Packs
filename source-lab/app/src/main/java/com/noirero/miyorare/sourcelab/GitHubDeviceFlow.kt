@@ -121,8 +121,15 @@ internal object GitHubDeviceFlowClient {
             ?.bufferedReader()
             ?.use { it.readText() }
             .orEmpty()
+        connection.disconnect()
         if (code !in 200..299) {
-            error("GitHub API request failed: HTTP $code")
+            val message = githubMessage(body)
+            when (code) {
+                401 -> error("GITHUB_USER_TOKEN_REJECTED: $message")
+                403 -> error("GITHUB_APP_PERMISSION_REQUIRED: $message")
+                404 -> error("GITHUB_REPOSITORY_NOT_ACCESSIBLE_404: $message")
+                else -> error("GITHUB_API_HTTP_$code: $message")
+            }
         }
         return JSONObject(body)
     }
@@ -148,10 +155,28 @@ internal object GitHubDeviceFlowClient {
             ?.bufferedReader()
             ?.use { it.readText() }
             .orEmpty()
+        connection.disconnect()
         if (code !in 200..299) {
-            error("GitHub Device Flow request failed: HTTP $code")
+            val message = githubMessage(body)
+            if (code == 404 && url == deviceCodeUrl) {
+                error(
+                    "GITHUB_DEVICE_FLOW_404: Device Flow is unavailable for the configured GitHub App. " +
+                        "Enable Device Flow in the GitHub App settings, then retry. $message"
+                )
+            }
+            error("GITHUB_DEVICE_FLOW_HTTP_$code: $message")
         }
         return body
+    }
+
+    private fun githubMessage(body: String): String = try {
+        JSONObject(body).optString("error_description").ifBlank {
+            JSONObject(body).optString("message").ifBlank {
+                JSONObject(body).optString("error").ifBlank { body.ifBlank { "unknown GitHub error" } }
+            }
+        }
+    } catch (_: Throwable) {
+        body.ifBlank { "unknown GitHub error" }
     }
 
     private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name())
