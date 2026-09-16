@@ -57,33 +57,26 @@ jobs:
         with:
           gradle-version: '8.10.2'
 
-      - name: Check public GitHub App client id configuration
+      - name: Validate official public GitHub App Client ID
         shell: bash
         env:
-          REPOSITORY_CLIENT_ID: ${{ vars.SOURCE_LAB_GITHUB_CLIENT_ID }}
           OFFICIAL_CLIENT_ID: Iv23lijwK22xASXNEBkP
         run: |
           set -euo pipefail
-          CLIENT_ID="${REPOSITORY_CLIENT_ID:-}"
+          CLIENT_ID="$(printf '%s' "$OFFICIAL_CLIENT_ID" | xargs)"
           if [ -z "$CLIENT_ID" ]; then
-            CLIENT_ID="$OFFICIAL_CLIENT_ID"
-            echo "Using Source Lab official public Client ID embedded in source."
-          fi
-          CLIENT_ID="$(printf '%s' "$CLIENT_ID" | xargs)"
-
-          if [[ "$CLIENT_ID" =~ ^[0-9]+$ ]]; then
-            echo "::error::SOURCE_LAB_GITHUB_CLIENT_ID must be the GitHub App Client ID, not a numeric App/Installation ID."
+            echo "::error::Official Source Lab GitHub App Client ID is missing."
+            exit 1
+          elif [[ "$CLIENT_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::Official Source Lab GitHub App Client ID must not be numeric."
             exit 1
           elif [[ ! "$CLIENT_ID" =~ ^[A-Za-z0-9._-]{10,128}$ ]]; then
-            echo "::error::SOURCE_LAB_GITHUB_CLIENT_ID has an invalid format."
+            echo "::error::Official Source Lab GitHub App Client ID has an invalid format."
             exit 1
-          else
-            echo "Source Lab GitHub App Client ID is valid public build configuration."
           fi
+          echo "Official Source Lab GitHub App Client ID is valid."
 
       - name: Run internal debug checks
-        env:
-          SOURCE_LAB_GITHUB_CLIENT_ID: ${{ vars.SOURCE_LAB_GITHUB_CLIENT_ID }}
         run: gradle -p source-lab :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --stacktrace
 
       - name: Mark debug build as internal only
