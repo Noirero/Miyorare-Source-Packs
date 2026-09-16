@@ -78,13 +78,9 @@ jobs:
         shell: bash
         env:
           INPUT_CLIENT_ID: ${{ inputs.github_client_id }}
-          REPOSITORY_CLIENT_ID: ${{ vars.SOURCE_LAB_GITHUB_CLIENT_ID }}
         run: |
           set -euo pipefail
           CLIENT_ID="${INPUT_CLIENT_ID:-}"
-          if [ -z "$CLIENT_ID" ]; then
-            CLIENT_ID="${REPOSITORY_CLIENT_ID:-}"
-          fi
           if [ -z "$CLIENT_ID" ]; then
             CLIENT_ID="$SOURCE_LAB_OFFICIAL_GITHUB_CLIENT_ID"
           fi
