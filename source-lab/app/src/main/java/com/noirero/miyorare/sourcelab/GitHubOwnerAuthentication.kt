@@ -29,41 +29,49 @@ internal class GitHubOwnerAuthenticationException(
 /**
  * Interactive GitHub App Device Flow for the Source Lab owner session.
  *
- * The OAuth client id is public configuration. Source Lab first discovers it
- * from GitHub's public `GET /apps/{slug}` endpoint and verifies the immutable
- * numeric app id. A manually entered client id remains available only as a
- * recovery path if the app slug ever changes. The returned user access token
- * is deliberately kept in memory only and is never written to preferences,
- * files, logs, or the APK.
+ * The GitHub App client id is public configuration. Source Lab prefers the
+ * client id embedded at build time and only uses the text field as a recovery
+ * override. It deliberately does not discover the app by a guessed slug.
+ *
+ * The returned user access token is kept in memory only and is never written
+ * to SharedPreferences, files, logs, or the APK.
  */
 internal object GitHubOwnerAuthentication {
-    private const val appSlug = "miyorare-source-lab"
     private const val deviceCodeEndpoint = "https://github.com/login/device/code"
     private const val tokenEndpoint = "https://github.com/login/oauth/access_token"
     private const val apiBase = "https://api.github.com"
 
-    suspend fun resolveClientId(configuredClientId: String): String =
-        withContext(Dispatchers.IO) {
-            configuredClientId.trim().takeIf { it.isNotBlank() }?.let { return@withContext it }
+    internal fun resolveClientId(configuredClientId: String): String {
+        val manual = configuredClientId.trim()
+        val embedded = BuildConfig.SOURCE_LAB_GITHUB_CLIENT_ID.trim()
+        val candidate = manual.ifBlank { embedded }
+        validateClientId(candidate)
+        return candidate
+    }
 
-            val app = JSONObject(publicGithubGet("$apiBase/apps/$appSlug"))
-            if (app.optLong("id", -1L) != SourceLabAccessPolicy.githubAppId) {
-                throw GitHubOwnerAuthenticationException("GITHUB_APP_DISCOVERY_ID_MISMATCH")
-            }
-            val actionsPermission = app.optJSONObject("permissions")?.optString("actions").orEmpty()
-            if (actionsPermission != "write") {
-                throw GitHubOwnerAuthenticationException("GITHUB_APP_ACTIONS_WRITE_REQUIRED")
-            }
-            app.optString("client_id").takeIf { it.isNotBlank() }
-                ?: throw GitHubOwnerAuthenticationException("GITHUB_APP_CLIENT_ID_MISSING")
+    internal fun validateClientId(clientId: String) {
+        val value = clientId.trim()
+        if (value.isBlank()) {
+            throw GitHubOwnerAuthenticationException("GITHUB_CLIENT_ID_NOT_CONFIGURED")
         }
+        if (value == SourceLabAccessPolicy.installationId.toString()) {
+            throw GitHubOwnerAuthenticationException("GITHUB_CLIENT_ID_IS_INSTALLATION_ID")
+        }
+        if (value == SourceLabAccessPolicy.githubAppId.toString()) {
+            throw GitHubOwnerAuthenticationException("GITHUB_CLIENT_ID_IS_APP_ID")
+        }
+        if (value.all(Char::isDigit)) {
+            throw GitHubOwnerAuthenticationException("GITHUB_CLIENT_ID_MUST_NOT_BE_NUMERIC")
+        }
+        if (!value.matches(Regex("[A-Za-z0-9]{10,128}"))) {
+            throw GitHubOwnerAuthenticationException("GITHUB_CLIENT_ID_FORMAT_INVALID")
+        }
+    }
 
     suspend fun requestDeviceCode(clientId: String): GitHubDeviceCode =
         withContext(Dispatchers.IO) {
             val normalizedClientId = clientId.trim()
-            if (normalizedClientId.isBlank()) {
-                throw GitHubOwnerAuthenticationException("GITHUB_CLIENT_ID_REQUIRED")
-            }
+            validateClientId(normalizedClientId)
 
             val payload = formPost(
                 url = deviceCodeEndpoint,
@@ -72,7 +80,11 @@ internal object GitHubOwnerAuthentication {
             val json = JSONObject(payload)
             val error = json.optString("error").takeIf { it.isNotBlank() }
             if (error != null) {
-                throw GitHubOwnerAuthenticationException("DEVICE_CODE_${error.uppercase()}")
+                val reason = when (error) {
+                    "incorrect_client_credentials" -> "GITHUB_CLIENT_ID_INVALID"
+                    else -> "DEVICE_CODE_${error.uppercase()}"
+                }
+                throw GitHubOwnerAuthenticationException(reason)
             }
 
             val deviceCode = json.optString("device_code")
@@ -109,9 +121,7 @@ internal object GitHubOwnerAuthentication {
         clientId: String,
         code: GitHubDeviceCode,
     ): String {
-        if (clientId.isBlank()) {
-            throw GitHubOwnerAuthenticationException("GITHUB_CLIENT_ID_REQUIRED")
-        }
+        validateClientId(clientId)
 
         val deadline = System.currentTimeMillis() + code.expiresInSeconds * 1_000L
         var intervalMs = code.intervalSeconds * 1_000L
@@ -233,32 +243,12 @@ internal object GitHubOwnerAuthentication {
             val body = if (code in 200..299) connection.inputStream else connection.errorStream
             val text = body?.bufferedReader()?.use { it.readText() }.orEmpty()
             if (code !in 200..299) {
-                throw GitHubOwnerAuthenticationException("GITHUB_HTTP_$code")
-            }
-            text
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    private fun publicGithubGet(url: String): String {
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = 10_000
-            readTimeout = 15_000
-            useCaches = false
-            setRequestProperty("Accept", "application/vnd.github+json")
-            setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
-            setRequestProperty("User-Agent", "Miyorare-Source-Lab/0.1")
-        }
-        return try {
-            val code = connection.responseCode
-            val body = if (code in 200..299) connection.inputStream else connection.errorStream
-            val text = body?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (code !in 200..299) {
-                throw GitHubOwnerAuthenticationException(
-                    if (code == 404) "GITHUB_APP_DISCOVERY_NOT_FOUND" else "GITHUB_APP_DISCOVERY_HTTP_$code",
-                )
+                val reason = when (code) {
+                    404 -> "GITHUB_DEVICE_FLOW_ENDPOINT_NOT_FOUND"
+                    429 -> "GITHUB_RATE_LIMITED"
+                    else -> "GITHUB_HTTP_$code"
+                }
+                throw GitHubOwnerAuthenticationException(reason)
             }
             text
         } finally {
@@ -286,6 +276,7 @@ internal object GitHubOwnerAuthentication {
                     401 -> "GITHUB_IDENTITY_UNAUTHORIZED"
                     403 -> "GITHUB_IDENTITY_PERMISSION_DENIED"
                     404 -> "GITHUB_IDENTITY_RESOURCE_NOT_FOUND"
+                    429 -> "GITHUB_RATE_LIMITED"
                     else -> "GITHUB_HTTP_$code"
                 }
                 throw GitHubOwnerAuthenticationException(reason)
