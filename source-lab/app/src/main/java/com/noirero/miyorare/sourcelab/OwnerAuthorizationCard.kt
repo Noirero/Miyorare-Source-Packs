@@ -21,6 +21,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,13 +54,29 @@ internal fun OwnerAuthorizationCard(
     val preferences = remember {
         context.getSharedPreferences("source_lab_public_config", Context.MODE_PRIVATE)
     }
-    var clientId by remember {
-        mutableStateOf(preferences.getString("github_app_client_id", "").orEmpty())
+    val storedClientId = remember {
+        preferences.getString("github_app_client_id", "").orEmpty()
     }
+    val normalizedStoredClientId = remember(storedClientId) {
+        GitHubOwnerAuthentication.normalizeRecoveryClientId(storedClientId)
+    }
+    var clientId by remember { mutableStateOf(normalizedStoredClientId) }
     var state by remember { mutableStateOf<OwnerAuthorizationUiState>(OwnerAuthorizationUiState.Idle) }
     val busy = state is OwnerAuthorizationUiState.AuthorizingBackend ||
         state is OwnerAuthorizationUiState.WaitingForGitHub
-    val embeddedClientIdAvailable = BuildConfig.SOURCE_LAB_GITHUB_CLIENT_ID.isNotBlank()
+    val embeddedClientIdAvailable = remember {
+        GitHubOwnerAuthentication.isValidClientId(BuildConfig.SOURCE_LAB_GITHUB_CLIENT_ID)
+    }
+
+    LaunchedEffect(storedClientId, normalizedStoredClientId) {
+        if (storedClientId.trim() != normalizedStoredClientId) {
+            if (normalizedStoredClientId.isBlank()) {
+                preferences.edit().remove("github_app_client_id").apply()
+            } else {
+                preferences.edit().putString("github_app_client_id", normalizedStoredClientId).apply()
+            }
+        }
+    }
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -77,31 +94,31 @@ internal fun OwnerAuthorizationCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            OutlinedTextField(
-                value = clientId,
-                onValueChange = { value ->
-                    clientId = value.trim()
-                    preferences.edit().putString("github_app_client_id", clientId).apply()
-                    if (state is OwnerAuthorizationUiState.Failed) {
-                        state = OwnerAuthorizationUiState.Idle
-                    }
-                },
-                enabled = !busy,
-                singleLine = true,
-                label = { Text(stringResource(R.string.github_client_id)) },
-                supportingText = {
-                    Text(
-                        stringResource(
-                            if (embeddedClientIdAvailable) {
-                                R.string.github_client_id_embedded_supporting
-                            } else {
-                                R.string.github_client_id_supporting
-                            },
-                        ),
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (embeddedClientIdAvailable) {
+                Text(
+                    text = stringResource(R.string.github_client_id_embedded_supporting),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                OutlinedTextField(
+                    value = clientId,
+                    onValueChange = { value ->
+                        clientId = value.trim()
+                        preferences.edit().putString("github_app_client_id", clientId).apply()
+                        if (state is OwnerAuthorizationUiState.Failed) {
+                            state = OwnerAuthorizationUiState.Idle
+                        }
+                    },
+                    enabled = !busy,
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.github_client_id)) },
+                    supportingText = {
+                        Text(stringResource(R.string.github_client_id_supporting))
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
 
             when (val current = state) {
                 OwnerAuthorizationUiState.Idle -> {
