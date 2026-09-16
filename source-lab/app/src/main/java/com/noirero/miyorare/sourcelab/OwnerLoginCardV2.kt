@@ -204,9 +204,13 @@ internal fun OwnerLoginCardV2(onOwnerReady: () -> Unit) {
                 is OwnerLoginV2State.Failed -> {
                     Text(stringResource(R.string.owner_login_failed), color = MaterialTheme.colorScheme.error)
                     Text(current.message, color = MaterialTheme.colorScheme.error)
-                    if (current.message.startsWith("GITHUB_ACTIONS_WRITE_REQUIRED") ||
-                        current.message.startsWith("GITHUB_WORKFLOW_NOT_ACCESSIBLE_404")) {
-                        Text(stringResource(R.string.owner_actions_permission_hint))
+                    when {
+                        current.message.startsWith("GITHUB_DEVICE_FLOW_404") ->
+                            Text(stringResource(R.string.owner_device_flow_hint))
+                        current.message.startsWith("GITHUB_ACTIONS_WRITE_REQUIRED") ||
+                            current.message.startsWith("GITHUB_ACTIONS_READ_REQUIRED") ||
+                            current.message.startsWith("GITHUB_WORKFLOW_NOT_ACCESSIBLE_404") ->
+                            Text(stringResource(R.string.owner_actions_permission_hint))
                     }
                     OutlinedButton(onClick = ::beginLogin, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.retry))
