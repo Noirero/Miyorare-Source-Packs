@@ -63,7 +63,10 @@ internal object GitHubOwnerAuthentication {
         if (value.all(Char::isDigit)) {
             throw GitHubOwnerAuthenticationException("GITHUB_CLIENT_ID_MUST_NOT_BE_NUMERIC")
         }
-        if (!value.matches(Regex("[A-Za-z0-9]{10,128}"))) {
+        // GitHub App Client IDs currently look like `Iv1.ab1112223334445c`.
+        // Keep validation narrow enough to reject accidental numeric IDs while
+        // allowing GitHub's documented dot-separated client-id format.
+        if (!value.matches(Regex("[A-Za-z0-9._-]{10,128}"))) {
             throw GitHubOwnerAuthenticationException("GITHUB_CLIENT_ID_FORMAT_INVALID")
         }
     }
