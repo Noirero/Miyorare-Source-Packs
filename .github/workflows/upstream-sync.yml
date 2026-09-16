@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  actions: write
+  contents: read
+  actions: read
 
 concurrency:
   group: miyorare-upstream-sync
@@ -584,153 +584,67 @@ jobs:
             --gekkoushi-metadata _upstream/gekkoushi/miyorare-pack.json \
             --output build/integration-global
 
-  promote:
-    name: Promote passing candidates
+  candidate-handoff:
+    name: Hand validated candidates to Compatibility Farm
     needs: [plan, validate-keiyoushi, validate-uma, gekkoushi-overlay-guard, validate-gekkoushi, integration]
-    if: always() && needs.plan.result == 'success'
+    if: >-
+      always() && needs.plan.result == 'success' &&
+      (needs.plan.outputs.keiyoushi_changed == 'true' || needs.plan.outputs.uma_changed == 'true' || needs.plan.outputs.gekkoushi_changed == 'true')
     runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
-      KEI_CHANGED: ${{ needs.plan.outputs.keiyoushi_changed }}
-      KEI_CURRENT: ${{ needs.plan.outputs.keiyoushi_current }}
-      KEI_CANDIDATE: ${{ needs.plan.outputs.keiyoushi_candidate }}
-      KEI_RESULT: ${{ needs.validate-keiyoushi.result }}
-      UMA_CHANGED: ${{ needs.plan.outputs.uma_changed }}
-      UMA_CURRENT: ${{ needs.plan.outputs.uma_current }}
-      UMA_CANDIDATE: ${{ needs.plan.outputs.uma_candidate }}
-      UMA_RESULT: ${{ needs.validate-uma.result }}
-      GEK_CHANGED: ${{ needs.plan.outputs.gekkoushi_changed }}
-      GEK_CURRENT: ${{ needs.plan.outputs.gekkoushi_current }}
-      GEK_CANDIDATE: ${{ needs.plan.outputs.gekkoushi_candidate }}
-      GEK_GUARD_RESULT: ${{ needs.gekkoushi-overlay-guard.result }}
-      GEK_RESULT: ${{ needs.validate-gekkoushi.result }}
-      INTEGRATION_RESULT: ${{ needs.integration.result }}
     steps:
-      - name: Checkout sync engine
-        uses: actions/checkout@v5
+      - name: Download immutable sync plan
+        uses: actions/download-artifact@v5
         with:
-          fetch-depth: 0
+          name: upstream-sync-plan
+          path: upstream-handoff
 
-      - name: Promote only validated candidates and write fail-safe status
-        id: promote
+      - name: Build fail-closed candidate handoff
+        env:
+          KEI_CHANGED: ${{ needs.plan.outputs.keiyoushi_changed }}
+          KEI_RESULT: ${{ needs.validate-keiyoushi.result }}
+          UMA_CHANGED: ${{ needs.plan.outputs.uma_changed }}
+          UMA_RESULT: ${{ needs.validate-uma.result }}
+          GEK_CHANGED: ${{ needs.plan.outputs.gekkoushi_changed }}
+          GEK_GUARD_RESULT: ${{ needs.gekkoushi-overlay-guard.result }}
+          GEK_RESULT: ${{ needs.validate-gekkoushi.result }}
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
         shell: bash
         run: |
           set -euo pipefail
-          promoted=()
-
-          if [[ "$KEI_CHANGED" == "true" && "$KEI_RESULT" == "success" && "$INTEGRATION_RESULT" == "success" ]]; then
-            python3 tools/upstream_sync.py promote --registry "$REGISTRY" --provider keiyoushi --commit "$KEI_CANDIDATE"
-            promoted+=(keiyoushi)
-          fi
-          if [[ "$UMA_CHANGED" == "true" && "$UMA_RESULT" == "success" && "$INTEGRATION_RESULT" == "success" ]]; then
-            python3 tools/upstream_sync.py promote --registry "$REGISTRY" --provider uma --commit "$UMA_CANDIDATE"
-            promoted+=(uma)
-          fi
-          if [[ "$GEK_CHANGED" == "true" && "$GEK_GUARD_RESULT" == "success" && "$GEK_RESULT" == "success" && "$INTEGRATION_RESULT" == "success" ]]; then
-            python3 tools/upstream_sync.py promote --registry "$REGISTRY" --provider gekkoushi --commit "$GEK_CANDIDATE"
-            promoted+=(gekkoushi)
-          fi
-
           python3 - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          registry = json.loads(Path(os.environ['REGISTRY']).read_text(encoding='utf-8'))
-
-          def provider_state(name, changed, current, candidate, validation, guard=None):
-              lkg = registry['providers'][name]['lastKnownGood']
-              if changed != 'true':
-                  return {'state': 'synced', 'lastKnownGood': lkg}
-              if lkg == candidate:
-                  return {'state': 'promoted', 'candidate': candidate, 'lastKnownGood': lkg}
-              if guard not in (None, 'success', 'skipped'):
-                  reason = 'protected-overlay-conflict'
-              elif validation not in ('success',):
-                  reason = 'compatibility-or-build-validation-failure'
-              elif os.environ['INTEGRATION_RESULT'] != 'success':
-                  reason = 'combined-integration-validation-failure'
-              else:
-                  reason = 'promotion-not-authorized'
-              return {
-                  'state': 'held',
-                  'candidate': candidate,
-                  'lastKnownGood': current,
-                  'reason': reason,
-              }
-
-          status = {
-              'schema': 1,
-              'providers': {
-                  'keiyoushi': provider_state('keiyoushi', os.environ['KEI_CHANGED'], os.environ['KEI_CURRENT'], os.environ['KEI_CANDIDATE'], os.environ['KEI_RESULT']),
-                  'uma': provider_state('uma', os.environ['UMA_CHANGED'], os.environ['UMA_CURRENT'], os.environ['UMA_CANDIDATE'], os.environ['UMA_RESULT']),
-                  'gekkoushi': provider_state('gekkoushi', os.environ['GEK_CHANGED'], os.environ['GEK_CURRENT'], os.environ['GEK_CANDIDATE'], os.environ['GEK_RESULT'], os.environ['GEK_GUARD_RESULT']),
+          plan = json.loads(Path('upstream-handoff/sync-plan.json').read_text(encoding='utf-8'))
+          handoff = {
+              'schemaVersion': 1,
+              'maintenanceMode': 'APPROVE_ONLY',
+              'state': 'CANDIDATE',
+              'approvalState': 'NOT_READY',
+              'nextAction': 'RUN_REAL_PARSER_COMPATIBILITY_FARM',
+              'ownerActionRequired': False,
+              'publishEligible': False,
+              'registryMutationAllowed': False,
+              'releaseDispatchAllowed': False,
+              'plan': plan,
+              'validationResults': {
+                  'keiyoushi': os.environ['KEI_RESULT'],
+                  'uma': os.environ['UMA_RESULT'],
+                  'gekkoushiOverlayGuard': os.environ['GEK_GUARD_RESULT'],
+                  'gekkoushi': os.environ['GEK_RESULT'],
+                  'integration': os.environ['INTEGRATION_RESULT'],
               },
           }
-          Path('upstream/status.json').write_text(json.dumps(status, indent=2) + '\n', encoding='utf-8')
-          PY
-
-          if ((${#promoted[@]})); then
-            echo "promoted=true" >> "$GITHUB_OUTPUT"
-            printf 'providers=%s\n' "$(IFS=,; echo "${promoted[*]}")" >> "$GITHUB_OUTPUT"
-          else
-            echo "promoted=false" >> "$GITHUB_OUTPUT"
-            echo "providers=" >> "$GITHUB_OUTPUT"
-          fi
-
-          if git diff --quiet -- upstream/registry.json upstream/status.json; then
-            echo "state_changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "state_changed=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Commit registry or held-status advancement
-        if: steps.promote.outputs.state_changed == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add upstream/registry.json upstream/status.json
-          if [[ "${{ steps.promote.outputs.promoted }}" == "true" ]]; then
-            git commit -m "Promote validated upstream updates: ${{ steps.promote.outputs.providers }}"
-          else
-            git commit -m "Record held upstream update candidates"
-          fi
-          git push origin "HEAD:${GITHUB_REF_NAME}"
-
-      - name: Determine next immutable source-pack version
-        if: steps.promote.outputs.promoted == 'true' && github.ref_name == github.event.repository.default_branch
-        id: version
-        shell: bash
-        run: |
-          set -euo pipefail
-          next_version="$(python3 - <<'PY'
-          import json
-          import re
-          import subprocess
-
-          raw = subprocess.check_output(
-              ['gh', 'release', 'list', '--limit', '100', '--json', 'tagName'],
-              text=True,
+          Path('upstream-handoff/candidate-handoff.json').write_text(
+              json.dumps(handoff, indent=2) + '\n', encoding='utf-8'
           )
-          versions = []
-          for item in json.loads(raw):
-              match = re.fullmatch(r'miyorare-sources-v(\d+)\.(\d+)\.(\d+)', item['tagName'])
-              if match:
-                  versions.append(tuple(map(int, match.groups())))
-          if not versions:
-              print('0.1.0')
-          else:
-              major, minor, patch = max(versions)
-              print(f'{major}.{minor}.{patch + 1}')
           PY
-          )"
-          echo "version=$next_version" >> "$GITHUB_OUTPUT"
 
-      - name: Dispatch immutable Source Pack release
-        if: steps.promote.outputs.promoted == 'true' && github.ref_name == github.event.repository.default_branch
-        run: |
-          gh workflow run release-source-packs.yml \
-            --ref "$GITHUB_REF_NAME" \
-            -f version="${{ steps.version.outputs.version }}"
+      - name: Upload candidate handoff evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-candidate-handoff
+          path: upstream-handoff/candidate-handoff.json
+          if-no-files-found: error
+          retention-days: 14
