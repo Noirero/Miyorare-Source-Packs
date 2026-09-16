@@ -124,8 +124,8 @@ jobs:
         with:
           name: miyorare-source-lab-stable-v${{ steps.version.outputs.version_name }}
           path: |
-            ${{ env.SOURCE_LAB_RELEASE_APK }}
-            ${{ env.SOURCE_LAB_RELEASE_APK }}.sha256
+            miyorare-source-lab-v${{ steps.version.outputs.version_name }}.apk
+            miyorare-source-lab-v${{ steps.version.outputs.version_name }}.apk.sha256
           if-no-files-found: error
           retention-days: 30
 
@@ -136,8 +136,8 @@ jobs:
         run: |
           set -euo pipefail
           if gh release view "$SOURCE_LAB_RELEASE_TAG" >/dev/null 2>&1; then
-            echo "::error::Release $SOURCE_LAB_RELEASE_TAG already exists. Bump the version before publishing another APK."
-            exit 1
+            echo "Release $SOURCE_LAB_RELEASE_TAG already exists; keeping the existing stable release."
+            exit 0
           fi
           gh release create "$SOURCE_LAB_RELEASE_TAG" \
             "$SOURCE_LAB_RELEASE_APK" \
