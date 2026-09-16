@@ -7,8 +7,9 @@
     <string name="continue_as_viewer">Lanjut sebagai Viewer</string>
     <string name="owner_access_title">Mode Owner</string>
     <string name="owner_access_supporting">GitHub Device Flow memverifikasi owner yang tepat, instalasi GitHub App, izin repository, lalu bukti otorisasi backend yang berumur pendek.</string>
-    <string name="github_client_id">Client ID GitHub App</string>
-    <string name="github_client_id_supporting">Normalnya ditemukan otomatis. Kolom ini hanya cadangan pemulihan dan bukan rahasia.</string>
+    <string name="github_client_id">Client ID GitHub App · pemulihan</string>
+    <string name="github_client_id_supporting">Biarkan kosong jika APK sudah membawa Client ID publik. Jangan masukkan App ID atau Installation ID; Client ID GitHub bukan angka.</string>
+    <string name="github_client_id_embedded_supporting">APK sudah membawa Client ID publik. Normalnya biarkan kosong; gunakan kolom ini hanya sebagai override pemulihan.</string>
     <string name="connect_github_owner">Verifikasi Owner dengan GitHub</string>
     <string name="github_device_code_copied">Kode GitHub sudah disalin ke clipboard.</string>
     <string name="github_waiting_authorization">Selesaikan otorisasi di GitHub. Source Lab akan melanjutkan otomatis setelah GitHub mengonfirmasi.</string>
@@ -21,4 +22,10 @@
     <string name="owner_token_memory_only">Token user GitHub hanya disimpan di memori. Tidak ada client secret, private key, atau write token yang ditanam di APK.</string>
     <string name="opening_source_lab_dashboard">Otorisasi selesai. Membuka Source Lab…</string>
     <string name="owner_gate_capability_boundary">Identitas owner dan otorisasi backend tidak otomatis membuka Jalankan Farm, Approve, Promote, Sign, atau Publish. Setiap tindakan tetap fail-closed sampai wiring capability khususnya selesai.</string>
+    <string name="error_client_id_not_configured">Build ini belum memiliki Client ID GitHub App. Gunakan Client ID publik yang benar, bukan App ID atau Installation ID.</string>
+    <string name="error_client_id_is_installation_id">Nilai yang dimasukkan adalah Installation ID Source Lab, bukan Client ID GitHub App. Installation ID 162045953 tidak boleh dikirim ke GitHub Device Flow sebagai Client ID.</string>
+    <string name="error_client_id_is_app_id">Nilai yang dimasukkan adalah GitHub App ID numerik, bukan Client ID. Device Flow memerlukan Client ID publik.</string>
+    <string name="error_client_id_invalid">Client ID GitHub tidak valid. Client ID adalah identifier publik alfanumerik, bukan App ID atau Installation ID berbentuk angka.</string>
+    <string name="error_device_flow_endpoint">GitHub Device Flow mengembalikan error endpoint yang tidak diharapkan. Source Lab sekarang tidak lagi memakai penemuan GitHub App berdasarkan slug.</string>
+    <string name="error_owner_generic">Otorisasi owner GitHub gagal. Gate keamanan tetap terkunci; coba lagi setelah memeriksa Client ID dan konfigurasi GitHub App.</string>
 </resources>

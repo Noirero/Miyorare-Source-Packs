@@ -58,6 +58,7 @@ internal fun OwnerAuthorizationCard(
     val scope = rememberCoroutineScope()
     val busy = state is OwnerAuthorizationUiState.AuthorizingBackend ||
         state is OwnerAuthorizationUiState.WaitingForGitHub
+    val embeddedClientIdAvailable = BuildConfig.SOURCE_LAB_GITHUB_CLIENT_ID.isNotBlank()
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -87,7 +88,17 @@ internal fun OwnerAuthorizationCard(
                 enabled = !busy,
                 singleLine = true,
                 label = { Text(stringResource(R.string.github_client_id)) },
-                supportingText = { Text(stringResource(R.string.github_client_id_supporting)) },
+                supportingText = {
+                    Text(
+                        stringResource(
+                            if (embeddedClientIdAvailable) {
+                                R.string.github_client_id_embedded_supporting
+                            } else {
+                                R.string.github_client_id_supporting
+                            },
+                        ),
+                    )
+                },
                 modifier = Modifier.fillMaxWidth(),
             )
 
@@ -99,12 +110,6 @@ internal fun OwnerAuthorizationCard(
                                 onSessionChanged(null)
                                 try {
                                     val resolvedClientId = GitHubOwnerAuthentication.resolveClientId(clientId)
-                                    if (resolvedClientId != clientId) {
-                                        clientId = resolvedClientId
-                                        preferences.edit()
-                                            .putString("github_app_client_id", resolvedClientId)
-                                            .apply()
-                                    }
                                     val code = GitHubOwnerAuthentication.requestDeviceCode(resolvedClientId)
                                     copyUserCode(context, code.userCode)
                                     state = OwnerAuthorizationUiState.WaitingForGitHub(code)
@@ -201,7 +206,12 @@ internal fun OwnerAuthorizationCard(
                         color = MaterialTheme.colorScheme.error,
                     )
                     Text(
+                        text = ownerAuthorizationErrorMessage(current.reason),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
                         text = current.reason,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontFamily = FontFamily.Monospace,
                     )
@@ -222,6 +232,18 @@ internal fun OwnerAuthorizationCard(
             )
         }
     }
+}
+
+@Composable
+private fun ownerAuthorizationErrorMessage(reason: String): String = when (reason) {
+    "GITHUB_CLIENT_ID_NOT_CONFIGURED" -> stringResource(R.string.error_client_id_not_configured)
+    "GITHUB_CLIENT_ID_IS_INSTALLATION_ID" -> stringResource(R.string.error_client_id_is_installation_id)
+    "GITHUB_CLIENT_ID_IS_APP_ID" -> stringResource(R.string.error_client_id_is_app_id)
+    "GITHUB_CLIENT_ID_MUST_NOT_BE_NUMERIC",
+    "GITHUB_CLIENT_ID_FORMAT_INVALID",
+    "GITHUB_CLIENT_ID_INVALID" -> stringResource(R.string.error_client_id_invalid)
+    "GITHUB_DEVICE_FLOW_ENDPOINT_NOT_FOUND" -> stringResource(R.string.error_device_flow_endpoint)
+    else -> stringResource(R.string.error_owner_generic)
 }
 
 @Composable
