@@ -16,12 +16,12 @@ val sourceLabVersionCode = providers.environmentVariable("SOURCE_LAB_VERSION_COD
     .orNull
     ?.toIntOrNull()
     ?.takeIf { it > 0 }
-    ?: 3
+    ?: 4
 val sourceLabVersionName = providers.environmentVariable("SOURCE_LAB_VERSION_NAME")
     .orNull
     ?.trim()
     ?.takeIf { it.isNotEmpty() }
-    ?: "0.1.2"
+    ?: "0.1.3"
 
 val sourceLabKeystorePath = providers.environmentVariable("SOURCE_LAB_KEYSTORE_PATH").orNull
 val sourceLabStorePassword = providers.environmentVariable("SOURCE_LAB_STORE_PASSWORD").orNull
