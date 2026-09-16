@@ -3,7 +3,9 @@
 
 The lifecycle deliberately keeps candidate state separate from active runtime health. Staging a
 passing candidate sets updateState=CANDIDATE and WAITING_FOR_APPROVAL metadata while preserving
-activeCommit, lastKnownGood, healthyHistory, runtimeHealth, and recovery state.
+activeCommit, lastKnownGood, healthyHistory, runtimeHealth, and recovery state. The exact pending
+approval object is embedded in upstream/status.json so read-only clients can render the candidate
+without inventing a parallel source of truth.
 """
 from __future__ import annotations
 
@@ -65,11 +67,16 @@ def stage_waiting(status: dict[str, Any], pending: dict[str, Any]) -> dict[str, 
             "commit": candidate["candidate"],
             "expectedLastKnownGood": candidate["current"],
             "candidateSetId": pending["candidateSetId"],
+            "gateFingerprint": pending["gateFingerprint"],
+            "evidenceBinding": deepcopy(pending["evidenceBinding"]),
             "approvalState": "WAITING_FOR_APPROVAL",
             "publishEligible": False,
         }
         state["reason"] = "waiting-for-exact-approval"
 
+    # This is intentionally the same validated pending object consumed by the approval engine.
+    # It is candidate metadata only; it never changes activeCommit/LKG/healthyHistory.
+    updated["approvalCandidate"] = deepcopy(pending)
     return updated
 
 
@@ -96,6 +103,9 @@ def hold_candidate(
         "reason": reason,
     }
     state["reason"] = reason
+    # A held candidate can no longer be approved. Clearing only pending approval metadata keeps
+    # active runtime state untouched and prevents stale approval replay.
+    updated.pop("approvalCandidate", None)
     if state.get("activeCommit") != active or state.get("lastKnownGood") != lkg or state.get("runtimeHealth") != runtime:
         raise CandidateLifecycleError("holding a candidate must not mutate active runtime state")
     return updated
