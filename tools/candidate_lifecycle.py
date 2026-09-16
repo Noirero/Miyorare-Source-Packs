@@ -9,9 +9,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
+
+TOOLS_DIR = Path(__file__).resolve().parent
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
 
 from approval_state import ApprovalStateError, load_json as load_approval_json, validate_pending
 
