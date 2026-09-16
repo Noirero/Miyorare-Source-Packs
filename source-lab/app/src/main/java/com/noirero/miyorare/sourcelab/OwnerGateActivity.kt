@@ -2,13 +2,18 @@ package com.noirero.miyorare.sourcelab
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
@@ -25,53 +30,40 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
-internal object SourceLabOwnerSessionStore {
-    @Volatile
-    private var session: OwnerAccessSession? = null
-
-    fun set(value: OwnerAccessSession?) {
-        session = value
-    }
-
-    fun currentValid(): OwnerAccessSession? {
-        val value = session ?: return null
-        if (!SourceLabAccessPolicy.evaluate(value).canControl) {
-            session = null
-            return null
-        }
-        return value
-    }
-}
-
 class OwnerGateActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (SourceLabOwnerSessionStore.currentValid() != null) {
-            openDashboard()
+        if (SourceLabOwnerSessionStore.get() != null) {
+            openDashboard(ownerAuthorized = true)
             return
         }
 
         setContent {
             OwnerGateTheme {
                 OwnerGateScreen(
+                    onViewer = {
+                        SourceLabOwnerSessionStore.clear()
+                        openDashboard(ownerAuthorized = false)
+                    },
                     onAuthorized = { session ->
                         SourceLabOwnerSessionStore.set(session)
                     },
-                    onOpenDashboard = ::openDashboard,
+                    onOpenOwnerDashboard = {
+                        openDashboard(ownerAuthorized = true)
+                    },
                 )
             }
         }
     }
 
-    private fun openDashboard() {
-        val valid = SourceLabOwnerSessionStore.currentValid()
-        if (valid == null) return
+    private fun openDashboard(ownerAuthorized: Boolean) {
         startActivity(
             Intent(this, LocalizedMainActivity::class.java).apply {
-                putExtra("source_lab_backend_authorized", true)
+                putExtra("source_lab_backend_authorized", ownerAuthorized)
+                val session = SourceLabOwnerSessionStore.get()
                 putExtra(
                     "source_lab_backend_authorization_expires_at",
-                    valid.backendAuthorizationExpiresAtEpochSeconds ?: 0L,
+                    session?.backendAuthorizationExpiresAtEpochSeconds ?: 0L,
                 )
             },
         )
@@ -101,16 +93,17 @@ private fun OwnerGateTheme(content: @Composable () -> Unit) {
 
 @Composable
 private fun OwnerGateScreen(
+    onViewer: () -> Unit,
     onAuthorized: (OwnerAccessSession) -> Unit,
-    onOpenDashboard: () -> Unit,
+    onOpenOwnerDashboard: () -> Unit,
 ) {
     var authorizedSession by remember { mutableStateOf<OwnerAccessSession?>(null) }
 
     LaunchedEffect(authorizedSession) {
         val session = authorizedSession ?: return@LaunchedEffect
         onAuthorized(session)
-        delay(900L)
-        onOpenDashboard()
+        delay(600L)
+        onOpenOwnerDashboard()
     }
 
     LazyColumn(
@@ -129,11 +122,39 @@ private fun OwnerGateScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.public_viewer_title),
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = stringResource(R.string.public_viewer_supporting),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Button(
+                        onClick = onViewer,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.continue_as_viewer))
+                    }
+                }
+            }
+        }
+
         item {
             OwnerAuthorizationCard { session ->
                 authorizedSession = session
             }
         }
+
         if (authorizedSession != null) {
             item {
                 Text(
@@ -143,6 +164,7 @@ private fun OwnerGateScreen(
                 )
             }
         }
+
         item {
             Text(
                 text = stringResource(R.string.owner_gate_capability_boundary),
