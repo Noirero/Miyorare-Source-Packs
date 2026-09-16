@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="owner_control_title">Owner Control</string>
+    <string name="owner_control_subtitle">Privileged approve-only control plane</string>
+    <string name="owner_session_missing">No verified owner session is active. Return and sign in again.</string>
+    <string name="owner_session_denied">Owner controls are locked: %1$s</string>
+    <string name="owner_candidate_loading">Loading authoritative approval candidate…</string>
+    <string name="owner_candidate_load_failed">Could not load authoritative candidate: %1$s</string>
+    <string name="owner_candidate_refresh">Refresh candidate</string>
+    <string name="owner_candidate_title">Exact candidate waiting for approval</string>
+    <string name="owner_candidate_no_waiting">No exact candidate is currently WAITING_FOR_APPROVAL.</string>
+    <string name="owner_candidate_no_waiting_supporting">This is expected until an upstream change passes the real-parser Compatibility Farm and is staged by the approve-only lifecycle.</string>
+    <string name="owner_candidate_provider_count">%1$d provider candidate(s)</string>
+    <string name="owner_full_digest_label">%1$s\n%2$s</string>
+    <string name="owner_expected_lkg">Expected LKG</string>
+    <string name="owner_candidate_sha">Candidate SHA</string>
+    <string name="owner_farm_evidence_digest">Farm evidence SHA-256</string>
+    <string name="owner_gate_evidence_digest">Gate SHA-256</string>
+    <string name="owner_repair_evidence_digest">Repair evidence SHA-256</string>
+    <string name="owner_repair_evidence_count">Repair evidence reports: %1$d</string>
+    <string name="owner_approve_warning">Approve records an exact owner approval proof only. It does not promote, sign, release, or publish.</string>
+    <string name="owner_approve_button">Approve this exact candidate</string>
+    <string name="owner_approval_running">Recording exact approval…</string>
+    <string name="owner_approval_done">Exact approval recorded · workflow run %1$d</string>
+    <string name="owner_approval_done_supporting">The candidate still requires the separate authorization/promotion lifecycle. Publish remains blocked.</string>
+    <string name="owner_approval_retry">Retry approval</string>
+    <string name="owner_open_dashboard">Open public dashboard</string>
+    <string name="owner_logout">End owner session</string>
+    <string name="owner_control_fail_closed">If candidate SHA, candidateSetId, expected LKG, Farm evidence, gate evidence, repair evidence, owner identity, or repository state changes, the server rejects this approval.</string>
+</resources>
