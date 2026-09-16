@@ -4,7 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       version_name:
-        description: Optional official Source Lab version (for example 0.1.4). Leave blank to auto-increment the latest Source Lab patch version.
+        description: Optional official Source Lab version (for example 0.1.5). Leave blank to auto-increment the latest Source Lab patch version.
+        required: false
+        default: ''
+        type: string
+      github_client_id:
+        description: Public GitHub App Client ID (for example Iv1.xxxxx). Leave blank when SOURCE_LAB_GITHUB_CLIENT_ID repository variable is already configured.
         required: false
         default: ''
         type: string
@@ -68,28 +73,34 @@ jobs:
         with:
           gradle-version: '8.10.2'
 
-      - name: Validate official GitHub App client id configuration
+      - name: Resolve and validate official GitHub App Client ID
         shell: bash
         env:
-          SOURCE_LAB_GITHUB_CLIENT_ID: ${{ vars.SOURCE_LAB_GITHUB_CLIENT_ID }}
+          INPUT_CLIENT_ID: ${{ inputs.github_client_id }}
+          REPOSITORY_CLIENT_ID: ${{ vars.SOURCE_LAB_GITHUB_CLIENT_ID }}
         run: |
           set -euo pipefail
-          if [ -z "${SOURCE_LAB_GITHUB_CLIENT_ID:-}" ]; then
-            echo "::error::SOURCE_LAB_GITHUB_CLIENT_ID must be configured before an official Source Lab APK can be released."
+          CLIENT_ID="${INPUT_CLIENT_ID:-}"
+          if [ -z "$CLIENT_ID" ]; then
+            CLIENT_ID="${REPOSITORY_CLIENT_ID:-}"
+          fi
+          CLIENT_ID="$(printf '%s' "$CLIENT_ID" | xargs)"
+
+          if [ -z "$CLIENT_ID" ]; then
+            echo "::error::Official Source Lab release requires the public GitHub App Client ID. Set repository variable SOURCE_LAB_GITHUB_CLIENT_ID or provide github_client_id when running this workflow."
             exit 1
-          elif [[ "$SOURCE_LAB_GITHUB_CLIENT_ID" =~ ^[0-9]+$ ]]; then
-            echo "::error::SOURCE_LAB_GITHUB_CLIENT_ID must be the GitHub App Client ID, not a numeric App/Installation ID."
+          elif [[ "$CLIENT_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::GitHub App Client ID must not be numeric. Do not use App ID or Installation ID."
             exit 1
-          elif [[ ! "$SOURCE_LAB_GITHUB_CLIENT_ID" =~ ^[A-Za-z0-9._-]{10,128}$ ]]; then
-            echo "::error::SOURCE_LAB_GITHUB_CLIENT_ID has an invalid format."
+          elif [[ ! "$CLIENT_ID" =~ ^[A-Za-z0-9._-]{10,128}$ ]]; then
+            echo "::error::GitHub App Client ID has an invalid format."
             exit 1
-          else
-            echo "Official Source Lab GitHub App Client ID configuration is valid."
           fi
 
+          echo "SOURCE_LAB_GITHUB_CLIENT_ID=$CLIENT_ID" >> "$GITHUB_ENV"
+          echo "Official Source Lab GitHub App Client ID is configured for this build."
+
       - name: Run internal CI parity checks
-        env:
-          SOURCE_LAB_GITHUB_CLIENT_ID: ${{ vars.SOURCE_LAB_GITHUB_CLIENT_ID }}
         run: gradle -p source-lab :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --stacktrace
 
       - name: Resolve release version
@@ -126,8 +137,6 @@ jobs:
             exit 1
           fi
 
-          # Monotonic across every release workflow, unlike GITHUB_RUN_NUMBER which
-          # is scoped per workflow and can accidentally produce Android downgrades.
           VERSION_CODE=$(( $(date -u +%s) / 10 ))
           TAG="source-lab-v${VERSION_NAME}"
           echo "SOURCE_LAB_VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
@@ -156,7 +165,6 @@ jobs:
 
       - name: Build official stable signed APK
         env:
-          SOURCE_LAB_GITHUB_CLIENT_ID: ${{ vars.SOURCE_LAB_GITHUB_CLIENT_ID }}
           SOURCE_LAB_KEYSTORE_PATH: ${{ runner.temp }}/source-lab-release.jks
           SOURCE_LAB_STORE_PASSWORD: ${{ secrets.SOURCE_LAB_STORE_PASSWORD }}
           SOURCE_LAB_KEY_ALIAS: ${{ secrets.SOURCE_LAB_KEY_ALIAS }}
@@ -193,7 +201,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          NOTES="Official stable-signed Miyorare Source Lab APK from trusted branch ${SOURCE_LAB_RELEASE_REF} at ${SOURCE_LAB_RELEASE_SHA}. This APK passed the same unit-test, debug-lint, and debug-assembly checks as internal Source Lab CI, plus release lint, stable signing, package verification, and APK signature verification. Future Source Lab versions signed with the same repository keystore and a higher versionCode can update this installation in place."
+          NOTES="Official stable-signed Miyorare Source Lab APK from trusted branch ${SOURCE_LAB_RELEASE_REF} at ${SOURCE_LAB_RELEASE_SHA}. This APK passed unit tests, debug lint/assembly, release lint, stable signing, package verification, and APK signature verification. The official GitHub App Client ID was embedded at build time; no manual Client ID entry is supported in the app. Future Source Lab versions signed with the same repository keystore and a higher versionCode can update this installation in place."
 
           TAG_SHA="$(git ls-remote origin "refs/tags/${SOURCE_LAB_RELEASE_TAG}^{}" | awk 'NR==1 {print $1}')"
           if [ -z "$TAG_SHA" ]; then
