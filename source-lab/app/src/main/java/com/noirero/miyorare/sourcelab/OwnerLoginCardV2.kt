@@ -30,21 +30,29 @@ private sealed interface OwnerLoginV2State {
     data object Idle : OwnerLoginV2State
     data object Requesting : OwnerLoginV2State
     data class Waiting(val authorization: DeviceAuthorization, val pollDelaySeconds: Long) : OwnerLoginV2State
+    data object AuthorizingBackend : OwnerLoginV2State
     data class Verified(
         val identity: GitHubIdentity,
         val repositoryPermission: String,
         val decision: AccessDecision,
+        val backendRunId: Long,
     ) : OwnerLoginV2State
     data class Failed(val message: String) : OwnerLoginV2State
 }
 
 @Composable
-internal fun OwnerLoginCardV2() {
+internal fun OwnerLoginCardV2(onOwnerReady: () -> Unit) {
     var state by remember { mutableStateOf<OwnerLoginV2State>(OwnerLoginV2State.Idle) }
     val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
 
+    fun reset() {
+        OwnerSessionStore.clear()
+        state = OwnerLoginV2State.Idle
+    }
+
     fun beginLogin() {
+        OwnerSessionStore.clear()
         state = OwnerLoginV2State.Requesting
         scope.launch {
             state = try {
@@ -87,28 +95,64 @@ internal fun OwnerLoginCardV2() {
                     return@LaunchedEffect
                 }
                 is DeviceTokenPoll.Success -> {
-                    val verified = try {
+                    val ownerIdentity = try {
                         withContext(Dispatchers.IO) {
                             val identity = GitHubDeviceFlowClient.fetchIdentity(result.accessToken)
                             val permission = GitHubDeviceFlowClient.fetchRepositoryPermission(result.accessToken)
-                            val session = OwnerAccessSession(
-                                authenticated = true,
-                                githubUserId = identity.id,
-                                githubAppId = GitHubAppPublicConfig.appId,
-                                installationId = GitHubAppPublicConfig.installationId,
-                                repository = GitHubAppPublicConfig.repository,
-                                repositoryPermission = permission,
-                                backendAuthorized = false,
-                            )
-                            Triple(identity, permission, SourceLabAccessPolicy.evaluate(session))
+                            Pair(identity, permission)
                         }
                     } catch (error: Throwable) {
                         state = OwnerLoginV2State.Failed(error.message ?: error.javaClass.simpleName)
                         return@LaunchedEffect
                     }
 
-                    // Never persist the user OAuth token in the foundation client.
-                    state = OwnerLoginV2State.Verified(verified.first, verified.second, verified.third)
+                    val preBackendSession = OwnerAccessSession(
+                        authenticated = true,
+                        githubUserId = ownerIdentity.first.id,
+                        githubAppId = GitHubAppPublicConfig.appId,
+                        installationId = GitHubAppPublicConfig.installationId,
+                        repository = GitHubAppPublicConfig.repository,
+                        repositoryPermission = ownerIdentity.second,
+                        backendAuthorized = false,
+                    )
+                    val preBackendDecision = SourceLabAccessPolicy.evaluate(preBackendSession)
+                    if (preBackendDecision.reason != "BACKEND_AUTHORIZATION_REQUIRED") {
+                        state = OwnerLoginV2State.Verified(
+                            identity = ownerIdentity.first,
+                            repositoryPermission = ownerIdentity.second,
+                            decision = preBackendDecision,
+                            backendRunId = 0L,
+                        )
+                        return@LaunchedEffect
+                    }
+
+                    state = OwnerLoginV2State.AuthorizingBackend
+                    val backend = try {
+                        GitHubControlPlaneClient.authorizeBackend(result.accessToken)
+                    } catch (error: Throwable) {
+                        state = OwnerLoginV2State.Failed(error.message ?: error.javaClass.simpleName)
+                        return@LaunchedEffect
+                    }
+                    val authorizedSession = preBackendSession.copy(backendAuthorized = true)
+                    val finalDecision = SourceLabAccessPolicy.evaluate(authorizedSession)
+                    if (!finalDecision.canControl) {
+                        state = OwnerLoginV2State.Failed(finalDecision.reason)
+                        return@LaunchedEffect
+                    }
+
+                    OwnerSessionStore.set(
+                        OwnerRuntimeSession(
+                            accessToken = result.accessToken,
+                            access = authorizedSession,
+                            backendAuthorizationRunId = backend.workflowRunId,
+                        )
+                    )
+                    state = OwnerLoginV2State.Verified(
+                        identity = ownerIdentity.first,
+                        repositoryPermission = ownerIdentity.second,
+                        decision = finalDecision,
+                        backendRunId = backend.workflowRunId,
+                    )
                     return@LaunchedEffect
                 }
             }
@@ -136,23 +180,34 @@ internal fun OwnerLoginCardV2() {
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text(stringResource(R.string.open_github)) }
                 }
+                OwnerLoginV2State.AuthorizingBackend -> {
+                    Text(stringResource(R.string.owner_backend_authorizing), fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.owner_backend_authorizing_supporting))
+                }
                 is OwnerLoginV2State.Verified -> {
-                    if (current.identity.id == GitHubAppPublicConfig.ownerGithubUserId) {
+                    if (current.decision.canControl) {
                         Text(stringResource(R.string.owner_identity_verified, current.identity.login))
                         Text(stringResource(R.string.owner_repository_permission, current.repositoryPermission))
+                        Text(stringResource(R.string.owner_backend_verified, current.backendRunId))
                         Text(stringResource(R.string.owner_gate_result, current.decision.reason))
-                        Text(stringResource(R.string.owner_backend_pending))
+                        Button(onClick = onOwnerReady, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.continue_as_owner))
+                        }
                     } else {
                         Text(stringResource(R.string.non_owner_identity, current.identity.login))
                         Text(stringResource(R.string.owner_gate_result, current.decision.reason))
                     }
-                    OutlinedButton(onClick = { state = OwnerLoginV2State.Idle }, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = ::reset, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.reset_owner_login))
                     }
                 }
                 is OwnerLoginV2State.Failed -> {
-                    Text(stringResource(R.string.owner_login_failed))
+                    Text(stringResource(R.string.owner_login_failed), color = MaterialTheme.colorScheme.error)
                     Text(current.message, color = MaterialTheme.colorScheme.error)
+                    if (current.message.startsWith("GITHUB_ACTIONS_WRITE_REQUIRED") ||
+                        current.message.startsWith("GITHUB_WORKFLOW_NOT_ACCESSIBLE_404")) {
+                        Text(stringResource(R.string.owner_actions_permission_hint))
+                    }
                     OutlinedButton(onClick = ::beginLogin, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.retry))
                     }
