@@ -28,8 +28,8 @@ class GitHubOwnerAuthenticationTest {
     }
 
     @Test
-    fun `alphanumeric GitHub client id is accepted`() {
-        GitHubOwnerAuthentication.validateClientId("Iv1SourceLabClient123")
+    fun `documented dotted GitHub App client id is accepted`() {
+        GitHubOwnerAuthentication.validateClientId("Iv1.ab1112223334445c")
     }
 
     private fun assertReason(expected: String, block: () -> Unit) {
