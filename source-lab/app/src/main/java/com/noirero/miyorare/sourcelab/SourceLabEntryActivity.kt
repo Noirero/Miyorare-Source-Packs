@@ -48,7 +48,7 @@ class SourceLabEntryActivity : ComponentActivity() {
                         startActivity(Intent(this, LocalizedMainActivity::class.java))
                     },
                     onContinueOwner = {
-                        startActivity(Intent(this, LocalizedMainActivity::class.java))
+                        startActivity(Intent(this, OwnerControlActivity::class.java))
                     },
                 )
             }
