@@ -1,6 +1,7 @@
 package com.noirero.miyorare.sourcelab
 
-import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 
@@ -30,35 +31,14 @@ class GitHubOwnerAuthenticationTest {
     @Test
     fun `documented dotted GitHub App client id is accepted`() {
         GitHubOwnerAuthentication.validateClientId("Iv1.ab1112223334445c")
+        assertTrue(GitHubOwnerAuthentication.isValidClientId("Iv1.ab1112223334445c"))
     }
 
     @Test
-    fun `embedded client id wins over stale installation id recovery value`() {
-        val selected = GitHubOwnerAuthentication.selectClientId(
-            embeddedClientId = "Iv1.ab1112223334445c",
-            recoveryClientId = SourceLabAccessPolicy.installationId.toString(),
-        )
-        assertEquals("Iv1.ab1112223334445c", selected)
-    }
-
-    @Test
-    fun `valid recovery client id is used when embedded client id is absent`() {
-        val selected = GitHubOwnerAuthentication.selectClientId(
-            embeddedClientId = "",
-            recoveryClientId = "Iv1.ab1112223334445c",
-        )
-        assertEquals("Iv1.ab1112223334445c", selected)
-    }
-
-    @Test
-    fun `stale numeric recovery client id is cleared`() {
-        assertEquals(
-            "",
-            GitHubOwnerAuthentication.normalizeRecoveryClientId(
-                SourceLabAccessPolicy.installationId.toString(),
-            ),
-        )
-        assertEquals("", GitHubOwnerAuthentication.normalizeRecoveryClientId("123456789012"))
+    fun `blank and numeric identifiers are never valid client ids`() {
+        assertFalse(GitHubOwnerAuthentication.isValidClientId(""))
+        assertFalse(GitHubOwnerAuthentication.isValidClientId(SourceLabAccessPolicy.installationId.toString()))
+        assertFalse(GitHubOwnerAuthentication.isValidClientId(SourceLabAccessPolicy.githubAppId.toString()))
     }
 
     private fun assertReason(expected: String, block: () -> Unit) {
@@ -66,7 +46,9 @@ class GitHubOwnerAuthenticationTest {
             block()
             fail("Expected GitHubOwnerAuthenticationException")
         } catch (error: GitHubOwnerAuthenticationException) {
-            assertEquals(expected, error.reason)
+            if (error.reason != expected) {
+                fail("Expected $expected but got ${error.reason}")
+            }
         }
     }
 }

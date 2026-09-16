@@ -29,9 +29,9 @@ internal class GitHubOwnerAuthenticationException(
 /**
  * Interactive GitHub App Device Flow for the Source Lab owner session.
  *
- * The GitHub App client id is public configuration. Source Lab prefers the
- * client id embedded at build time and only uses the text field as a recovery
- * fallback. It deliberately does not discover the app by a guessed slug.
+ * The public GitHub App Client ID is embedded by the official release build.
+ * Runtime/manual Client ID overrides are intentionally unsupported so an App ID
+ * or Installation ID can never replace the trusted build configuration.
  *
  * The returned user access token is kept in memory only and is never written
  * to SharedPreferences, files, logs, or the APK.
@@ -41,38 +41,10 @@ internal object GitHubOwnerAuthentication {
     private const val tokenEndpoint = "https://github.com/login/oauth/access_token"
     private const val apiBase = "https://api.github.com"
 
-    internal fun resolveClientId(configuredClientId: String): String = selectClientId(
-        embeddedClientId = BuildConfig.SOURCE_LAB_GITHUB_CLIENT_ID,
-        recoveryClientId = configuredClientId,
-    )
-
-    internal fun selectClientId(
-        embeddedClientId: String,
-        recoveryClientId: String,
-    ): String {
-        val embedded = embeddedClientId.trim()
-        val recovery = recoveryClientId.trim()
-
-        if (embedded.isNotBlank()) {
-            try {
-                validateClientId(embedded)
-                return embedded
-            } catch (embeddedError: GitHubOwnerAuthenticationException) {
-                if (recovery.isBlank()) throw embeddedError
-            }
-        }
-
-        validateClientId(recovery)
-        return recovery
-    }
-
-    internal fun normalizeRecoveryClientId(clientId: String): String {
-        val value = clientId.trim()
-        if (value.isBlank()) return ""
-        if (value == SourceLabAccessPolicy.installationId.toString()) return ""
-        if (value == SourceLabAccessPolicy.githubAppId.toString()) return ""
-        if (value.all(Char::isDigit)) return ""
-        return value
+    internal fun resolveClientId(): String {
+        val embedded = BuildConfig.SOURCE_LAB_GITHUB_CLIENT_ID.trim()
+        validateClientId(embedded)
+        return embedded
     }
 
     internal fun isValidClientId(clientId: String): Boolean = try {
@@ -97,8 +69,6 @@ internal object GitHubOwnerAuthentication {
             throw GitHubOwnerAuthenticationException("GITHUB_CLIENT_ID_MUST_NOT_BE_NUMERIC")
         }
         // GitHub App Client IDs currently look like `Iv1.ab1112223334445c`.
-        // Keep validation narrow enough to reject accidental numeric IDs while
-        // allowing GitHub's documented dot-separated client-id format.
         if (!value.matches(Regex("[A-Za-z0-9._-]{10,128}"))) {
             throw GitHubOwnerAuthenticationException("GITHUB_CLIENT_ID_FORMAT_INVALID")
         }
