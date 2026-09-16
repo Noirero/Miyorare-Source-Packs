@@ -38,10 +38,33 @@ internal data class LiveFarmRun(
     val htmlUrl: String,
 )
 
+internal data class LiveEvidenceBinding(
+    val farmEvidenceSha256: String,
+    val gateSha256: String,
+    val repairEvidenceSha256: String,
+    val repairEvidenceCount: Int,
+)
+
+internal data class LiveApprovalProvider(
+    val id: String,
+    val current: String,
+    val candidate: String,
+)
+
+internal data class LiveApprovalCandidate(
+    val candidateSetId: String,
+    val gateFingerprint: String,
+    val evidence: LiveEvidenceBinding,
+    val providers: List<LiveApprovalProvider>,
+    val state: String,
+    val publishEligible: Boolean,
+)
+
 internal data class LiveFarmSnapshot(
     val sources: List<LiveSourceState>,
     val providers: List<LiveProviderState>,
     val recentRuns: List<LiveFarmRun>,
+    val approvalCandidate: LiveApprovalCandidate?,
     val cohort: String,
     val targetSize: Int,
     val branch: String,
@@ -55,6 +78,8 @@ internal object SourceLabRepository {
     private const val rawBase =
         "https://raw.githubusercontent.com/$repository/$farmBranch"
     private const val apiBase = "https://api.github.com/repos/$repository"
+    private val sha256 = Regex("^[0-9a-f]{64}$")
+    private val gitSha = Regex("^[0-9a-f]{40}$")
 
     fun loadSnapshot(): LiveFarmSnapshot {
         val registry = JSONObject(fetchText("$rawBase/compatibility/source-registry.json"))
@@ -110,11 +135,74 @@ internal object SourceLabRepository {
             sources = sources,
             providers = providers,
             recentRuns = recentRuns,
+            approvalCandidate = parseApprovalCandidate(status),
             cohort = scope.optString("cohort", "unknown"),
             targetSize = scope.optInt("targetSize", sources.size),
             branch = farmBranch,
             retrievedAtEpochMs = System.currentTimeMillis(),
         )
+    }
+
+    private fun parseApprovalCandidate(status: JSONObject): LiveApprovalCandidate? {
+        val pending = status.optJSONObject("approvalCandidate") ?: return null
+        if (pending.optInt("schemaVersion") != 1 || pending.optString("maintenanceMode") != "APPROVE_ONLY") {
+            error("Invalid approvalCandidate schema")
+        }
+        val candidateSetId = pending.getString("candidateSetId")
+        val gateFingerprint = pending.getString("gateFingerprint")
+        requireDigest(candidateSetId, "candidateSetId")
+        requireDigest(gateFingerprint, "gateFingerprint")
+        val state = pending.getString("state")
+        if (state != "WAITING_FOR_APPROVAL") error("approvalCandidate is not waiting for approval")
+        val publishEligible = pending.getBoolean("publishEligible")
+        if (publishEligible) error("approvalCandidate must not be publish eligible")
+
+        val binding = pending.getJSONObject("evidenceBinding")
+        if (binding.optInt("schemaVersion") != 1) error("Invalid evidenceBinding schema")
+        val farmEvidence = binding.getString("farmEvidenceSha256")
+        val gate = binding.getString("gateSha256")
+        val repair = binding.getString("repairEvidenceSha256")
+        requireDigest(farmEvidence, "farmEvidenceSha256")
+        requireDigest(gate, "gateSha256")
+        requireDigest(repair, "repairEvidenceSha256")
+        val repairCount = binding.getInt("repairEvidenceCount")
+        if (repairCount < 0) error("repairEvidenceCount must be non-negative")
+
+        val pendingProviders = pending.getJSONObject("providers")
+        val providers = pendingProviders.keys().asSequence().map { providerId ->
+            val item = pendingProviders.getJSONObject(providerId)
+            if (item.getString("state") != "WAITING_FOR_APPROVAL") {
+                error("$providerId is not waiting for approval")
+            }
+            val current = item.getString("current")
+            val candidate = item.getString("candidate")
+            requireGitSha(current, "$providerId.current")
+            requireGitSha(candidate, "$providerId.candidate")
+            LiveApprovalProvider(id = providerId, current = current, candidate = candidate)
+        }.sortedBy { it.id }.toList()
+        if (providers.isEmpty()) error("approvalCandidate has no providers")
+
+        return LiveApprovalCandidate(
+            candidateSetId = candidateSetId,
+            gateFingerprint = gateFingerprint,
+            evidence = LiveEvidenceBinding(
+                farmEvidenceSha256 = farmEvidence,
+                gateSha256 = gate,
+                repairEvidenceSha256 = repair,
+                repairEvidenceCount = repairCount,
+            ),
+            providers = providers,
+            state = state,
+            publishEligible = publishEligible,
+        )
+    }
+
+    private fun requireDigest(value: String, name: String) {
+        if (!sha256.matches(value)) error("$name is not a SHA-256 digest")
+    }
+
+    private fun requireGitSha(value: String, name: String) {
+        if (!gitSha.matches(value)) error("$name is not a git SHA")
     }
 
     private fun loadRecentFarmRuns(): List<LiveFarmRun> {
