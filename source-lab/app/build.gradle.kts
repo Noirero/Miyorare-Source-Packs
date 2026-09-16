@@ -4,6 +4,14 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val sourceLabGitHubClientId = providers.gradleProperty("SOURCE_LAB_GITHUB_CLIENT_ID")
+    .orElse(providers.environmentVariable("SOURCE_LAB_GITHUB_CLIENT_ID"))
+    .orElse("")
+    .get()
+    .trim()
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
+
 android {
     namespace = "com.noirero.miyorare.sourcelab"
     compileSdk = 35
@@ -12,8 +20,13 @@ android {
         applicationId = "com.noirero.miyorare.sourcelab"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
+        buildConfigField(
+            "String",
+            "SOURCE_LAB_GITHUB_CLIENT_ID",
+            "\"$sourceLabGitHubClientId\"",
+        )
     }
 
     buildTypes {
@@ -33,6 +46,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
