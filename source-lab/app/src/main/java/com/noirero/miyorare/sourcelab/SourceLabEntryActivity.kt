@@ -75,7 +75,7 @@ private fun SourceLabEntryScreen(onContinueViewer: () -> Unit) {
                 }
             }
         }
-        item { OwnerLoginCard() }
+        item { OwnerLoginCardV2() }
         item {
             Text(
                 stringResource(R.string.owner_controls_fail_closed),
