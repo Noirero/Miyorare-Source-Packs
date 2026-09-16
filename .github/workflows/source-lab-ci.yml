@@ -84,18 +84,27 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Prepare stable Source Lab signing key
-        if: ${{ secrets.SOURCE_LAB_KEYSTORE_BASE64 != '' && secrets.SOURCE_LAB_STORE_PASSWORD != '' && secrets.SOURCE_LAB_KEY_ALIAS != '' && secrets.SOURCE_LAB_KEY_PASSWORD != '' }}
+      - name: Validate stable Source Lab signing configuration
+        if: ${{ github.event_name == 'push' && vars.SOURCE_LAB_STABLE_SIGNING_ENABLED == 'true' }}
         shell: bash
         env:
           SOURCE_LAB_KEYSTORE_BASE64: ${{ secrets.SOURCE_LAB_KEYSTORE_BASE64 }}
+          SOURCE_LAB_STORE_PASSWORD: ${{ secrets.SOURCE_LAB_STORE_PASSWORD }}
+          SOURCE_LAB_KEY_ALIAS: ${{ secrets.SOURCE_LAB_KEY_ALIAS }}
+          SOURCE_LAB_KEY_PASSWORD: ${{ secrets.SOURCE_LAB_KEY_PASSWORD }}
         run: |
           set -euo pipefail
+          for name in SOURCE_LAB_KEYSTORE_BASE64 SOURCE_LAB_STORE_PASSWORD SOURCE_LAB_KEY_ALIAS SOURCE_LAB_KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is required when SOURCE_LAB_STABLE_SIGNING_ENABLED=true"
+              exit 1
+            fi
+          done
           printf '%s' "$SOURCE_LAB_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/source-lab-release.jks"
           chmod 600 "$RUNNER_TEMP/source-lab-release.jks"
 
       - name: Assemble stable signed Source Lab APK
-        if: ${{ secrets.SOURCE_LAB_KEYSTORE_BASE64 != '' && secrets.SOURCE_LAB_STORE_PASSWORD != '' && secrets.SOURCE_LAB_KEY_ALIAS != '' && secrets.SOURCE_LAB_KEY_PASSWORD != '' }}
+        if: ${{ github.event_name == 'push' && vars.SOURCE_LAB_STABLE_SIGNING_ENABLED == 'true' }}
         env:
           SOURCE_LAB_GITHUB_CLIENT_ID: ${{ vars.SOURCE_LAB_GITHUB_CLIENT_ID }}
           SOURCE_LAB_KEYSTORE_PATH: ${{ runner.temp }}/source-lab-release.jks
@@ -105,7 +114,7 @@ jobs:
         run: gradle -p source-lab :app:assembleRelease --stacktrace
 
       - name: Upload stable signed Source Lab APK
-        if: ${{ secrets.SOURCE_LAB_KEYSTORE_BASE64 != '' && secrets.SOURCE_LAB_STORE_PASSWORD != '' && secrets.SOURCE_LAB_KEY_ALIAS != '' && secrets.SOURCE_LAB_KEY_PASSWORD != '' }}
+        if: ${{ github.event_name == 'push' && vars.SOURCE_LAB_STABLE_SIGNING_ENABLED == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: miyorare-source-lab-stable-signed
