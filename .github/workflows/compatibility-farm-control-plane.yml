@@ -16,6 +16,7 @@ on:
       - 'tools/candidate_lifecycle.py'
       - 'tools/authorized_promotion.py'
       - 'tools/upstream_sync.py'
+      - 'tools/candidate_registry.py'
       - 'tests/test_compatibility_contract.py'
       - 'tests/test_parser_family_plan.py'
       - 'tests/test_candidate_gate.py'
@@ -24,6 +25,7 @@ on:
       - 'tests/test_authorized_promotion.py'
       - 'tests/test_upstream_promote_guard.py'
       - 'tests/test_upstream_workflow_guard.py'
+      - 'tests/test_candidate_registry.py'
       - '.github/workflows/upstream-sync.yml'
       - '.github/workflows/compatibility-farm-control-plane.yml'
   pull_request:
@@ -41,6 +43,7 @@ on:
       - 'tools/candidate_lifecycle.py'
       - 'tools/authorized_promotion.py'
       - 'tools/upstream_sync.py'
+      - 'tools/candidate_registry.py'
       - 'tests/test_compatibility_contract.py'
       - 'tests/test_parser_family_plan.py'
       - 'tests/test_candidate_gate.py'
@@ -49,6 +52,7 @@ on:
       - 'tests/test_authorized_promotion.py'
       - 'tests/test_upstream_promote_guard.py'
       - 'tests/test_upstream_workflow_guard.py'
+      - 'tests/test_candidate_registry.py'
       - '.github/workflows/upstream-sync.yml'
       - '.github/workflows/compatibility-farm-control-plane.yml'
 
@@ -77,6 +81,7 @@ jobs:
           tools/candidate_lifecycle.py
           tools/authorized_promotion.py
           tools/upstream_sync.py
+          tools/candidate_registry.py
 
       - name: Validate approve-only contract
         run: python3 tools/compatibility_contract.py validate --contract compatibility/contract.json
@@ -111,6 +116,7 @@ jobs:
           tests.test_authorized_promotion
           tests.test_upstream_promote_guard
           tests.test_upstream_workflow_guard
+          tests.test_candidate_registry
 
       - name: Upload control-plane evidence
         if: always()
