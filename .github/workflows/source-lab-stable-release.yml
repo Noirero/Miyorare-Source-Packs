@@ -1,0 +1,154 @@
+name: Source Lab Stable Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: Source Lab version name, for example 0.1.2
+        required: true
+        default: '0.1.2'
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: source-lab-stable-release
+  cancel-in-progress: false
+
+env:
+  SOURCE_LAB_RELEASE_REF: source-lab-owner-access-temp
+
+jobs:
+  stable-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout trusted Source Lab branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_LAB_RELEASE_REF }}
+          fetch-depth: 1
+
+      - name: Record trusted source commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_SHA="$(git rev-parse HEAD)"
+          echo "SOURCE_LAB_RELEASE_SHA=$SOURCE_SHA" >> "$GITHUB_ENV"
+          test -f source-lab/app/build.gradle.kts
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install required Android SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | head -n 1 || true)"
+          fi
+          if [ -z "$SDKMANAGER" ] || [ ! -x "$SDKMANAGER" ]; then
+            echo "sdkmanager not found under $SDK_ROOT" >&2
+            exit 1
+          fi
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        env:
+          DISPATCH_VERSION: ${{ inputs.version_name }}
+        run: |
+          set -euo pipefail
+          VERSION_NAME="${DISPATCH_VERSION:-}"
+          if [[ ! "$VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9._-]+)?$ ]]; then
+            echo "::error::Invalid Source Lab version: $VERSION_NAME"
+            exit 1
+          fi
+          VERSION_CODE=$((100000 + GITHUB_RUN_NUMBER))
+          TAG="source-lab-v${VERSION_NAME}"
+          echo "SOURCE_LAB_VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "SOURCE_LAB_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "SOURCE_LAB_RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+
+      - name: Validate stable signing configuration
+        shell: bash
+        env:
+          SOURCE_LAB_KEYSTORE_BASE64: ${{ secrets.SOURCE_LAB_KEYSTORE_BASE64 }}
+          SOURCE_LAB_STORE_PASSWORD: ${{ secrets.SOURCE_LAB_STORE_PASSWORD }}
+          SOURCE_LAB_KEY_ALIAS: ${{ secrets.SOURCE_LAB_KEY_ALIAS }}
+          SOURCE_LAB_KEY_PASSWORD: ${{ secrets.SOURCE_LAB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in SOURCE_LAB_KEYSTORE_BASE64 SOURCE_LAB_STORE_PASSWORD SOURCE_LAB_KEY_ALIAS SOURCE_LAB_KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is required for an updateable Source Lab APK."
+              exit 1
+            fi
+          done
+          printf '%s' "$SOURCE_LAB_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/source-lab-release.jks"
+          chmod 600 "$RUNNER_TEMP/source-lab-release.jks"
+
+      - name: Test, lint and build stable signed APK
+        env:
+          SOURCE_LAB_GITHUB_CLIENT_ID: ${{ vars.SOURCE_LAB_GITHUB_CLIENT_ID }}
+          SOURCE_LAB_KEYSTORE_PATH: ${{ runner.temp }}/source-lab-release.jks
+          SOURCE_LAB_STORE_PASSWORD: ${{ secrets.SOURCE_LAB_STORE_PASSWORD }}
+          SOURCE_LAB_KEY_ALIAS: ${{ secrets.SOURCE_LAB_KEY_ALIAS }}
+          SOURCE_LAB_KEY_PASSWORD: ${{ secrets.SOURCE_LAB_KEY_PASSWORD }}
+        run: gradle -p source-lab :app:testDebugUnitTest :app:lintRelease :app:assembleRelease --stacktrace
+
+      - name: Verify APK signature and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="source-lab/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          APKSIGNER="${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          OUT="miyorare-source-lab-v${SOURCE_LAB_VERSION_NAME}.apk"
+          cp "$APK" "$OUT"
+          sha256sum "$OUT" > "$OUT.sha256"
+          echo "SOURCE_LAB_RELEASE_APK=$OUT" >> "$GITHUB_ENV"
+
+      - name: Upload stable signed APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: miyorare-source-lab-stable-v${{ steps.version.outputs.version_name }}
+          path: |
+            miyorare-source-lab-v${{ steps.version.outputs.version_name }}.apk
+            miyorare-source-lab-v${{ steps.version.outputs.version_name }}.apk.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish Source Lab prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$SOURCE_LAB_RELEASE_TAG" >/dev/null 2>&1; then
+            echo "::error::Release $SOURCE_LAB_RELEASE_TAG already exists. Choose a newer version."
+            exit 1
+          fi
+          gh release create "$SOURCE_LAB_RELEASE_TAG" \
+            "$SOURCE_LAB_RELEASE_APK" \
+            "$SOURCE_LAB_RELEASE_APK.sha256" \
+            --target "$SOURCE_LAB_RELEASE_SHA" \
+            --title "Miyorare Source Lab v${SOURCE_LAB_VERSION_NAME}" \
+            --notes "Stable-signed Miyorare Source Lab APK from trusted branch ${SOURCE_LAB_RELEASE_REF} at ${SOURCE_LAB_RELEASE_SHA}. Future Source Lab versions signed with the same repository keystore can update this installation in place." \
+            --prerelease
