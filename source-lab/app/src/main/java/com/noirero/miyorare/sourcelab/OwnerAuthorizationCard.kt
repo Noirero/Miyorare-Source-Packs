@@ -106,7 +106,7 @@ internal fun OwnerAuthorizationCard(
                             operationScope.launch {
                                 onSessionChanged(null)
                                 try {
-                                    val resolvedClientId = GitHubOwnerAuthentication.resolveClientId("")
+                                    val resolvedClientId = GitHubOwnerAuthentication.resolveClientId()
                                     val code = GitHubOwnerAuthentication.requestDeviceCode(resolvedClientId)
                                     copyUserCode(context, code.userCode)
                                     state = OwnerAuthorizationUiState.WaitingForGitHub(code)
