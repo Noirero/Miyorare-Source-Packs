@@ -39,6 +39,7 @@ internal object GitHubDeviceFlowClient {
     private const val deviceCodeUrl = "https://github.com/login/device/code"
     private const val tokenUrl = "https://github.com/login/oauth/access_token"
     private const val userUrl = "https://api.github.com/user"
+    private const val repositoryUrl = "https://api.github.com/repos/Noirero/Miyorare-Source-Packs"
 
     fun requestAuthorization(): DeviceAuthorization {
         val response = postForm(
@@ -85,7 +86,28 @@ internal object GitHubDeviceFlowClient {
     }
 
     fun fetchIdentity(accessToken: String): GitHubIdentity {
-        val connection = (URL(userUrl).openConnection() as HttpURLConnection).apply {
+        val json = getJson(userUrl, accessToken)
+        return GitHubIdentity(
+            id = json.getLong("id"),
+            login = json.getString("login"),
+        )
+    }
+
+    fun fetchRepositoryPermission(accessToken: String): String {
+        val permissions = getJson(repositoryUrl, accessToken).optJSONObject("permissions")
+            ?: return "none"
+        return when {
+            permissions.optBoolean("admin") -> "admin"
+            permissions.optBoolean("maintain") -> "maintain"
+            permissions.optBoolean("push") -> "push"
+            permissions.optBoolean("triage") -> "triage"
+            permissions.optBoolean("pull") -> "pull"
+            else -> "none"
+        }
+    }
+
+    private fun getJson(url: String, accessToken: String): JSONObject {
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 15_000
             readTimeout = 15_000
@@ -100,13 +122,9 @@ internal object GitHubDeviceFlowClient {
             ?.use { it.readText() }
             .orEmpty()
         if (code !in 200..299) {
-            error("GitHub identity request failed: HTTP $code")
+            error("GitHub API request failed: HTTP $code")
         }
-        val json = JSONObject(body)
-        return GitHubIdentity(
-            id = json.getLong("id"),
-            login = json.getString("login"),
-        )
+        return JSONObject(body)
     }
 
     private fun postForm(url: String, values: Map<String, String>): String {
