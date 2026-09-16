@@ -19,6 +19,8 @@ internal data class OwnerAccessSession(
     val repository: String?,
     val repositoryPermission: String?,
     val backendAuthorized: Boolean,
+    val backendAuthorizationExpiresAtEpochSeconds: Long? = null,
+    val backendCapabilities: Set<SourceLabControlAction> = emptySet(),
 )
 
 internal data class AccessDecision(
@@ -30,9 +32,13 @@ internal data class AccessDecision(
 internal object SourceLabAccessPolicy {
     const val ownerGithubUserId: Long = 149634319L
     const val repository: String = "Noirero/Miyorare-Source-Packs"
+    const val repositoryId: Long = 1367256631L
     const val minimumRepositoryPermission: String = "admin"
 
-    fun evaluate(session: OwnerAccessSession?): AccessDecision {
+    fun evaluate(
+        session: OwnerAccessSession?,
+        nowEpochSeconds: Long = System.currentTimeMillis() / 1000L,
+    ): AccessDecision {
         if (session == null || !session.authenticated) {
             return deny("PUBLIC_VIEWER")
         }
@@ -48,6 +54,12 @@ internal object SourceLabAccessPolicy {
         if (!session.backendAuthorized) {
             return deny("BACKEND_AUTHORIZATION_REQUIRED")
         }
+
+        val expiresAt = session.backendAuthorizationExpiresAtEpochSeconds
+        if (expiresAt == null || expiresAt <= nowEpochSeconds) {
+            return deny("BACKEND_AUTHORIZATION_EXPIRED")
+        }
+
         return AccessDecision(
             role = SourceLabRole.OWNER_AUTHENTICATED,
             canControl = true,
@@ -55,10 +67,14 @@ internal object SourceLabAccessPolicy {
         )
     }
 
-    fun canPerform(action: SourceLabControlAction, session: OwnerAccessSession?): Boolean {
-        @Suppress("UNUSED_VARIABLE")
-        val auditedAction = action
-        return evaluate(session).canControl
+    fun canPerform(
+        action: SourceLabControlAction,
+        session: OwnerAccessSession?,
+        nowEpochSeconds: Long = System.currentTimeMillis() / 1000L,
+    ): Boolean {
+        val decision = evaluate(session, nowEpochSeconds)
+        if (!decision.canControl) return false
+        return action in (session?.backendCapabilities ?: emptySet())
     }
 
     private fun hasRequiredPermission(permission: String?): Boolean =
