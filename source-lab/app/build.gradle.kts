@@ -12,6 +12,17 @@ val sourceLabGitHubClientId = providers.gradleProperty("SOURCE_LAB_GITHUB_CLIENT
     .replace("\\", "\\\\")
     .replace("\"", "\\\"")
 
+val sourceLabVersionCode = providers.environmentVariable("SOURCE_LAB_VERSION_CODE")
+    .orNull
+    ?.toIntOrNull()
+    ?.takeIf { it > 0 }
+    ?: 3
+val sourceLabVersionName = providers.environmentVariable("SOURCE_LAB_VERSION_NAME")
+    .orNull
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+    ?: "0.1.2"
+
 val sourceLabKeystorePath = providers.environmentVariable("SOURCE_LAB_KEYSTORE_PATH").orNull
 val sourceLabStorePassword = providers.environmentVariable("SOURCE_LAB_STORE_PASSWORD").orNull
 val sourceLabKeyAlias = providers.environmentVariable("SOURCE_LAB_KEY_ALIAS").orNull
@@ -31,8 +42,8 @@ android {
         applicationId = "com.noirero.miyorare.sourcelab"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = sourceLabVersionCode
+        versionName = sourceLabVersionName
         buildConfigField(
             "String",
             "SOURCE_LAB_GITHUB_CLIENT_ID",

@@ -24,7 +24,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +32,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 private sealed interface OwnerAuthorizationUiState {
@@ -45,6 +46,7 @@ private sealed interface OwnerAuthorizationUiState {
 
 @Composable
 internal fun OwnerAuthorizationCard(
+    operationScope: CoroutineScope,
     onSessionChanged: (OwnerAccessSession?) -> Unit,
 ) {
     val context = LocalContext.current
@@ -55,7 +57,6 @@ internal fun OwnerAuthorizationCard(
         mutableStateOf(preferences.getString("github_app_client_id", "").orEmpty())
     }
     var state by remember { mutableStateOf<OwnerAuthorizationUiState>(OwnerAuthorizationUiState.Idle) }
-    val scope = rememberCoroutineScope()
     val busy = state is OwnerAuthorizationUiState.AuthorizingBackend ||
         state is OwnerAuthorizationUiState.WaitingForGitHub
     val embeddedClientIdAvailable = BuildConfig.SOURCE_LAB_GITHUB_CLIENT_ID.isNotBlank()
@@ -106,7 +107,7 @@ internal fun OwnerAuthorizationCard(
                 OwnerAuthorizationUiState.Idle -> {
                     Button(
                         onClick = {
-                            scope.launch {
+                            operationScope.launch {
                                 onSessionChanged(null)
                                 try {
                                     val resolvedClientId = GitHubOwnerAuthentication.resolveClientId(clientId)
@@ -130,6 +131,8 @@ internal fun OwnerAuthorizationCard(
                                             proof.expiresAtEpochSeconds ?: 0L,
                                         )
                                     }
+                                } catch (error: CancellationException) {
+                                    throw error
                                 } catch (error: GitHubOwnerAuthenticationException) {
                                     onSessionChanged(null)
                                     state = OwnerAuthorizationUiState.Failed(error.reason)

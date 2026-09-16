@@ -28,6 +28,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 
 class OwnerGateActivity : ComponentActivity() {
@@ -41,6 +43,7 @@ class OwnerGateActivity : ComponentActivity() {
         setContent {
             OwnerGateTheme {
                 OwnerGateScreen(
+                    operationScope = lifecycleScope,
                     onViewer = {
                         SourceLabOwnerSessionStore.clear()
                         openDashboard(ownerAuthorized = false)
@@ -93,6 +96,7 @@ private fun OwnerGateTheme(content: @Composable () -> Unit) {
 
 @Composable
 private fun OwnerGateScreen(
+    operationScope: CoroutineScope,
     onViewer: () -> Unit,
     onAuthorized: (OwnerAccessSession) -> Unit,
     onOpenOwnerDashboard: () -> Unit,
@@ -150,9 +154,12 @@ private fun OwnerGateScreen(
         }
 
         item {
-            OwnerAuthorizationCard { session ->
-                authorizedSession = session
-            }
+            OwnerAuthorizationCard(
+                operationScope = operationScope,
+                onSessionChanged = { session ->
+                    authorizedSession = session
+                },
+            )
         }
 
         if (authorizedSession != null) {
