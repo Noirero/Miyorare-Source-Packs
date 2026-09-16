@@ -21,9 +21,13 @@ jobs:
 
       - name: Replace legacy auto-promotion with candidate handoff
         shell: bash
+        env:
+          HANDOFF_B64: CiAgY2FuZGlkYXRlLWhhbmRvZmY6CiAgICBuYW1lOiBIYW5kIHZhbGlkYXRlZCBjYW5kaWRhdGVzIHRvIENvbXBhdGliaWxpdHkgRmFybQogICAgbmVlZHM6IFtwbGFuLCB2YWxpZGF0ZS1rZWl5b3VzaGksIHZhbGlkYXRlLXVtYSwgZ2Vra291c2hpLW92ZXJsYXktZ3VhcmQsIHZhbGlkYXRlLWdla2tvdXNoaSwgaW50ZWdyYXRpb25dCiAgICBpZjogPi0KICAgICAgYWx3YXlzKCkgJiYgbmVlZHMucGxhbi5yZXN1bHQgPT0gJ3N1Y2Nlc3MnICYmCiAgICAgIChuZWVkcy5wbGFuLm91dHB1dHMua2VpeW91c2hpX2NoYW5nZWQgPT0gJ3RydWUnIHx8IG5lZWRzLnBsYW4ub3V0cHV0cy51bWFfY2hhbmdlZCA9PSAndHJ1ZScgfHwgbmVlZHMucGxhbi5vdXRwdXRzLmdla2tvdXNoaV9jaGFuZ2VkID09ICd0cnVlJykKICAgIHJ1bnMtb246IHVidW50dS1sYXRlc3QKICAgIHN0ZXBzOgogICAgICAtIG5hbWU6IERvd25sb2FkIGltbXV0YWJsZSBzeW5jIHBsYW4KICAgICAgICB1c2VzOiBhY3Rpb25zL2Rvd25sb2FkLWFydGlmYWN0QHY1CiAgICAgICAgd2l0aDoKICAgICAgICAgIG5hbWU6IHVwc3RyZWFtLXN5bmMtcGxhbgogICAgICAgICAgcGF0aDogdXBzdHJlYW0taGFuZG9mZgoKICAgICAgLSBuYW1lOiBCdWlsZCBmYWlsLWNsb3NlZCBjYW5kaWRhdGUgaGFuZG9mZgogICAgICAgIGVudjoKICAgICAgICAgIEtFSV9DSEFOR0VEOiAke3sgbmVlZHMucGxhbi5vdXRwdXRzLmtlaXlvdXNoaV9jaGFuZ2VkIH19CiAgICAgICAgICBLRUlfUkVTVUxUOiAke3sgbmVlZHMudmFsaWRhdGUta2VpeW91c2hpLnJlc3VsdCB9fQogICAgICAgICAgVU1BX0NIQU5HRUQ6ICR7eyBuZWVkcy5wbGFuLm91dHB1dHMudW1hX2NoYW5nZWQgfX0KICAgICAgICAgIFVNQV9SRVNVTFQ6ICR7eyBuZWVkcy52YWxpZGF0ZS11bWEucmVzdWx0IH19CiAgICAgICAgICBHRUtfQ0hBTkdFRDogJHt7IG5lZWRzLnBsYW4ub3V0cHV0cy5nZWtrb3VzaGlfY2hhbmdlZCB9fQogICAgICAgICAgR0VLX0dVQVJEX1JFU1VMVDogJHt7IG5lZWRzLmdla2tvdXNoaS1vdmVybGF5LWd1YXJkLnJlc3VsdCB9fQogICAgICAgICAgR0VLX1JFU1VMVDogJHt7IG5lZWRzLnZhbGlkYXRlLWdla2tvdXNoaS5yZXN1bHQgfX0KICAgICAgICAgIElOVEVHUkFUSU9OX1JFU1VMVDogJHt7IG5lZWRzLmludGVncmF0aW9uLnJlc3VsdCB9fQogICAgICAgIHNoZWxsOiBiYXNoCiAgICAgICAgcnVuOiB8CiAgICAgICAgICBzZXQgLWV1byBwaXBlZmFpbAogICAgICAgICAgcHl0aG9uMyAtIDw8J1BZJwogICAgICAgICAgaW1wb3J0IGpzb24KICAgICAgICAgIGltcG9ydCBvcwogICAgICAgICAgZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCgogICAgICAgICAgcGxhbiA9IGpzb24ubG9hZHMoUGF0aCgndXBzdHJlYW0taGFuZG9mZi9zeW5jLXBsYW4uanNvbicpLnJlYWRfdGV4dChlbmNvZGluZz0ndXRmLTgnKSkKICAgICAgICAgIGhhbmRvZmYgPSB7CiAgICAgICAgICAgICAgJ3NjaGVtYVZlcnNpb24nOiAxLAogICAgICAgICAgICAgICdtYWludGVuYW5jZU1vZGUnOiAnQVBQUk9WRV9PTkxZJywKICAgICAgICAgICAgICAnc3RhdGUnOiAnQ0FORElEQVRFJywKICAgICAgICAgICAgICAnYXBwcm92YWxTdGF0ZSc6ICdOT1RfUkVBRFknLAogICAgICAgICAgICAgICduZXh0QWN0aW9uJzogJ1JVTl9SRUFMX1BBUlNFUl9DT01QQVRJQklMSVRZX0ZBUk0nLAogICAgICAgICAgICAgICdvd25lckFjdGlvblJlcXVpcmVkJzogRmFsc2UsCiAgICAgICAgICAgICAgJ3B1Ymxpc2hFbGlnaWJsZSc6IEZhbHNlLAogICAgICAgICAgICAgICdyZWdpc3RyeU11dGF0aW9uQWxsb3dlZCc6IEZhbHNlLAogICAgICAgICAgICAgICdyZWxlYXNlRGlzcGF0Y2hBbGxvd2VkJzogRmFsc2UsCiAgICAgICAgICAgICAgJ3BsYW4nOiBwbGFuLAogICAgICAgICAgICAgICd2YWxpZGF0aW9uUmVzdWx0cyc6IHsKICAgICAgICAgICAgICAgICAgJ2tlaXlvdXNoaSc6IG9zLmVudmlyb25bJ0tFSV9SRVNVTFQnXSwKICAgICAgICAgICAgICAgICAgJ3VtYSc6IG9zLmVudmlyb25bJ1VNQV9SRVNVTFQnXSwKICAgICAgICAgICAgICAgICAgJ2dla2tvdXNoaU92ZXJsYXlHdWFyZCc6IG9zLmVudmlyb25bJ0dFS19HVUFSRF9SRVNVTFQnXSwKICAgICAgICAgICAgICAgICAgJ2dla2tvdXNoaSc6IG9zLmVudmlyb25bJ0dFS19SRVNVTFQnXSwKICAgICAgICAgICAgICAgICAgJ2ludGVncmF0aW9uJzogb3MuZW52aXJvblsnSU5URUdSQVRJT05fUkVTVUxUJ10sCiAgICAgICAgICAgICAgfSwKICAgICAgICAgIH0KICAgICAgICAgIFBhdGgoJ3Vwc3RyZWFtLWhhbmRvZmYvY2FuZGlkYXRlLWhhbmRvZmYuanNvbicpLndyaXRlX3RleHQoCiAgICAgICAgICAgICAganNvbi5kdW1wcyhoYW5kb2ZmLCBpbmRlbnQ9MikgKyAnXG4nLCBlbmNvZGluZz0ndXRmLTgnCiAgICAgICAgICApCiAgICAgICAgICBQWQoKICAgICAgLSBuYW1lOiBVcGxvYWQgY2FuZGlkYXRlIGhhbmRvZmYgZXZpZGVuY2UKICAgICAgICB1c2VzOiBhY3Rpb25zL3VwbG9hZC1hcnRpZmFjdEB2NAogICAgICAgIHdpdGg6CiAgICAgICAgICBuYW1lOiB1cHN0cmVhbS1jYW5kaWRhdGUtaGFuZG9mZgogICAgICAgICAgcGF0aDogdXBzdHJlYW0taGFuZG9mZi9jYW5kaWRhdGUtaGFuZG9mZi5qc29uCiAgICAgICAgICBpZi1uby1maWxlcy1mb3VuZDogZXJyb3IKICAgICAgICAgIHJldGVudGlvbi1kYXlzOiAxNAo=
         run: |
           set -euo pipefail
-          python3 - <<'MIGRATE_PY'
+          python3 - <<'PY'
+          import base64
+          import os
           from pathlib import Path
 
           path = Path('.github/workflows/upstream-sync.yml')
@@ -33,81 +37,17 @@ jobs:
               raise SystemExit('legacy Promote passing candidates marker not found; refusing unsafe migration')
 
           prefix = text.split(marker, 1)[0]
+          old_permissions = 'permissions:\n  contents: write\n  actions: write'
+          if old_permissions not in prefix:
+              raise SystemExit('expected legacy write permissions not found; refusing unsafe migration')
           prefix = prefix.replace(
-              'permissions:\n  contents: write\n  actions: write',
+              old_permissions,
               'permissions:\n  contents: read\n  actions: read',
               1,
           )
-
-          replacement = r'''
-  candidate-handoff:
-    name: Hand validated candidates to Compatibility Farm
-    needs: [plan, validate-keiyoushi, validate-uma, gekkoushi-overlay-guard, validate-gekkoushi, integration]
-    if: >-
-      always() && needs.plan.result == 'success' &&
-      (needs.plan.outputs.keiyoushi_changed == 'true' || needs.plan.outputs.uma_changed == 'true' || needs.plan.outputs.gekkoushi_changed == 'true')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download immutable sync plan
-        uses: actions/download-artifact@v5
-        with:
-          name: upstream-sync-plan
-          path: upstream-handoff
-
-      - name: Build fail-closed candidate handoff
-        env:
-          KEI_CHANGED: GH{{ needs.plan.outputs.keiyoushi_changed }}
-          KEI_RESULT: GH{{ needs.validate-keiyoushi.result }}
-          UMA_CHANGED: GH{{ needs.plan.outputs.uma_changed }}
-          UMA_RESULT: GH{{ needs.validate-uma.result }}
-          GEK_CHANGED: GH{{ needs.plan.outputs.gekkoushi_changed }}
-          GEK_GUARD_RESULT: GH{{ needs.gekkoushi-overlay-guard.result }}
-          GEK_RESULT: GH{{ needs.validate-gekkoushi.result }}
-          INTEGRATION_RESULT: GH{{ needs.integration.result }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          plan = json.loads(Path('upstream-handoff/sync-plan.json').read_text(encoding='utf-8'))
-          handoff = {
-              'schemaVersion': 1,
-              'maintenanceMode': 'APPROVE_ONLY',
-              'state': 'CANDIDATE',
-              'approvalState': 'NOT_READY',
-              'nextAction': 'RUN_REAL_PARSER_COMPATIBILITY_FARM',
-              'ownerActionRequired': False,
-              'publishEligible': False,
-              'registryMutationAllowed': False,
-              'releaseDispatchAllowed': False,
-              'plan': plan,
-              'validationResults': {
-                  'keiyoushi': os.environ['KEI_RESULT'],
-                  'uma': os.environ['UMA_RESULT'],
-                  'gekkoushiOverlayGuard': os.environ['GEK_GUARD_RESULT'],
-                  'gekkoushi': os.environ['GEK_RESULT'],
-                  'integration': os.environ['INTEGRATION_RESULT'],
-              },
-          }
-          Path('upstream-handoff/candidate-handoff.json').write_text(
-              json.dumps(handoff, indent=2) + '\n', encoding='utf-8'
-          )
-          PY
-
-      - name: Upload candidate handoff evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: upstream-candidate-handoff
-          path: upstream-handoff/candidate-handoff.json
-          if-no-files-found: error
-          retention-days: 14
-'''
-          replacement = replacement.replace('GH{{', chr(36) + '{{')
+          replacement = base64.b64decode(os.environ['HANDOFF_B64']).decode('utf-8')
           path.write_text(prefix + replacement, encoding='utf-8')
-          MIGRATE_PY
+          PY
 
       - name: Prove direct promotion and release dispatch are gone
         shell: bash
