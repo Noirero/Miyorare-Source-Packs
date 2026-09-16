@@ -2,9 +2,10 @@
 """Miyorare Source Pack upstream synchronization helpers.
 
 The sync engine separates upstream detection, compatibility materialization, semantic adaptation,
-overlay conflict tracking, and promotion. Provider-wide revisions can advance only after CI validation,
-while semantic/overlay reconciliation bases remain independent so releases can reproduce Miyorare
-adaptations until the corresponding baseline is intentionally reconciled.
+overlay conflict tracking, and promotion. Provider-wide revisions can advance only after CI validation
+and an exact approve-only authorization receipt, while semantic/overlay reconciliation bases remain
+independent so releases can reproduce Miyorare adaptations until the corresponding baseline is
+intentionally reconciled.
 """
 
 from __future__ import annotations
@@ -390,18 +391,25 @@ def check_overlay_conflicts(
         )
 
 
-def promote(registry_path: Path, provider_name: str, commit: str) -> None:
+def promote(
+    registry_path: Path,
+    provider_name: str,
+    commit: str,
+    authorization_path: Path,
+    receipt_path: Path,
+) -> None:
+    """Promote only through an exact fail-closed approve-only authorization receipt."""
+    from authorized_promotion import AuthorizedPromotionError, apply_authorized_promotion
+
     registry = load_json(registry_path)
     validate_registry(registry)
-    providers = registry_providers(registry)
-    if provider_name not in providers:
-        fail(f"unknown provider {provider_name}")
-    if not HEX40.fullmatch(commit):
-        fail("promotion commit must be a 40-character git SHA")
-    provider = providers[provider_name]
-    provider["upstreamBase"] = commit
-    provider["lastKnownGood"] = commit
-    save_json(registry_path, registry)
+    authorization = load_json(authorization_path)
+    try:
+        updated, receipt = apply_authorized_promotion(registry, authorization, provider_name, commit)
+    except AuthorizedPromotionError as exc:
+        fail(str(exc), code=4)
+    save_json(registry_path, updated)
+    save_json(receipt_path, receipt)
 
 
 def promote_semantic_base(registry_path: Path, provider_name: str, commit: str) -> None:
@@ -468,6 +476,8 @@ def main() -> None:
     p_promote.add_argument("--registry", type=Path, required=True)
     p_promote.add_argument("--provider", required=True)
     p_promote.add_argument("--commit", required=True)
+    p_promote.add_argument("--authorization", type=Path, required=True)
+    p_promote.add_argument("--receipt", type=Path, required=True)
 
     p_promote_semantic = sub.add_parser("promote-semantic-base")
     p_promote_semantic.add_argument("--registry", type=Path, required=True)
@@ -510,7 +520,13 @@ def main() -> None:
             strict=args.strict,
         )
     elif args.command == "promote":
-        promote(registry_path, args.provider, args.commit.lower())
+        promote(
+            registry_path,
+            args.provider,
+            args.commit.lower(),
+            args.authorization.resolve(),
+            args.receipt.resolve(),
+        )
     elif args.command == "promote-semantic-base":
         promote_semantic_base(registry_path, args.provider, args.commit.lower())
     elif args.command == "promote-overlay-base":
