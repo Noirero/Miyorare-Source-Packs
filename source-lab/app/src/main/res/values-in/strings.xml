@@ -44,11 +44,20 @@
     <string name="connected_read_only">Terhubung hanya-baca ke %1$s. Ini tidak dihitung sebagai bukti parser.</string>
     <string name="offline_fallback">Mode offline/fallback. Bukti seed otoritatif tetap tersedia.</string>
     <string name="remote_test_control">Kontrol pengujian jarak jauh</string>
-    <string name="remote_test_control_supporting">Pemantauan repository sudah langsung, tetapi dispatch workflow/autentikasi tetap dikunci sampai jalur kontrol aman tersedia. Tidak ada kredensial tulis yang ditanam di APK.</string>
-    <string name="run_full_farm_pending">Jalankan Farm penuh · wiring aman belum selesai</string>
+    <string name="remote_test_control_supporting">Pemantauan publik tetap hanya-baca. Dispatch workflow owner memakai sesi GitHub terverifikasi yang hanya disimpan di memori; tidak ada token tulis jangka panjang di APK.</string>
+    <string name="run_full_farm_pending">Jalankan Farm penuh · orkestrasi kandidat belum selesai</string>
     <string name="approval">Persetujuan</string>
-    <string name="approval_locked_supporting">Persetujuan exact-SHA tetap dikunci sampai wiring otorisasi upstream P0 selesai.</string>
-    <string name="approve_exact_candidate_locked">Setujui kandidat exact · terkunci</string>
+    <string name="approval_no_candidate">Belum ada kandidat exact yang sedang menunggu persetujuan. Checkpoint seed yang terverifikasi adalah bukti, bukan update yang dapat dipromosikan.</string>
+    <string name="approval_owner_required">Kandidat exact sedang menunggu, tetapi persetujuan langsung hanya tersedia pada Mode Owner yang sudah terverifikasi.</string>
+    <string name="approval_ready_supporting">Permintaan ini terikat ke candidateSetId exact, nilai LKG yang diharapkan, digest bukti Farm, digest gate, dan digest bukti repair. Perubahan apa pun akan fail-closed.</string>
+    <string name="approve_exact_candidate">Setujui kandidat exact</string>
+    <string name="approval_in_progress">Memverifikasi dan mencatat persetujuan di GitHub…</string>
+    <string name="approval_success">DISETUJUI · workflow run %1$d</string>
+    <string name="approval_failed">Persetujuan gagal: %1$s</string>
+    <string name="candidate_set_id_label">Set kandidat: %1$s</string>
+    <string name="candidate_provider_label">%1$s · saat ini %2$s → kandidat %3$s</string>
+    <string name="approval_evidence_summary">Farm %1$s · gate %2$s · repair %3$s (%4$d laporan)</string>
+    <string name="publish_remains_blocked">Persetujuan tidak otomatis melakukan publish, sign, release, atau promote.</string>
 
     <string name="owner_mode">Mode Owner</string>
     <string name="owner_mode_public_viewer">Pengguna umum tetap hanya-baca. Kontrol owner memerlukan verifikasi identitas GitHub dan otorisasi backend.</string>
@@ -59,9 +68,16 @@
     <string name="open_github">Buka GitHub</string>
     <string name="owner_identity_verified">Identitas GitHub terverifikasi: %1$s</string>
     <string name="owner_backend_pending">Identitas owner cocok, tetapi kontrol sensitif tetap terkunci sampai otorisasi backend tersambung.</string>
+    <string name="owner_backend_authorizing">Memverifikasi otorisasi backend…</string>
+    <string name="owner_backend_authorizing_supporting">Source Lab meminta control plane repository memverifikasi owner GitHub yang tepat. Token user tetap hanya berada di memori.</string>
+    <string name="owner_backend_verified">Otorisasi backend terverifikasi · run %1$d</string>
+    <string name="continue_as_owner">Lanjut sebagai Owner</string>
+    <string name="owner_actions_permission_hint">GitHub App harus memiliki izin Actions: Read and write untuk menjalankan workflow kontrol owner. Jangan masukkan installation ID sebagai client ID.</string>
     <string name="non_owner_identity">Masuk sebagai %1$s. Akun ini tetap PUBLIC_VIEWER.</string>
     <string name="reset_owner_login">Reset login</string>
     <string name="owner_login_failed">Login owner GitHub gagal.</string>
+    <string name="owner_session_active">OWNER TERVERIFIKASI · backend run %1$d</string>
+    <string name="public_session_active">VIEWER PUBLIK · hanya baca</string>
 
     <string name="report_title">Laporan Bukti</string>
     <string name="report_subtitle">Asal-usul bukti untuk checkpoint seed yang sudah diverifikasi</string>
@@ -95,10 +111,10 @@
     <string name="registered_memberships_state">%1$d membership terdaftar · %2$s</string>
     <string name="active_baseline">baseline aktif</string>
     <string name="safety_boundary">Batas keamanan</string>
-    <string name="safety_read_only">• akses repository langsung hanya-baca</string>
+    <string name="safety_read_only">• akses repository publik hanya-baca</string>
     <string name="safety_pass_not_promote">• PASS tidak melakukan promosi</string>
     <string name="safety_lkg_exact_approval">• LKG tidak berubah sebelum persetujuan exact</string>
     <string name="safety_stale_fail_closed">• persetujuan stale wajib fail-closed</string>
-    <string name="safety_no_write_token">• tidak ada kredensial tulis yang ditanam</string>
-    <string name="safety_no_release_publish">• foundation ini tidak melakukan sign / release / publish</string>
+    <string name="safety_no_write_token">• tidak ada token tulis GitHub jangka panjang yang ditanam</string>
+    <string name="safety_no_release_publish">• persetujuan tidak melakukan sign / release / publish</string>
 </resources>
