@@ -42,16 +42,25 @@ class SourceLabEntryActivity : ComponentActivity() {
                     error = Color(0xFFFF6B74),
                 ),
             ) {
-                SourceLabEntryScreen {
-                    startActivity(Intent(this, LocalizedMainActivity::class.java))
-                }
+                SourceLabEntryScreen(
+                    onContinueViewer = {
+                        OwnerSessionStore.clear()
+                        startActivity(Intent(this, LocalizedMainActivity::class.java))
+                    },
+                    onContinueOwner = {
+                        startActivity(Intent(this, LocalizedMainActivity::class.java))
+                    },
+                )
             }
         }
     }
 }
 
 @Composable
-private fun SourceLabEntryScreen(onContinueViewer: () -> Unit) {
+private fun SourceLabEntryScreen(
+    onContinueViewer: () -> Unit,
+    onContinueOwner: () -> Unit,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(20.dp),
@@ -75,7 +84,7 @@ private fun SourceLabEntryScreen(onContinueViewer: () -> Unit) {
                 }
             }
         }
-        item { OwnerLoginCardV2() }
+        item { OwnerLoginCardV2(onOwnerReady = onContinueOwner) }
         item {
             Text(
                 stringResource(R.string.owner_controls_fail_closed),
