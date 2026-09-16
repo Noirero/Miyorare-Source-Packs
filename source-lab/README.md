@@ -6,7 +6,7 @@ Android control panel for the Miyorare Compatibility Farm.
 
 Source Lab is intentionally a separate Android app. It does **not** replace repository/CI automation and must never make the phone a required part of upstream maintenance.
 
-The app is currently a read-only control-plane client. Write actions remain locked until the approve-only upstream authorization path is complete.
+Repository inspection remains read-only by default. GitHub App identity, owner identity, repository installation, and backend authorization are separate gates, and every write capability remains explicit and fail-closed.
 
 ## Implemented foundation
 
@@ -21,21 +21,46 @@ The app is currently a read-only control-plane client. Write actions remain lock
 - exact checkpoint provenance (run, seed SHA, approval-foundation SHA, artifact id/digest);
 - read-only parsing of recent `compatibility-farm-accelerated.yml` workflow runs;
 - explicit safety boundary for `WAITING_FOR_APPROVAL`;
-- remote Farm and Approve controls visibly present but intentionally locked;
+- owner access policy bound to immutable GitHub user id `149634319`;
+- owner login bound to GitHub App id `4959004` and installation id `162045953` for `Noirero/Miyorare-Source-Packs`;
+- Device Flow remains the interactive identity layer without embedding a client secret/private key;
+- short-lived backend authorization client that verifies a GitHub Actions OIDC proof against GitHub's published JWKS;
+- backend proof bound to a fresh 256-bit app challenge, exact workflow/ref/run/repository/actor claims, and JWT expiry;
+- backend authorization grants **no write capability implicitly**;
 - Android CI that produces and uploads a debug APK artifact.
+
+## Backend authorization P0
+
+GitHub login proves the owner identity and repository permission through the expected Source Lab GitHub App installation. It does not by itself unlock sensitive controls.
+
+The backend authorization flow is:
+
+1. The access gate first requires the exact owner GitHub user id, GitHub App id `4959004`, installation id `162045953`, repository, and admin repository permission.
+2. Source Lab generates 32 cryptographically random bytes and sends the lowercase-hex challenge to the dedicated default-branch authorization workflow.
+3. The workflow fails closed unless the dispatcher is GitHub user id `149634319`, the repository is exactly `Noirero/Miyorare-Source-Packs`, the event is `workflow_dispatch`, and the ref is `refs/heads/main`.
+4. GitHub Actions mints a short-lived OIDC JWT whose audience is `miyorare-source-lab:<challenge>`.
+5. Source Lab downloads the short-lived proof artifact and verifies the JWT signature with GitHub's OIDC JWKS.
+6. Source Lab validates the exact issuer, audience, subject, actor id, repository id, owner id, workflow, workflow ref, event, ref, run id, issued-at/not-before/expiry claims.
+7. Only then does the owner session become `BACKEND_AUTHORIZED` until the signed proof expires.
+
+The backend workflow must exist on the repository **default branch** for `workflow_dispatch` to work. It is staged separately from the Android branch for that reason.
+
+P0 backend authorization is session authorization only. `RUN_FARM`, `APPROVE`, `PROMOTE`, `SIGN`, and `PUBLISH` remain individually denied until a dedicated capability path explicitly grants them.
 
 ## Safety invariants
 
 1. PASS is not PROMOTED.
 2. `lastKnownGood` / `upstreamBase` must not move before exact approval authorization.
-3. Candidate SHA, candidateSetId, expected LKG and evidence must be revalidated before promotion.
+3. Candidate SHA, candidateSetId, expected LKG and evidence digest must be revalidated before promotion.
 4. Stale/mismatched approval fails closed.
 5. Candidate failure does not imply the active source is broken.
 6. Runtime HEALTHY is not derived from fixture/shape evidence alone.
 7. Regression budget remains zero.
-8. Live repository access from the Android app is read-only.
-9. No GitHub write token is embedded in the APK.
-10. This foundation does not sign, release or publish.
+8. Public/live repository inspection remains read-only.
+9. No GitHub write token, client secret, or private signing key is embedded in the APK.
+10. Backend authorization is short-lived and cryptographically verified.
+11. Backend authorization never implies a write capability.
+12. Sign/release/publish remain governed by the official release flow.
 
 ## Current authoritative Compatibility Farm checkpoint
 
@@ -66,16 +91,16 @@ The CI installs Android 35 requirements, builds `:app:assembleDebug`, and fails 
 
 P0 — read/inspect path:
 
-- surface the recent Compatibility Farm workflow history in the UI;
+- surface recent Compatibility Farm workflow history in the UI;
 - parse authoritative run/artifact evidence instead of treating workflow status alone as compatibility evidence;
 - add detailed provider/source current-vs-candidate inspection;
 - keep verified embedded fallback data for temporary API/network failures.
 
-P0 — secure control path:
+P0 — capability control path:
 
-- add secure GitHub/control authentication without embedding a write token in the APK;
-- connect `Run Full Farm` to a dedicated, least-privilege workflow-dispatch path;
-- keep `Approve exact candidate` disabled until upstream-sync approval authorization is fully wired.
+- connect `Run Full Farm` to its own backend-authorized, least-privilege dispatch capability;
+- keep `Approve exact candidate` disabled until exact candidate SHA + candidateSetId + expected LKG + evidence digest are wired end-to-end;
+- preserve action-specific authorization rather than converting backend session authorization into a global write switch.
 
 After approve-only upstream P0 lands:
 
@@ -84,4 +109,4 @@ After approve-only upstream P0 lands:
 - show authorization result and stale-approval reasons;
 - only then expose promotion state.
 
-Release/sign/publish remain governed by the official Miyorare release flow and are outside the Source Lab foundation until explicitly authorized.
+Release/sign/publish remain governed by the official Miyorare release flow and stay outside Source Lab until their separate authorization paths are complete.
