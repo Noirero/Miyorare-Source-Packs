@@ -1,0 +1,137 @@
+name: One-time approve-only upstream migration
+
+on:
+  push:
+    branches:
+      - compatibility-farm-foundation
+    paths:
+      - '.github/workflows/migrate-upstream-approve-only.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout foundation branch
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Replace legacy auto-promotion with candidate handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/upstream-sync.yml')
+          text = path.read_text(encoding='utf-8')
+          marker = '\n  promote:\n    name: Promote passing candidates\n'
+          if marker not in text:
+              raise SystemExit('legacy Promote passing candidates marker not found; refusing unsafe migration')
+
+          prefix = text.split(marker, 1)[0]
+          prefix = prefix.replace(
+              'permissions:\n  contents: write\n  actions: write',
+              'permissions:\n  contents: read\n  actions: read',
+              1,
+          )
+
+          replacement = r'''
+  candidate-handoff:
+    name: Hand validated candidates to Compatibility Farm
+    needs: [plan, validate-keiyoushi, validate-uma, gekkoushi-overlay-guard, validate-gekkoushi, integration]
+    if: >-
+      always() && needs.plan.result == 'success' &&
+      (needs.plan.outputs.keiyoushi_changed == 'true' || needs.plan.outputs.uma_changed == 'true' || needs.plan.outputs.gekkoushi_changed == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download immutable sync plan
+        uses: actions/download-artifact@v5
+        with:
+          name: upstream-sync-plan
+          path: upstream-handoff
+
+      - name: Build fail-closed candidate handoff
+        env:
+          KEI_CHANGED: ${{ needs.plan.outputs.keiyoushi_changed }}
+          KEI_RESULT: ${{ needs.validate-keiyoushi.result }}
+          UMA_CHANGED: ${{ needs.plan.outputs.uma_changed }}
+          UMA_RESULT: ${{ needs.validate-uma.result }}
+          GEK_CHANGED: ${{ needs.plan.outputs.gekkoushi_changed }}
+          GEK_GUARD_RESULT: ${{ needs.gekkoushi-overlay-guard.result }}
+          GEK_RESULT: ${{ needs.validate-gekkoushi.result }}
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          plan = json.loads(Path('upstream-handoff/sync-plan.json').read_text(encoding='utf-8'))
+          handoff = {
+              'schemaVersion': 1,
+              'maintenanceMode': 'APPROVE_ONLY',
+              'state': 'CANDIDATE',
+              'approvalState': 'NOT_READY',
+              'nextAction': 'RUN_REAL_PARSER_COMPATIBILITY_FARM',
+              'ownerActionRequired': False,
+              'publishEligible': False,
+              'registryMutationAllowed': False,
+              'releaseDispatchAllowed': False,
+              'plan': plan,
+              'validationResults': {
+                  'keiyoushi': os.environ['KEI_RESULT'],
+                  'uma': os.environ['UMA_RESULT'],
+                  'gekkoushiOverlayGuard': os.environ['GEK_GUARD_RESULT'],
+                  'gekkoushi': os.environ['GEK_RESULT'],
+                  'integration': os.environ['INTEGRATION_RESULT'],
+              },
+          }
+          Path('upstream-handoff/candidate-handoff.json').write_text(
+              json.dumps(handoff, indent=2) + '\n', encoding='utf-8'
+          )
+          PY
+
+      - name: Upload candidate handoff evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-candidate-handoff
+          path: upstream-handoff/candidate-handoff.json
+          if-no-files-found: error
+          retention-days: 14
+'''
+          path.write_text(prefix + replacement, encoding='utf-8')
+          PY
+
+      - name: Prove direct promotion and release dispatch are gone
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Fq 'tools/upstream_sync.py promote ' .github/workflows/upstream-sync.yml; then
+            echo 'direct promote call remains' >&2
+            exit 1
+          fi
+          if grep -Fq 'release-source-packs.yml' .github/workflows/upstream-sync.yml; then
+            echo 'release dispatch remains' >&2
+            exit 1
+          fi
+          grep -Fq 'RUN_REAL_PARSER_COMPATIBILITY_FARM' .github/workflows/upstream-sync.yml
+          grep -Fq 'registryMutationAllowed' .github/workflows/upstream-sync.yml
+
+      - name: Remove one-time migration workflow
+        run: git rm .github/workflows/migrate-upstream-approve-only.yml
+
+      - name: Commit safe approve-only handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .github/workflows/upstream-sync.yml
+          git commit -m 'Replace legacy auto-promotion with approve-only candidate handoff'
+          git push origin HEAD:compatibility-farm-foundation
