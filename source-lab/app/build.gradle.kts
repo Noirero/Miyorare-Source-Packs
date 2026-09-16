@@ -12,6 +12,17 @@ val sourceLabGitHubClientId = providers.gradleProperty("SOURCE_LAB_GITHUB_CLIENT
     .replace("\\", "\\\\")
     .replace("\"", "\\\"")
 
+val sourceLabKeystorePath = providers.environmentVariable("SOURCE_LAB_KEYSTORE_PATH").orNull
+val sourceLabStorePassword = providers.environmentVariable("SOURCE_LAB_STORE_PASSWORD").orNull
+val sourceLabKeyAlias = providers.environmentVariable("SOURCE_LAB_KEY_ALIAS").orNull
+val sourceLabKeyPassword = providers.environmentVariable("SOURCE_LAB_KEY_PASSWORD").orNull
+val sourceLabStableSigningConfigured = listOf(
+    sourceLabKeystorePath,
+    sourceLabStorePassword,
+    sourceLabKeyAlias,
+    sourceLabKeyPassword,
+).all { !it.isNullOrBlank() }
+
 android {
     namespace = "com.noirero.miyorare.sourcelab"
     compileSdk = 35
@@ -29,9 +40,23 @@ android {
         )
     }
 
+    signingConfigs {
+        if (sourceLabStableSigningConfigured) {
+            create("sourceLabStable") {
+                storeFile = file(sourceLabKeystorePath!!)
+                storePassword = sourceLabStorePassword
+                keyAlias = sourceLabKeyAlias
+                keyPassword = sourceLabKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (sourceLabStableSigningConfigured) {
+                signingConfig = signingConfigs.getByName("sourceLabStable")
+            }
         }
     }
 
