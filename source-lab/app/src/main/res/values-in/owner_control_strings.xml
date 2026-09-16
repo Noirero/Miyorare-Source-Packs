@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="owner_control_title">Kontrol Owner</string>
+    <string name="owner_control_subtitle">Control plane khusus approve-only</string>
+    <string name="owner_session_missing">Tidak ada sesi owner terverifikasi yang aktif. Kembali dan login lagi.</string>
+    <string name="owner_session_denied">Kontrol owner dikunci: %1$s</string>
+    <string name="owner_candidate_loading">Memuat kandidat persetujuan otoritatif…</string>
+    <string name="owner_candidate_load_failed">Kandidat otoritatif tidak dapat dimuat: %1$s</string>
+    <string name="owner_candidate_refresh">Segarkan kandidat</string>
+    <string name="owner_candidate_title">Kandidat exact menunggu persetujuan</string>
+    <string name="owner_candidate_no_waiting">Belum ada kandidat exact berstatus WAITING_FOR_APPROVAL.</string>
+    <string name="owner_candidate_no_waiting_supporting">Ini normal sampai perubahan upstream lolos Compatibility Farm real-parser dan distage oleh lifecycle approve-only.</string>
+    <string name="owner_candidate_provider_count">%1$d kandidat provider</string>
+    <string name="owner_full_digest_label">%1$s\n%2$s</string>
+    <string name="owner_expected_lkg">LKG yang diharapkan</string>
+    <string name="owner_candidate_sha">SHA kandidat</string>
+    <string name="owner_farm_evidence_digest">SHA-256 bukti Farm</string>
+    <string name="owner_gate_evidence_digest">SHA-256 bukti gate</string>
+    <string name="owner_repair_evidence_digest">SHA-256 bukti repair</string>
+    <string name="owner_repair_evidence_count">Laporan bukti repair: %1$d</string>
+    <string name="owner_approve_warning">Approve hanya mencatat bukti persetujuan owner yang exact. Ini tidak melakukan promote, sign, release, atau publish.</string>
+    <string name="owner_approve_button">Setujui kandidat exact ini</string>
+    <string name="owner_approval_running">Mencatat persetujuan exact…</string>
+    <string name="owner_approval_done">Persetujuan exact tercatat · workflow run %1$d</string>
+    <string name="owner_approval_done_supporting">Kandidat masih harus melewati lifecycle authorization/promotion terpisah. Publish tetap diblokir.</string>
+    <string name="owner_approval_retry">Coba persetujuan lagi</string>
+    <string name="owner_open_dashboard">Buka dashboard publik</string>
+    <string name="owner_logout">Akhiri sesi owner</string>
+    <string name="owner_control_fail_closed">Jika SHA kandidat, candidateSetId, expected LKG, bukti Farm, bukti gate, bukti repair, identitas owner, atau state repository berubah, server menolak persetujuan ini.</string>
+</resources>
