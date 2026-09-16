@@ -39,6 +39,27 @@ def _sha(value: Any, name: str) -> str:
     return value.lower()
 
 
+def _digest(value: Any, name: str) -> str:
+    if not isinstance(value, str) or not HEX64.fullmatch(value.lower()):
+        raise AuthorizedPromotionError(f"{name} must be a SHA-256 digest")
+    return value.lower()
+
+
+def _validate_evidence_binding(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict) or value.get("schemaVersion") != 1:
+        raise AuthorizedPromotionError("authorization evidenceBinding schemaVersion must be 1")
+    count = value.get("repairEvidenceCount")
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise AuthorizedPromotionError("authorization repairEvidenceCount must be a non-negative integer")
+    return {
+        "schemaVersion": 1,
+        "farmEvidenceSha256": _digest(value.get("farmEvidenceSha256"), "authorization farmEvidenceSha256"),
+        "gateSha256": _digest(value.get("gateSha256"), "authorization gateSha256"),
+        "repairEvidenceSha256": _digest(value.get("repairEvidenceSha256"), "authorization repairEvidenceSha256"),
+        "repairEvidenceCount": count,
+    }
+
+
 def validate_authorization(authorization: dict[str, Any], provider: str, commit: str) -> None:
     if authorization.get("schemaVersion") != 1:
         raise AuthorizedPromotionError("authorization schemaVersion must be 1")
@@ -48,9 +69,9 @@ def validate_authorization(authorization: dict[str, Any], provider: str, commit:
         raise AuthorizedPromotionError("promotion authorization must use APPROVE_ONLY")
     if authorization.get("publishEligible") is not False:
         raise AuthorizedPromotionError("promotion authorization must not be publish eligible")
-    candidate_set_id = authorization.get("candidateSetId")
-    if not isinstance(candidate_set_id, str) or not HEX64.fullmatch(candidate_set_id):
-        raise AuthorizedPromotionError("authorization candidateSetId must be a SHA-256 digest")
+    _digest(authorization.get("candidateSetId"), "authorization candidateSetId")
+    _digest(authorization.get("gateFingerprint"), "authorization gateFingerprint")
+    _validate_evidence_binding(authorization.get("evidenceBinding"))
     if authorization.get("provider") != provider:
         raise AuthorizedPromotionError("authorization provider does not match requested provider")
     requested = _sha(commit, "requested promotion commit")
@@ -99,6 +120,8 @@ def apply_authorized_promotion(
         "previousLastKnownGood": expected,
         "commit": target,
         "approvedBy": authorization["approvedBy"],
+        "gateFingerprint": authorization["gateFingerprint"],
+        "evidenceBinding": deepcopy(authorization["evidenceBinding"]),
         "publishEligible": False,
     }
     return updated, receipt
