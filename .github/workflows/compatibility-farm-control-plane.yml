@@ -23,6 +23,8 @@ on:
       - 'tests/test_candidate_lifecycle.py'
       - 'tests/test_authorized_promotion.py'
       - 'tests/test_upstream_promote_guard.py'
+      - 'tests/test_upstream_workflow_guard.py'
+      - '.github/workflows/upstream-sync.yml'
       - '.github/workflows/compatibility-farm-control-plane.yml'
   pull_request:
     branches:
@@ -46,6 +48,8 @@ on:
       - 'tests/test_candidate_lifecycle.py'
       - 'tests/test_authorized_promotion.py'
       - 'tests/test_upstream_promote_guard.py'
+      - 'tests/test_upstream_workflow_guard.py'
+      - '.github/workflows/upstream-sync.yml'
       - '.github/workflows/compatibility-farm-control-plane.yml'
 
 permissions:
@@ -106,6 +110,7 @@ jobs:
           tests.test_candidate_lifecycle
           tests.test_authorized_promotion
           tests.test_upstream_promote_guard
+          tests.test_upstream_workflow_guard
 
       - name: Upload control-plane evidence
         if: always()
