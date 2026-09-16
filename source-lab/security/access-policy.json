@@ -1,7 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "publicViewer": true,
   "repository": "Noirero/Miyorare-Source-Packs",
+  "repositoryId": 1367256631,
   "owner": {
     "githubUserId": 149634319,
     "displayLogin": "Noirero"
@@ -15,9 +16,38 @@
   ],
   "requirements": {
     "exactNumericUserId": true,
+    "exactRepositoryId": true,
     "minimumRepositoryPermission": "admin",
     "backendAuthorizationRequired": true,
+    "backendAuthorizationShortLived": true,
+    "actionCapabilitiesExplicit": true,
     "defaultDeny": true,
     "embeddedWriteTokenForbidden": true
-  }
+  },
+  "backendProof": {
+    "issuer": "https://token.actions.githubusercontent.com",
+    "workflow": ".github/workflows/source-lab-backend-authorization.yml",
+    "ref": "refs/heads/main",
+    "event": "workflow_dispatch",
+    "audiencePrefix": "miyorare-source-lab:",
+    "challengeEncoding": "32-byte-lowercase-hex",
+    "requiredSignedClaims": [
+      "iss",
+      "aud",
+      "sub",
+      "actor_id",
+      "repository",
+      "repository_id",
+      "repository_owner_id",
+      "event_name",
+      "ref",
+      "workflow",
+      "workflow_ref",
+      "run_id",
+      "iat",
+      "nbf",
+      "exp"
+    ]
+  },
+  "p0Capabilities": []
 }
