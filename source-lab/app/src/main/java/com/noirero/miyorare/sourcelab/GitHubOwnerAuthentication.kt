@@ -31,7 +31,7 @@ internal class GitHubOwnerAuthenticationException(
  *
  * The GitHub App client id is public configuration. Source Lab prefers the
  * client id embedded at build time and only uses the text field as a recovery
- * override. It deliberately does not discover the app by a guessed slug.
+ * fallback. It deliberately does not discover the app by a guessed slug.
  *
  * The returned user access token is kept in memory only and is never written
  * to SharedPreferences, files, logs, or the APK.
@@ -41,12 +41,45 @@ internal object GitHubOwnerAuthentication {
     private const val tokenEndpoint = "https://github.com/login/oauth/access_token"
     private const val apiBase = "https://api.github.com"
 
-    internal fun resolveClientId(configuredClientId: String): String {
-        val manual = configuredClientId.trim()
-        val embedded = BuildConfig.SOURCE_LAB_GITHUB_CLIENT_ID.trim()
-        val candidate = manual.ifBlank { embedded }
-        validateClientId(candidate)
-        return candidate
+    internal fun resolveClientId(configuredClientId: String): String = selectClientId(
+        embeddedClientId = BuildConfig.SOURCE_LAB_GITHUB_CLIENT_ID,
+        recoveryClientId = configuredClientId,
+    )
+
+    internal fun selectClientId(
+        embeddedClientId: String,
+        recoveryClientId: String,
+    ): String {
+        val embedded = embeddedClientId.trim()
+        val recovery = recoveryClientId.trim()
+
+        if (embedded.isNotBlank()) {
+            try {
+                validateClientId(embedded)
+                return embedded
+            } catch (embeddedError: GitHubOwnerAuthenticationException) {
+                if (recovery.isBlank()) throw embeddedError
+            }
+        }
+
+        validateClientId(recovery)
+        return recovery
+    }
+
+    internal fun normalizeRecoveryClientId(clientId: String): String {
+        val value = clientId.trim()
+        if (value.isBlank()) return ""
+        if (value == SourceLabAccessPolicy.installationId.toString()) return ""
+        if (value == SourceLabAccessPolicy.githubAppId.toString()) return ""
+        if (value.all(Char::isDigit)) return ""
+        return value
+    }
+
+    internal fun isValidClientId(clientId: String): Boolean = try {
+        validateClientId(clientId)
+        true
+    } catch (_: GitHubOwnerAuthenticationException) {
+        false
     }
 
     internal fun validateClientId(clientId: String) {
