@@ -12,9 +12,15 @@ on:
       - 'tools/compatibility_contract.py'
       - 'tools/parser_family_plan.py'
       - 'tools/candidate_gate.py'
+      - 'tools/approval_state.py'
+      - 'tools/candidate_lifecycle.py'
+      - 'tools/authorized_promotion.py'
       - 'tests/test_compatibility_contract.py'
       - 'tests/test_parser_family_plan.py'
       - 'tests/test_candidate_gate.py'
+      - 'tests/test_approval_state.py'
+      - 'tests/test_candidate_lifecycle.py'
+      - 'tests/test_authorized_promotion.py'
       - '.github/workflows/compatibility-farm-control-plane.yml'
   pull_request:
     branches:
@@ -27,9 +33,15 @@ on:
       - 'tools/compatibility_contract.py'
       - 'tools/parser_family_plan.py'
       - 'tools/candidate_gate.py'
+      - 'tools/approval_state.py'
+      - 'tools/candidate_lifecycle.py'
+      - 'tools/authorized_promotion.py'
       - 'tests/test_compatibility_contract.py'
       - 'tests/test_parser_family_plan.py'
       - 'tests/test_candidate_gate.py'
+      - 'tests/test_approval_state.py'
+      - 'tests/test_candidate_lifecycle.py'
+      - 'tests/test_authorized_promotion.py'
       - '.github/workflows/compatibility-farm-control-plane.yml'
 
 permissions:
@@ -41,7 +53,7 @@ concurrency:
 
 jobs:
   validate-control-plane:
-    name: Validate declarative planner and approve-only gate
+    name: Validate declarative planner and approve-only lifecycle
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -53,6 +65,9 @@ jobs:
           tools/compatibility_contract.py
           tools/parser_family_plan.py
           tools/candidate_gate.py
+          tools/approval_state.py
+          tools/candidate_lifecycle.py
+          tools/authorized_promotion.py
 
       - name: Validate approve-only contract
         run: python3 tools/compatibility_contract.py validate --contract compatibility/contract.json
@@ -76,12 +91,15 @@ jobs:
               --output "build/parser-plan-${provider}.json"
           done
 
-      - name: Run control-plane unit tests
+      - name: Run control-plane and approve-only lifecycle unit tests
         run: >-
           python3 -m unittest -v
           tests.test_compatibility_contract
           tests.test_parser_family_plan
           tests.test_candidate_gate
+          tests.test_approval_state
+          tests.test_candidate_lifecycle
+          tests.test_authorized_promotion
 
       - name: Upload control-plane evidence
         if: always()
