@@ -18,7 +18,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,16 +50,6 @@ internal fun OwnerAuthorizationCard(
     onSessionChanged: (OwnerAccessSession?) -> Unit,
 ) {
     val context = LocalContext.current
-    val preferences = remember {
-        context.getSharedPreferences("source_lab_public_config", Context.MODE_PRIVATE)
-    }
-    val storedClientId = remember {
-        preferences.getString("github_app_client_id", "").orEmpty()
-    }
-    val normalizedStoredClientId = remember(storedClientId) {
-        GitHubOwnerAuthentication.normalizeRecoveryClientId(storedClientId)
-    }
-    var clientId by remember { mutableStateOf(normalizedStoredClientId) }
     var state by remember { mutableStateOf<OwnerAuthorizationUiState>(OwnerAuthorizationUiState.Idle) }
     val busy = state is OwnerAuthorizationUiState.AuthorizingBackend ||
         state is OwnerAuthorizationUiState.WaitingForGitHub
@@ -68,14 +57,14 @@ internal fun OwnerAuthorizationCard(
         GitHubOwnerAuthentication.isValidClientId(BuildConfig.SOURCE_LAB_GITHUB_CLIENT_ID)
     }
 
-    LaunchedEffect(storedClientId, normalizedStoredClientId) {
-        if (storedClientId.trim() != normalizedStoredClientId) {
-            if (normalizedStoredClientId.isBlank()) {
-                preferences.edit().remove("github_app_client_id").apply()
-            } else {
-                preferences.edit().putString("github_app_client_id", normalizedStoredClientId).apply()
-            }
-        }
+    // v0.1.4 and older could persist a recovery value in SharedPreferences.
+    // Official builds no longer accept a manually entered Client ID, so remove
+    // stale App/Installation IDs once and keep owner login deterministic.
+    LaunchedEffect(Unit) {
+        context.getSharedPreferences("source_lab_public_config", Context.MODE_PRIVATE)
+            .edit()
+            .remove("github_app_client_id")
+            .apply()
     }
 
     Card(
@@ -94,31 +83,21 @@ internal fun OwnerAuthorizationCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            if (embeddedClientIdAvailable) {
-                Text(
-                    text = stringResource(R.string.github_client_id_embedded_supporting),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            } else {
-                OutlinedTextField(
-                    value = clientId,
-                    onValueChange = { value ->
-                        clientId = value.trim()
-                        preferences.edit().putString("github_app_client_id", clientId).apply()
-                        if (state is OwnerAuthorizationUiState.Failed) {
-                            state = OwnerAuthorizationUiState.Idle
-                        }
+            Text(
+                text = stringResource(
+                    if (embeddedClientIdAvailable) {
+                        R.string.github_client_id_embedded_ready
+                    } else {
+                        R.string.github_client_id_build_missing
                     },
-                    enabled = !busy,
-                    singleLine = true,
-                    label = { Text(stringResource(R.string.github_client_id)) },
-                    supportingText = {
-                        Text(stringResource(R.string.github_client_id_supporting))
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+                ),
+                color = if (embeddedClientIdAvailable) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.error
+                },
+                style = MaterialTheme.typography.bodySmall,
+            )
 
             when (val current = state) {
                 OwnerAuthorizationUiState.Idle -> {
@@ -127,7 +106,7 @@ internal fun OwnerAuthorizationCard(
                             operationScope.launch {
                                 onSessionChanged(null)
                                 try {
-                                    val resolvedClientId = GitHubOwnerAuthentication.resolveClientId(clientId)
+                                    val resolvedClientId = GitHubOwnerAuthentication.resolveClientId("")
                                     val code = GitHubOwnerAuthentication.requestDeviceCode(resolvedClientId)
                                     copyUserCode(context, code.userCode)
                                     state = OwnerAuthorizationUiState.WaitingForGitHub(code)
@@ -159,6 +138,7 @@ internal fun OwnerAuthorizationCard(
                                 }
                             }
                         },
+                        enabled = embeddedClientIdAvailable && !busy,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(stringResource(R.string.connect_github_owner))
