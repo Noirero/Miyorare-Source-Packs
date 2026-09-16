@@ -9,7 +9,7 @@ on:
         default: ''
         type: string
       github_client_id:
-        description: Public GitHub App Client ID (for example Iv1.xxxxx). Leave blank when SOURCE_LAB_GITHUB_CLIENT_ID repository variable is already configured.
+        description: Optional public GitHub App Client ID override. Leave blank to use the official Source Lab Client ID embedded in source.
         required: false
         default: ''
         type: string
@@ -23,6 +23,7 @@ concurrency:
 
 env:
   SOURCE_LAB_RELEASE_REF: source-lab-owner-access-temp
+  SOURCE_LAB_OFFICIAL_GITHUB_CLIENT_ID: Iv23lijwK22xASXNEBkP
 
 jobs:
   stable-release:
@@ -84,10 +85,13 @@ jobs:
           if [ -z "$CLIENT_ID" ]; then
             CLIENT_ID="${REPOSITORY_CLIENT_ID:-}"
           fi
+          if [ -z "$CLIENT_ID" ]; then
+            CLIENT_ID="$SOURCE_LAB_OFFICIAL_GITHUB_CLIENT_ID"
+          fi
           CLIENT_ID="$(printf '%s' "$CLIENT_ID" | xargs)"
 
           if [ -z "$CLIENT_ID" ]; then
-            echo "::error::Official Source Lab release requires the public GitHub App Client ID. Set repository variable SOURCE_LAB_GITHUB_CLIENT_ID or provide github_client_id when running this workflow."
+            echo "::error::Official Source Lab release has no GitHub App Client ID configured."
             exit 1
           elif [[ "$CLIENT_ID" =~ ^[0-9]+$ ]]; then
             echo "::error::GitHub App Client ID must not be numeric. Do not use App ID or Installation ID."
@@ -97,6 +101,9 @@ jobs:
             exit 1
           fi
 
+          if [ "$CLIENT_ID" != "$SOURCE_LAB_OFFICIAL_GITHUB_CLIENT_ID" ]; then
+            echo "::warning::Building with an explicit Client ID override instead of the Source Lab official Client ID."
+          fi
           echo "SOURCE_LAB_GITHUB_CLIENT_ID=$CLIENT_ID" >> "$GITHUB_ENV"
           echo "Official Source Lab GitHub App Client ID is configured for this build."
 
