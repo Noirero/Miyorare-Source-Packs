@@ -1,4 +1,4 @@
-name: Source Lab CI
+name: Source Lab CI (Internal)
 
 on:
   push:
@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  debug-build:
+  internal-debug-check:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -62,62 +62,28 @@ jobs:
         env:
           SOURCE_LAB_GITHUB_CLIENT_ID: ${{ vars.SOURCE_LAB_GITHUB_CLIENT_ID }}
         run: |
+          set -euo pipefail
           if [ -z "${SOURCE_LAB_GITHUB_CLIENT_ID:-}" ]; then
-            echo "::warning::SOURCE_LAB_GITHUB_CLIENT_ID repository variable is not configured. Owner login will require the recovery Client ID field."
+            echo "::warning::SOURCE_LAB_GITHUB_CLIENT_ID repository variable is not configured. Internal debug builds will require the recovery Client ID field."
           elif [[ "$SOURCE_LAB_GITHUB_CLIENT_ID" =~ ^[0-9]+$ ]]; then
             echo "::error::SOURCE_LAB_GITHUB_CLIENT_ID must be the GitHub App Client ID, not a numeric App/Installation ID."
             exit 1
+          elif [[ ! "$SOURCE_LAB_GITHUB_CLIENT_ID" =~ ^[A-Za-z0-9._-]{10,128}$ ]]; then
+            echo "::error::SOURCE_LAB_GITHUB_CLIENT_ID has an invalid format."
+            exit 1
           else
-            echo "Source Lab GitHub App Client ID is configured as public build configuration."
+            echo "Source Lab GitHub App Client ID is valid public build configuration."
           fi
 
-      - name: Test, lint and assemble Source Lab debug APK
+      - name: Run internal debug checks
         env:
           SOURCE_LAB_GITHUB_CLIENT_ID: ${{ vars.SOURCE_LAB_GITHUB_CLIENT_ID }}
         run: gradle -p source-lab :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --stacktrace
 
-      - name: Upload Source Lab debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: miyorare-source-lab-debug
-          path: source-lab/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Validate stable Source Lab signing configuration
-        if: ${{ github.event_name == 'push' && vars.SOURCE_LAB_STABLE_SIGNING_ENABLED == 'true' }}
+      - name: Mark debug build as internal only
         shell: bash
-        env:
-          SOURCE_LAB_KEYSTORE_BASE64: ${{ secrets.SOURCE_LAB_KEYSTORE_BASE64 }}
-          SOURCE_LAB_STORE_PASSWORD: ${{ secrets.SOURCE_LAB_STORE_PASSWORD }}
-          SOURCE_LAB_KEY_ALIAS: ${{ secrets.SOURCE_LAB_KEY_ALIAS }}
-          SOURCE_LAB_KEY_PASSWORD: ${{ secrets.SOURCE_LAB_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          for name in SOURCE_LAB_KEYSTORE_BASE64 SOURCE_LAB_STORE_PASSWORD SOURCE_LAB_KEY_ALIAS SOURCE_LAB_KEY_PASSWORD; do
-            if [ -z "${!name:-}" ]; then
-              echo "::error::$name is required when SOURCE_LAB_STABLE_SIGNING_ENABLED=true"
-              exit 1
-            fi
-          done
-          printf '%s' "$SOURCE_LAB_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/source-lab-release.jks"
-          chmod 600 "$RUNNER_TEMP/source-lab-release.jks"
-
-      - name: Assemble stable signed Source Lab APK
-        if: ${{ github.event_name == 'push' && vars.SOURCE_LAB_STABLE_SIGNING_ENABLED == 'true' }}
-        env:
-          SOURCE_LAB_GITHUB_CLIENT_ID: ${{ vars.SOURCE_LAB_GITHUB_CLIENT_ID }}
-          SOURCE_LAB_KEYSTORE_PATH: ${{ runner.temp }}/source-lab-release.jks
-          SOURCE_LAB_STORE_PASSWORD: ${{ secrets.SOURCE_LAB_STORE_PASSWORD }}
-          SOURCE_LAB_KEY_ALIAS: ${{ secrets.SOURCE_LAB_KEY_ALIAS }}
-          SOURCE_LAB_KEY_PASSWORD: ${{ secrets.SOURCE_LAB_KEY_PASSWORD }}
-        run: gradle -p source-lab :app:assembleRelease --stacktrace
-
-      - name: Upload stable signed Source Lab APK
-        if: ${{ github.event_name == 'push' && vars.SOURCE_LAB_STABLE_SIGNING_ENABLED == 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: miyorare-source-lab-stable-signed
-          path: source-lab/app/build/outputs/apk/release/app-release.apk
-          if-no-files-found: error
-          retention-days: 14
+          test -s source-lab/app/build/outputs/apk/debug/app-debug.apk
+          echo "Internal CI completed. Debug APK is intentionally not uploaded or published."
+          echo "Only Source Lab Stable Release may publish the official APK."
