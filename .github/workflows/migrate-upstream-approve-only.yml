@@ -23,7 +23,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
+          python3 - <<'MIGRATE_PY'
           from pathlib import Path
 
           path = Path('.github/workflows/upstream-sync.yml')
@@ -56,14 +56,14 @@ jobs:
 
       - name: Build fail-closed candidate handoff
         env:
-          KEI_CHANGED: ${{ needs.plan.outputs.keiyoushi_changed }}
-          KEI_RESULT: ${{ needs.validate-keiyoushi.result }}
-          UMA_CHANGED: ${{ needs.plan.outputs.uma_changed }}
-          UMA_RESULT: ${{ needs.validate-uma.result }}
-          GEK_CHANGED: ${{ needs.plan.outputs.gekkoushi_changed }}
-          GEK_GUARD_RESULT: ${{ needs.gekkoushi-overlay-guard.result }}
-          GEK_RESULT: ${{ needs.validate-gekkoushi.result }}
-          INTEGRATION_RESULT: ${{ needs.integration.result }}
+          KEI_CHANGED: GH{{ needs.plan.outputs.keiyoushi_changed }}
+          KEI_RESULT: GH{{ needs.validate-keiyoushi.result }}
+          UMA_CHANGED: GH{{ needs.plan.outputs.uma_changed }}
+          UMA_RESULT: GH{{ needs.validate-uma.result }}
+          GEK_CHANGED: GH{{ needs.plan.outputs.gekkoushi_changed }}
+          GEK_GUARD_RESULT: GH{{ needs.gekkoushi-overlay-guard.result }}
+          GEK_RESULT: GH{{ needs.validate-gekkoushi.result }}
+          INTEGRATION_RESULT: GH{{ needs.integration.result }}
         shell: bash
         run: |
           set -euo pipefail
@@ -105,8 +105,9 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 '''
+          replacement = replacement.replace('GH{{', chr(36) + '{{')
           path.write_text(prefix + replacement, encoding='utf-8')
-          PY
+          MIGRATE_PY
 
       - name: Prove direct promotion and release dispatch are gone
         shell: bash
@@ -132,6 +133,6 @@ jobs:
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add .github/workflows/upstream-sync.yml
+          git add -A
           git commit -m 'Replace legacy auto-promotion with approve-only candidate handoff'
           git push origin HEAD:compatibility-farm-foundation
