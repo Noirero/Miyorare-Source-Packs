@@ -1,8 +1,13 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "publicViewer": true,
   "repository": "Noirero/Miyorare-Source-Packs",
   "repositoryId": 1367256631,
+  "githubApp": {
+    "appId": 4959004,
+    "installationId": 162045953,
+    "deviceFlowEnabled": true
+  },
   "owner": {
     "githubUserId": 149634319,
     "displayLogin": "Noirero"
@@ -16,13 +21,17 @@
   ],
   "requirements": {
     "exactNumericUserId": true,
+    "exactGitHubAppId": true,
+    "exactInstallationId": true,
     "exactRepositoryId": true,
     "minimumRepositoryPermission": "admin",
     "backendAuthorizationRequired": true,
     "backendAuthorizationShortLived": true,
     "actionCapabilitiesExplicit": true,
     "defaultDeny": true,
-    "embeddedWriteTokenForbidden": true
+    "embeddedWriteTokenForbidden": true,
+    "embeddedPrivateKeyForbidden": true,
+    "embeddedClientSecretForbidden": true
   },
   "backendProof": {
     "issuer": "https://token.actions.githubusercontent.com",
