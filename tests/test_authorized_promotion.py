@@ -1,5 +1,6 @@
 import importlib.util
 import unittest
+from copy import deepcopy
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,6 +36,14 @@ def authorization(**overrides):
         "expectedCurrent": A,
         "commit": B,
         "approvedBy": "Noirero",
+        "gateFingerprint": "d" * 64,
+        "evidenceBinding": {
+            "schemaVersion": 1,
+            "farmEvidenceSha256": "1" * 64,
+            "gateSha256": "2" * 64,
+            "repairEvidenceSha256": "3" * 64,
+            "repairEvidenceCount": 2,
+        },
         "publishEligible": False,
     }
     value.update(overrides)
@@ -43,10 +52,12 @@ def authorization(**overrides):
 
 class AuthorizedPromotionTests(unittest.TestCase):
     def test_exact_authorization_promotes_without_publish_eligibility(self):
-        updated, receipt = M.apply_authorized_promotion(registry(), authorization(), "uma", B)
+        auth = authorization()
+        updated, receipt = M.apply_authorized_promotion(registry(), auth, "uma", B)
         self.assertEqual(B, updated["providers"]["uma"]["lastKnownGood"])
         self.assertEqual(B, updated["providers"]["uma"]["upstreamBase"])
         self.assertEqual(A, receipt["previousLastKnownGood"])
+        self.assertEqual(auth["evidenceBinding"], receipt["evidenceBinding"])
         self.assertFalse(receipt["publishEligible"])
 
     def test_missing_authorization_is_rejected(self):
@@ -75,6 +86,17 @@ class AuthorizedPromotionTests(unittest.TestCase):
     def test_candidate_set_id_must_be_digest(self):
         with self.assertRaisesRegex(M.AuthorizedPromotionError, "candidateSetId"):
             M.apply_authorized_promotion(registry(), authorization(candidateSetId="bad"), "uma", B)
+
+    def test_evidence_binding_is_required(self):
+        with self.assertRaisesRegex(M.AuthorizedPromotionError, "evidenceBinding"):
+            M.apply_authorized_promotion(registry(), authorization(evidenceBinding=None), "uma", B)
+
+    def test_tampered_evidence_digest_is_rejected(self):
+        auth = authorization()
+        tampered = deepcopy(auth["evidenceBinding"])
+        tampered["repairEvidenceSha256"] = "bad"
+        with self.assertRaisesRegex(M.AuthorizedPromotionError, "repairEvidenceSha256"):
+            M.apply_authorized_promotion(registry(), authorization(evidenceBinding=tampered), "uma", B)
 
     def test_authorization_replay_is_rejected(self):
         promoted = registry()
