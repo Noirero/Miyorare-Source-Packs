@@ -53,6 +53,31 @@ jobs:
           [[ "$GATE_SHA256" =~ ^[0-9a-f]{64}$ ]]
           [[ "$REPAIR_EVIDENCE_SHA256" =~ ^[0-9a-f]{64}$ ]]
 
+      - name: Reject an already-approved candidate set
+        uses: actions/github-script@v8
+        env:
+          CANDIDATE_SET_ID: ${{ inputs.candidate_set_id }}
+        with:
+          script: |
+            const { owner, repo } = context.repo
+            const expectedTitle = `Source Lab approve ${process.env.CANDIDATE_SET_ID}`
+            const response = await github.rest.actions.listWorkflowRuns({
+              owner,
+              repo,
+              workflow_id: 'source-lab-approve-candidate.yml',
+              event: 'workflow_dispatch',
+              branch: 'main',
+              per_page: 100,
+            })
+            const replay = response.data.workflow_runs.find(run =>
+              run.id !== context.runId &&
+              run.display_title === expectedTitle &&
+              run.conclusion === 'success'
+            )
+            if (replay) {
+              core.setFailed(`approval replay rejected; candidate was already approved by run ${replay.id}`)
+            }
+
       - name: Checkout authoritative Compatibility Farm foundation
         uses: actions/checkout@v5
         with:
@@ -104,7 +129,10 @@ jobs:
           providers = status.get('providers')
           if not isinstance(providers, dict):
               raise SystemExit('status.providers is invalid')
-          for provider, item in pending.get('providers', {}).items():
+          pending_providers = pending.get('providers')
+          if not isinstance(pending_providers, dict) or not pending_providers:
+              raise SystemExit('pending approval has no providers')
+          for provider, item in pending_providers.items():
               state = providers.get(provider)
               if not isinstance(state, dict):
                   raise SystemExit(f'provider {provider} disappeared from status')
