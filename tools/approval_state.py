@@ -3,8 +3,8 @@
 
 This module deliberately does not mutate upstream registry state, sign artifacts, publish,
 or promote last-known-good revisions. It stages an exact validated candidate set, records an
-explicit approval bound to that set, and emits promotion authorization only when the registry
-and candidate SHAs are still unchanged.
+explicit approval bound to that set, and emits promotion authorization only when the registry,
+candidate SHAs, and authoritative evidence bindings are still unchanged.
 """
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import re
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +45,30 @@ def _sha(value: Any, name: str) -> str:
     return value.lower()
 
 
+def _digest64(value: Any, name: str) -> str:
+    if not isinstance(value, str) or not HEX64.fullmatch(value.lower()):
+        raise ApprovalStateError(f"{name} must be a SHA-256 digest")
+    return value.lower()
+
+
+def validate_evidence_binding(binding: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(binding, dict):
+        raise ApprovalStateError("evidence binding must be an object")
+    if binding.get("schemaVersion") != 1:
+        raise ApprovalStateError("evidence binding schemaVersion must be 1")
+    normalized = {
+        "schemaVersion": 1,
+        "farmEvidenceSha256": _digest64(binding.get("farmEvidenceSha256"), "evidence farmEvidenceSha256"),
+        "gateSha256": _digest64(binding.get("gateSha256"), "evidence gateSha256"),
+        "repairEvidenceSha256": _digest64(binding.get("repairEvidenceSha256"), "evidence repairEvidenceSha256"),
+    }
+    repair_count = binding.get("repairEvidenceCount")
+    if not isinstance(repair_count, int) or isinstance(repair_count, bool) or repair_count < 0:
+        raise ApprovalStateError("evidence repairEvidenceCount must be a non-negative integer")
+    normalized["repairEvidenceCount"] = repair_count
+    return normalized
+
+
 def validate_waiting_gate(gate: dict[str, Any]) -> None:
     expected = {
         "maintenanceMode": "APPROVE_ONLY",
@@ -70,8 +95,14 @@ def validate_waiting_gate(gate: dict[str, Any]) -> None:
         raise ApprovalStateError("candidate gate requires full provider membership coverage")
 
 
-def build_pending(registry: dict[str, Any], plan: dict[str, Any], gate: dict[str, Any]) -> dict[str, Any]:
+def build_pending(
+    registry: dict[str, Any],
+    plan: dict[str, Any],
+    gate: dict[str, Any],
+    evidence_binding: dict[str, Any],
+) -> dict[str, Any]:
     validate_waiting_gate(gate)
+    binding = validate_evidence_binding(evidence_binding)
     if plan.get("schema") != 1 or not isinstance(plan.get("providers"), dict):
         raise ApprovalStateError("sync plan schema/providers are invalid")
     registry_providers = registry.get("providers")
@@ -110,6 +141,7 @@ def build_pending(registry: dict[str, Any], plan: dict[str, Any], gate: dict[str
             for provider, item in candidates.items()
         },
         "gateFingerprint": gate_fingerprint,
+        "evidenceBinding": binding,
     }
     candidate_set_id = _digest(identity)
     return {
@@ -118,6 +150,7 @@ def build_pending(registry: dict[str, Any], plan: dict[str, Any], gate: dict[str
         "state": "WAITING_FOR_APPROVAL",
         "candidateSetId": candidate_set_id,
         "gateFingerprint": gate_fingerprint,
+        "evidenceBinding": binding,
         "providers": candidates,
         "ownerActionRequired": False,
         "publishEligible": False,
@@ -149,9 +182,16 @@ def validate_pending(pending: dict[str, Any]) -> None:
     gate_fingerprint = pending.get("gateFingerprint")
     if not isinstance(gate_fingerprint, str) or not HEX64.fullmatch(gate_fingerprint):
         raise ApprovalStateError("pending gateFingerprint must be a SHA-256 digest")
-    expected_id = _digest({"providers": identity_providers, "gateFingerprint": gate_fingerprint})
+    binding = validate_evidence_binding(pending.get("evidenceBinding"))
+    expected_id = _digest(
+        {
+            "providers": identity_providers,
+            "gateFingerprint": gate_fingerprint,
+            "evidenceBinding": binding,
+        }
+    )
     if candidate_set_id != expected_id:
-        raise ApprovalStateError("pending candidateSetId does not match candidate contents")
+        raise ApprovalStateError("pending candidateSetId does not match candidate contents or evidence")
 
 
 def approve_pending(pending: dict[str, Any], candidate_set_id: str, actor: str) -> dict[str, Any]:
@@ -166,6 +206,8 @@ def approve_pending(pending: dict[str, Any], candidate_set_id: str, actor: str) 
         "approvalState": "APPROVED",
         "candidateSetId": pending["candidateSetId"],
         "approvedBy": actor.strip(),
+        "gateFingerprint": pending["gateFingerprint"],
+        "evidenceBinding": deepcopy(pending["evidenceBinding"]),
         "providers": {
             provider: item["candidate"] for provider, item in sorted(pending["providers"].items())
         },
@@ -187,6 +229,10 @@ def authorize_promotion(
         raise ApprovalStateError("approval proof must use APPROVE_ONLY")
     if approval.get("candidateSetId") != pending["candidateSetId"]:
         raise ApprovalStateError("approval proof belongs to a different candidate set")
+    if approval.get("gateFingerprint") != pending["gateFingerprint"]:
+        raise ApprovalStateError("approval gate fingerprint does not match pending candidate")
+    if approval.get("evidenceBinding") != pending["evidenceBinding"]:
+        raise ApprovalStateError("approval evidence binding does not match pending candidate")
     approved_by = approval.get("approvedBy")
     if not isinstance(approved_by, str) or not approved_by:
         raise ApprovalStateError("approval proof is missing approvedBy")
@@ -217,6 +263,8 @@ def authorize_promotion(
         "expectedCurrent": item["current"],
         "commit": requested,
         "approvedBy": approved_by,
+        "gateFingerprint": pending["gateFingerprint"],
+        "evidenceBinding": deepcopy(pending["evidenceBinding"]),
         "publishEligible": False,
     }
 
@@ -233,6 +281,7 @@ def build_parser() -> argparse.ArgumentParser:
     stage.add_argument("--registry", required=True)
     stage.add_argument("--plan", required=True)
     stage.add_argument("--gate", required=True)
+    stage.add_argument("--evidence-binding", required=True)
     stage.add_argument("--output", required=True, type=Path)
     approve = sub.add_parser("approve")
     approve.add_argument("--pending", required=True)
@@ -253,7 +302,12 @@ def main() -> int:
     args = build_parser().parse_args()
     try:
         if args.command == "stage":
-            value = build_pending(load_json(args.registry), load_json(args.plan), load_json(args.gate))
+            value = build_pending(
+                load_json(args.registry),
+                load_json(args.plan),
+                load_json(args.gate),
+                load_json(args.evidence_binding),
+            )
         elif args.command == "approve":
             value = approve_pending(load_json(args.pending), args.candidate_set_id, args.actor)
         elif args.command == "authorize":
