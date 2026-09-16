@@ -7,8 +7,9 @@
     <string name="continue_as_viewer">Continue as Viewer</string>
     <string name="owner_access_title">Owner Mode</string>
     <string name="owner_access_supporting">GitHub Device Flow verifies the exact owner, GitHub App installation, repository permission, and then the short-lived backend authorization proof.</string>
-    <string name="github_client_id">GitHub App client ID</string>
-    <string name="github_client_id_supporting">Normally discovered automatically. This field is only a recovery override and is not a secret.</string>
+    <string name="github_client_id">GitHub App Client ID · recovery</string>
+    <string name="github_client_id_supporting">Leave this empty when the APK already contains the public Client ID. Do not enter the App ID or Installation ID; a GitHub Client ID is not numeric.</string>
+    <string name="github_client_id_embedded_supporting">The APK already contains the public Client ID. Leave this empty normally; use it only as a recovery override.</string>
     <string name="connect_github_owner">Verify Owner with GitHub</string>
     <string name="github_device_code_copied">GitHub code copied to the clipboard.</string>
     <string name="github_waiting_authorization">Complete authorization in GitHub. Source Lab will continue automatically when GitHub confirms it.</string>
@@ -21,4 +22,10 @@
     <string name="owner_token_memory_only">The GitHub user token is kept in memory only. No client secret, private key, or write token is embedded in the APK.</string>
     <string name="opening_source_lab_dashboard">Authorization complete. Opening Source Lab…</string>
     <string name="owner_gate_capability_boundary">Owner identity and backend authorization do not automatically unlock Run Farm, Approve, Promote, Sign, or Publish. Each action stays fail-closed until its dedicated capability wiring is complete.</string>
+    <string name="error_client_id_not_configured">This build does not have a GitHub App Client ID configured yet. Add the real public Client ID, not an App ID or Installation ID.</string>
+    <string name="error_client_id_is_installation_id">The value entered is the Source Lab Installation ID, not the GitHub App Client ID. Installation ID 162045953 must never be sent to GitHub Device Flow as a client ID.</string>
+    <string name="error_client_id_is_app_id">The value entered is the numeric GitHub App ID, not the Client ID. Device Flow requires the public Client ID.</string>
+    <string name="error_client_id_invalid">The GitHub Client ID is invalid. A Client ID is an alphanumeric public identifier and is not a numeric App/Installation ID.</string>
+    <string name="error_device_flow_endpoint">GitHub Device Flow returned an unexpected endpoint error. Source Lab no longer uses GitHub App slug discovery.</string>
+    <string name="error_owner_generic">GitHub owner authorization failed. The security gate remains closed; retry after checking the Client ID and GitHub App configuration.</string>
 </resources>
