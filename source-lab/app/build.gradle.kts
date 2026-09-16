@@ -4,11 +4,18 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-val sourceLabGitHubClientId = providers.gradleProperty("SOURCE_LAB_GITHUB_CLIENT_ID")
+// GitHub App Client IDs are public identifiers. Keep the official Source Lab
+// Client ID in source so official and internal builds never fall back to an
+// Installation ID/App ID or require manual entry. A Gradle property or
+// environment variable may still override it for controlled testing.
+val sourceLabDefaultGitHubClientId = "Iv23lijwK22xASXNEBkP"
+val sourceLabConfiguredGitHubClientId = providers.gradleProperty("SOURCE_LAB_GITHUB_CLIENT_ID")
     .orElse(providers.environmentVariable("SOURCE_LAB_GITHUB_CLIENT_ID"))
-    .orElse("")
-    .get()
-    .trim()
+    .orNull
+    ?.trim()
+    .orEmpty()
+val sourceLabGitHubClientId = sourceLabConfiguredGitHubClientId
+    .ifBlank { sourceLabDefaultGitHubClientId }
     .replace("\\", "\\\\")
     .replace("\"", "\\\"")
 
