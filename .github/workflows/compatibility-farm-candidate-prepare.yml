@@ -1,0 +1,112 @@
+name: Compatibility Farm Candidate Prepare
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_run_id:
+        description: Upstream Sync run ID containing upstream-candidate-handoff
+        required: true
+        type: number
+  workflow_call:
+    inputs:
+      upstream_run_id:
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: compatibility-farm-candidate-prepare-${{ inputs.upstream_run_id }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare immutable candidate registry
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Compatibility Farm foundation
+        uses: actions/checkout@v5
+
+      - name: Download upstream candidate handoff
+        uses: actions/download-artifact@v5
+        with:
+          name: upstream-candidate-handoff
+          path: build/upstream-handoff
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.upstream_run_id }}
+
+      - name: Locate and validate handoff
+        id: handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          handoff="$(find build/upstream-handoff -type f -name candidate-handoff.json -print -quit)"
+          if [[ -z "$handoff" ]]; then
+            echo "candidate-handoff.json not found in upstream artifact" >&2
+            exit 1
+          fi
+          echo "path=$handoff" >> "$GITHUB_OUTPUT"
+
+      - name: Build ephemeral candidate registry
+        run: |
+          python3 tools/candidate_registry.py \
+            --registry compatibility/source-registry.json \
+            --handoff '${{ steps.handoff.outputs.path }}' \
+            --output build/candidate-source-registry.json
+
+      - name: Validate candidate parser family plan
+        run: >-
+          python3 tools/parser_family_plan.py
+          --registry build/candidate-source-registry.json
+          --families compatibility/parser-families.json
+          validate
+          --output build/candidate-family-plan-validation.json
+
+      - name: Emit candidate provenance
+        env:
+          UPSTREAM_RUN_ID: ${{ inputs.upstream_run_id }}
+          HANDOFF_PATH: ${{ steps.handoff.outputs.path }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          registry_path = Path('build/candidate-source-registry.json')
+          handoff_path = Path(os.environ['HANDOFF_PATH'])
+          registry = json.loads(registry_path.read_text(encoding='utf-8'))
+          provenance = {
+              'schemaVersion': 1,
+              'maintenanceMode': 'APPROVE_ONLY',
+              'state': 'CANDIDATE',
+              'approvalState': 'NOT_READY',
+              'upstreamRunId': int(os.environ['UPSTREAM_RUN_ID']),
+              'handoffSha256': hashlib.sha256(handoff_path.read_bytes()).hexdigest(),
+              'candidateRegistrySha256': hashlib.sha256(registry_path.read_bytes()).hexdigest(),
+              'providerCandidates': registry['candidateContext']['providerCandidates'],
+              'activeLastKnownGoodMutated': False,
+              'publishEligible': False,
+              'nextAction': 'RUN_REAL_PARSER_COMPATIBILITY_FARM',
+          }
+          Path('build/candidate-provenance.json').write_text(
+              json.dumps(provenance, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+
+      - name: Upload immutable candidate preparation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: compatibility-farm-candidate-prepared
+          path: |
+            build/candidate-source-registry.json
+            build/candidate-family-plan-validation.json
+            build/candidate-provenance.json
+          if-no-files-found: error
+          retention-days: 14
