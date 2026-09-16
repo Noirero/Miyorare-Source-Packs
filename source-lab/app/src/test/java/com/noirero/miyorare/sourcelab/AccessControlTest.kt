@@ -24,6 +24,20 @@ class AccessControlTest {
     }
 
     @Test
+    fun wrongGithubAppCannotControl() {
+        val decision = SourceLabAccessPolicy.evaluate(validSession(githubAppId = 1L), now)
+        assertFalse(decision.canControl)
+        assertEquals("GITHUB_APP_MISMATCH", decision.reason)
+    }
+
+    @Test
+    fun wrongInstallationCannotControl() {
+        val decision = SourceLabAccessPolicy.evaluate(validSession(installationId = 1L), now)
+        assertFalse(decision.canControl)
+        assertEquals("INSTALLATION_MISMATCH", decision.reason)
+    }
+
+    @Test
     fun ownerWithoutAdminPermissionCannotControl() {
         val decision = SourceLabAccessPolicy.evaluate(validSession(repositoryPermission = "push"), now)
         assertFalse(decision.canControl)
@@ -82,6 +96,8 @@ class AccessControlTest {
 
     private fun validSession(
         githubUserId: Long = SourceLabAccessPolicy.ownerGithubUserId,
+        githubAppId: Long = SourceLabAccessPolicy.githubAppId,
+        installationId: Long = SourceLabAccessPolicy.installationId,
         repository: String = SourceLabAccessPolicy.repository,
         repositoryPermission: String = "admin",
         backendAuthorized: Boolean = true,
@@ -90,6 +106,8 @@ class AccessControlTest {
     ) = OwnerAccessSession(
         authenticated = true,
         githubUserId = githubUserId,
+        githubAppId = githubAppId,
+        installationId = installationId,
         repository = repository,
         repositoryPermission = repositoryPermission,
         backendAuthorized = backendAuthorized,
