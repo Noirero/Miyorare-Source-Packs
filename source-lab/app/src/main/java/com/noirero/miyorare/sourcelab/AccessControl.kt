@@ -16,6 +16,8 @@ internal enum class SourceLabControlAction {
 internal data class OwnerAccessSession(
     val authenticated: Boolean,
     val githubUserId: Long?,
+    val githubAppId: Long?,
+    val installationId: Long?,
     val repository: String?,
     val repositoryPermission: String?,
     val backendAuthorized: Boolean,
@@ -31,6 +33,8 @@ internal data class AccessDecision(
 
 internal object SourceLabAccessPolicy {
     const val ownerGithubUserId: Long = 149634319L
+    const val githubAppId: Long = 4959004L
+    const val installationId: Long = 162045953L
     const val repository: String = "Noirero/Miyorare-Source-Packs"
     const val repositoryId: Long = 1367256631L
     const val minimumRepositoryPermission: String = "admin"
@@ -44,6 +48,12 @@ internal object SourceLabAccessPolicy {
         }
         if (session.githubUserId != ownerGithubUserId) {
             return deny("OWNER_ID_MISMATCH")
+        }
+        if (session.githubAppId != githubAppId) {
+            return deny("GITHUB_APP_MISMATCH")
+        }
+        if (session.installationId != installationId) {
+            return deny("INSTALLATION_MISMATCH")
         }
         if (session.repository != repository) {
             return deny("REPOSITORY_MISMATCH")
