@@ -1,6 +1,8 @@
 package com.noirero.miyorare.sourcelab
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -38,11 +40,13 @@ internal object GitHubControlPlaneClient {
     suspend fun authorizeBackend(accessToken: String): BackendAuthorizationProof {
         val challenge = randomChallenge()
         val title = "Source Lab auth $challenge"
-        dispatchWorkflow(
-            accessToken = accessToken,
-            workflow = backendAuthorizationWorkflow,
-            inputs = mapOf("challenge" to challenge),
-        )
+        withContext(Dispatchers.IO) {
+            dispatchWorkflow(
+                accessToken = accessToken,
+                workflow = backendAuthorizationWorkflow,
+                inputs = mapOf("challenge" to challenge),
+            )
+        }
         val run = awaitSuccessfulRun(accessToken, backendAuthorizationWorkflow, title)
         return BackendAuthorizationProof(challenge = challenge, workflowRunId = run.id)
     }
@@ -60,16 +64,18 @@ internal object GitHubControlPlaneClient {
         requireDigest(repairEvidenceSha256, "repairEvidenceSha256")
 
         val title = "Source Lab approve $candidateSetId"
-        dispatchWorkflow(
-            accessToken = accessToken,
-            workflow = approveWorkflow,
-            inputs = mapOf(
-                "candidate_set_id" to candidateSetId,
-                "farm_evidence_sha256" to farmEvidenceSha256,
-                "gate_sha256" to gateSha256,
-                "repair_evidence_sha256" to repairEvidenceSha256,
-            ),
-        )
+        withContext(Dispatchers.IO) {
+            dispatchWorkflow(
+                accessToken = accessToken,
+                workflow = approveWorkflow,
+                inputs = mapOf(
+                    "candidate_set_id" to candidateSetId,
+                    "farm_evidence_sha256" to farmEvidenceSha256,
+                    "gate_sha256" to gateSha256,
+                    "repair_evidence_sha256" to repairEvidenceSha256,
+                ),
+            )
+        }
         val run = awaitSuccessfulRun(accessToken, approveWorkflow, title)
         return ApprovalWorkflowReceipt(candidateSetId = candidateSetId, workflowRunId = run.id)
     }
@@ -104,7 +110,8 @@ internal object GitHubControlPlaneClient {
         expectedTitle: String,
     ): WorkflowRunState {
         repeat(60) {
-            val run = listRecentRuns(accessToken, workflow).firstOrNull { item ->
+            val runs = withContext(Dispatchers.IO) { listRecentRuns(accessToken, workflow) }
+            val run = runs.firstOrNull { item ->
                 item.displayTitle == expectedTitle &&
                     item.actorId == GitHubAppPublicConfig.ownerGithubUserId &&
                     item.headBranch == controlRef &&
