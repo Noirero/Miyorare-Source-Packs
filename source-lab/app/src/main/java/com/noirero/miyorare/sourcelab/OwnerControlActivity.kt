@@ -49,7 +49,12 @@ class OwnerControlActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             OwnerControlTheme {
-                OwnerControlScreen()
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                ) {
+                    OwnerControlScreen()
+                }
             }
         }
     }
@@ -118,7 +123,12 @@ private fun OwnerControlScreen() {
     LaunchedEffect(inventoryRefreshKey) {
         inventoryState = OwnerInventoryState.Loading
         inventoryState = try {
-            OwnerInventoryState.Ready(SourceInventoryRepository.loadInventory())
+            OwnerInventoryState.Ready(
+                SourceInventoryRepository.loadInventory(
+                    context = context,
+                    forceRefresh = inventoryRefreshKey > 0,
+                ),
+            )
         } catch (error: Throwable) {
             OwnerInventoryState.Failed(error.message ?: error.javaClass.simpleName)
         }
@@ -129,13 +139,22 @@ private fun OwnerControlScreen() {
             runningAction = action
             operationMessage = null
             try {
-                val result = SourceLabControlClient.execute(context, ready.snapshot, action)
-                operationMessage = "${action.name} · SUCCESS · run ${result.runId}"
+                if (action == SourceLabControlAction.APPROVE) {
+                    val result = SourceLabControlClient.approveAndPublish(context, ready.snapshot)
+                    operationMessage =
+                        "APPROVE → PROMOTE → SIGN → PUBLISH · SUCCESS · " +
+                            "runs ${result.approvalRunId}/${result.promotionRunId}/${result.signingRunId}/${result.publishRunId}"
+                } else {
+                    val result = SourceLabControlClient.execute(context, ready.snapshot, action)
+                    operationMessage = "${action.name} · SUCCESS · run ${result.runId}"
+                }
                 refreshKey++
             } catch (error: SourceLabControlException) {
                 operationMessage = "${action.name} · ${error.reason}"
+                refreshKey++
             } catch (error: Throwable) {
                 operationMessage = "${action.name} · ${error.message ?: error.javaClass.simpleName}"
+                refreshKey++
             } finally {
                 runningAction = null
             }
@@ -149,7 +168,9 @@ private fun OwnerControlScreen() {
             onDismissRequest = { if (runningAction == null) confirmation = null },
             title = {
                 Text(
-                    if (action == SourceLabControlAction.PUBLISH) {
+                    if (action == SourceLabControlAction.APPROVE) {
+                        "Confirm APPROVE → PUBLISH"
+                    } else if (action == SourceLabControlAction.PUBLISH) {
                         "Confirm OFFICIAL PUBLISH"
                     } else {
                         "Confirm ${action.name}"
@@ -172,10 +193,10 @@ private fun OwnerControlScreen() {
                     enabled = runningAction == null,
                 ) {
                     Text(
-                        if (action == SourceLabControlAction.PUBLISH) {
-                            "PUBLISH OFFICIAL RELEASE"
-                        } else {
-                            "CONFIRM ${action.name}"
+                        when (action) {
+                            SourceLabControlAction.APPROVE -> "APPROVE & AUTO PUBLISH"
+                            SourceLabControlAction.PUBLISH -> "PUBLISH OFFICIAL RELEASE"
+                            else -> "CONFIRM ${action.name}"
                         },
                     )
                 }
@@ -219,7 +240,10 @@ private fun OwnerControlScreen() {
                             OutlinedButton(onClick = { refreshKey++ }) { Text("Retry authorization") }
                         }
                         is OwnerDashboardState.Ready -> {
-                            Text("Backend capability proof: ${current.control.session.backendCapabilities.size}/5")
+                            Text(
+                                "Backend capability proof: ${current.control.session.backendCapabilities.size}/" +
+                                    SourceLabControlAction.entries.size,
+                            )
                             Text("Branch: ${current.snapshot.branch}")
                             OutlinedButton(
                                 onClick = {
@@ -258,23 +282,50 @@ private fun OwnerControlScreen() {
             }
             item { ExactEvidenceCard(ready.snapshot) }
             item { Text("Owner actions", fontWeight = FontWeight.Bold) }
-            items(SourceLabControlAction.entries, key = { it.name }) { action ->
+
+            items(
+                listOf(SourceLabControlAction.RUN_FARM, SourceLabControlAction.APPROVE),
+                key = { it.name },
+            ) { action ->
                 val availability = ready.control.actions.getValue(action)
                 OwnerActionCard(
                     availability = availability,
                     running = runningAction == action,
+                    label = if (action == SourceLabControlAction.APPROVE) "APPROVE & AUTO PUBLISH" else null,
                     onClick = {
-                        if (action == SourceLabControlAction.RUN_FARM) {
-                            runAction(action, ready)
-                        } else {
-                            confirmation = action
-                        }
+                        if (action == SourceLabControlAction.RUN_FARM) runAction(action, ready)
+                        else confirmation = action
                     },
                 )
             }
+
+            val recoveryActions = listOf(
+                SourceLabControlAction.PROMOTE,
+                SourceLabControlAction.SIGN,
+                SourceLabControlAction.PUBLISH,
+            ).filter { ready.control.actions.getValue(it).available }
+            if (recoveryActions.isNotEmpty()) {
+                item {
+                    Text("Recovery actions", fontWeight = FontWeight.Bold)
+                    Text(
+                        "Shown only when an automatic approval pipeline needs manual recovery.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                items(recoveryActions, key = { "recovery-${it.name}" }) { action ->
+                    OwnerActionCard(
+                        availability = ready.control.actions.getValue(action),
+                        running = runningAction == action,
+                        onClick = { confirmation = action },
+                    )
+                }
+            }
+
             item {
                 Text(
-                    "All writes, promotion, attestation, and publishing happen in GitHub Actions. " +
+                    "Normal lifecycle: RUN FARM → one Owner APPROVE → automatic PROMOTE → SIGN → PUBLISH. " +
+                        "All writes, promotion, attestation, enrollment, and publishing happen in GitHub Actions. " +
                         "The APK stores no repository write token, signing key, keystore, or signing password.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -298,7 +349,7 @@ private fun SourceInventorySummaryCard(
                 OwnerInventoryState.Loading -> {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         CircularProgressIndicator(modifier = Modifier.height(20.dp))
-                        Text("Refreshing automatic upstream inventory…")
+                        Text("Loading automatic upstream inventory…")
                     }
                 }
                 is OwnerInventoryState.Failed -> {
@@ -312,8 +363,13 @@ private fun SourceInventorySummaryCard(
                     Text("In Farm           ${summary.inFarm}")
                     Text("Not Enrolled      ${summary.notEnrolled}")
                     Text("Needs Attention   ${summary.needsAttention}")
+                    val cacheNote = when {
+                        state.snapshot.staleCacheFallback -> " · stale cache fallback"
+                        state.snapshot.fromCache -> " · cached"
+                        else -> ""
+                    }
                     Text(
-                        "${state.snapshot.branch} · informational discovery only",
+                        "${state.snapshot.branch} · ${state.snapshot.branchCommit.take(12)}$cacheNote",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -338,7 +394,7 @@ private fun LiveCycleCard(snapshot: LiveFarmSnapshot) {
                     Text("Candidate · ${snapshot.approvalCandidate.candidateSetId}", fontFamily = FontFamily.Monospace)
                 }
                 snapshot.lastPromotion != null && snapshot.lastPublish?.candidateSetId != snapshot.lastPromotion.candidateSetId -> {
-                    Text("State · PROMOTED · awaiting SIGN/PUBLISH", fontWeight = FontWeight.Bold)
+                    Text("State · PROMOTED · automatic pipeline/recovery pending", fontWeight = FontWeight.Bold)
                     Text("Candidate · ${snapshot.lastPromotion.candidateSetId}", fontFamily = FontFamily.Monospace)
                 }
                 snapshot.lastPublish != null -> {
@@ -375,9 +431,7 @@ private fun ExactEvidenceCard(snapshot: LiveFarmSnapshot) {
             } else if (promotion != null) {
                 Text("candidateSetId", style = MaterialTheme.typography.labelSmall)
                 Mono(promotion.candidateSetId)
-                promotion.providers.forEach { (provider, commit) ->
-                    Mono("${provider.uppercase()} $commit")
-                }
+                promotion.providers.forEach { (provider, commit) -> Mono("${provider.uppercase()} $commit") }
                 Mono("promotionRunId ${promotion.promotionRunId}")
                 snapshot.lastPublish?.takeIf { it.candidateSetId == promotion.candidateSetId }?.let { published ->
                     Mono("published ${published.tag}")
@@ -394,12 +448,13 @@ private fun ExactEvidenceCard(snapshot: LiveFarmSnapshot) {
 private fun OwnerActionCard(
     availability: SourceLabActionAvailability,
     running: Boolean,
+    label: String? = null,
     onClick: () -> Unit,
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(availability.action.name.replace('_', ' '), fontWeight = FontWeight.Bold)
+                Text(label ?: availability.action.name.replace('_', ' '), fontWeight = FontWeight.Bold)
                 Surface(
                     shape = RoundedCornerShape(999.dp),
                     color = if (availability.available) Color(0xFF123229) else Color(0xFF2A2024),
@@ -418,11 +473,8 @@ private fun OwnerActionCard(
                 enabled = availability.available && !running,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                if (running) {
-                    CircularProgressIndicator(modifier = Modifier.height(20.dp))
-                } else {
-                    Text(availability.action.name.replace('_', ' '))
-                }
+                if (running) CircularProgressIndicator(modifier = Modifier.height(20.dp))
+                else Text(label ?: availability.action.name.replace('_', ' '))
             }
         }
     }
@@ -458,6 +510,10 @@ private fun confirmationText(
         lines += "promotionRunId=${promotion.promotionRunId}"
     }
     when (action) {
+        SourceLabControlAction.APPROVE -> {
+            lines += "One confirmation starts APPROVE → PROMOTE → SIGN → PUBLISH automatically."
+            lines += "Each stage reloads live state and revalidates its exact prerequisite."
+        }
         SourceLabControlAction.PROMOTE -> lines += "approvalRunId=${control.approvalRunId ?: "MISSING"}"
         SourceLabControlAction.SIGN -> lines += "Signing: GitHub Artifact Attestation only"
         SourceLabControlAction.PUBLISH -> {
