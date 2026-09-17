@@ -69,9 +69,9 @@ jobs:
               raise SystemExit(0)
 
           outcome = json.loads(Path('upstream/outcome.json').read_text(encoding='utf-8'))
-          if outcome.get('outcome') != 'PASS' or outcome.get('activeSetSafe') is not True:
+          if outcome.get('outcome') not in {'PASS', 'HELD'} or outcome.get('activeSetSafe') is not True:
               raise SystemExit(
-                  'registry last-known-good changed but merged upstream/outcome.json is not a safe PASS'
+                  'registry last-known-good changed but merged upstream/outcome.json is not an active-set-safe PASS/HELD result'
               )
 
           print('promoted=true')
