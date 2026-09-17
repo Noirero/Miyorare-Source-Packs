@@ -2,6 +2,7 @@ package com.noirero.miyorare.sourcelab
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -146,6 +147,10 @@ private fun SourceInventoryScreen(onClose: () -> Unit) {
     val farmMap = remember(ui.farm) { ui.farm?.sources?.associateBy { it.canonicalId }.orEmpty() }
     val selected = remember(inventory, selectedId) {
         inventory?.sources?.firstOrNull { it.canonicalId == selectedId }
+    }
+
+    BackHandler(enabled = selectedId != null) {
+        selectedId = null
     }
 
     if (showFilters && inventory != null) {
@@ -326,7 +331,7 @@ private fun SourcesList(
             val healthMatch = when (health) {
                 "HEALTHY" -> farmSource?.runtimeHealth == "HEALTHY"
                 "BROKEN" -> farmSource?.runtimeHealth == "BROKEN"
-                "UNKNOWN" -> farmSource?.runtimeHealth.isNullOrBlank() || farmSource.runtimeHealth == "UNKNOWN"
+                "UNKNOWN" -> farmResolved && (farmSource?.runtimeHealth.isNullOrBlank() || farmSource.runtimeHealth == "UNKNOWN")
                 "NEEDS ATTENTION" -> issue
                 else -> true
             }
@@ -763,7 +768,7 @@ private fun CapabilityRow(capability: String) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(capabilityLabel(capability))
-        SourceLabStatusBadge("Covered", SourceLabTone.ACCENT)
+        SourceLabStatusBadge("Declared", SourceLabTone.ACCENT)
     }
 }
 
