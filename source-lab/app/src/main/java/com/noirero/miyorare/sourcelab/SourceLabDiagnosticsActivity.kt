@@ -41,11 +41,8 @@ class SourceLabDiagnosticsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             SourceLabPhase1Theme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background,
-                ) {
-                    SourceLabDiagnosticsScreen(onClose = { finish() })
+                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    SourceLabDiagnosticsScreen { finish() }
                 }
             }
         }
@@ -70,24 +67,24 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
     LaunchedEffect(refreshKey) {
         state = state.copy(loading = true, error = null, inventoryError = null)
         coroutineScope {
-            val liveDeferred = async {
+            val liveJob = async {
                 runCatching {
                     val snapshot = withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
                     snapshot to SourceLabControlClient.resolveState(context, snapshot)
                 }
             }
-            val inventoryDeferred = async {
+            val inventoryJob = async {
                 runCatching { SourceInventoryRepository.loadInventory(context, forceRefresh = false) }
             }
-            val liveResult = liveDeferred.await()
-            val inventoryResult = inventoryDeferred.await()
+            val live = liveJob.await()
+            val inventory = inventoryJob.await()
             state = DiagnosticsState(
                 loading = false,
-                snapshot = liveResult.getOrNull()?.first,
-                control = liveResult.getOrNull()?.second,
-                inventory = inventoryResult.getOrNull(),
-                error = liveResult.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName },
-                inventoryError = inventoryResult.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName },
+                snapshot = live.getOrNull()?.first,
+                control = live.getOrNull()?.second,
+                inventory = inventory.getOrNull(),
+                error = live.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName },
+                inventoryError = inventory.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName },
             )
         }
     }
@@ -105,10 +102,7 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
             ) {
                 Column {
                     Text("Diagnostics", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Technical state and authorization proof",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Text("Technical state and authorization proof", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 TextButton(onClick = onClose) { Text("Back") }
             }
@@ -147,19 +141,15 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
             item(key = "runtime") {
                 DiagnosticCard("Runtime") {
                     DiagnosticLine("App version", BuildConfig.VERSION_NAME)
-                    DiagnosticLine("Farm branch", snapshot.branch, monospace = true)
+                    DiagnosticLine("Farm branch", snapshot.branch, true)
                     DiagnosticLine("Farm sources", "${snapshot.sources.size}/${snapshot.targetSize}")
                     DiagnosticLine("Cohort", snapshot.cohort)
-                    DiagnosticLine("Retrieved at", snapshot.retrievedAtEpochMs.toString(), monospace = true)
+                    DiagnosticLine("Retrieved at", snapshot.retrievedAtEpochMs.toString(), true)
                 }
             }
-
             item(key = "capabilities") {
                 DiagnosticCard("Backend capability proof") {
-                    DiagnosticLine(
-                        "Capabilities",
-                        "${control.session.backendCapabilities.size}/${SourceLabControlAction.entries.size}",
-                    )
+                    DiagnosticLine("Capabilities", "${control.session.backendCapabilities.size}/${SourceLabControlAction.entries.size}")
                     SourceLabControlAction.entries.forEach { action ->
                         val availability = control.actions[action]
                         DiagnosticLine(
@@ -169,40 +159,37 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
                     }
                 }
             }
-
             snapshot.approvalCandidate?.let { candidate ->
                 item(key = "candidate") {
                     DiagnosticCard("Approval candidate") {
-                        DiagnosticLine("candidateSetId", candidate.candidateSetId, monospace = true)
+                        DiagnosticLine("candidateSetId", candidate.candidateSetId, true)
                         DiagnosticLine("state", candidate.state)
                         DiagnosticLine("publishEligible", candidate.publishEligible.toString())
-                        DiagnosticLine("farm evidence", candidate.evidenceBinding.farmEvidenceSha256, monospace = true)
-                        DiagnosticLine("gate", candidate.evidenceBinding.gateSha256, monospace = true)
-                        DiagnosticLine("repair", candidate.evidenceBinding.repairEvidenceSha256, monospace = true)
-                        DiagnosticLine("gate fingerprint", candidate.gateFingerprint, monospace = true)
+                        DiagnosticLine("farm evidence", candidate.evidenceBinding.farmEvidenceSha256, true)
+                        DiagnosticLine("gate", candidate.evidenceBinding.gateSha256, true)
+                        DiagnosticLine("repair", candidate.evidenceBinding.repairEvidenceSha256, true)
+                        DiagnosticLine("gate fingerprint", candidate.gateFingerprint, true)
                     }
                 }
             }
-
             snapshot.lastPromotion?.let { promotion ->
                 item(key = "promotion") {
                     DiagnosticCard("Last promotion") {
-                        DiagnosticLine("candidateSetId", promotion.candidateSetId, monospace = true)
-                        DiagnosticLine("promotionRunId", promotion.promotionRunId.toString(), monospace = true)
+                        DiagnosticLine("candidateSetId", promotion.candidateSetId, true)
+                        DiagnosticLine("promotionRunId", promotion.promotionRunId.toString(), true)
                         DiagnosticLine("publishEligible", promotion.publishEligible.toString())
                     }
                 }
             }
-
             snapshot.lastPublish?.let { published ->
                 item(key = "publish") {
                     DiagnosticCard("Last publish") {
-                        DiagnosticLine("candidateSetId", published.candidateSetId, monospace = true)
+                        DiagnosticLine("candidateSetId", published.candidateSetId, true)
                         DiagnosticLine("version", published.version)
                         DiagnosticLine("tag", published.tag)
-                        DiagnosticLine("signingRunId", published.signingRunId.toString(), monospace = true)
-                        DiagnosticLine("publishRunId", published.publishRunId.toString(), monospace = true)
-                        DiagnosticLine("releaseRunId", published.releaseRunId.toString(), monospace = true)
+                        DiagnosticLine("signingRunId", published.signingRunId.toString(), true)
+                        DiagnosticLine("publishRunId", published.publishRunId.toString(), true)
+                        DiagnosticLine("releaseRunId", published.releaseRunId.toString(), true)
                     }
                 }
             }
@@ -211,14 +198,14 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
         state.inventory?.let { inventory ->
             item(key = "inventory") {
                 DiagnosticCard("Source inventory") {
-                    DiagnosticLine("Branch", inventory.branch, monospace = true)
-                    DiagnosticLine("Commit", inventory.branchCommit, monospace = true)
+                    DiagnosticLine("Branch", inventory.branch, true)
+                    DiagnosticLine("Commit", inventory.branchCommit, true)
                     DiagnosticLine("Sources", inventory.sources.size.toString())
                     DiagnosticLine("Cached", inventory.fromCache.toString())
-                    DiagnosticLine("Cache age ms", inventory.cacheAgeMillis.toString(), monospace = true)
+                    DiagnosticLine("Cache age ms", inventory.cacheAgeMillis.toString(), true)
                     DiagnosticLine("Stale fallback", inventory.staleCacheFallback.toString())
                     inventory.providerCommits.forEach { (provider, commit) ->
-                        DiagnosticLine("${provider.prettyProviderName()} commit", commit, monospace = true)
+                        DiagnosticLine("${provider.uppercase()} commit", commit, true)
                     }
                 }
             }
@@ -238,7 +225,7 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
 
         item(key = "privacy") {
             Text(
-                "Diagnostics intentionally show runtime metadata and capability state only. Tokens, refresh tokens, signing keys, keystores, signing passwords, client secrets, and private keys are never displayed here.",
+                "Diagnostics show runtime metadata and capability state only. Tokens, refresh tokens, signing keys, keystores, signing passwords, client secrets and private keys are never displayed here.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
