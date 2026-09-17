@@ -119,7 +119,7 @@ jobs:
           else
             git -C source-packs worktree add --detach "$work" HEAD
             git -C "$work" switch --orphan source-inventory-bootstrap
-            git -C "$work" rm -rf .
+            git -C "$work" rm -rf . || true
           fi
 
           mkdir -p "$work/inventory"
