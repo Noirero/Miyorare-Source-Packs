@@ -278,7 +278,7 @@ def aggregate_reports(
         suite_status = "FAIL"
     elif not full_membership_coverage or not full_canonical_coverage:
         release_gate = "NOT_READY_PARTIAL_PARSER_HARNESS"
-        suite_status = "PASS"
+        suite_status = "FAIL"
     else:
         release_gate = "REAL_PARSER_READY"
         suite_status = "PASS"
