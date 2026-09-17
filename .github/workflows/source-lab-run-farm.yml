@@ -1,0 +1,189 @@
+name: Source Lab Run Farm
+run-name: Source Lab run farm ${{ inputs.request_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Ephemeral Source Lab request identifier
+        required: true
+        type: string
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: source-lab-run-farm
+  cancel-in-progress: false
+
+jobs:
+  upstream:
+    name: Validate live upstream candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    outputs:
+      upstream_run_id: ${{ steps.run.outputs.upstream_run_id }}
+      foundation_sha: ${{ steps.prepare.outputs.foundation_sha }}
+      temp_branch: ${{ steps.prepare.outputs.temp_branch }}
+      has_candidate: ${{ steps.run.outputs.has_candidate }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      FARM_REF: compatibility-farm-foundation
+      EXPECTED_OWNER_ID: '149634319'
+    steps:
+      - name: Fail closed on owner, repository, ref, and request
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+          [[ "$REQUEST_ID" =~ ^[0-9a-f]{32}$ ]]
+
+      - name: Create isolated farm branch from authoritative foundation
+        id: prepare
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          foundation_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$FARM_REF" --jq '.object.sha')"
+          [[ "$foundation_sha" =~ ^[0-9a-f]{40}$ ]]
+          temp_branch="source-lab-farm-$REQUEST_ID"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/heads/$temp_branch" \
+            -f sha="$foundation_sha" >/dev/null
+          echo "foundation_sha=$foundation_sha" >> "$GITHUB_OUTPUT"
+          echo "temp_branch=$temp_branch" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch candidate intake on isolated branch
+        id: run
+        env:
+          TEMP_BRANCH: ${{ steps.prepare.outputs.temp_branch }}
+          FOUNDATION_SHA: ${{ steps.prepare.outputs.foundation_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          started_epoch="$(date -u +%s)"
+          gh workflow run upstream-sync.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$TEMP_BRANCH"
+
+          upstream_run_id=""
+          for _ in $(seq 1 90); do
+            upstream_run_id="$(gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow upstream-sync.yml \
+              --branch "$TEMP_BRANCH" \
+              --event workflow_dispatch \
+              --limit 30 \
+              --json databaseId,headSha,createdAt \
+              --jq "[.[] | select(.headSha == \"$FOUNDATION_SHA\") |
+                select((.createdAt | fromdateiso8601) >= ($started_epoch - 5))] |
+                sort_by(.databaseId) | last | .databaseId // empty")"
+            if [[ -n "$upstream_run_id" ]]; then
+              break
+            fi
+            sleep 2
+          done
+          [[ "$upstream_run_id" =~ ^[0-9]+$ ]]
+
+          for _ in $(seq 1 180); do
+            status="$(gh run view "$upstream_run_id" --repo "$GITHUB_REPOSITORY" --json status --jq '.status')"
+            if [[ "$status" == "completed" ]]; then
+              break
+            fi
+            sleep 5
+          done
+          conclusion="$(gh run view "$upstream_run_id" --repo "$GITHUB_REPOSITORY" --json conclusion --jq '.conclusion')"
+          [[ "$conclusion" == "success" ]]
+
+          artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$upstream_run_id/artifacts?per_page=100")"
+          if jq -e '.artifacts[] | select(.name == "upstream-candidate-handoff" and .expired == false)' \
+            <<<"$artifacts" >/dev/null; then
+            has_candidate=true
+          else
+            has_candidate=false
+          fi
+
+          echo "upstream_run_id=$upstream_run_id" >> "$GITHUB_OUTPUT"
+          echo "has_candidate=$has_candidate" >> "$GITHUB_OUTPUT"
+
+  candidate-farm:
+    name: Run exact candidate real-parser farm
+    needs: upstream
+    if: needs.upstream.outputs.has_candidate == 'true'
+    uses: ./.github/workflows/source-lab-candidate-farm.yml
+    with:
+      upstream_run_id: ${{ fromJSON(needs.upstream.outputs.upstream_run_id) }}
+      foundation_sha: ${{ needs.upstream.outputs.foundation_sha }}
+    permissions:
+      actions: read
+      contents: write
+
+  receipt:
+    name: Record Source Lab farm request
+    needs: [upstream, candidate-farm]
+    if: >-
+      always() &&
+      needs.upstream.result == 'success' &&
+      (needs.upstream.outputs.has_candidate != 'true' || needs.candidate-farm.result == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Emit control receipt
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          UPSTREAM_RUN_ID: ${{ needs.upstream.outputs.upstream_run_id }}
+          FOUNDATION_SHA: ${{ needs.upstream.outputs.foundation_sha }}
+          HAS_CANDIDATE: ${{ needs.upstream.outputs.has_candidate }}
+          CANDIDATE_FARM_RESULT: ${{ needs.candidate-farm.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          receipt = {
+              "schemaVersion": 1,
+              "action": "RUN_FARM",
+              "requestId": os.environ["REQUEST_ID"],
+              "upstreamRunId": int(os.environ["UPSTREAM_RUN_ID"]),
+              "foundationSha": os.environ["FOUNDATION_SHA"],
+              "hasCandidate": os.environ["HAS_CANDIDATE"] == "true",
+              "candidateFarmResult": os.environ["CANDIDATE_FARM_RESULT"],
+              "controlRunId": int(os.environ["GITHUB_RUN_ID"]),
+          }
+          Path("build/source-lab-run-farm-receipt.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Upload farm control receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-lab-run-farm-${{ inputs.request_id }}
+          path: build/source-lab-run-farm-receipt.json
+          if-no-files-found: error
+          retention-days: 30
+
+  cleanup:
+    name: Remove isolated farm branch
+    needs: [upstream, candidate-farm, receipt]
+    if: always() && needs.upstream.outputs.temp_branch != ''
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TEMP_BRANCH: ${{ needs.upstream.outputs.temp_branch }}
+    steps:
+      - name: Delete temporary ref
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method DELETE \
+            "repos/$GITHUB_REPOSITORY/git/refs/heads/$TEMP_BRANCH" \
+            >/dev/null 2>&1 || true

@@ -1,0 +1,314 @@
+name: Source Lab Publish Candidate
+run-name: Source Lab publish ${{ inputs.candidate_set_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_set_id:
+        description: Exact signed candidateSetId to publish
+        required: true
+        type: string
+      signing_run_id:
+        description: Exact successful Source Lab signing workflow run
+        required: true
+        type: number
+
+permissions:
+  actions: write
+  attestations: read
+  contents: write
+
+concurrency:
+  group: source-lab-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish exact attested Source Pack state
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_OWNER_ID: '149634319'
+      CANDIDATE_SET_ID: ${{ inputs.candidate_set_id }}
+      SIGNING_RUN_ID: ${{ inputs.signing_run_id }}
+    steps:
+      - name: Fail closed on caller and request
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+          [[ "$CANDIDATE_SET_ID" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$SIGNING_RUN_ID" =~ ^[0-9]+$ ]]
+
+      - name: Verify exact successful signing run
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SIGNING_RUN_ID" > "$RUNNER_TEMP/signing-run.json"
+          python3 - "$RUNNER_TEMP/signing-run.json" <<'PY'
+          import json, os, sys
+          run = json.load(open(sys.argv[1], encoding="utf-8"))
+          expected = {
+              "event": "workflow_dispatch",
+              "head_branch": "main",
+              "conclusion": "success",
+              "path": ".github/workflows/source-lab-sign-candidate.yml",
+          }
+          for key, value in expected.items():
+              if run.get(key) != value:
+                  raise SystemExit(f"signing run {key} mismatch: {run.get(key)!r}")
+          if str(run.get("actor", {}).get("id")) != os.environ["EXPECTED_OWNER_ID"]:
+              raise SystemExit("signing run actor mismatch")
+          if run.get("display_title") != f"Source Lab sign {os.environ['CANDIDATE_SET_ID']}":
+              raise SystemExit("signing run candidate title mismatch")
+          PY
+
+      - name: Download exact attested signing material
+        uses: actions/download-artifact@v5
+        with:
+          name: source-lab-signature-${{ inputs.candidate_set_id }}
+          path: build/signature
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.signing_run_id }}
+
+      - name: Validate signing receipt and manifest
+        id: signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt="$(find build/signature -type f -name source-lab-signing-receipt.json -print -quit)"
+          manifest="$(find build/signature -type f -name source-lab-signing-manifest.json -print -quit)"
+          checksum="$(find build/signature -type f -name source-lab-signing-manifest.sha256 -print -quit)"
+          [[ -n "$receipt" && -n "$manifest" && -n "$checksum" ]]
+          cp "$receipt" build/source-lab-signing-receipt.json
+          cp "$manifest" build/source-lab-signing-manifest.json
+          cp "$checksum" build/source-lab-signing-manifest.sha256
+          (cd build && sha256sum -c source-lab-signing-manifest.sha256)
+
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import hashlib, json, os
+          from pathlib import Path
+          receipt = json.loads(Path("build/source-lab-signing-receipt.json").read_text(encoding="utf-8"))
+          manifest_path = Path("build/source-lab-signing-manifest.json")
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          if receipt.get("schemaVersion") != 1 or receipt.get("action") != "SIGN":
+              raise SystemExit("invalid signing receipt")
+          if receipt.get("state") != "ATTESTED" or receipt.get("publishEligible") is not True:
+              raise SystemExit("signing receipt is not publish eligible")
+          if receipt.get("candidateSetId") != os.environ["CANDIDATE_SET_ID"]:
+              raise SystemExit("signing receipt candidate mismatch")
+          if receipt.get("signingRunId") != int(os.environ["SIGNING_RUN_ID"]):
+              raise SystemExit("signing receipt run mismatch")
+          if manifest.get("candidateSetId") != receipt.get("candidateSetId"):
+              raise SystemExit("manifest candidate mismatch")
+          if manifest.get("foundationCommit") != receipt.get("foundationCommit"):
+              raise SystemExit("manifest foundation commit mismatch")
+          if manifest.get("providers") != receipt.get("providers"):
+              raise SystemExit("manifest provider pins mismatch")
+          digest = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+          if digest != receipt.get("manifestSha256"):
+              raise SystemExit("signing manifest digest mismatch")
+          commit = receipt.get("foundationCommit")
+          if not isinstance(commit, str) or len(commit) != 40:
+              raise SystemExit("signed foundation commit invalid")
+          print(f"foundation_commit={commit}")
+          PY
+
+      - name: Verify GitHub artifact attestation
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh attestation verify \
+            build/source-lab-signing-manifest.json \
+            --repo "$GITHUB_REPOSITORY"
+
+      - name: Reject stale signed state and create exact temporary release ref
+        id: release-ref
+        env:
+          FOUNDATION_COMMIT: ${{ steps.signature.outputs.foundation_commit }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          live="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/compatibility-farm-foundation" --jq '.object.sha')"
+          [[ "$live" == "$FOUNDATION_COMMIT" ]] || {
+            echo "Signed Compatibility Farm state is stale; run Farm/Approve/Promote/Sign again." >&2
+            exit 1
+          }
+          temp_branch="source-lab-publish-${GITHUB_RUN_ID}"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/heads/$temp_branch" \
+            -f sha="$FOUNDATION_COMMIT" >/dev/null
+          echo "temp_branch=$temp_branch" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve next immutable Source Pack version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[].tag_name' \
+            > "$RUNNER_TEMP/release-tags.txt"
+          version="$(python3 - "$RUNNER_TEMP/release-tags.txt" <<'PY'
+          import re, sys
+          versions = []
+          for raw in open(sys.argv[1], encoding="utf-8"):
+              match = re.fullmatch(r"miyorare-sources-v(\d+)\.(\d+)\.(\d+)", raw.strip())
+              if match:
+                  versions.append(tuple(map(int, match.groups())))
+          if versions:
+              major, minor, patch = max(versions)
+              print(f"{major}.{minor}.{patch + 1}")
+          else:
+              print("0.1.0")
+          PY
+          )"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          if gh release view "miyorare-sources-v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Resolved release version already exists." >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch official Source Pack release from exact signed commit
+        id: release
+        env:
+          TEMP_BRANCH: ${{ steps.release-ref.outputs.temp_branch }}
+          FOUNDATION_COMMIT: ${{ steps.signature.outputs.foundation_commit }}
+          SOURCE_VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          started_epoch="$(date -u +%s)"
+          gh workflow run release-source-packs.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$TEMP_BRANCH" \
+            -f version="$SOURCE_VERSION"
+
+          release_run_id=""
+          for _ in $(seq 1 90); do
+            release_run_id="$(gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow release-source-packs.yml \
+              --branch "$TEMP_BRANCH" \
+              --event workflow_dispatch \
+              --limit 30 \
+              --json databaseId,headSha,createdAt \
+              --jq "[.[] | select(.headSha == \"$FOUNDATION_COMMIT\") |
+                select((.createdAt | fromdateiso8601) >= ($started_epoch - 5))] |
+                sort_by(.databaseId) | last | .databaseId // empty")"
+            [[ -n "$release_run_id" ]] && break
+            sleep 2
+          done
+          [[ "$release_run_id" =~ ^[0-9]+$ ]]
+
+          for _ in $(seq 1 720); do
+            status="$(gh run view "$release_run_id" --repo "$GITHUB_REPOSITORY" --json status --jq '.status')"
+            [[ "$status" == "completed" ]] && break
+            sleep 10
+          done
+          conclusion="$(gh run view "$release_run_id" --repo "$GITHUB_REPOSITORY" --json conclusion --jq '.conclusion')"
+          [[ "$conclusion" == "success" ]]
+          echo "release_run_id=$release_run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Verify immutable release exists
+        env:
+          SOURCE_VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="miyorare-sources-v$SOURCE_VERSION"
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json tagName,url > build/release.json
+          [[ "$(jq -r '.tagName' build/release.json)" == "$tag" ]]
+
+      - name: Emit immutable publish receipt
+        env:
+          FOUNDATION_COMMIT: ${{ steps.signature.outputs.foundation_commit }}
+          SOURCE_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_RUN_ID: ${{ steps.release.outputs.release_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          signing = json.loads(Path("build/source-lab-signing-receipt.json").read_text(encoding="utf-8"))
+          receipt = {
+              "schemaVersion": 1,
+              "action": "PUBLISH",
+              "state": "PUBLISHED",
+              "candidateSetId": signing["candidateSetId"],
+              "signingRunId": signing["signingRunId"],
+              "publishRunId": int(os.environ["GITHUB_RUN_ID"]),
+              "releaseRunId": int(os.environ["RELEASE_RUN_ID"]),
+              "foundationCommit": os.environ["FOUNDATION_COMMIT"],
+              "providers": signing["providers"],
+              "version": os.environ["SOURCE_VERSION"],
+              "tag": f"miyorare-sources-v{os.environ['SOURCE_VERSION']}",
+          }
+          Path("build/source-lab-publish-receipt.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Record completed publish cycle in live Farm status
+        env:
+          FOUNDATION_COMMIT: ${{ steps.signature.outputs.foundation_commit }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --branch compatibility-farm-foundation \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" farm
+          [[ "$(git -C farm rev-parse HEAD)" == "$FOUNDATION_COMMIT" ]] || {
+            echo "Compatibility Farm moved before publish receipt could be committed." >&2
+            exit 1
+          }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          receipt = json.loads(Path("build/source-lab-publish-receipt.json").read_text(encoding="utf-8"))
+          status_path = Path("farm/upstream/status.json")
+          status = json.loads(status_path.read_text(encoding="utf-8"))
+          last = status.get("lastPromotion")
+          if not isinstance(last, dict) or last.get("candidateSetId") != receipt["candidateSetId"]:
+              raise SystemExit("live lastPromotion changed before publish marker")
+          if status.get("approvalCandidate") is not None:
+              raise SystemExit("a new approvalCandidate appeared before publish marker")
+          status["lastPublish"] = receipt
+          status_path.write_text(
+              json.dumps(status, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+          )
+          PY
+          git -C farm config user.name github-actions[bot]
+          git -C farm config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C farm add upstream/status.json
+          git -C farm commit -m "Record Source Lab published candidate $CANDIDATE_SET_ID"
+          git -C farm push origin HEAD:compatibility-farm-foundation
+
+      - name: Upload publish receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-lab-publish-${{ inputs.candidate_set_id }}
+          path: |
+            build/source-lab-publish-receipt.json
+            build/source-lab-signing-receipt.json
+            build/source-lab-signing-manifest.json
+            build/release.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove temporary release ref
+        if: always()
+        env:
+          TEMP_BRANCH: ${{ steps.release-ref.outputs.temp_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${TEMP_BRANCH:-}" ]]; then
+            gh api --method DELETE \
+              "repos/$GITHUB_REPOSITORY/git/refs/heads/$TEMP_BRANCH" \
+              >/dev/null 2>&1 || true
+          fi

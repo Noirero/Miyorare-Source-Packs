@@ -1,0 +1,216 @@
+name: Source Lab Sign Candidate
+run-name: Source Lab sign ${{ inputs.candidate_set_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_set_id:
+        description: Exact promoted candidateSetId to attest
+        required: true
+        type: string
+      promotion_run_id:
+        description: Exact successful Source Lab promotion workflow run
+        required: true
+        type: number
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: source-lab-sign-${{ inputs.candidate_set_id }}
+  cancel-in-progress: false
+
+jobs:
+  sign:
+    name: Attest exact promoted Source Pack state
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_OWNER_ID: '149634319'
+      CANDIDATE_SET_ID: ${{ inputs.candidate_set_id }}
+      PROMOTION_RUN_ID: ${{ inputs.promotion_run_id }}
+    steps:
+      - name: Fail closed on caller and request
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+          [[ "$CANDIDATE_SET_ID" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$PROMOTION_RUN_ID" =~ ^[0-9]+$ ]]
+
+      - name: Verify exact promotion workflow run
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PROMOTION_RUN_ID" > "$RUNNER_TEMP/promotion-run.json"
+          python3 - "$RUNNER_TEMP/promotion-run.json" <<'PY'
+          import json, os, sys
+          run = json.load(open(sys.argv[1], encoding="utf-8"))
+          expected = {
+              "event": "workflow_dispatch",
+              "head_branch": "main",
+              "conclusion": "success",
+              "path": ".github/workflows/source-lab-promote-candidate.yml",
+          }
+          for key, value in expected.items():
+              if run.get(key) != value:
+                  raise SystemExit(f"promotion run {key} mismatch: {run.get(key)!r}")
+          if str(run.get("actor", {}).get("id")) != os.environ["EXPECTED_OWNER_ID"]:
+              raise SystemExit("promotion run actor mismatch")
+          if run.get("display_title") != f"Source Lab promote {os.environ['CANDIDATE_SET_ID']}":
+              raise SystemExit("promotion run candidate title mismatch")
+          PY
+
+      - name: Download exact promotion receipt
+        uses: actions/download-artifact@v5
+        with:
+          name: source-lab-promotion-${{ inputs.candidate_set_id }}
+          path: build/promotion
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.promotion_run_id }}
+
+      - name: Validate promotion receipt and resolve promoted commit
+        id: receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt="$(find build/promotion -type f -name source-lab-promotion-receipt.json -print -quit)"
+          [[ -n "$receipt" ]]
+          cp "$receipt" build/source-lab-promotion-receipt.json
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          from pathlib import Path
+          receipt = json.loads(Path("build/source-lab-promotion-receipt.json").read_text(encoding="utf-8"))
+          if receipt.get("schemaVersion") != 1 or receipt.get("action") != "PROMOTE":
+              raise SystemExit("invalid promotion receipt schema/action")
+          if receipt.get("state") != "PROMOTED":
+              raise SystemExit("promotion receipt is not PROMOTED")
+          if receipt.get("candidateSetId") != os.environ["CANDIDATE_SET_ID"]:
+              raise SystemExit("promotion receipt candidateSetId mismatch")
+          if receipt.get("promotionRunId") != int(os.environ["PROMOTION_RUN_ID"]):
+              raise SystemExit("promotion receipt run mismatch")
+          commit = receipt.get("foundationCommit")
+          if not isinstance(commit, str) or len(commit) != 40:
+              raise SystemExit("promotion receipt foundationCommit invalid")
+          providers = receipt.get("providers")
+          if not isinstance(providers, dict) or not providers:
+              raise SystemExit("promotion receipt providers missing")
+          if receipt.get("publishEligible") is not False:
+              raise SystemExit("promotion receipt must not be publish eligible before signing")
+          print(f"foundation_commit={commit}")
+          PY
+
+      - name: Checkout exact promoted Compatibility Farm commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.receipt.outputs.foundation_commit }}
+          fetch-depth: 1
+          path: farm
+
+      - name: Verify promoted registries still match receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git -C farm rev-parse HEAD)" == "${{ steps.receipt.outputs.foundation_commit }}" ]]
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          receipt = json.loads(Path("build/source-lab-promotion-receipt.json").read_text(encoding="utf-8"))
+          upstream = json.loads(Path("farm/upstream/registry.json").read_text(encoding="utf-8"))
+          compatibility = json.loads(Path("farm/compatibility/source-registry.json").read_text(encoding="utf-8"))
+          status = json.loads(Path("farm/upstream/status.json").read_text(encoding="utf-8"))
+          for provider, commit in receipt["providers"].items():
+              if upstream.get("providers", {}).get(provider, {}).get("lastKnownGood") != commit:
+                  raise SystemExit(f"{provider} upstream LKG no longer matches promotion receipt")
+              if compatibility.get("providerBaselines", {}).get(provider) != commit:
+                  raise SystemExit(f"{provider} compatibility baseline no longer matches promotion receipt")
+              provider_status = status.get("providers", {}).get(provider, {})
+              if provider_status.get("activeCommit") != commit or provider_status.get("lastKnownGood") != commit:
+                  raise SystemExit(f"{provider} runtime status no longer matches promotion receipt")
+          last = status.get("lastPromotion")
+          if not isinstance(last, dict) or last.get("candidateSetId") != receipt["candidateSetId"]:
+              raise SystemExit("live lastPromotion no longer matches receipt")
+          PY
+
+      - name: Build canonical signing manifest
+        id: manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          receipt = json.loads(Path("build/source-lab-promotion-receipt.json").read_text(encoding="utf-8"))
+          manifest = {
+              "schemaVersion": 1,
+              "action": "SIGN",
+              "candidateSetId": receipt["candidateSetId"],
+              "promotionRunId": receipt["promotionRunId"],
+              "foundationCommit": receipt["foundationCommit"],
+              "providers": receipt["providers"],
+              "evidenceBinding": receipt["evidenceBinding"],
+              "signingMode": "GITHUB_ARTIFACT_ATTESTATION",
+              "publishEligibleAfterVerification": True,
+          }
+          path = Path("build/source-lab-signing-manifest.json")
+          path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          digest = hashlib.sha256(path.read_bytes()).hexdigest()
+          Path("build/source-lab-signing-manifest.sha256").write_text(
+              f"{digest}  source-lab-signing-manifest.json\n", encoding="utf-8"
+          )
+          print(digest)
+          PY
+          digest="$(cut -d' ' -f1 build/source-lab-signing-manifest.sha256)"
+          echo "sha256=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub build provenance attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: build/source-lab-signing-manifest.json
+
+      - name: Emit signing receipt
+        env:
+          MANIFEST_SHA256: ${{ steps.manifest.outputs.sha256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          manifest = json.loads(Path("build/source-lab-signing-manifest.json").read_text(encoding="utf-8"))
+          receipt = {
+              "schemaVersion": 1,
+              "action": "SIGN",
+              "state": "ATTESTED",
+              "candidateSetId": manifest["candidateSetId"],
+              "promotionRunId": manifest["promotionRunId"],
+              "signingRunId": int(os.environ["GITHUB_RUN_ID"]),
+              "foundationCommit": manifest["foundationCommit"],
+              "providers": manifest["providers"],
+              "manifestSha256": os.environ["MANIFEST_SHA256"],
+              "attestationProvider": "GITHUB_ARTIFACT_ATTESTATION",
+              "publishEligible": True,
+          }
+          Path("build/source-lab-signing-receipt.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Upload attested signing material
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-lab-signature-${{ inputs.candidate_set_id }}
+          path: |
+            build/source-lab-signing-manifest.json
+            build/source-lab-signing-manifest.sha256
+            build/source-lab-signing-receipt.json
+          if-no-files-found: error
+          retention-days: 30
