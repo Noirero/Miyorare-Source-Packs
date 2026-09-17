@@ -18,6 +18,8 @@
     <string name="backend_authorized_supporting">Owner session is valid and short-lived. Sensitive actions still require their own explicit capability gate.</string>
     <string name="reauthorize_owner">Re-authorize owner</string>
     <string name="owner_authorization_failed">Owner authorization failed</string>
+    <string name="retry_backend_authorization">Retry backend authorization</string>
+    <string name="restart_github_sign_in">Sign in with GitHub again</string>
     <string name="owner_token_memory_only">The GitHub user token is kept in memory only. No client secret, private key, or write token is embedded in the APK.</string>
     <string name="opening_source_lab_dashboard">Authorization complete. Opening Source Lab…</string>
     <string name="owner_gate_capability_boundary">Owner identity and backend authorization do not automatically unlock Run Farm, Approve, Promote, Sign, or Publish. Each action stays fail-closed until its dedicated capability wiring is complete.</string>
@@ -26,5 +28,6 @@
     <string name="error_client_id_is_app_id">The APK contains the numeric GitHub App ID instead of the public Client ID. This build is rejected for owner login.</string>
     <string name="error_client_id_invalid">The GitHub Client ID embedded in this APK is invalid. Install a corrected official Source Lab build.</string>
     <string name="error_device_flow_endpoint">GitHub Device Flow returned an unexpected endpoint error.</string>
+    <string name="error_backend_authorization">GitHub sign-in succeeded, but the backend authorization proof could not be verified. Source Lab remains locked. You can retry the backend without repeating GitHub sign-in while the app remains open.</string>
     <string name="error_owner_generic">GitHub owner authorization failed. The security gate remains closed; retry the GitHub sign-in.</string>
 </resources>
