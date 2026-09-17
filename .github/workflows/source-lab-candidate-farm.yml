@@ -1,0 +1,688 @@
+name: Source Lab Candidate Farm
+
+on:
+  workflow_call:
+    inputs:
+      upstream_run_id:
+        required: true
+        type: number
+      foundation_sha:
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: source-lab-candidate-farm
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare exact live candidate
+    runs-on: ubuntu-latest
+    outputs:
+      keiyoushi: ${{ steps.matrix.outputs.keiyoushi }}
+    steps:
+      - name: Checkout authoritative Compatibility Farm
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.foundation_sha }}
+          fetch-depth: 1
+
+      - name: Validate immutable foundation ref
+        env:
+          FOUNDATION_SHA: ${{ inputs.foundation_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$FOUNDATION_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$FOUNDATION_SHA" ]]
+
+      - name: Download exact upstream candidate handoff
+        uses: actions/download-artifact@v5
+        with:
+          name: upstream-candidate-handoff
+          path: build/upstream-handoff
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.upstream_run_id }}
+
+      - name: Build immutable candidate registry and parser plan
+        id: matrix
+        env:
+          UPSTREAM_RUN_ID: ${{ inputs.upstream_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          handoff="$(find build/upstream-handoff -type f -name candidate-handoff.json -print -quit)"
+          [[ -n "$handoff" ]]
+          cp "$handoff" build/candidate-handoff.json
+
+          python3 tools/candidate_registry.py \
+            --registry compatibility/source-registry.json \
+            --handoff build/candidate-handoff.json \
+            --output build/candidate-source-registry.json
+
+          python3 tools/parser_family_plan.py \
+            --registry build/candidate-source-registry.json \
+            --families compatibility/parser-families.json \
+            validate \
+            --output build/candidate-family-plan-validation.json
+
+          python3 tools/parser_family_plan.py \
+            --registry build/candidate-source-registry.json \
+            --families compatibility/parser-families.json \
+            plan --provider keiyoushi \
+            --output build/parser-plan-keiyoushi.json
+
+          compact="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("build/parser-plan-keiyoushi.json").read_text(encoding="utf-8"))
+          print(json.dumps({"include": data["include"]}, separators=(",", ":")))
+          PY
+          )"
+          echo "keiyoushi=$compact" >> "$GITHUB_OUTPUT"
+
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          handoff = json.loads(Path("build/candidate-handoff.json").read_text(encoding="utf-8"))
+          registry_path = Path("build/candidate-source-registry.json")
+          provenance = {
+              "schemaVersion": 1,
+              "maintenanceMode": "APPROVE_ONLY",
+              "state": "CANDIDATE",
+              "approvalState": "NOT_READY",
+              "upstreamRunId": int(os.environ["UPSTREAM_RUN_ID"]),
+              "candidateRegistrySha256": hashlib.sha256(registry_path.read_bytes()).hexdigest(),
+              "providerCandidates": json.loads(registry_path.read_text(encoding="utf-8"))[
+                  "candidateContext"
+              ]["providerCandidates"],
+              "activeLastKnownGoodMutated": False,
+              "publishEligible": False,
+              "nextAction": "RUN_REAL_PARSER_COMPATIBILITY_FARM",
+          }
+          Path("build/candidate-provenance.json").write_text(
+              json.dumps(provenance, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          Path("build/sync-plan.json").write_text(
+              json.dumps(handoff["plan"], indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Upload candidate context
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-lab-candidate-context-${{ inputs.upstream_run_id }}
+          path: |
+            build/candidate-source-registry.json
+            build/candidate-family-plan-validation.json
+            build/parser-plan-keiyoushi.json
+            build/candidate-provenance.json
+            build/candidate-handoff.json
+            build/sync-plan.json
+          if-no-files-found: error
+          retention-days: 14
+
+  uma-parser:
+    name: Candidate UMA real parser
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Compatibility Farm
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.foundation_sha }}
+
+      - name: Download exact candidate context
+        uses: actions/download-artifact@v5
+        with:
+          name: source-lab-candidate-context-${{ inputs.upstream_run_id }}
+          path: build/context
+
+      - name: Resolve candidate UMA ref
+        id: ref
+        shell: bash
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          data = json.loads(Path("build/context/candidate-source-registry.json").read_text(encoding="utf-8"))
+          print(f"uma={data['providerBaselines']['uma']}")
+          PY
+
+      - name: Checkout candidate UMA
+        uses: actions/checkout@v5
+        with:
+          repository: InvalidDavid/UMA
+          ref: ${{ steps.ref.outputs.uma }}
+          path: _upstream/uma
+          fetch-depth: 1
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Install deterministic UMA harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _upstream/uma/src/test/kotlin/compatibilityfarm
+          mkdir -p _upstream/uma/src/test/resources/compatibility-farm
+          cp compatibility/harness/uma/*.kt _upstream/uma/src/test/kotlin/compatibilityfarm/
+          cp -R compatibility/harness/uma/resources/. _upstream/uma/src/test/resources/compatibility-farm/
+
+      - name: Execute all UMA real parser memberships
+        id: parser-tests
+        continue-on-error: true
+        working-directory: _upstream/uma
+        run: |
+          chmod +x gradlew
+          ./gradlew test \
+            --tests compatibilityfarm.KomikuParserHarnessTest \
+            --tests compatibilityfarm.ShinigamiParserHarnessTest \
+            --tests compatibilityfarm.WeebCentralAuthParserHarnessTest \
+            --tests compatibilityfarm.KiryuuNatsuParserHarnessTest \
+            --tests compatibilityfarm.AquaReaderMadaraParserHarnessTest \
+            --tests compatibilityfarm.BatcaveParserHarnessTest \
+            --tests compatibilityfarm.AsuraScansParserHarnessTest \
+            --tests compatibilityfarm.BacamiParserHarnessTest \
+            --tests compatibilityfarm.LikeMangaParserHarnessBehaviorTest \
+            --tests compatibilityfarm.MangaPillParserHarnessTest \
+            --tests compatibilityfarm.TheMangaParserHarnessTest \
+            --no-daemon
+
+      - name: Normalize UMA evidence against candidate registry
+        id: report
+        if: always()
+        continue-on-error: true
+        run: >-
+          python3 tools/parser_harness_report.py
+          --registry build/context/candidate-source-registry.json
+          --results-dir _upstream/uma/build/test-results/test
+          --provider uma
+          --source miyorare:miyorare-id:KOMIKU=compatibilityfarm.KomikuParserHarnessTest
+          --source miyorare:miyorare-id:SHINIGAMI=compatibilityfarm.ShinigamiParserHarnessTest
+          --source miyorare:miyorare-en:WEEBCENTRAL=compatibilityfarm.WeebCentralAuthParserHarnessTest
+          --source miyorare:miyorare-id:KIRYUU=compatibilityfarm.KiryuuNatsuParserHarnessTest
+          --source miyorare:miyorare-en:AQUAMANGA=compatibilityfarm.AquaReaderMadaraParserHarnessTest
+          --source miyorare:miyorare-en:BATCAVE=compatibilityfarm.BatcaveParserHarnessTest
+          --source miyorare:miyorare-en:ASURASCANS=compatibilityfarm.AsuraScansParserHarnessTest
+          --source miyorare:miyorare-id:BACAMI=compatibilityfarm.BacamiParserHarnessTest
+          --source miyorare:miyorare-en:LIKEMANGA=compatibilityfarm.LikeMangaParserHarnessBehaviorTest
+          --source miyorare:miyorare-en:MANGAPILL=compatibilityfarm.MangaPillParserHarnessTest
+          --source miyorare:miyorare-id:THEMANGA=compatibilityfarm.TheMangaParserHarnessTest
+          --output build/real-parser-harness-uma-report.json
+
+      - name: Upload UMA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-lab-parser-uma-${{ inputs.upstream_run_id }}
+          path: |
+            build/real-parser-harness-uma-report.json
+            _upstream/uma/build/test-results/test/*.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Enforce UMA parser result
+        if: always()
+        shell: bash
+        run: |
+          [[ "${{ steps.parser-tests.outcome }}" == "success" ]]
+          [[ "${{ steps.report.outcome }}" == "success" ]]
+
+  gekkoushi-parser:
+    name: Candidate Gekkoushi real parser
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Compatibility Farm
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.foundation_sha }}
+
+      - name: Download exact candidate context
+        uses: actions/download-artifact@v5
+        with:
+          name: source-lab-candidate-context-${{ inputs.upstream_run_id }}
+          path: build/context
+
+      - name: Resolve candidate Gekkoushi ref
+        id: ref
+        shell: bash
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          data = json.loads(Path("build/context/candidate-source-registry.json").read_text(encoding="utf-8"))
+          print(f"gekkoushi={data['providerBaselines']['gekkoushi']}")
+          PY
+
+      - name: Checkout candidate Gekkoushi
+        uses: actions/checkout@v5
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ steps.ref.outputs.gekkoushi }}
+          path: _upstream/gekkoushi
+          fetch-depth: 1
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Install deterministic Gekkoushi harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -d _upstream/gekkoushi/src/test ]]; then
+            mv _upstream/gekkoushi/src/test _upstream/gekkoushi/_compatibility-upstream-tests
+          fi
+          mkdir -p _upstream/gekkoushi/src/test/kotlin/compatibilityfarm
+          mkdir -p _upstream/gekkoushi/src/test/resources/compatibility-farm/shinigami
+          cp compatibility/harness/uma/DeterministicMangaLoaderContext.kt _upstream/gekkoushi/src/test/kotlin/compatibilityfarm/
+          cp compatibility/harness/gekkoushi/*.kt _upstream/gekkoushi/src/test/kotlin/compatibilityfarm/
+          cp -R compatibility/harness/gekkoushi/resources/. _upstream/gekkoushi/src/test/resources/compatibility-farm/
+          cp -R compatibility/harness/uma/resources/shinigami/. _upstream/gekkoushi/src/test/resources/compatibility-farm/shinigami/
+
+      - name: Apply validated deterministic repair recipes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/repair_engine.py \
+            --recipes compatibility/repair-recipes.json \
+            --recipe forward-parser-request-headers-to-http-get \
+            --provider gekkoushi \
+            --canonical-id miyorare:miyorare-id:SHINIGAMI \
+            --root _upstream/gekkoushi \
+            --path src/main/kotlin/tsuki/site/id/Shinigami.kt \
+            --output build/repair-shinigami-gekkoushi.json
+          python3 tools/repair_engine.py \
+            --recipes compatibility/repair-recipes.json \
+            --recipe forward-parser-request-headers-to-http-get \
+            --provider gekkoushi \
+            --canonical-id miyorare:miyorare-en:BATCAVE \
+            --root _upstream/gekkoushi \
+            --path src/main/kotlin/tsuki/site/en/BatCave.kt \
+            --output build/repair-batcave-gekkoushi.json
+
+      - name: Execute Gekkoushi real parser memberships
+        id: parser-tests
+        continue-on-error: true
+        working-directory: _upstream/gekkoushi
+        run: |
+          chmod +x gradlew
+          ./gradlew test \
+            --tests compatibilityfarm.DoujinDesuParserHarnessTest \
+            --tests compatibilityfarm.ShinigamiGekkoushiParserHarnessTest \
+            --tests compatibilityfarm.BatCaveGekkoushiParserHarnessTest \
+            --tests compatibilityfarm.AsuraScansGekkoushiParserHarnessTest \
+            --no-daemon
+
+      - name: Normalize Gekkoushi evidence against candidate registry
+        id: report
+        if: always()
+        continue-on-error: true
+        run: >-
+          python3 tools/parser_harness_report.py
+          --registry build/context/candidate-source-registry.json
+          --results-dir _upstream/gekkoushi/build/test-results/test
+          --provider gekkoushi
+          --source miyorare:miyorare-id:DOUJINDESU=compatibilityfarm.DoujinDesuParserHarnessTest
+          --source miyorare:miyorare-id:SHINIGAMI=compatibilityfarm.ShinigamiGekkoushiParserHarnessTest
+          --source miyorare:miyorare-en:BATCAVE=compatibilityfarm.BatCaveGekkoushiParserHarnessTest
+          --source miyorare:miyorare-en:ASURASCANS=compatibilityfarm.AsuraScansGekkoushiParserHarnessTest
+          --output build/real-parser-harness-gekkoushi-report.json
+
+      - name: Upload Gekkoushi evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-lab-parser-gekkoushi-${{ inputs.upstream_run_id }}
+          path: |
+            build/real-parser-harness-gekkoushi-report.json
+            build/repair-shinigami-gekkoushi.json
+            build/repair-batcave-gekkoushi.json
+            _upstream/gekkoushi/build/test-results/test/*.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Enforce Gekkoushi parser result
+        if: always()
+        shell: bash
+        run: |
+          [[ "${{ steps.parser-tests.outcome }}" == "success" ]]
+          [[ "${{ steps.report.outcome }}" == "success" ]]
+
+  keiyoushi-parser:
+    name: Candidate Keiyoushi ${{ matrix.familyId }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare.outputs.keiyoushi) }}
+    steps:
+      - name: Checkout Compatibility Farm
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.foundation_sha }}
+
+      - name: Download exact candidate context
+        uses: actions/download-artifact@v5
+        with:
+          name: source-lab-candidate-context-${{ inputs.upstream_run_id }}
+          path: build/context
+
+      - name: Resolve candidate Keiyoushi ref
+        id: ref
+        shell: bash
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          data = json.loads(Path("build/context/candidate-source-registry.json").read_text(encoding="utf-8"))
+          print(f"keiyoushi={data['providerBaselines']['keiyoushi']}")
+          PY
+
+      - name: Checkout candidate Keiyoushi
+        uses: actions/checkout@v5
+        with:
+          repository: keiyoushi/extensions-source
+          ref: ${{ steps.ref.outputs.keiyoushi }}
+          path: _upstream/keiyoushi
+          fetch-depth: 1
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Install deterministic Keiyoushi family harness
+        shell: bash
+        env:
+          MODULE: ${{ matrix.module }}
+          TEST_CLASS: ${{ matrix.testClass }}
+          RUNTIME_PROFILE: ${{ matrix.runtimeProfile }}
+        run: |
+          set -euo pipefail
+          module="_upstream/keiyoushi/$MODULE"
+          harness="${TEST_CLASS##*.}.kt"
+          mkdir -p "$module/compatibility-farm-test"
+          mkdir -p "$module/compatibility-farm-resources/compatibility-farm"
+          cp "compatibility/harness/keiyoushi/$harness" "$module/compatibility-farm-test/"
+          cp -R compatibility/harness/keiyoushi/runtime/. "$module/compatibility-farm-test/"
+          if [[ "$RUNTIME_PROFILE" != "common" ]]; then
+            profile="compatibility/harness/keiyoushi/runtime-profiles/$RUNTIME_PROFILE"
+            test -d "$profile"
+            cp -R "$profile/." "$module/compatibility-farm-test/"
+          fi
+          cp -R compatibility/harness/keiyoushi/resources/. "$module/compatibility-farm-resources/compatibility-farm/"
+          cat >> "$module/build.gradle.kts" <<'EOF'
+
+          // Compatibility Farm test-only wiring. Disposable pinned checkout only.
+          android {
+              sourceSets {
+                  named("test") {
+                      java.directories.add("compatibility-farm-test")
+                      kotlin.directories.add("compatibility-farm-test")
+                      resources.directories.add("compatibility-farm-resources")
+                  }
+              }
+              testOptions {
+                  unitTests.isReturnDefaultValues = true
+              }
+          }
+
+          dependencies {
+              testImplementation(libs.junit)
+              testImplementation(libs.bundles.common)
+          }
+
+          tasks.matching { it.name == "kspDebugUnitTestKotlin" }.configureEach {
+              enabled = false
+          }
+          EOF
+
+      - name: Execute Keiyoushi real parser family
+        id: parser-tests
+        continue-on-error: true
+        working-directory: _upstream/keiyoushi
+        env:
+          MODULE: ${{ matrix.module }}
+          TEST_CLASS: ${{ matrix.testClass }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          task=":${MODULE//\//:}:testDebugUnitTest"
+          ./gradlew "$task" --tests "$TEST_CLASS" --no-daemon
+
+      - name: Normalize Keiyoushi evidence against candidate registry
+        id: report
+        if: always()
+        continue-on-error: true
+        env:
+          MODULE: ${{ matrix.module }}
+          TEST_CLASS: ${{ matrix.testClass }}
+          CANONICAL_ID: ${{ matrix.canonicalId }}
+          FAMILY_ID: ${{ matrix.familyId }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/parser_harness_report.py \
+            --registry build/context/candidate-source-registry.json \
+            --results-dir "_upstream/keiyoushi/$MODULE/build/test-results/testDebugUnitTest" \
+            --provider keiyoushi \
+            --source "$CANONICAL_ID=$TEST_CLASS" \
+            --output "build/real-parser-harness-$FAMILY_ID-report.json"
+
+      - name: Upload Keiyoushi evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-lab-parser-${{ matrix.familyId }}-${{ inputs.upstream_run_id }}
+          path: |
+            build/real-parser-harness-${{ matrix.familyId }}-report.json
+            _upstream/keiyoushi/${{ matrix.module }}/build/test-results/testDebugUnitTest/*.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Enforce Keiyoushi parser result
+        if: always()
+        shell: bash
+        run: |
+          [[ "${{ steps.parser-tests.outcome }}" == "success" ]]
+          [[ "${{ steps.report.outcome }}" == "success" ]]
+
+  aggregate-and-stage:
+    name: Bind exact evidence and stage approval candidate
+    needs: [prepare, uma-parser, gekkoushi-parser, keiyoushi-parser]
+    if: always()
+    runs-on: ubuntu-latest
+    outputs:
+      candidate_set_id: ${{ steps.stage.outputs.candidate_set_id }}
+    steps:
+      - name: Checkout authoritative Compatibility Farm
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.foundation_sha }}
+          fetch-depth: 0
+
+      - name: Download exact candidate context
+        uses: actions/download-artifact@v5
+        with:
+          name: source-lab-candidate-context-${{ inputs.upstream_run_id }}
+          path: build/context
+
+      - name: Download all real-parser evidence
+        uses: actions/download-artifact@v5
+        with:
+          pattern: source-lab-parser-*-${{ inputs.upstream_run_id }}
+          path: build/provider-evidence
+          merge-multiple: true
+
+      - name: Enforce all parser jobs before staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ needs.prepare.result }}" = "success"
+          test "${{ needs.uma-parser.result }}" = "success"
+          test "${{ needs.gekkoushi-parser.result }}" = "success"
+          test "${{ needs.keiyoushi-parser.result }}" = "success"
+
+      - name: Aggregate real parser evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t reports < <(find build/provider-evidence -type f -name 'real-parser-harness-*-report.json' | sort)
+          mapfile -t repairs < <(find build/provider-evidence -type f -name 'repair-*.json' | sort)
+          ((${#reports[@]} > 0))
+          cmd=(python3 tools/parser_harness_aggregate.py \
+            --registry build/context/candidate-source-registry.json \
+            --output build/real-parser-harness-aggregate.json)
+          for report in "${reports[@]}"; do
+            cmd+=(--report "$report")
+          done
+          for repair in "${repairs[@]}"; do
+            cmd+=(--repair-report "$repair")
+          done
+          "${cmd[@]}"
+
+          python3 tools/candidate_gate.py \
+            --contract compatibility/contract.json \
+            --aggregate build/real-parser-harness-aggregate.json \
+            --output build/candidate-gate.json
+
+          binding=(python3 tools/approval_evidence.py \
+            --aggregate build/real-parser-harness-aggregate.json \
+            --gate build/candidate-gate.json \
+            --output build/approval-evidence-binding.json)
+          for repair in "${repairs[@]}"; do
+            binding+=(--repair "$repair")
+          done
+          "${binding[@]}"
+
+      - name: Build and stage exact pending approval
+        id: stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/approval_state.py stage \
+            --registry upstream/registry.json \
+            --plan build/context/sync-plan.json \
+            --gate build/candidate-gate.json \
+            --evidence-binding build/approval-evidence-binding.json \
+            --output build/pending-approval.json
+
+          candidate_set_id="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path("build/pending-approval.json").read_text(encoding="utf-8"))["candidateSetId"])
+          PY
+          )"
+          [[ "$candidate_set_id" =~ ^[0-9a-f]{64}$ ]]
+
+          python3 - "$candidate_set_id" <<'PY'
+          import json, sys
+          from pathlib import Path
+          candidate_set_id = sys.argv[1]
+          status = json.loads(Path("upstream/status.json").read_text(encoding="utf-8"))
+          existing = status.get("approvalCandidate")
+          if existing is not None and existing.get("candidateSetId") != candidate_set_id:
+              raise SystemExit(
+                  "a different live approvalCandidate is already staged; refusing to overwrite it"
+              )
+          PY
+
+          python3 tools/candidate_lifecycle.py stage \
+            --status upstream/status.json \
+            --pending build/pending-approval.json
+
+          echo "candidate_set_id=$candidate_set_id" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse to stage against a moved foundation
+        env:
+          FOUNDATION_SHA: ${{ inputs.foundation_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin compatibility-farm-foundation
+          current="$(git rev-parse origin/compatibility-farm-foundation)"
+          [[ "$current" == "$FOUNDATION_SHA" ]]
+
+      - name: Commit live approval candidate only
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- upstream/status.json; then
+            echo "Candidate status is already staged identically."
+          else
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add upstream/status.json
+            git commit -m "Stage exact Source Lab approval candidate"
+            git push origin HEAD:compatibility-farm-foundation
+          fi
+
+      - name: Emit immutable farm receipt
+        env:
+          CANDIDATE_SET_ID: ${{ steps.stage.outputs.candidate_set_id }}
+          UPSTREAM_RUN_ID: ${{ inputs.upstream_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          pending = json.loads(Path("build/pending-approval.json").read_text(encoding="utf-8"))
+          receipt = {
+              "schemaVersion": 1,
+              "action": "RUN_FARM",
+              "state": "WAITING_FOR_APPROVAL",
+              "candidateSetId": os.environ["CANDIDATE_SET_ID"],
+              "upstreamRunId": int(os.environ["UPSTREAM_RUN_ID"]),
+              "farmWorkflowRunId": int(os.environ["GITHUB_RUN_ID"]),
+              "foundationCommit": __import__("subprocess").check_output(
+                  ["git", "rev-parse", "HEAD"], text=True
+              ).strip(),
+              "providers": {
+                  provider: item["candidate"]
+                  for provider, item in sorted(pending["providers"].items())
+              },
+              "evidenceBinding": pending["evidenceBinding"],
+              "publishEligible": False,
+          }
+          Path("build/source-lab-farm-receipt.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Upload candidate evidence and receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-lab-farm-candidate-${{ steps.stage.outputs.candidate_set_id }}
+          path: |
+            build/source-lab-farm-receipt.json
+            build/pending-approval.json
+            build/approval-evidence-binding.json
+            build/candidate-gate.json
+            build/real-parser-harness-aggregate.json
+          if-no-files-found: error
+          retention-days: 30
