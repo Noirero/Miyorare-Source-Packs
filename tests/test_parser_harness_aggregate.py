@@ -89,6 +89,7 @@ class ParserHarnessAggregateTests(unittest.TestCase):
         self.assertEqual(0, coverage["failingProviderMemberships"])
         self.assertTrue(coverage["fullCanonicalCoverage"])
         self.assertTrue(coverage["fullProviderMembershipCoverage"])
+        self.assertEqual("PASS", aggregate["suiteStatus"])
         self.assertTrue(aggregate["candidatePass"])
         self.assertEqual("REAL_PARSER_READY", aggregate["releaseGate"])
         self.assertNotIn(
@@ -114,6 +115,7 @@ class ParserHarnessAggregateTests(unittest.TestCase):
         self.assertEqual(previous_memberships + len(aarlas["providers"]), coverage["totalProviderMemberships"])
         self.assertEqual(previous_memberships, coverage["providerMembershipsExecuted"])
         self.assertEqual(len(aarlas["providers"]), coverage["missingProviderMemberships"])
+        self.assertEqual("FAIL", aggregate["suiteStatus"])
         self.assertFalse(aggregate["candidatePass"])
         self.assertEqual("NOT_READY_PARTIAL_PARSER_HARNESS", aggregate["releaseGate"])
 
@@ -132,7 +134,7 @@ class ParserHarnessAggregateTests(unittest.TestCase):
                 self.report("gekkoushi", "miyorare:miyorare-id:DOUJINDESU"),
             ],
         )
-        self.assertEqual(aggregate["suiteStatus"], "PASS")
+        self.assertEqual(aggregate["suiteStatus"], "FAIL")
         self.assertEqual(aggregate["coverage"]["canonicalExecuted"], 3)
         self.assertEqual(aggregate["coverage"]["totalRegisteredSources"], len(self.registry["sources"]))
         self.assertEqual(aggregate["coverage"]["requiredCanonicalSources"], len(self.required_sources()))
