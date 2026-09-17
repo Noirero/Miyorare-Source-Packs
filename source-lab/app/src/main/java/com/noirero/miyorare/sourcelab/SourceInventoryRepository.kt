@@ -54,6 +54,7 @@ internal data class FarmInventorySourceState(
 
 internal data class FarmInventorySnapshot(
     val sources: List<FarmInventorySourceState>,
+    val languages: Set<String>,
     val branch: String,
     val branchCommit: String,
     val retrievedAtEpochMs: Long,
@@ -257,6 +258,18 @@ internal object SourceInventoryRepository {
     ): FarmInventorySnapshot {
         val root = JSONObject(payload)
         require(root.optInt("schemaVersion") == 1) { "Unsupported Farm registry schema" }
+        val scope = root.optJSONObject("scope") ?: JSONObject()
+        val languageArray = scope.optJSONArray("languages")
+        val languages = buildSet {
+            if (languageArray != null) {
+                for (index in 0 until languageArray.length()) {
+                    val language = languageArray.optString(index).lowercase()
+                    if (language.isNotBlank()) add(language)
+                }
+            }
+        }
+        require(languages.isNotEmpty()) { "Farm language scope is missing" }
+
         val defaults = root.optJSONObject("defaults") ?: JSONObject()
         val sourceArray = root.getJSONArray("sources")
         val sources = buildList {
@@ -293,6 +306,7 @@ internal object SourceInventoryRepository {
         }
         return FarmInventorySnapshot(
             sources = sources,
+            languages = languages,
             branch = SourceLabRepository.farmBranch,
             branchCommit = branchCommit,
             retrievedAtEpochMs = System.currentTimeMillis(),
