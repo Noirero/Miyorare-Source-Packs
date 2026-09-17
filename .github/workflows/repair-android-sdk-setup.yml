@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: repair-source-pack-android-sdk-setup
@@ -23,6 +24,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Patch Source Pack workflows
@@ -57,16 +59,27 @@ jobs:
                   print(f' - {item}')
           PY
 
-      - name: Commit repaired workflows
+      - name: Open repair pull request
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPAIR_BRANCH: automation/android-sdk-repair-${{ github.run_id }}
         run: |
           set -euo pipefail
           if git diff --quiet -- .github/workflows; then
-            echo 'No workflow changes to commit.'
+            echo 'No workflow changes to propose.'
             exit 0
           fi
+
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git checkout -b "$REPAIR_BRANCH"
           git add .github/workflows
           git commit -m "Use supported Android SDK packages in Source Pack CI"
-          git push origin HEAD:main
+          git push origin "HEAD:${REPAIR_BRANCH}"
+
+          gh pr create \
+            --base main \
+            --head "$REPAIR_BRANCH" \
+            --title "chore(ci): repair Android SDK setup" \
+            --body "Automated repair for obsolete Android SDK setup declarations. This change is intentionally delivered through a pull request so protected main does not need an automation bypass."
