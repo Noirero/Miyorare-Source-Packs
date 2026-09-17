@@ -80,6 +80,7 @@ jobs:
                   "PROMOTE",
                   "SIGN",
                   "PUBLISH",
+                  "ADD_TO_FARM",
               ],
           }
           Path("build/source-lab-authz/metadata.json").write_text(
@@ -121,7 +122,7 @@ jobs:
               raise SystemExit("metadata challenge mismatch")
           if metadata["runId"] != os.environ["GITHUB_RUN_ID"]:
               raise SystemExit("metadata run id mismatch")
-          expected = {"RUN_FARM", "APPROVE", "PROMOTE", "SIGN", "PUBLISH"}
+          expected = {"RUN_FARM", "APPROVE", "PROMOTE", "SIGN", "PUBLISH", "ADD_TO_FARM"}
           if set(metadata.get("capabilities", [])) != expected:
               raise SystemExit("metadata capability set mismatch")
           PY
@@ -136,9 +137,6 @@ jobs:
           path: build/source-lab-authz/
           if-no-files-found: error
           retention-days: 1
-          # Android's java.util.zip.ZipInputStream cannot read GitHub's STORED
-          # entries when they use an extended data descriptor. Force DEFLATED
-          # entries so the exact archive returned by GitHub is stream-readable.
           compression-level: 9
 
       - name: Verify uploaded proof archive is Android-compatible
@@ -206,7 +204,7 @@ jobs:
                   raise SystemExit("artifact challenge mismatch")
               if metadata.get("runId") != os.environ["GITHUB_RUN_ID"]:
                   raise SystemExit("artifact run id mismatch")
-              expected_capabilities = {"RUN_FARM", "APPROVE", "PROMOTE", "SIGN", "PUBLISH"}
+              expected_capabilities = {"RUN_FARM", "APPROVE", "PROMOTE", "SIGN", "PUBLISH", "ADD_TO_FARM"}
               if set(metadata.get("capabilities", [])) != expected_capabilities:
                   raise SystemExit("artifact capability set mismatch")
 
