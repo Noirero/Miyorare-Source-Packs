@@ -66,7 +66,7 @@ jobs:
           from pathlib import Path
 
           payload = {
-              "schemaVersion": 2,
+              "schemaVersion": 1,
               "challenge": os.environ["SOURCE_LAB_CHALLENGE"],
               "repository": os.environ["GITHUB_REPOSITORY"],
               "actorId": os.environ["GITHUB_ACTOR_ID"],
@@ -115,7 +115,7 @@ jobs:
               raise SystemExit("OIDC token is not a three-part JWT")
 
           metadata = json.loads(Path("build/source-lab-authz/metadata.json").read_text(encoding="utf-8"))
-          if metadata.get("schemaVersion") != 2:
+          if metadata.get("schemaVersion") != 1:
               raise SystemExit("metadata schema mismatch")
           if metadata["challenge"] != os.environ["SOURCE_LAB_CHALLENGE"]:
               raise SystemExit("metadata challenge mismatch")
@@ -200,7 +200,7 @@ jobs:
                   raise SystemExit("artifact JWT is malformed")
 
               metadata = json.loads(archive.read("metadata.json").decode("utf-8"))
-              if metadata.get("schemaVersion") != 2:
+              if metadata.get("schemaVersion") != 1:
                   raise SystemExit("artifact metadata schema mismatch")
               if metadata.get("challenge") != os.environ["SOURCE_LAB_CHALLENGE"]:
                   raise SystemExit("artifact challenge mismatch")
