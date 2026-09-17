@@ -1,0 +1,85 @@
+name: Source Pack Outcome
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'upstream/status.json'
+      - 'tools/source_pack_outcome.py'
+      - '.github/workflows/source-pack-outcome.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: source-pack-outcome-main
+  cancel-in-progress: false
+
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Packs
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Classify domain outcome
+        id: classify
+        shell: bash
+        run: |
+          set +e
+          python3 tools/source_pack_outcome.py --status upstream/status.json --output upstream/outcome.json
+          RC=$?
+          set -e
+          OUTCOME="$(python3 -c 'import json; print(json.load(open("upstream/outcome.json"))["outcome"])')"
+          echo "outcome=$OUTCOME" >> "$GITHUB_OUTPUT"
+          if [ "$RC" -ne 0 ] && [ "$OUTCOME" != "FAIL" ]; then
+            echo "::error::Outcome classifier returned an inconsistent result."
+            exit 1
+          fi
+
+      - name: Write summary
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          result = json.loads(Path('upstream/outcome.json').read_text(encoding='utf-8'))
+          lines = [
+              '# Source Pack Outcome',
+              '',
+              f"**{result['outcome']}**",
+              '',
+              f"Active last-known-good set safe: `{str(result['activeSetSafe']).lower()}`",
+              f"Reason: `{result['reason']}`",
+          ]
+          if result.get('heldProviders'):
+              lines.append(f"Held providers: `{', '.join(result['heldProviders'])}`")
+          if result.get('failedProviders'):
+              lines.append(f"Failed providers: `{', '.join(result['failedProviders'])}`")
+          Path(os.environ['GITHUB_STEP_SUMMARY']).write_text('\n'.join(lines) + '\n', encoding='utf-8')
+          PY
+
+      - name: Persist tri-state outcome
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- upstream/outcome.json; then
+            echo 'Outcome unchanged.'
+          else
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add upstream/outcome.json
+            git commit -m "Record Source Pack ${{ steps.classify.outputs.outcome }} outcome"
+            git push origin HEAD:main
+          fi
+
+      - name: Fail only for FAIL state
+        if: steps.classify.outputs.outcome == 'FAIL'
+        shell: bash
+        run: |
+          echo "::error::Source Pack active state is FAIL."
+          exit 1
