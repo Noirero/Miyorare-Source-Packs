@@ -177,6 +177,7 @@ private fun FarmRunScreen(onClose: () -> Unit) {
             val freshSnapshot = runCatching {
                 withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
             }.getOrNull()
+            clockEpochMs = System.currentTimeMillis()
             ui = ui.copy(
                 phase = FarmRunPhase.SUCCESS,
                 progress = finalProgress ?: ui.progress,
@@ -200,6 +201,7 @@ private fun FarmRunScreen(onClose: () -> Unit) {
             val freshSnapshot = runCatching {
                 withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
             }.getOrNull()
+            clockEpochMs = System.currentTimeMillis()
             ui = ui.copy(
                 phase = FarmRunPhase.FAILED,
                 progress = finalProgress ?: ui.progress,
@@ -208,6 +210,7 @@ private fun FarmRunScreen(onClose: () -> Unit) {
             )
         } catch (error: Throwable) {
             monitorJob?.cancel()
+            clockEpochMs = System.currentTimeMillis()
             ui = ui.copy(
                 phase = FarmRunPhase.FAILED,
                 error = error.message ?: error.javaClass.simpleName,
@@ -288,7 +291,17 @@ private fun FarmRunScreen(onClose: () -> Unit) {
 
         if (ui.phase == FarmRunPhase.SUCCESS) {
             item(key = "success-result") {
-                FarmSuccessResult(ui, jobs)
+                FarmSuccessResult(ui, jobs, elapsedSeconds)
+            }
+            if (ui.snapshot?.approvalCandidate != null) {
+                item(key = "review-candidate") {
+                    Button(
+                        onClick = {
+                            context.startActivity(Intent(context, ApprovalReviewActivity::class.java))
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Review Candidate") }
+                }
             }
         }
 
@@ -437,12 +450,14 @@ private fun FarmJobRow(job: MonitoredFarmJob) {
 }
 
 @Composable
-private fun FarmSuccessResult(ui: FarmRunUiState, jobs: List<MonitoredFarmJob>) {
+private fun FarmSuccessResult(
+    ui: FarmRunUiState,
+    jobs: List<MonitoredFarmJob>,
+    elapsedSeconds: Long,
+) {
     val snapshot = ui.snapshot
     val candidate = snapshot?.approvalCandidate
-    val measurableJobs = jobs.filter { jobStatus(it).first != "N/A" }
-    val passedJobs = measurableJobs.count { jobStatus(it).first == "PASS" }
-    val passPercent = if (measurableJobs.isNotEmpty()) passedJobs * 100 / measurableJobs.size else null
+    val passPercent = compatibilityPassPercent(jobs)
 
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -455,8 +470,13 @@ private fun FarmSuccessResult(ui: FarmRunUiState, jobs: List<MonitoredFarmJob>) 
                 SourceLabStatusBadge("PASS", SourceLabTone.GOOD)
             }
             passPercent?.let {
-                Text("Executed workflow checks passed: $it%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Parser compatibility jobs passed: $it%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
+            Text(
+                "Duration · ${formatElapsed(elapsedSeconds)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             when {
                 candidate != null -> {
                     SourceLabStatusBadge("Ready for Approval", SourceLabTone.GOOD)
@@ -542,6 +562,22 @@ internal fun stepStatus(step: MonitoredFarmStep): Pair<String, SourceLabTone> {
         "failure", "cancelled", "timed_out", "action_required", "startup_failure" -> "FAIL" to SourceLabTone.ERROR
         else -> if (step.status == "completed") "N/A" to SourceLabTone.NEUTRAL else "WAITING" to SourceLabTone.NEUTRAL
     }
+}
+
+internal fun isCompatibilityExecutionJob(job: MonitoredFarmJob): Boolean {
+    val name = job.name.lowercase()
+    return "candidate uma real parser" in name ||
+        "candidate gekkoushi real parser" in name ||
+        "candidate keiyoushi " in name
+}
+
+internal fun compatibilityPassPercent(jobs: List<MonitoredFarmJob>): Int? {
+    val measured = jobs
+        .filter(::isCompatibilityExecutionJob)
+        .filter { jobStatus(it).first != "N/A" }
+    if (measured.isEmpty()) return null
+    val passed = measured.count { jobStatus(it).first == "PASS" }
+    return passed * 100 / measured.size
 }
 
 private fun formatElapsed(seconds: Long): String {
