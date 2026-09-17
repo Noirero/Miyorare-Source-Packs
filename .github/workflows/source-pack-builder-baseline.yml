@@ -1,0 +1,91 @@
+name: Source Pack Builder Baseline CI
+
+on:
+  pull_request:
+    paths:
+      - 'compatibility/miyorare-builder-baseline.json'
+      - 'compatibility/miyorare-source-pack-contract.v1.json'
+      - 'tools/validate_builder_baseline.py'
+      - '.github/workflows/release-source-packs.yml'
+      - '.github/workflows/source-pack-builder-baseline.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'compatibility/miyorare-builder-baseline.json'
+      - 'compatibility/miyorare-source-pack-contract.v1.json'
+      - 'tools/validate_builder_baseline.py'
+      - '.github/workflows/release-source-packs.yml'
+      - '.github/workflows/source-pack-builder-baseline.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Packs
+        uses: actions/checkout@v5
+
+      - name: Validate pinned builder policy
+        id: baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/validate_builder_baseline.py
+          commit="$(python3 tools/validate_builder_baseline.py \
+            --baseline compatibility/miyorare-builder-baseline.json \
+            --contract compatibility/miyorare-source-pack-contract.v1.json \
+            --print-commit)"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact pinned Miyorare builder
+        uses: actions/checkout@v5
+        with:
+          repository: Noirero/Miyorare
+          ref: ${{ steps.baseline.outputs.commit }}
+          path: miyorare-builder
+          fetch-depth: 1
+
+      - name: Verify pinned builder ABI metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git -C miyorare-builder rev-parse HEAD)"
+          test "$actual" = '${{ steps.baseline.outputs.commit }}'
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          baseline = json.loads(Path('compatibility/miyorare-builder-baseline.json').read_text(encoding='utf-8'))
+          packs = json.loads(Path('miyorare-builder/extensions/miyorare-sources/packs.json').read_text(encoding='utf-8'))
+          if packs.get('tsukiApi') != baseline['tsukiApi']:
+              raise SystemExit('pinned builder Tsuki API differs from builder baseline')
+          required_tools = [
+              'extensions/miyorare-sources/tools/prepare_pack.py',
+              'extensions/miyorare-sources/tools/finalize_pack.py',
+              'extensions/miyorare-sources/tools/prepare_gekkoushi_shard.py',
+              'extensions/miyorare-sources/tools/finalize_logical_pack.py',
+              'extensions/miyorare-sources/tools/prepare_global_gekkoushi_shard.py',
+              'extensions/miyorare-sources/tools/finalize_global_shard.py',
+              'extensions/miyorare-sources/tools/finalize_global_pack.py',
+          ]
+          missing = [path for path in required_tools if not (Path('miyorare-builder') / path).is_file()]
+          if missing:
+              raise SystemExit(f'pinned builder is missing required tools: {missing}')
+          PY
+
+      - name: Prevent moving beta and tag overwrite regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          release=.github/workflows/release-source-packs.yml
+          if grep -Eq '^[[:space:]]*ref:[[:space:]]*beta[[:space:]]*$' "$release"; then
+            echo '::error::Stable Source Pack release still resolves moving Miyorare/beta.'
+            exit 1
+          fi
+          grep -Fq 'compatibility/miyorare-builder-baseline.json' "$release"
+          grep -Fq 'tools/validate_builder_baseline.py' "$release"
+          grep -Fq 'refs/tags/$TAG' "$release"
+          grep -Fq 'Release or tag $TAG already exists' "$release"
