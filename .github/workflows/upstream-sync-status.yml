@@ -26,7 +26,7 @@ jobs:
       RUN_ID: ${{ github.event.workflow_run.id }}
       RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
       HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
-      AUTOMATION_BRANCH: automation/upstream-sync-${{ github.event.workflow_run.id }}
+      AUTOMATION_BRANCH: automation/upstream-sync-${{ github.event.workflow_run.head_branch }}
     steps:
       - name: Checkout protected base branch
         uses: actions/checkout@v5
@@ -34,29 +34,35 @@ jobs:
           ref: ${{ env.HEAD_BRANCH }}
           fetch-depth: 0
 
-      - name: Continue on run-scoped automation branch
+      - name: Start proposal from current protected base
         shell: bash
         run: |
           set -euo pipefail
           git fetch origin "$HEAD_BRANCH"
-          if git ls-remote --exit-code --heads origin "$AUTOMATION_BRANCH" >/dev/null 2>&1; then
-            git fetch origin "$AUTOMATION_BRANCH"
-            git checkout -B "$AUTOMATION_BRANCH" FETCH_HEAD
-            echo "Continuing existing automation branch $AUTOMATION_BRANCH"
-          else
-            git checkout -B "$AUTOMATION_BRANCH" "origin/$HEAD_BRANCH"
-            echo "Created local automation branch $AUTOMATION_BRANCH from $HEAD_BRANCH"
-          fi
+          git checkout -B "$AUTOMATION_BRANCH" "origin/$HEAD_BRANCH"
 
       - name: Download sync evidence
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p _sync-plan _diagnostics/keiyoushi _diagnostics/gekkoushi
+          mkdir -p _sync-plan _diagnostics/keiyoushi _diagnostics/gekkoushi _promoted-registry
           gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name upstream-sync-plan --dir _sync-plan || true
           gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name keiyoushi-intake-report --dir _diagnostics/keiyoushi || true
           gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name gekkoushi-overlay-report --dir _diagnostics/gekkoushi || true
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name promoted-upstream-registry --dir _promoted-registry || true
           gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs > _sync-plan/jobs.json
+
+      - name: Apply validated registry proposal
+        shell: bash
+        run: |
+          set -euo pipefail
+          registry_artifact="$(find _promoted-registry -type f -name registry.json -print -quit || true)"
+          if [[ -n "$registry_artifact" ]]; then
+            cp "$registry_artifact" upstream/registry.json
+            echo "Applied validated registry proposal from $registry_artifact"
+          else
+            echo 'No promoted registry artifact; active registry remains unchanged.'
+          fi
 
       - name: Generate status and outcome as one transaction
         id: classify
@@ -345,7 +351,7 @@ jobs:
               print(f'::warning title={provider.capitalize()} candidate HELD::{reason}; affected={count}; last-known-good remains active.')
           PY
 
-      - name: Commit atomic result on automation branch
+      - name: Commit atomic proposal on automation branch
         id: persist
         shell: bash
         run: |
@@ -354,18 +360,19 @@ jobs:
           git fetch origin "$HEAD_BRANCH"
 
           registry_changed=false
-          if ! git diff --quiet "origin/${HEAD_BRANCH}...HEAD" -- upstream/registry.json; then
+          if ! git diff --quiet -- upstream/registry.json; then
             registry_changed=true
           fi
 
           semantic_changed="$(python3 - <<'PY'
           import json
+          import os
           import subprocess
           from pathlib import Path
 
           def load_base(path):
               raw = subprocess.check_output(
-                  ['git', 'show', f'origin/{__import__("os").environ["HEAD_BRANCH"]}:{path}'],
+                  ['git', 'show', f'origin/{os.environ["HEAD_BRANCH"]}:{path}'],
                   text=True,
               )
               return json.loads(raw)
@@ -394,26 +401,39 @@ jobs:
           )"
 
           if [[ "$registry_changed" != "true" && "$semantic_changed" != "true" ]]; then
-            echo 'Only workflowRunId changed; no automation PR is needed.'
-            git checkout "origin/$HEAD_BRANCH" -- upstream/status.json upstream/outcome.json
+            echo 'No semantic Source Pack state change; no automation PR is needed.'
+            stale_pr="$(gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --state open \
+              --base "$HEAD_BRANCH" \
+              --head "$AUTOMATION_BRANCH" \
+              --json number \
+              --jq '.[0].number // empty')"
+            if [[ -n "$stale_pr" ]]; then
+              gh pr close "$stale_pr" \
+                --repo "$GITHUB_REPOSITORY" \
+                --comment "Superseded automatically: the latest upstream sync has no semantic change versus ${HEAD_BRANCH}."
+            fi
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          if ! git diff --quiet -- upstream/status.json upstream/outcome.json; then
-            git add upstream/status.json upstream/outcome.json
-            git commit -m "Record atomic Source Pack ${{ steps.classify.outputs.outcome }} outcome"
-          fi
-
-          if git diff --quiet "origin/${HEAD_BRANCH}...HEAD" -- upstream/registry.json upstream/status.json upstream/outcome.json; then
-            echo 'Automation branch has no Source Pack changes versus base.'
+          git add upstream/registry.json upstream/status.json upstream/outcome.json
+          if git diff --cached --quiet; then
+            echo 'No staged Source Pack changes versus protected base.'
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          git commit -m "Record Source Pack ${{ steps.classify.outputs.outcome }} proposal from sync run ${RUN_ID}"
 
-          git push origin "HEAD:${AUTOMATION_BRANCH}"
+          if git fetch origin "$AUTOMATION_BRANCH"; then
+            remote_sha="$(git rev-parse FETCH_HEAD)"
+            git push --force-with-lease="$AUTOMATION_BRANCH:$remote_sha" origin "HEAD:${AUTOMATION_BRANCH}"
+          else
+            git push origin "HEAD:${AUTOMATION_BRANCH}"
+          fi
           echo "has_changes=true" >> "$GITHUB_OUTPUT"
 
       - name: Open or refresh automation pull request
@@ -424,9 +444,9 @@ jobs:
           set -euo pipefail
           outcome='${{ steps.classify.outputs.outcome }}'
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}"
-          title="chore(upstream): Source Sync ${outcome} (run ${RUN_ID})"
+          title="chore(upstream): Source Sync ${outcome}"
           body="$(cat <<EOF
-          Automated Compatibility Farm update for upstream workflow run ${RUN_ID}.
+          Automated Compatibility Farm update from upstream workflow run ${RUN_ID}.
 
           - Outcome: **${outcome}**
           - Base branch: \`${HEAD_BRANCH}\`
@@ -434,7 +454,7 @@ jobs:
           - Evidence: ${run_url}
           - Delivery: pull request only; no protected-main bypass is required.
 
-          This PR contains the validated registry advancement when applicable plus the matching atomic \`upstream/status.json\` and \`upstream/outcome.json\` state.
+          This PR contains the validated registry advancement when applicable plus the matching atomic \`upstream/status.json\` and \`upstream/outcome.json\` state. New sync runs refresh this same PR instead of opening hourly duplicates.
           EOF
           )"
 
