@@ -1,0 +1,129 @@
+name: Source Lab Sync Farm Membership
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 2 * * *'
+  push:
+    branches: [main]
+    paths: ['.github/workflows/source-lab-sync-farm-membership.yml', 'tools/source_inventory_bulk_enroll.py']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: source-lab-sync-farm-membership
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout source inventory
+        uses: actions/checkout@v5
+        with:
+          ref: source-inventory-live
+          path: inventory
+          fetch-depth: 1
+
+      - name: Checkout Compatibility Farm
+        uses: actions/checkout@v5
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 0
+
+      - name: Pin current heads and validate lifecycle
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          inventory_sha="$(git -C inventory rev-parse HEAD)"
+          foundation_sha="$(git -C farm rev-parse HEAD)"
+          [[ "$inventory_sha" == "$(git -C farm ls-remote origin refs/heads/source-inventory-live | awk '{print $1}')" ]]
+          [[ "$foundation_sha" == "$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')" ]]
+          echo "inventory_sha=$inventory_sha" >> "$GITHUB_OUTPUT"
+          echo "foundation_sha=$foundation_sha" >> "$GITHUB_OUTPUT"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          status = json.loads(Path('farm/upstream/status.json').read_text())
+          if status.get('schema') != 3 or status.get('approvalCandidate') is not None:
+              raise SystemExit('Farm lifecycle is not safe for membership changes')
+          promotion = status.get('lastPromotion')
+          published = status.get('lastPublish')
+          if isinstance(promotion, dict) and (not isinstance(published, dict) or published.get('candidateSetId') != promotion.get('candidateSetId')):
+              raise SystemExit('finish SIGN/PUBLISH before membership changes')
+          PY
+
+      - name: Materialize baseline path sets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p baseline farm/build
+          python3 - <<'PY' > farm/build/baselines.tsv
+          import json
+          from pathlib import Path
+          r = json.loads(Path('farm/compatibility/source-registry.json').read_text())
+          repos = {'keiyoushi':'https://github.com/keiyoushi/extensions-source.git','uma':'https://github.com/InvalidDavid/UMA.git','gekkoushi':'https://github.com/Gekkoushi/plugin-source.git'}
+          for p in ('keiyoushi','uma','gekkoushi'):
+              print(p, r['providerBaselines'][p], repos[p], sep='\t')
+          PY
+          while IFS=$'\t' read -r provider sha repo; do
+            git init -q "baseline/$provider"
+            git -C "baseline/$provider" remote add origin "$repo"
+            git -C "baseline/$provider" fetch -q --depth 1 origin "$sha"
+            git -C "baseline/$provider" ls-tree -r --name-only FETCH_HEAD > "farm/build/$provider.paths"
+          done < farm/build/baselines.tsv
+
+      - name: Enroll ID and EN sources as PENDING
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_inventory_bulk_enroll.py \
+            --inventory inventory/inventory/source-inventory.json \
+            --registry farm/compatibility/source-registry.json \
+            --inventory-commit '${{ steps.pins.outputs.inventory_sha }}' \
+            --foundation-commit '${{ steps.pins.outputs.foundation_sha }}' \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --baseline-paths keiyoushi=farm/build/keiyoushi.paths \
+            --baseline-paths uma=farm/build/uma.paths \
+            --baseline-paths gekkoushi=farm/build/gekkoushi.paths \
+            --report farm/build/source-lab-membership-sync.json
+          python3 farm/tools/parser_family_plan.py \
+            --registry farm/compatibility/source-registry.json \
+            --families farm/compatibility/parser-families.json \
+            validate --output farm/build/source-lab-membership-parser-validation.json
+
+      - name: Recheck heads and commit membership
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ '${{ steps.pins.outputs.inventory_sha }}' == "$(git -C farm ls-remote origin refs/heads/source-inventory-live | awk '{print $1}')" ]]
+          [[ '${{ steps.pins.outputs.foundation_sha }}' == "$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')" ]]
+          cd farm
+          if git diff --quiet -- compatibility/source-registry.json; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add compatibility/source-registry.json
+          git commit -m 'farm: sync Indonesia and English inventory membership'
+          git push origin HEAD:compatibility-farm-foundation
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f farm/build/source-lab-membership-sync.json ]]; then
+            echo '## ID + EN Farm sync' >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat farm/build/source-lab-membership-sync.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
