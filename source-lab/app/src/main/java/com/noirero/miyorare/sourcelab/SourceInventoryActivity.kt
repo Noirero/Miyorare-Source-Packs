@@ -58,11 +58,8 @@ class SourceInventoryActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             SourceLabPhase1Theme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background,
-                ) {
-                    SourceInventoryScreen(onClose = { finish() })
+                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    SourceInventoryScreen { finish() }
                 }
             }
         }
@@ -84,50 +81,45 @@ private data class InventoryUiState(
 private fun SourceInventoryScreen(onClose: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var state by remember { mutableStateOf(InventoryUiState()) }
-    var selectedCanonicalId by rememberSaveable { mutableStateOf<String?>(null) }
-    var enrollmentConfirmation by remember { mutableStateOf<InventorySource?>(null) }
-    var enrollingCanonical by remember { mutableStateOf<String?>(null) }
-    var operationMessage by remember { mutableStateOf<String?>(null) }
-
+    var ui by remember { mutableStateOf(InventoryUiState()) }
+    var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     var provider by rememberSaveable { mutableStateOf("ALL") }
-    var membership by rememberSaveable { mutableStateOf("ALL") }
-    var health by rememberSaveable { mutableStateOf("ALL") }
+    var quick by rememberSaveable { mutableStateOf("ALL") }
     var language by rememberSaveable { mutableStateOf("ALL") }
-    var showAdvancedFilters by rememberSaveable { mutableStateOf(false) }
+    var enrollment by rememberSaveable { mutableStateOf("ALL") }
+    var health by rememberSaveable { mutableStateOf("ALL") }
+    var showFilters by rememberSaveable { mutableStateOf(false) }
+    var confirmAdd by remember { mutableStateOf<InventorySource?>(null) }
+    var enrolling by remember { mutableStateOf<String?>(null) }
+    var operation by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
 
-    suspend fun refreshAll(initial: Boolean) {
-        val hadInventory = state.inventory != null
-        state = state.copy(
-            initialLoading = initial && !hadInventory,
-            refreshing = hadInventory,
+    suspend fun refresh(initial: Boolean) {
+        val hasInventory = ui.inventory != null
+        ui = ui.copy(
+            initialLoading = initial && !hasInventory,
+            refreshing = hasInventory,
             inventoryError = null,
             farmError = null,
             ownerError = null,
         )
         coroutineScope {
-            val inventoryDeferred = async {
-                runCatching { SourceInventoryRepository.loadInventory(context, forceRefresh = true) }
-            }
-            val farmDeferred = async { runCatching { SourceInventoryRepository.loadFarmMembership() } }
-            val ownerDeferred = async { runCatching { SourceLabControlClient.resolveOwnerSession(context) } }
-
-            val inventoryResult = inventoryDeferred.await()
-            val farmResult = farmDeferred.await()
-            val ownerResult = ownerDeferred.await()
-            val previousInventory = state.inventory
-
-            state = state.copy(
-                inventory = inventoryResult.getOrNull() ?: previousInventory,
-                farm = farmResult.getOrNull() ?: state.farm,
-                ownerSession = ownerResult.getOrNull() ?: state.ownerSession,
+            val inventoryJob = async { runCatching { SourceInventoryRepository.loadInventory(context, true) } }
+            val farmJob = async { runCatching { SourceInventoryRepository.loadFarmMembership() } }
+            val ownerJob = async { runCatching { SourceLabControlClient.resolveOwnerSession(context) } }
+            val inventoryResult = inventoryJob.await()
+            val farmResult = farmJob.await()
+            val ownerResult = ownerJob.await()
+            ui = ui.copy(
+                inventory = inventoryResult.getOrNull() ?: ui.inventory,
+                farm = farmResult.getOrNull(),
+                ownerSession = ownerResult.getOrNull(),
                 initialLoading = false,
                 refreshing = false,
-                inventoryError = inventoryResult.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName },
-                farmError = farmResult.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName },
-                ownerError = ownerResult.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName },
+                inventoryError = inventoryResult.exceptionOrNull()?.readableMessage(),
+                farmError = farmResult.exceptionOrNull()?.readableMessage(),
+                ownerError = ownerResult.exceptionOrNull()?.readableMessage(),
             )
         }
     }
@@ -135,135 +127,120 @@ private fun SourceInventoryScreen(onClose: () -> Unit) {
     LaunchedEffect(Unit) {
         val cached = SourceInventoryCacheReader.load(context)
         if (cached != null) {
-            state = state.copy(
-                inventory = cached,
-                initialLoading = false,
-                refreshing = true,
-            )
+            ui = ui.copy(inventory = cached, initialLoading = false, refreshing = true)
         }
-        refreshAll(initial = cached == null)
+        refresh(initial = cached == null)
     }
 
-    val inventory = state.inventory
-    val farmByCanonical = remember(state.farm) {
-        state.farm?.sources?.associateBy { it.canonicalId }.orEmpty()
-    }
-    val selected = remember(inventory, selectedCanonicalId) {
-        inventory?.sources?.firstOrNull { it.canonicalId == selectedCanonicalId }
+    val inventory = ui.inventory
+    val farmMap = remember(ui.farm) { ui.farm?.sources?.associateBy { it.canonicalId }.orEmpty() }
+    val selected = remember(inventory, selectedId) {
+        inventory?.sources?.firstOrNull { it.canonicalId == selectedId }
     }
 
-    val confirmSource = enrollmentConfirmation
-    if (confirmSource != null && inventory != null && state.farm != null) {
-        AlertDialog(
-            onDismissRequest = {
-                if (enrollingCanonical == null) enrollmentConfirmation = null
+    if (showFilters && inventory != null) {
+        AdvancedFilters(
+            languages = sourceInventoryLanguageFilters(inventory.sources),
+            language = language,
+            enrollment = enrollment,
+            health = health,
+            onLanguage = { language = it },
+            onEnrollment = { enrollment = it },
+            onHealth = { health = it },
+            onClear = {
+                language = "ALL"
+                enrollment = "ALL"
+                health = "ALL"
             },
+            onDismiss = { showFilters = false },
+        )
+    }
+
+    val pendingAdd = confirmAdd
+    if (pendingAdd != null && inventory != null && ui.farm != null && ui.farmError == null) {
+        AlertDialog(
+            onDismissRequest = { if (enrolling == null) confirmAdd = null },
             title = { Text("Confirm Add to Farm", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(confirmSource.displayName, fontWeight = FontWeight.SemiBold)
-                    Text(confirmSource.canonicalId, fontFamily = FontFamily.Monospace)
+                    Text(pendingAdd.displayName, fontWeight = FontWeight.SemiBold)
+                    Text(pendingAdd.canonicalId, fontFamily = FontFamily.Monospace)
                     Text(
-                        "The backend revalidates source identity, inventory commit, Farm state, and Owner capability before any write.",
+                        "The backend revalidates identity, inventory/Farm commits and Owner capability before any write.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             },
             confirmButton = {
                 Button(
-                    enabled = enrollingCanonical == null,
+                    enabled = enrolling == null,
                     onClick = {
-                        enrollmentConfirmation = null
+                        confirmAdd = null
                         scope.launch {
-                            enrollingCanonical = confirmSource.canonicalId
-                            operationMessage = null
+                            enrolling = pendingAdd.canonicalId
+                            operation = null
                             try {
-                                val result = SourceLabControlClient.addToFarm(
-                                    context = context,
-                                    source = confirmSource,
-                                    inventory = inventory,
-                                    farm = state.farm!!,
-                                )
-                                operationMessage = "Add to Farm succeeded · run ${result.runId}"
-                                refreshAll(initial = false)
+                                val result = SourceLabControlClient.addToFarm(context, pendingAdd, inventory, ui.farm!!)
+                                operation = "Add to Farm succeeded · run ${result.runId}"
+                                refresh(false)
                             } catch (error: SourceLabControlException) {
-                                operationMessage = "Add to Farm · ${error.reason}"
+                                operation = "Add to Farm · ${error.reason}"
                             } catch (error: Throwable) {
-                                operationMessage = "Add to Farm · ${error.message ?: error.javaClass.simpleName}"
+                                operation = "Add to Farm · ${error.readableMessage()}"
                             } finally {
-                                enrollingCanonical = null
+                                enrolling = null
                             }
                         }
                     },
                 ) { Text("Add to Farm") }
             },
-            dismissButton = {
-                TextButton(onClick = { enrollmentConfirmation = null }) { Text("Cancel") }
-            },
-        )
-    }
-
-    if (showAdvancedFilters && inventory != null) {
-        AdvancedFiltersDialog(
-            languages = sourceInventoryLanguageFilters(inventory.sources),
-            language = language,
-            membership = membership,
-            health = health,
-            onLanguage = { language = it },
-            onMembership = { membership = it },
-            onHealth = { health = it },
-            onClear = {
-                language = "ALL"
-                membership = "ALL"
-                health = "ALL"
-            },
-            onDismiss = { showAdvancedFilters = false },
+            dismissButton = { TextButton(onClick = { confirmAdd = null }) { Text("Cancel") } },
         )
     }
 
     when {
-        inventory == null && state.initialLoading -> InitialInventoryLoading()
-        inventory == null -> InventoryUnavailable(
-            reason = state.inventoryError ?: "No cached inventory is available.",
-            onRetry = { scope.launch { refreshAll(initial = true) } },
-        )
-        selected != null -> SourceInventoryDetail(
+        inventory == null && ui.initialLoading -> EmptyCacheLoading()
+        inventory == null -> InventoryFailure(ui.inventoryError ?: "No cached inventory is available.") {
+            scope.launch { refresh(true) }
+        }
+        selected != null -> SourceDetail(
             source = selected,
-            farm = farmByCanonical[selected.canonicalId],
-            farmStateResolved = state.farm != null,
-            ownerSession = state.ownerSession,
-            ownerError = state.ownerError,
-            enrolling = enrollingCanonical == selected.canonicalId,
-            operationMessage = operationMessage,
-            onBack = { selectedCanonicalId = null },
-            onAddToFarm = { enrollmentConfirmation = selected },
+            farm = farmMap[selected.canonicalId],
+            farmResolved = ui.farm != null && ui.farmError == null,
+            ownerSession = ui.ownerSession,
+            ownerError = ui.ownerError,
+            enrolling = enrolling == selected.canonicalId,
+            operation = operation,
+            onBack = { selectedId = null },
+            onAdd = { confirmAdd = selected },
         )
-        else -> SourceInventoryList(
+        else -> SourcesList(
             inventory = inventory,
-            farm = state.farm,
-            farmError = state.farmError,
-            inventoryError = state.inventoryError,
-            refreshing = state.refreshing,
-            operationMessage = operationMessage,
+            farm = ui.farm,
+            refreshing = ui.refreshing,
+            inventoryError = ui.inventoryError,
+            farmError = ui.farmError,
+            operation = operation,
             query = query,
             provider = provider,
-            membership = membership,
-            health = health,
+            quick = quick,
             language = language,
+            enrollment = enrollment,
+            health = health,
             listState = listState,
             onQuery = { query = it },
             onProvider = { provider = it },
-            onQuickMembership = { membership = it },
-            onOpenAdvancedFilters = { showAdvancedFilters = true },
+            onQuick = { quick = it },
+            onMoreFilters = { showFilters = true },
+            onRefresh = { scope.launch { refresh(false) } },
+            onOpen = { selectedId = it.canonicalId },
             onClose = onClose,
-            onRefresh = { scope.launch { refreshAll(initial = false) } },
-            onOpen = { selectedCanonicalId = it.canonicalId },
         )
     }
 }
 
 @Composable
-private fun InitialInventoryLoading() {
+private fun EmptyCacheLoading() {
     Column(
         Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -273,7 +250,7 @@ private fun InitialInventoryLoading() {
         Spacer(Modifier.height(12.dp))
         Text("Preparing source inventory…")
         Text(
-            "This full-screen state is only used when no cached inventory exists yet.",
+            "Shown only when this device has no cached inventory yet.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -281,76 +258,69 @@ private fun InitialInventoryLoading() {
 }
 
 @Composable
-private fun InventoryUnavailable(reason: String, onRetry: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+private fun InventoryFailure(reason: String, retry: () -> Unit) {
+    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
         Text("Source inventory unavailable", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
         Text(reason)
         Spacer(Modifier.height(12.dp))
-        Button(onClick = onRetry) { Text("Retry") }
+        Button(onClick = retry) { Text("Retry") }
     }
 }
 
 internal fun sourceInventoryLanguageFilters(sources: List<InventorySource>): List<String> =
-    listOf("ALL") + sources.asSequence()
-        .map { it.language }
-        .filter { it != "ALL" }
-        .distinct()
-        .sorted()
-        .toList()
+    listOf("ALL") + sources.asSequence().map { it.language }.filter { it != "ALL" }.distinct().sorted().toList()
 
 @Composable
-private fun SourceInventoryList(
+private fun SourcesList(
     inventory: SourceInventorySnapshot,
     farm: FarmInventorySnapshot?,
-    farmError: String?,
-    inventoryError: String?,
     refreshing: Boolean,
-    operationMessage: String?,
+    inventoryError: String?,
+    farmError: String?,
+    operation: String?,
     query: String,
     provider: String,
-    membership: String,
-    health: String,
+    quick: String,
     language: String,
+    enrollment: String,
+    health: String,
     listState: LazyListState,
     onQuery: (String) -> Unit,
     onProvider: (String) -> Unit,
-    onQuickMembership: (String) -> Unit,
-    onOpenAdvancedFilters: () -> Unit,
-    onClose: () -> Unit,
+    onQuick: (String) -> Unit,
+    onMoreFilters: () -> Unit,
     onRefresh: () -> Unit,
     onOpen: (InventorySource) -> Unit,
+    onClose: () -> Unit,
 ) {
-    val farmByCanonical = remember(farm) { farm?.sources?.associateBy { it.canonicalId }.orEmpty() }
-    val farmResolved = farm != null
+    val farmMap = remember(farm) { farm?.sources?.associateBy { it.canonicalId }.orEmpty() }
+    val farmResolved = farm != null && farmError == null
     val search = query.trim()
-    val visible = remember(inventory, farmByCanonical, search, provider, membership, health, language) {
+    val visible = remember(inventory, farmMap, search, provider, quick, language, enrollment, health, farmResolved) {
         inventory.sources.filter { source ->
-            val farmSource = farmByCanonical[source.canonicalId]
+            val farmSource = farmMap[source.canonicalId]
+            val issue = source.needsAttention || farmSource?.runtimeHealth in setOf("BROKEN", "DEGRADED") ||
+                farmSource?.ownerActionRequired == true
+            val searchMatch = search.isBlank() || source.displayName.contains(search, true) || source.canonicalId.contains(search, true)
             val providerMatch = provider == "ALL" || provider.lowercase() in source.providers
-            val membershipMatch = when (membership) {
+            val quickMatch = when (quick) {
+                "IN FARM" -> farmResolved && farmSource != null
+                "ISSUES" -> issue
+                else -> true
+            }
+            val enrollmentMatch = when (enrollment) {
                 "IN FARM" -> farmResolved && farmSource != null
                 "NOT ENROLLED" -> farmResolved && farmSource == null
-                "ISSUES" -> source.needsAttention || farmSource?.runtimeHealth == "BROKEN" ||
-                    farmSource?.runtimeHealth == "DEGRADED" || farmSource?.ownerActionRequired == true
                 else -> true
             }
             val healthMatch = when (health) {
                 "HEALTHY" -> farmSource?.runtimeHealth == "HEALTHY"
                 "BROKEN" -> farmSource?.runtimeHealth == "BROKEN"
                 "UNKNOWN" -> farmSource?.runtimeHealth.isNullOrBlank() || farmSource.runtimeHealth == "UNKNOWN"
-                "NEEDS ATTENTION" -> source.needsAttention || farmSource?.runtimeHealth == "DEGRADED" ||
-                    farmSource?.ownerActionRequired == true
+                "NEEDS ATTENTION" -> issue
                 else -> true
             }
-            val searchMatch = search.isBlank() ||
-                source.displayName.contains(search, ignoreCase = true) ||
-                source.canonicalId.contains(search, ignoreCase = true)
-            searchMatch && providerMatch && membershipMatch && healthMatch &&
+            searchMatch && providerMatch && quickMatch && enrollmentMatch && healthMatch &&
                 (language == "ALL" || source.language == language)
         }
     }
@@ -358,53 +328,36 @@ private fun SourceInventoryList(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+        contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item(key = "header") {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onClose) { Text("Home") }
                 OutlinedButton(onClick = onRefresh, enabled = !refreshing) {
                     if (refreshing) {
                         CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(7.dp))
                         Text("Refreshing")
-                    } else {
-                        Text("Refresh")
-                    }
+                    } else Text("Refresh")
                 }
             }
             Text("Sources", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text(
-                "Manage and inspect ${inventory.sources.size} discovered sources",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text("${inventory.sources.size} discovered sources", color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (inventory.fromCache) {
-                val minutes = inventory.cacheAgeMillis / 60_000L
+                val ageMinutes = inventory.cacheAgeMillis / 60_000L
                 Text(
-                    if (inventory.staleCacheFallback) "Offline cache · ${minutes}m old" else "Cached data · ${minutes}m old",
+                    if (inventory.staleCacheFallback) "Offline cache · ${ageMinutes}m old" else "Cached data · ${ageMinutes}m old",
                     style = MaterialTheme.typography.bodySmall,
                     color = if (inventory.staleCacheFallback) SourceLabWarning else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
-
-        operationMessage?.let { message ->
-            item(key = "operation") {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                    Text(message, Modifier.fillMaxWidth().padding(14.dp), fontWeight = FontWeight.SemiBold)
-                }
-            }
-        }
-
+        operation?.let { message -> item(key = "operation") { MessageCard(message) } }
         if (inventoryError != null || farmError != null) {
-            item(key = "refresh-warning") {
+            item(key = "warning") {
                 Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF302616))) {
-                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp)) {
                         Text("Using available data", color = SourceLabWarning, fontWeight = FontWeight.Bold)
                         inventoryError?.let { Text("Inventory refresh: $it", style = MaterialTheme.typography.bodySmall) }
                         farmError?.let { Text("Farm membership: $it", style = MaterialTheme.typography.bodySmall) }
@@ -412,84 +365,110 @@ private fun SourceInventoryList(
                 }
             }
         }
-
-        item(key = "search-filter") {
+        item(key = "controls") {
             OutlinedTextField(
                 value = query,
                 onValueChange = onQuery,
+                modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text("Search sources") },
                 placeholder = { Text("Name or canonical ID") },
-                modifier = Modifier.fillMaxWidth(),
             )
-            Spacer(Modifier.height(10.dp))
-            FilterRow(
-                values = listOf("ALL", "KEIYOUSHI", "UMA", "GEKKOUSHI"),
-                selected = provider,
-                onSelect = onProvider,
-            )
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            Spacer(Modifier.height(8.dp))
+            FilterRow(listOf("ALL", "KEIYOUSHI", "UMA", "GEKKOUSHI"), provider, onProvider)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 FilterChip(
-                    selected = membership == "IN FARM",
-                    onClick = { onQuickMembership(if (membership == "IN FARM") "ALL" else "IN FARM") },
+                    selected = quick == "IN FARM",
+                    onClick = { onQuick(if (quick == "IN FARM") "ALL" else "IN FARM") },
                     label = { Text("In Farm") },
                 )
                 FilterChip(
-                    selected = membership == "ISSUES",
-                    onClick = { onQuickMembership(if (membership == "ISSUES") "ALL" else "ISSUES") },
+                    selected = quick == "ISSUES",
+                    onClick = { onQuick(if (quick == "ISSUES") "ALL" else "ISSUES") },
                     label = { Text("Issues") },
                 )
-                OutlinedButton(onClick = onOpenAdvancedFilters) {
-                    Text("More filters")
-                }
+                OutlinedButton(onClick = onMoreFilters) { Text("More") }
             }
-            Text(
-                "${visible.size} matching sources",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text("${visible.size} matching sources", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-
-        items(
-            items = visible,
-            key = { it.canonicalId },
-            contentType = { "source-row" },
-        ) { source ->
-            SourceInventoryRow(
-                source = source,
-                farm = farmByCanonical[source.canonicalId],
-                farmResolved = farmResolved,
-                onOpen = { onOpen(source) },
-            )
+        items(visible, key = { it.canonicalId }, contentType = { "source" }) { source ->
+            SourceRow(source, farmMap[source.canonicalId], farmResolved) { onOpen(source) }
         }
     }
 }
 
 @Composable
-private fun FilterRow(values: List<String>, selected: String, onSelect: (String) -> Unit) {
+private fun MessageCard(message: String) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Text(message, Modifier.fillMaxWidth().padding(14.dp), fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun SourceRow(source: InventorySource, farm: FarmInventorySourceState?, farmResolved: Boolean, open: () -> Unit) {
+    val issue = source.needsAttention || farm?.runtimeHealth in setOf("BROKEN", "DEGRADED") || farm?.ownerActionRequired == true
+    val status = when {
+        issue -> "Needs review" to SourceLabTone.WARNING
+        farm?.runtimeHealth == "HEALTHY" -> "Healthy" to SourceLabTone.GOOD
+        farm?.runtimeHealth == "BROKEN" -> "Broken" to SourceLabTone.ERROR
+        farm != null -> farm.runtimeHealth to SourceLabTone.NEUTRAL
+        farmResolved -> "Not enrolled" to SourceLabTone.NEUTRAL
+        else -> "Unknown" to SourceLabTone.NEUTRAL
+    }
+    val version = source.providers.values.mapNotNull { it.extensionVersionCode }.maxOrNull()
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = open),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Surface(shape = RoundedCornerShape(12.dp), color = SourceLabPrimaryStrong) {
+                Text(source.displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?", Modifier.padding(horizontal = 14.dp, vertical = 10.dp), fontWeight = FontWeight.Bold)
+            }
+            Column(Modifier.weight(1f)) {
+                Text(source.displayName, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    "${source.language} · ${source.providers.keys.joinToString(" / ") { providerName(it) }}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    when {
+                        farm != null -> "In Farm${version?.let { " · build $it" }.orEmpty()}"
+                        farmResolved -> "Not enrolled${version?.let { " · build $it" }.orEmpty()}"
+                        else -> version?.let { "build $it" } ?: "Membership unavailable"
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            SourceLabStatusBadge(status.first, status.second)
+        }
+    }
+}
+
+@Composable
+private fun FilterRow(values: List<String>, selected: String, select: (String) -> Unit) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(values, key = { it }) { value ->
+        items(values.distinct(), key = { it }) { value ->
             FilterChip(
                 selected = selected == value,
-                onClick = { onSelect(value) },
-                label = { Text(if (value == "ALL") "All" else value.prettyProviderName()) },
+                onClick = { select(value) },
+                label = { Text(filterLabel(value)) },
             )
         }
     }
 }
 
 @Composable
-private fun AdvancedFiltersDialog(
+private fun AdvancedFilters(
     languages: List<String>,
     language: String,
-    membership: String,
+    enrollment: String,
     health: String,
     onLanguage: (String) -> Unit,
-    onMembership: (String) -> Unit,
+    onEnrollment: (String) -> Unit,
     onHealth: (String) -> Unit,
     onClear: () -> Unit,
     onDismiss: () -> Unit,
@@ -499,18 +478,9 @@ private fun AdvancedFiltersDialog(
         title = { Text("More filters", fontWeight = FontWeight.Bold) },
         text = {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                item {
-                    Text("Language", fontWeight = FontWeight.SemiBold)
-                    FilterRow(languages, language, onLanguage)
-                }
-                item {
-                    Text("Enrollment", fontWeight = FontWeight.SemiBold)
-                    FilterRow(listOf("ALL", "IN FARM", "NOT ENROLLED"), membership, onMembership)
-                }
-                item {
-                    Text("Health", fontWeight = FontWeight.SemiBold)
-                    FilterRow(listOf("ALL", "HEALTHY", "BROKEN", "UNKNOWN", "NEEDS ATTENTION"), health, onHealth)
-                }
+                item { Text("Language", fontWeight = FontWeight.SemiBold); FilterRow(languages, language, onLanguage) }
+                item { Text("Enrollment", fontWeight = FontWeight.SemiBold); FilterRow(listOf("ALL", "IN FARM", "NOT ENROLLED"), enrollment, onEnrollment) }
+                item { Text("Health", fontWeight = FontWeight.SemiBold); FilterRow(listOf("ALL", "HEALTHY", "BROKEN", "UNKNOWN", "NEEDS ATTENTION"), health, onHealth) }
             }
         },
         confirmButton = { Button(onClick = onDismiss) { Text("Done") } },
@@ -519,200 +489,80 @@ private fun AdvancedFiltersDialog(
 }
 
 @Composable
-private fun SourceInventoryRow(
+private fun SourceDetail(
     source: InventorySource,
     farm: FarmInventorySourceState?,
     farmResolved: Boolean,
-    onOpen: () -> Unit,
-) {
-    val issue = source.needsAttention || farm?.runtimeHealth == "BROKEN" ||
-        farm?.runtimeHealth == "DEGRADED" || farm?.ownerActionRequired == true
-    val badgeText = when {
-        issue -> "Needs review"
-        farm?.runtimeHealth == "HEALTHY" -> "Healthy"
-        farm != null -> farm.runtimeHealth.lowercase().replaceFirstChar { it.titlecase() }
-        !farmResolved -> "Unknown"
-        else -> "Not enrolled"
-    }
-    val badgeTone = when {
-        issue -> SourceLabTone.WARNING
-        farm?.runtimeHealth == "HEALTHY" -> SourceLabTone.GOOD
-        farm?.runtimeHealth == "BROKEN" -> SourceLabTone.ERROR
-        else -> SourceLabTone.NEUTRAL
-    }
-    val versionCode = source.providers.values.mapNotNull { it.extensionVersionCode }.maxOrNull()
-
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Surface(shape = RoundedCornerShape(12.dp), color = SourceLabPrimaryStrong) {
-                Text(
-                    source.displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-                    Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    source.displayName,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    "${source.language} · ${source.providers.keys.joinToString(" / ") { it.prettyProviderName() }}",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    when {
-                        farm != null -> "In Farm${versionCode?.let { " · build $it" }.orEmpty()}"
-                        farmResolved -> "Not enrolled${versionCode?.let { " · build $it" }.orEmpty()}"
-                        else -> versionCode?.let { "build $it" } ?: "Membership unavailable"
-                    },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelMedium,
-                )
-            }
-            SourceLabStatusBadge(badgeText, badgeTone)
-        }
-    }
-}
-
-@Composable
-private fun SourceInventoryDetail(
-    source: InventorySource,
-    farm: FarmInventorySourceState?,
-    farmStateResolved: Boolean,
     ownerSession: OwnerAccessSession?,
     ownerError: String?,
     enrolling: Boolean,
-    operationMessage: String?,
+    operation: String?,
     onBack: () -> Unit,
-    onAddToFarm: () -> Unit,
+    onAdd: () -> Unit,
 ) {
-    val canAdd = farmStateResolved && farm == null && !source.needsAttention &&
+    val canAdd = farmResolved && farm == null && !source.needsAttention &&
         SourceLabAccessPolicy.canPerform(SourceLabControlAction.ADD_TO_FARM, ownerSession)
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        item(key = "detail-header") {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item(key = "head") {
             TextButton(onClick = onBack) { Text("Back to Sources") }
             Text(source.displayName, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text(
-                "${source.language} · ${source.providers.keys.joinToString(" / ") { it.prettyProviderName() }}",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text("${source.language} · ${source.providers.keys.joinToString(" / ") { providerName(it) }}", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(source.canonicalId, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
         }
-
-        operationMessage?.let { message ->
-            item(key = "detail-operation") {
-                Card { Text(message, Modifier.fillMaxWidth().padding(14.dp), fontWeight = FontWeight.SemiBold) }
-            }
-        }
-
+        operation?.let { message -> item(key = "operation") { MessageCard(message) } }
         if (source.needsAttention) {
-            item(key = "detail-attention") {
+            item(key = "attention") {
                 Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF302616))) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Needs attention", fontWeight = FontWeight.Bold, color = SourceLabWarning)
+                    Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                        Text("Needs attention", color = SourceLabWarning, fontWeight = FontWeight.Bold)
                         source.attentionReasons.forEach { Text(it) }
                     }
                 }
             }
         }
-
-        item(key = "farm-title") { Text("Compatibility Farm", fontWeight = FontWeight.Bold) }
-        item(key = "farm-card") {
-            FarmSourceCard(source, farm, farmStateResolved)
-            if (farmStateResolved && farm == null) {
+        item(key = "farm") {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text("Compatibility Farm", fontWeight = FontWeight.Bold)
+                    when {
+                        !farmResolved -> SourceLabStatusBadge("Membership unavailable", SourceLabTone.WARNING)
+                        farm == null -> SourceLabStatusBadge("Not enrolled", SourceLabTone.NEUTRAL)
+                        farm.runtimeHealth == "HEALTHY" -> SourceLabStatusBadge("Healthy", SourceLabTone.GOOD)
+                        else -> SourceLabStatusBadge(farm.runtimeHealth, SourceLabTone.WARNING)
+                    }
+                    farm?.let {
+                        Detail("Content profile", it.contentProfile)
+                        Detail("Adapter family", it.adapterFamily)
+                        Detail("Update state", it.updateState)
+                        Detail("Approval state", it.approvalState)
+                        Detail("Publish eligible", it.publishEligible.toString())
+                    }
+                }
+            }
+            if (farmResolved && farm == null) {
                 Spacer(Modifier.height(10.dp))
-                Button(
-                    onClick = onAddToFarm,
-                    enabled = canAdd && !enrolling,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    if (enrolling) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                    else Text("Add to Farm")
+                Button(onClick = onAdd, enabled = canAdd && !enrolling, modifier = Modifier.fillMaxWidth()) {
+                    if (enrolling) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else Text("Add to Farm")
                 }
                 if (!canAdd) {
                     val reason = when {
                         source.needsAttention -> "Resolve source identity attention before enrollment."
                         ownerError != null -> "Owner capability unavailable: $ownerError"
-                        !SourceLabAccessPolicy.canPerform(SourceLabControlAction.ADD_TO_FARM, ownerSession) ->
-                            "Backend Add to Farm capability is required."
-                        else -> "Farm membership state is not safe for enrollment."
+                        !SourceLabAccessPolicy.canPerform(SourceLabControlAction.ADD_TO_FARM, ownerSession) -> "Backend Add to Farm capability is required."
+                        else -> "Farm state is not safe for enrollment."
                     }
-                    Text(
-                        reason,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Text(reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
-
-        item(key = "provider-title") { Text("Provider mappings", fontWeight = FontWeight.Bold) }
-        items(source.providers.entries.toList(), key = { it.key }) { (providerName, mapping) ->
-            ProviderMappingCard(providerName, mapping)
-        }
-    }
-}
-
-@Composable
-private fun ProviderMappingCard(provider: String, mapping: InventoryProviderMapping) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(provider.prettyProviderName(), fontWeight = FontWeight.Bold)
-            mapping.displayName?.let { DetailLine("Display name", it) }
-            mapping.sourceName?.let { DetailLine("Source name", it) }
-            mapping.baseUrl?.let { DetailLine("Base URL", it) }
-            mapping.extensionVersionCode?.let { DetailLine("Build", it.toString()) }
-            mapping.module?.let { DetailLine("Module", it) }
-        }
-    }
-}
-
-@Composable
-private fun FarmSourceCard(
-    source: InventorySource,
-    farm: FarmInventorySourceState?,
-    farmStateResolved: Boolean,
-) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            when {
-                !farmStateResolved -> {
-                    SourceLabStatusBadge("Membership unknown", SourceLabTone.WARNING)
-                    Text("Farm state could not be refreshed, so enrollment is not guessed.")
-                }
-                farm == null -> {
-                    SourceLabStatusBadge("Not enrolled", SourceLabTone.NEUTRAL)
-                    Text("Enrollment requires explicit Owner confirmation and server-side validation.")
-                    DetailLine("Canonical ID", source.canonicalId)
-                }
-                else -> {
-                    SourceLabStatusBadge(
-                        if (farm.runtimeHealth == "HEALTHY") "Healthy" else farm.runtimeHealth,
-                        if (farm.runtimeHealth == "HEALTHY") SourceLabTone.GOOD else SourceLabTone.WARNING,
-                    )
-                    DetailLine("Content profile", farm.contentProfile)
-                    DetailLine("Adapter family", farm.adapterFamily)
-                    DetailLine("Update state", farm.updateState)
-                    DetailLine("Approval state", farm.approvalState)
-                    DetailLine("Publish eligible", farm.publishEligible.toString())
+        item(key = "providers-title") { Text("Provider mappings", fontWeight = FontWeight.Bold) }
+        items(source.providers.entries.toList(), key = { it.key }) { entry ->
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(providerName(entry.key), fontWeight = FontWeight.Bold)
+                    entry.value.displayName?.let { Detail("Display name", it) }
+                    entry.value.baseUrl?.let { Detail("Base URL", it) }
+                    entry.value.extensionVersionCode?.let { Detail("Build", it.toString()) }
                 }
             }
         }
@@ -720,17 +570,24 @@ private fun FarmSourceCard(
 }
 
 @Composable
-private fun DetailLine(label: String, value: String) {
+private fun Detail(label: String, value: String) {
     Column {
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.bodySmall)
     }
 }
 
-internal fun String.prettyProviderName(): String = when (lowercase()) {
-    "all" -> "All"
+private fun providerName(value: String): String = when (value.lowercase()) {
     "keiyoushi" -> "Keiyoushi"
     "uma" -> "UMA"
     "gekkoushi" -> "Gekkoushi"
-    else -> replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    else -> value.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
 }
+
+private fun filterLabel(value: String): String = when (value) {
+    "ALL" -> "All"
+    "KEIYOUSHI", "UMA", "GEKKOUSHI" -> providerName(value)
+    else -> value.lowercase().replace('_', ' ').replaceFirstChar { it.titlecase() }
+}
+
+private fun Throwable.readableMessage(): String = message ?: javaClass.simpleName
