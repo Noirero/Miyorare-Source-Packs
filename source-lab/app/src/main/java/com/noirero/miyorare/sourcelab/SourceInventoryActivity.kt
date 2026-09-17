@@ -95,7 +95,7 @@ private fun SourceInventoryScreen(onClose: () -> Unit) {
     var operation by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
 
-    suspend fun refresh(initial: Boolean) {
+    suspend fun refresh(initial: Boolean, forceRefresh: Boolean) {
         val hasInventory = ui.inventory != null
         ui = ui.copy(
             initialLoading = initial && !hasInventory,
@@ -105,7 +105,14 @@ private fun SourceInventoryScreen(onClose: () -> Unit) {
             ownerError = null,
         )
         coroutineScope {
-            val inventoryJob = async { runCatching { SourceInventoryRepository.loadInventory(context, true) } }
+            val inventoryJob = async {
+                runCatching {
+                    SourceInventoryRepository.loadInventory(
+                        context = context,
+                        forceRefresh = forceRefresh,
+                    )
+                }
+            }
             val farmJob = async { runCatching { SourceInventoryRepository.loadFarmMembership() } }
             val ownerJob = async { runCatching { SourceLabControlClient.resolveOwnerSession(context) } }
             val inventoryResult = inventoryJob.await()
@@ -129,7 +136,10 @@ private fun SourceInventoryScreen(onClose: () -> Unit) {
         if (cached != null) {
             ui = ui.copy(inventory = cached, initialLoading = false, refreshing = true)
         }
-        refresh(initial = cached == null)
+        refresh(
+            initial = cached == null,
+            forceRefresh = false,
+        )
     }
 
     val inventory = ui.inventory
@@ -182,7 +192,7 @@ private fun SourceInventoryScreen(onClose: () -> Unit) {
                             try {
                                 val result = SourceLabControlClient.addToFarm(context, pendingAdd, inventory, ui.farm!!)
                                 operation = "Add to Farm succeeded · run ${result.runId}"
-                                refresh(false)
+                                refresh(initial = false, forceRefresh = true)
                             } catch (error: SourceLabControlException) {
                                 operation = "Add to Farm · ${error.reason}"
                             } catch (error: Throwable) {
@@ -201,7 +211,7 @@ private fun SourceInventoryScreen(onClose: () -> Unit) {
     when {
         inventory == null && ui.initialLoading -> EmptyCacheLoading()
         inventory == null -> InventoryFailure(ui.inventoryError ?: "No cached inventory is available.") {
-            scope.launch { refresh(true) }
+            scope.launch { refresh(initial = true, forceRefresh = true) }
         }
         selected != null -> SourceDetail(
             source = selected,
@@ -232,7 +242,7 @@ private fun SourceInventoryScreen(onClose: () -> Unit) {
             onProvider = { provider = it },
             onQuick = { quick = it },
             onMoreFilters = { showFilters = true },
-            onRefresh = { scope.launch { refresh(false) } },
+            onRefresh = { scope.launch { refresh(initial = false, forceRefresh = true) } },
             onOpen = { selectedId = it.canonicalId },
             onClose = onClose,
         )
