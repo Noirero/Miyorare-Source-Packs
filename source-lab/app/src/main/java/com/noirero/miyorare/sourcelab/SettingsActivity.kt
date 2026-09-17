@@ -69,7 +69,7 @@ private fun SettingsScreen(onClose: () -> Unit) {
             TextButton(onClick = onClose) { Text("← Dashboard") }
             Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Text(
-                "Source Lab preferences and operational information. Sensitive diagnostics stay separated from the main workflow.",
+                "Source Lab preferences and operational information. Sensitive diagnostics and recovery controls stay separated from the normal approval workflow.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -145,9 +145,9 @@ private fun SettingsScreen(onClose: () -> Unit) {
         }
 
         item(key = "diagnostics") {
-            SettingsSection("Diagnostics") {
+            SettingsSection("Diagnostics & Recovery") {
                 Text(
-                    "Branch, commit SHA, backend capability proof, authorization details and inventory metadata remain available in the dedicated diagnostics screen.",
+                    "Routine upstream changes are detected and tested automatically. Manual Farm execution is retained only as a recovery tool; normal Owner work should stop at Review / Approve & Auto Publish.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -157,6 +157,18 @@ private fun SettingsScreen(onClose: () -> Unit) {
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Open Diagnostics") }
+                OutlinedButton(
+                    onClick = {
+                        context.startActivity(Intent(context, FarmRunActivity::class.java))
+                    },
+                    enabled = ownerDecision.canControl,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Manual Run Farm · Recovery") }
+                Text(
+                    "Manual Run Farm still uses the same fail-closed Owner/backend capability checks. It is not part of the routine autonomous path.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 
