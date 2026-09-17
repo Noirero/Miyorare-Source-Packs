@@ -1,0 +1,323 @@
+name: Source Lab Pending Worker
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '47 * * * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-pending-worker.yml'
+      - 'tools/source_pending_worker.py'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: source-lab-pending-worker
+  cancel-in-progress: false
+
+jobs:
+  worker:
+    name: Process Compatibility Farm PENDING queue
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      EXPECTED_OWNER_ID: '149634319'
+      BATCH_SIZE: '8'
+    steps:
+      - name: Validate execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          case "$GITHUB_EVENT_NAME" in
+            schedule|workflow_dispatch|push) ;;
+            *) echo "unexpected event: $GITHUB_EVENT_NAME" >&2; exit 1 ;;
+          esac
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+          fi
+
+      - name: Checkout control plane
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout authoritative Compatibility Farm
+        uses: actions/checkout@v5
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 0
+
+      - name: Pin Farm head and lifecycle
+        id: guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          foundation_sha="$(git -C farm rev-parse HEAD)"
+          remote_sha="$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')"
+          [[ "$foundation_sha" == "$remote_sha" ]]
+          echo "foundation_sha=$foundation_sha" >> "$GITHUB_OUTPUT"
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          status = json.loads(Path('farm/upstream/status.json').read_text(encoding='utf-8'))
+          safe = status.get('schema') == 3 and status.get('approvalCandidate') is None
+          promotion = status.get('lastPromotion')
+          published = status.get('lastPublish')
+          if isinstance(promotion, dict):
+              safe = safe and isinstance(published, dict) and published.get('candidateSetId') == promotion.get('candidateSetId')
+          print(f"safe={'true' if safe else 'false'}")
+          PY
+
+      - name: Plan next balanced PENDING batch
+        id: plan
+        if: steps.guard.outputs.safe == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p farm/automation farm/build
+          python3 control/tools/source_pending_worker.py plan \
+            --registry farm/compatibility/source-registry.json \
+            --state farm/automation/pending-worker-state.json \
+            --batch-size "$BATCH_SIZE" \
+            --output farm/build/pending-worker-plan.json
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          data = json.loads(Path('farm/build/pending-worker-plan.json').read_text(encoding='utf-8'))
+          providers = sorted({p for item in data['items'] for p in item['providers']})
+          print(f"count={data['batchSize']}")
+          print('providers=' + ','.join(providers))
+          PY
+
+      - name: Resolve pinned provider baselines
+        id: refs
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        shell: bash
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          data = json.loads(Path('farm/compatibility/source-registry.json').read_text(encoding='utf-8'))
+          for provider in ('keiyoushi', 'uma', 'gekkoushi'):
+              print(f"{provider}={data['providerBaselines'][provider]}")
+          PY
+
+      - name: Checkout pinned Keiyoushi
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        uses: actions/checkout@v5
+        with:
+          repository: keiyoushi/extensions-source
+          ref: ${{ steps.refs.outputs.keiyoushi }}
+          path: _upstream/keiyoushi
+          fetch-depth: 1
+
+      - name: Checkout pinned UMA
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        uses: actions/checkout@v5
+        with:
+          repository: InvalidDavid/UMA
+          ref: ${{ steps.refs.outputs.uma }}
+          path: _upstream/uma
+          fetch-depth: 1
+
+      - name: Checkout pinned Gekkoushi
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        uses: actions/checkout@v5
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ steps.refs.outputs.gekkoushi }}
+          path: _upstream/gekkoushi
+          fetch-depth: 1
+
+      - name: Set up Java 17
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Set up Android SDK
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
+
+      - name: Initialize compile evidence
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          Path('farm/build/compile-results.json').write_text(
+              json.dumps({'keiyoushi': {}, 'uma': {}, 'gekkoushi': {}}, indent=2) + '\n',
+              encoding='utf-8',
+          )
+          PY
+
+      - name: Compile selected UMA baseline once
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        shell: bash
+        run: |
+          set -u
+          present="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          plan = json.loads(Path('farm/build/pending-worker-plan.json').read_text())
+          print('true' if any('uma' in item['providers'] for item in plan['items']) else 'false')
+          PY
+          )"
+          if [[ "$present" == "true" ]]; then
+            if (cd _upstream/uma && chmod +x gradlew && ./gradlew buildJar --no-daemon); then ok=true; else ok=false; fi
+            OK="$ok" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path('farm/build/compile-results.json')
+          data = json.loads(path.read_text())
+          data['uma']['*'] = os.environ['OK'] == 'true'
+          path.write_text(json.dumps(data, indent=2) + '\n')
+          PY
+          fi
+
+      - name: Compile selected Gekkoushi baseline once
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        shell: bash
+        run: |
+          set -u
+          present="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          plan = json.loads(Path('farm/build/pending-worker-plan.json').read_text())
+          print('true' if any('gekkoushi' in item['providers'] for item in plan['items']) else 'false')
+          PY
+          )"
+          if [[ "$present" == "true" ]]; then
+            if (cd _upstream/gekkoushi && chmod +x gradlew && ./gradlew buildJar --no-daemon); then ok=true; else ok=false; fi
+            OK="$ok" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path('farm/build/compile-results.json')
+          data = json.loads(path.read_text())
+          data['gekkoushi']['*'] = os.environ['OK'] == 'true'
+          path.write_text(json.dumps(data, indent=2) + '\n')
+          PY
+          fi
+
+      - name: Compile selected Keiyoushi modules independently
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        shell: bash
+        run: |
+          set -u
+          mapfile -t modules < <(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          plan = json.loads(Path('farm/build/pending-worker-plan.json').read_text())
+          modules = sorted({
+              item['upstreamIdentities']['keiyoushi']['module']
+              for item in plan['items']
+              if 'keiyoushi' in item['providers']
+          })
+          print('\n'.join(modules))
+          PY
+          )
+          for module in "${modules[@]}"; do
+            [[ -n "$module" ]] || continue
+            task=":${module//\//:}:compileDebugKotlin"
+            if (cd _upstream/keiyoushi && chmod +x gradlew && ./gradlew "$task" --no-daemon); then ok=true; else ok=false; fi
+            MODULE="$module" OK="$ok" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path('farm/build/compile-results.json')
+          data = json.loads(path.read_text())
+          data['keiyoushi'][os.environ['MODULE']] = os.environ['OK'] == 'true'
+          path.write_text(json.dumps(data, indent=2) + '\n')
+          PY
+          done
+
+      - name: Assess source shape, compile evidence, and runtime reachability
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_pending_worker.py assess \
+            --plan farm/build/pending-worker-plan.json \
+            --keiyoushi-root _upstream/keiyoushi \
+            --uma-root _upstream/uma \
+            --gekkoushi-root _upstream/gekkoushi \
+            --compile-results farm/build/compile-results.json \
+            --timeout 8 \
+            --fail-threshold 3 \
+            --output farm/build/pending-worker-results.json
+
+      - name: Persist autonomous queue state
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          checked_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          python3 control/tools/source_pending_worker.py apply \
+            --registry farm/compatibility/source-registry.json \
+            --state farm/automation/pending-worker-state.json \
+            --results farm/build/pending-worker-results.json \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --checked-at "$checked_at" \
+            --summary farm/build/pending-worker-summary.json
+
+      - name: Commit queue progress if Farm head is still current
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected='${{ steps.guard.outputs.foundation_sha }}'
+          remote="$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')"
+          if [[ "$remote" != "$expected" ]]; then
+            echo "Farm head changed during worker execution; discarding stale batch state." >&2
+            exit 0
+          fi
+          cd farm
+          if [[ -z "$(git status --porcelain -- automation/pending-worker-state.json)" ]]; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add automation/pending-worker-state.json
+          git commit -m 'farm: advance autonomous pending queue'
+          git push origin HEAD:compatibility-farm-foundation
+
+      - name: Upload worker evidence
+        if: always() && steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-lab-pending-worker-${{ github.run_id }}
+          path: |
+            farm/build/pending-worker-plan.json
+            farm/build/compile-results.json
+            farm/build/pending-worker-results.json
+            farm/build/pending-worker-summary.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          echo '## Autonomous PENDING worker' >> "$GITHUB_STEP_SUMMARY"
+          echo "Lifecycle safe: ${{ steps.guard.outputs.safe }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Planned sources: ${{ steps.plan.outputs.count }}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f farm/build/pending-worker-summary.json ]]; then
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat farm/build/pending-worker-summary.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi

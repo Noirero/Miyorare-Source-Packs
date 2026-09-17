@@ -13,15 +13,19 @@ on:
       - 'tools/candidate_registry.py'
       - 'tools/approval_evidence.py'
       - 'tools/source_inventory_bulk_enroll.py'
+      - 'tools/source_pending_worker.py'
       - 'tests/**'
   push:
     branches:
       - 'source-lab-owner-control-plane-*'
       - 'source-lab-auto-enroll-*'
+      - 'source-lab-autonomous-pending-*'
     paths:
       - '.github/workflows/source-lab-*.yml'
       - 'tools/source_inventory_bulk_enroll.py'
+      - 'tools/source_pending_worker.py'
       - 'tests/test_source_inventory_bulk_enroll.py'
+      - 'tests/test_source_pending_worker.py'
 
 permissions:
   contents: read
@@ -83,6 +87,16 @@ jobs:
                   'parser_family_plan.py',
                   'git push origin HEAD:compatibility-farm-foundation',
               ],
+              'source-lab-pending-worker.yml': [
+                  '149634319',
+                  'compatibility-farm-foundation',
+                  'source_pending_worker.py',
+                  'pending-worker-state.json',
+                  'buildJar --no-daemon',
+                  'compileDebugKotlin',
+                  '--fail-threshold 3',
+                  'discarding stale batch state',
+              ],
           }
           root = Path('.github/workflows')
           for name, needles in required.items():
@@ -90,6 +104,19 @@ jobs:
               for needle in needles:
                   if needle not in text:
                       raise SystemExit(f'{name} missing required fail-closed marker: {needle}')
+
+          worker = Path('tools/source_pending_worker.py').read_text(encoding='utf-8')
+          for marker in (
+              'READY_FOR_APPROVAL',
+              'NEEDS_ATTENTION',
+              'WAITING_FOR_APPROVAL',
+              'ownerActionRequired',
+              'publishEligible',
+              'compatibilityEnrollment',
+              'PENDING',
+          ):
+              if marker not in worker:
+                  raise SystemExit(f'source_pending_worker.py missing state contract marker: {marker}')
 
           auth = (root / 'source-lab-backend-authorization.yml').read_text(encoding='utf-8')
           for capability in ('RUN_FARM', 'APPROVE', 'PROMOTE', 'SIGN', 'PUBLISH', 'ADD_TO_FARM'):
@@ -139,3 +166,10 @@ jobs:
           set -euo pipefail
           python3 -m py_compile tools/source_inventory_bulk_enroll.py
           python3 tests/test_source_inventory_bulk_enroll.py
+
+      - name: Test autonomous PENDING queue worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/source_pending_worker.py
+          python3 tests/test_source_pending_worker.py
