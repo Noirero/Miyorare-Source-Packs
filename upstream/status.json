@@ -48,9 +48,9 @@
     }
   },
   "automation": {
-    "schemaVersion": 1,
-    "state": "HELD",
-    "reason": "UPSTREAM_INTAKE_NOT_SAFE",
+    "schemaVersion": 2,
+    "state": "INFRASTRUCTURE_FAILURE",
+    "reason": "AUTO_INTAKE_DISPATCH_FAILED",
     "candidates": {
       "gekkoushi": {
         "candidate": "12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67",
@@ -65,8 +65,10 @@
         "current": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
       }
     },
-    "ownerActionRequired": false,
-    "workflowRunId": 35248124277,
-    "updatedAt": "2026-09-17T16:43:59.418547Z"
+    "exceptions": {},
+    "ownerActionRequired": true,
+    "lastAttemptProvider": "keiyoushi",
+    "workflowRunId": 35249709680,
+    "updatedAt": "2026-09-17T16:57:24.174924Z"
   }
 }
