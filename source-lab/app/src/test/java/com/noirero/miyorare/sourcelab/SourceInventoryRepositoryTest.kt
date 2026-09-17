@@ -129,6 +129,9 @@ class SourceInventoryRepositoryTest {
             """
             {
               "schemaVersion": 1,
+              "scope": {
+                "languages": ["id", "en"]
+              },
               "defaults": {
                 "updateState": "PROMOTED",
                 "runtimeHealth": "UNKNOWN",
@@ -157,6 +160,7 @@ class SourceInventoryRepositoryTest {
         )
         val source = farm.sources.single()
         assertEquals("e".repeat(40), farm.branchCommit)
+        assertEquals(setOf("id", "en"), farm.languages)
         assertEquals("PROMOTED", source.updateState)
         assertEquals("UNKNOWN", source.runtimeHealth)
         assertEquals("a".repeat(40), source.currentVersion.getValue("uma"))
