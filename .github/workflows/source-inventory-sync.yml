@@ -1,0 +1,130 @@
+name: Source Inventory Sync
+
+on:
+  schedule:
+    - cron: '37 */4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: miyorare-source-inventory-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Discover and publish informational source inventory
+    if: github.repository == 'Noirero/Miyorare-Source-Packs'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout inventory engine
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          path: source-packs
+          fetch-depth: 0
+
+      - name: Checkout Miyorare canonical manifests
+        uses: actions/checkout@v5
+        with:
+          repository: Noirero/Miyorare
+          ref: beta
+          path: miyorare
+          fetch-depth: 1
+
+      - name: Checkout Compatibility Farm membership
+        uses: actions/checkout@v5
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 1
+
+      - name: Checkout Keiyoushi
+        uses: actions/checkout@v5
+        with:
+          repository: keiyoushi/extensions-source
+          ref: main
+          path: upstream-keiyoushi
+          fetch-depth: 1
+
+      - name: Checkout UMA
+        uses: actions/checkout@v5
+        with:
+          repository: InvalidDavid/UMA
+          ref: master
+          path: upstream-uma
+          fetch-depth: 1
+
+      - name: Checkout Gekkoushi
+        uses: actions/checkout@v5
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: master
+          path: upstream-gekkoushi
+          fetch-depth: 1
+
+      - name: Load previous stable canonical assignments
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          if git -C source-packs fetch origin \
+            refs/heads/source-inventory-live:refs/remotes/origin/source-inventory-live; then
+            git -C source-packs show \
+              origin/source-inventory-live:inventory/source-inventory.json \
+              > build/previous-source-inventory.json || true
+          fi
+
+      - name: Discover every upstream source
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(
+            build
+            --keiyoushi-root upstream-keiyoushi
+            --uma-root upstream-uma
+            --gekkoushi-root upstream-gekkoushi
+            --aliases miyorare/extensions/miyorare-sources/multi-upstream.json
+            --farm-registry farm/compatibility/source-registry.json
+            --keiyoushi-commit "$(git -C upstream-keiyoushi rev-parse HEAD)"
+            --uma-commit "$(git -C upstream-uma rev-parse HEAD)"
+            --gekkoushi-commit "$(git -C upstream-gekkoushi rev-parse HEAD)"
+            --output build/source-inventory.json
+          )
+          if [[ -s build/previous-source-inventory.json ]]; then
+            args+=(--previous build/previous-source-inventory.json)
+          fi
+          python3 source-packs/tools/source_inventory.py "${args[@]}"
+          python3 source-packs/tools/source_inventory.py validate \
+            --inventory build/source-inventory.json
+
+      - name: Publish dedicated informational data branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/source-inventory-live"
+          rm -rf "$work"
+          if git -C source-packs show-ref --verify --quiet \
+            refs/remotes/origin/source-inventory-live; then
+            git -C source-packs worktree add --detach "$work" \
+              origin/source-inventory-live
+          else
+            git -C source-packs worktree add --detach "$work" HEAD
+            git -C "$work" switch --orphan source-inventory-bootstrap
+            git -C "$work" rm -rf .
+          fi
+
+          mkdir -p "$work/inventory"
+          cp build/source-inventory.json "$work/inventory/source-inventory.json"
+          git -C "$work" add inventory/source-inventory.json
+          if git -C "$work" diff --cached --quiet; then
+            echo "Inventory unchanged; no data-branch commit needed."
+            exit 0
+          fi
+
+          git -C "$work" config user.name github-actions[bot]
+          git -C "$work" config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C "$work" commit -m "Refresh automatic source inventory"
+          git -C "$work" push origin HEAD:source-inventory-live
