@@ -49,6 +49,12 @@ jobs:
 
           required = {
               'source-lab-run-farm.yml': ['149634319', 'compatibility-farm-foundation', 'source-lab-candidate-farm.yml'],
+              'source-lab-candidate-farm.yml': [
+                  'candidate-source-registry.json',
+                  'parser_family_plan.py',
+                  'validate',
+                  'candidate-family-plan-validation.json',
+              ],
               'source-lab-approve-candidate.yml': ['WAITING_FOR_APPROVAL', 'approval_state.py approve', 'source-lab-approval-'],
               'source-lab-promote-candidate.yml': ['authorized_promotion.py', 'approval_run_id', 'compatibility-farm-foundation'],
               'source-lab-sign-candidate.yml': ['actions/attest-build-provenance@v2', 'GITHUB_ARTIFACT_ATTESTATION'],
@@ -96,7 +102,8 @@ jobs:
             tools/authorized_promotion.py \
             tools/candidate_lifecycle.py \
             tools/candidate_registry.py \
-            tools/approval_evidence.py; do
+            tools/approval_evidence.py \
+            tools/parser_family_plan.py; do
             git cat-file -e "origin/compatibility-farm-foundation:$path"
           done
 
@@ -111,4 +118,5 @@ jobs:
             "$work/tools/authorized_promotion.py" \
             "$work/tools/candidate_lifecycle.py" \
             "$work/tools/candidate_registry.py" \
-            "$work/tools/approval_evidence.py"
+            "$work/tools/approval_evidence.py" \
+            "$work/tools/parser_family_plan.py"
