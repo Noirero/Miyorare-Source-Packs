@@ -1,5 +1,6 @@
 package com.noirero.miyorare.sourcelab
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -63,6 +64,12 @@ private sealed interface OwnerDashboardState {
     data class Failed(val reason: String) : OwnerDashboardState
 }
 
+private sealed interface OwnerInventoryState {
+    data object Loading : OwnerInventoryState
+    data class Ready(val snapshot: SourceInventorySnapshot) : OwnerInventoryState
+    data class Failed(val reason: String) : OwnerInventoryState
+}
+
 @Composable
 private fun OwnerControlTheme(content: @Composable () -> Unit) {
     MaterialTheme(
@@ -88,7 +95,9 @@ private fun OwnerControlScreen() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var refreshKey by remember { mutableIntStateOf(0) }
+    var inventoryRefreshKey by remember { mutableIntStateOf(0) }
     var state by remember { mutableStateOf<OwnerDashboardState>(OwnerDashboardState.Loading) }
+    var inventoryState by remember { mutableStateOf<OwnerInventoryState>(OwnerInventoryState.Loading) }
     var runningAction by remember { mutableStateOf<SourceLabControlAction?>(null) }
     var confirmation by remember { mutableStateOf<SourceLabControlAction?>(null) }
     var operationMessage by remember { mutableStateOf<String?>(null) }
@@ -103,6 +112,15 @@ private fun OwnerControlScreen() {
             OwnerDashboardState.Failed(error.reason)
         } catch (error: Throwable) {
             OwnerDashboardState.Failed(error.message ?: error.javaClass.simpleName)
+        }
+    }
+
+    LaunchedEffect(inventoryRefreshKey) {
+        inventoryState = OwnerInventoryState.Loading
+        inventoryState = try {
+            OwnerInventoryState.Ready(SourceInventoryRepository.loadInventory())
+        } catch (error: Throwable) {
+            OwnerInventoryState.Failed(error.message ?: error.javaClass.simpleName)
         }
     }
 
@@ -203,7 +221,13 @@ private fun OwnerControlScreen() {
                         is OwnerDashboardState.Ready -> {
                             Text("Backend capability proof: ${current.control.session.backendCapabilities.size}/5")
                             Text("Branch: ${current.snapshot.branch}")
-                            OutlinedButton(onClick = { refreshKey++ }, enabled = runningAction == null) {
+                            OutlinedButton(
+                                onClick = {
+                                    refreshKey++
+                                    inventoryRefreshKey++
+                                },
+                                enabled = runningAction == null,
+                            ) {
                                 Text("Refresh live state")
                             }
                         }
@@ -222,6 +246,16 @@ private fun OwnerControlScreen() {
 
         if (ready != null) {
             item { LiveCycleCard(ready.snapshot) }
+            item {
+                SourceInventorySummaryCard(
+                    state = inventoryState,
+                    farmSnapshot = ready.snapshot,
+                    onOpen = {
+                        context.startActivity(Intent(context, SourceInventoryActivity::class.java))
+                    },
+                    onRetry = { inventoryRefreshKey++ },
+                )
+            }
             item { ExactEvidenceCard(ready.snapshot) }
             item { Text("Owner actions", fontWeight = FontWeight.Bold) }
             items(SourceLabControlAction.entries, key = { it.name }) { action ->
@@ -245,6 +279,48 @@ private fun OwnerControlScreen() {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SourceInventorySummaryCard(
+    state: OwnerInventoryState,
+    farmSnapshot: LiveFarmSnapshot,
+    onOpen: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("SOURCE INVENTORY", fontWeight = FontWeight.Bold)
+            when (state) {
+                OwnerInventoryState.Loading -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        CircularProgressIndicator(modifier = Modifier.height(20.dp))
+                        Text("Refreshing automatic upstream inventory…")
+                    }
+                }
+                is OwnerInventoryState.Failed -> {
+                    Text("Inventory unavailable · Farm controls remain independent.", color = MaterialTheme.colorScheme.error)
+                    Text(state.reason, style = MaterialTheme.typography.bodySmall)
+                    OutlinedButton(onClick = onRetry) { Text("Retry inventory") }
+                }
+                is OwnerInventoryState.Ready -> {
+                    val summary = state.snapshot.summary(farmSnapshot.sources.map { it.canonicalId }.toSet())
+                    Text("All Sources       ${summary.allSources}")
+                    Text("In Farm           ${summary.inFarm}")
+                    Text("Not Enrolled      ${summary.notEnrolled}")
+                    Text("Needs Attention   ${summary.needsAttention}")
+                    Text(
+                        "${state.snapshot.branch} · informational discovery only",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Button(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
+                        Text("OPEN ALL SOURCES")
+                    }
+                }
             }
         }
     }
