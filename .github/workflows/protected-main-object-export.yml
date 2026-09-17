@@ -1,0 +1,91 @@
+name: Protected Main Migration Object Export
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/protected-main-object-export.yml'
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  export:
+    if: github.head_ref == 'phase4/protected-main-pr-writes'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout migration branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Download validated migration payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _migration
+          gh run download 35208348051 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name protected-main-migration-payload \
+            --dir _migration
+          test -f _migration/.github/workflows/upstream-sync.yml
+          test -f _migration/.github/workflows/upstream-sync-status.yml
+          test -f _migration/.github/workflows/repair-android-sdk-setup.yml
+          test -f _migration/.github/workflows/upstream-sync-pr-check.yml
+          test -f _migration/tools/protected_main_pr.sh
+
+      - name: Create final migration commit object without updating any ref
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          repo = os.environ['GITHUB_REPOSITORY']
+          parent = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          base_tree = subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], text=True).strip()
+
+          def api(path, payload):
+              proc = subprocess.run(
+                  ['gh', 'api', '--method', 'POST', f'repos/{repo}/{path}', '--input', '-'],
+                  input=json.dumps(payload),
+                  text=True,
+                  capture_output=True,
+              )
+              if proc.returncode != 0:
+                  raise SystemExit(proc.stderr or proc.stdout)
+              return json.loads(proc.stdout)
+
+          paths = [
+              '.github/workflows/upstream-sync.yml',
+              '.github/workflows/upstream-sync-status.yml',
+              '.github/workflows/repair-android-sdk-setup.yml',
+              '.github/workflows/upstream-sync-pr-check.yml',
+          ]
+          entries = []
+          for path in paths:
+              content = (Path('_migration') / path).read_text(encoding='utf-8')
+              blob = api('git/blobs', {'content': content, 'encoding': 'utf-8'})
+              entries.append({'path': path, 'mode': '100644', 'type': 'blob', 'sha': blob['sha']})
+
+          for temporary in (
+              '.github/workflows/protected-main-write-migration.yml',
+              '.github/workflows/protected-main-object-export.yml',
+          ):
+              entries.append({'path': temporary, 'mode': '100644', 'type': 'blob', 'sha': None})
+
+          tree = api('git/trees', {'base_tree': base_tree, 'tree': entries})
+          commit = api('git/commits', {
+              'message': 'Route protected main automation through pull requests',
+              'tree': tree['sha'],
+              'parents': [parent],
+          })
+          print(f"MIGRATION_OBJECT_COMMIT={commit['sha']}")
+          PY
