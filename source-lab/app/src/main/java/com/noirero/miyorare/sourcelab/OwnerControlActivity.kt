@@ -90,6 +90,7 @@ private fun OwnerControlScreen() {
     suspend fun refreshDashboard() {
         val hadData = dashboard.snapshot != null && dashboard.control != null
         dashboard = dashboard.copy(
+            control = null,
             initialLoading = !hadData,
             refreshing = hadData,
             error = null,
@@ -104,9 +105,15 @@ private fun OwnerControlScreen() {
                 refreshing = false,
             )
         } catch (error: SourceLabControlException) {
-            dashboard.copy(initialLoading = false, refreshing = false, error = error.reason)
+            dashboard.copy(
+                control = null,
+                initialLoading = false,
+                refreshing = false,
+                error = error.reason,
+            )
         } catch (error: Throwable) {
             dashboard.copy(
+                control = null,
                 initialLoading = false,
                 refreshing = false,
                 error = error.message ?: error.javaClass.simpleName,
@@ -114,11 +121,11 @@ private fun OwnerControlScreen() {
         }
     }
 
-    suspend fun refreshInventory() {
+    suspend fun refreshInventory(forceRefresh: Boolean) {
         val hadData = inventory.snapshot != null
         inventory = inventory.copy(loading = !hadData, refreshing = hadData, error = null)
         val result = runCatching {
-            SourceInventoryRepository.loadInventory(context, forceRefresh = true)
+            SourceInventoryRepository.loadInventory(context, forceRefresh = forceRefresh)
         }
         inventory = OwnerInventoryUiState(
             snapshot = result.getOrNull() ?: inventory.snapshot,
@@ -134,12 +141,12 @@ private fun OwnerControlScreen() {
             inventory = OwnerInventoryUiState(snapshot = cached, loading = false, refreshing = true)
         }
         launch { refreshDashboard() }
-        launch { refreshInventory() }
+        launch { refreshInventory(forceRefresh = false) }
     }
 
     fun refreshAll() {
         scope.launch { refreshDashboard() }
-        scope.launch { refreshInventory() }
+        scope.launch { refreshInventory(forceRefresh = true) }
     }
 
     fun runAction(action: SourceLabControlAction, snapshot: LiveFarmSnapshot) {
@@ -171,9 +178,9 @@ private fun OwnerControlScreen() {
 
     val snapshot = dashboard.snapshot
     val control = dashboard.control
-    val ready = snapshot != null && control != null
+    val ready = snapshot != null && control != null && dashboard.error == null
 
-    if (confirmation != null && snapshot != null && control != null) {
+    if (confirmation != null && snapshot != null && control != null && dashboard.error == null) {
         val action = confirmation!!
         AlertDialog(
             onDismissRequest = { if (runningAction == null) confirmation = null },
@@ -249,7 +256,7 @@ private fun OwnerControlScreen() {
             }
         }
 
-        if (snapshot != null && control != null) {
+        if (snapshot != null && control != null && dashboard.error == null) {
             item(key = "farm-status") {
                 FarmStatusCard(
                     snapshot = snapshot,
@@ -320,7 +327,12 @@ private fun OwnerStatusCard(
     ready: Boolean,
     onRefresh: () -> Unit,
 ) {
-    val container = if (ready) Color(0xFF103328) else MaterialTheme.colorScheme.surfaceVariant
+    val locked = state.error != null
+    val container = when {
+        ready -> Color(0xFF103328)
+        locked -> Color(0xFF2A2024)
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
     Card(colors = CardDefaults.cardColors(containerColor = container)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
@@ -330,19 +342,31 @@ private fun OwnerStatusCard(
             ) {
                 Column {
                     Text(
-                        if (ready) "OWNER · AUTHORIZED" else "OWNER · VERIFYING",
-                        color = if (ready) SourceLabGood else MaterialTheme.colorScheme.onSurface,
+                        when {
+                            ready -> "OWNER · AUTHORIZED"
+                            locked -> "OWNER · CONTROL LOCKED"
+                            else -> "OWNER · VERIFYING"
+                        },
+                        color = when {
+                            ready -> SourceLabGood
+                            locked -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.onSurface
+                        },
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        if (ready) "GitHub identity and backend authorization verified"
-                        else "Validating Owner session and backend capability",
+                        when {
+                            ready -> "GitHub identity and backend authorization verified"
+                            locked -> "Authorization refresh failed; Owner actions are disabled"
+                            else -> "Validating Owner session and backend capability"
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 when {
                     state.refreshing || state.initialLoading -> CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                    locked -> SourceLabStatusBadge("Locked", SourceLabTone.ERROR)
                     ready -> SourceLabStatusBadge("Live", SourceLabTone.GOOD)
                 }
             }
