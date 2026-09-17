@@ -1,6 +1,5 @@
 package com.noirero.miyorare.sourcelab
 
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -10,13 +9,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -120,9 +116,7 @@ private fun FarmRunScreen(onClose: () -> Unit) {
     }
 
     LaunchedEffect(Unit) {
-        val baselineRunId: Long?
-        val monitorToken: String?
-        try {
+        val monitorCredential = runCatching {
             val stored = GitHubOwnerCredentialVault.load(context)
                 ?: throw SourceLabControlException("OWNER_CREDENTIAL_REQUIRED")
             val identity = GitHubOwnerAuthentication.restoreOwnerLogin(
@@ -130,14 +124,13 @@ private fun FarmRunScreen(onClose: () -> Unit) {
                 stored,
             )
             GitHubOwnerCredentialVault.save(context, identity.credential)
-            monitorToken = identity.accessToken
-            baselineRunId = withContext(Dispatchers.IO) {
-                FarmRunMonitor.latestOwnerRunId(monitorToken)
+            val baselineRunId = withContext(Dispatchers.IO) {
+                FarmRunMonitor.latestOwnerRunId(identity.accessToken) ?: 0L
             }
-        } catch (_: Throwable) {
-            monitorToken = null
-            baselineRunId = null
-        }
+            identity.accessToken to baselineRunId
+        }.getOrNull()
+        val monitorToken = monitorCredential?.first
+        val baselineRunId = monitorCredential?.second ?: 0L
 
         var monitorJob: Job? = null
         try {
@@ -148,7 +141,7 @@ private fun FarmRunScreen(onClose: () -> Unit) {
 
             ui = ui.copy(phase = FarmRunPhase.PREPARING, snapshot = snapshot, error = null)
 
-            if (monitorToken != null && baselineRunId != null) {
+            if (monitorToken != null) {
                 monitorJob = launch {
                     var discoveredRunId: Long? = null
                     var discoveryPolls = 0
@@ -193,7 +186,7 @@ private fun FarmRunScreen(onClose: () -> Unit) {
             )
         } catch (error: SourceLabControlException) {
             monitorJob?.cancel()
-            val finalProgress = if (monitorToken != null && baselineRunId != null) {
+            val finalProgress = if (monitorToken != null) {
                 runCatching {
                     withContext(Dispatchers.IO) {
                         val known = ui.progress
