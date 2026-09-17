@@ -7,9 +7,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location(
-    "source_pending_worker", ROOT / "tools" / "source_pending_worker.py"
-)
+SPEC = importlib.util.spec_from_file_location("source_pending_worker", ROOT / "tools" / "source_pending_worker.py")
 assert SPEC and SPEC.loader
 worker = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(worker)
@@ -20,137 +18,127 @@ def source(canonical_id: str, language: str, *, state: str = "PENDING") -> dict:
         "canonicalId": canonical_id,
         "language": language,
         "providers": ["uma"],
-        "upstreamIdentities": {
-            "uma": {"sourceName": canonical_id, "file": f"src/{canonical_id}.kt"}
+        "upstreamIdentities": {"uma": {"sourceName": canonical_id, "file": f"src/{canonical_id}.kt"}},
+        "compatibilityEnrollment": {"state": state, "parserCoverageRequired": state == "ACTIVE"},
+    }
+
+
+def profiled() -> dict:
+    evidence = {
+        "profile": {
+            "gate": "PASS",
+            "memberships": [
+                {
+                    "provider": "uma",
+                    "locator": "src/alpha.kt",
+                    "profilePass": True,
+                    "compile": True,
+                    "probe": {"reachable": True},
+                }
+            ],
         },
-        "compatibilityEnrollment": {
-            "state": state,
-            "parserCoverageRequired": state == "ACTIVE",
-        },
+        "attempts": 1,
+    }
+    return {
+        "canonicalId": "alpha",
+        "state": worker.PROFILE,
+        "attempts": 1,
+        "adapterFamily": "madara",
+        "authType": "NO_AUTH",
+        "evidence": evidence,
+        "evidenceSha256": worker.evidence_digest(evidence),
     }
 
 
 class PendingWorkerTest(unittest.TestCase):
     def test_plan_balances_languages_and_skips_active(self) -> None:
-        registry = {
-            "sources": [
-                source("id-a", "id"),
-                source("id-b", "id"),
-                source("en-a", "en"),
-                source("active", "en", state="ACTIVE"),
-            ]
-        }
+        registry = {"sources": [source("id-a", "id"), source("id-b", "id"), source("en-a", "en"), source("active", "en", state="ACTIVE")]}
         plan = worker.build_plan(registry, worker.normalize_state({}), 2)
         self.assertEqual(plan["batchSize"], 2)
         self.assertEqual({item["language"] for item in plan["items"]}, {"id", "en"})
         self.assertNotIn("active", {item["canonicalId"] for item in plan["items"]})
 
-    def test_assess_passes_compiled_reachable_source(self) -> None:
+    def test_compile_and_reachability_only_reach_parser_pending(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             uma = root / "uma"
             (uma / "src").mkdir(parents=True)
-            (uma / "src" / "alpha.kt").write_text(
-                'class Alpha : Madara() { val baseUrl = "https://example.com" }',
-                encoding="utf-8",
-            )
-            plan = {
-                "items": [
-                    {
-                        "canonicalId": "alpha",
-                        "language": "en",
-                        "providers": ["uma"],
-                        "upstreamIdentities": {
-                            "uma": {"sourceName": "Alpha", "file": "src/alpha.kt"}
-                        },
-                        "attempts": 0,
-                    }
-                ]
-            }
+            (uma / "src" / "alpha.kt").write_text('class Alpha : Madara() { val baseUrl = "https://example.com" }', encoding="utf-8")
+            plan = {"items": [{"canonicalId": "alpha", "language": "en", "providers": ["uma"], "upstreamIdentities": {"uma": {"sourceName": "Alpha", "file": "src/alpha.kt"}}, "attempts": 0}]}
             original_probe = worker.http_probe
-            worker.http_probe = lambda host, timeout: {
-                "reachable": True,
-                "httpStatus": 200,
-                "url": f"https://{host}/",
-            }
+            worker.http_probe = lambda host, timeout: {"reachable": True, "httpStatus": 200, "url": f"https://{host}/"}
             try:
-                result = worker.assess_plan(
-                    plan,
-                    {"uma": uma, "keiyoushi": root, "gekkoushi": root},
-                    {"uma": {"*": True}},
-                    1.0,
-                    3,
-                )
+                result = worker.assess_plan(plan, {"uma": uma, "keiyoushi": root, "gekkoushi": root}, {"uma": {"*": True}}, 1.0, 3)
             finally:
                 worker.http_probe = original_probe
-
         item = result["results"][0]
-        self.assertEqual(item["state"], worker.READY)
+        self.assertEqual(item["state"], worker.PROFILE)
         self.assertEqual(item["adapterFamily"], "madara")
-        self.assertEqual(item["evidence"]["gate"], "PASS")
+        self.assertEqual(item["evidence"]["profile"]["gate"], "PASS")
 
-    def test_failure_retries_then_holds(self) -> None:
+    def test_real_parser_pass_is_required_for_ready(self) -> None:
+        profile_results = {"results": [profiled()]}
+        parser_pass = {
+            "executionMode": "real-live-parser",
+            "results": [{
+                "canonicalId": "alpha",
+                "provider": "uma",
+                "status": "PASS",
+                "parserExecution": True,
+                "detailsTraversal": True,
+                "chapterTraversal": True,
+                "pageExtraction": True,
+            }],
+        }
+        final = worker.finalize_results(profile_results, parser_pass, 3)["results"][0]
+        self.assertEqual(final["state"], worker.READY)
+        self.assertEqual(final["evidence"]["gate"], "REAL_PARSER_PASS")
+
+        missing = worker.finalize_results(profile_results, {"results": []}, 3)["results"][0]
+        self.assertEqual(missing["state"], worker.RETRY)
+        self.assertEqual(missing["evidence"]["gate"], "REAL_PARSER_BLOCKED")
+
+    def test_real_parser_failure_holds_at_threshold(self) -> None:
+        row = profiled()
+        row["attempts"] = 3
+        row["evidence"]["attempts"] = 3
+        parser_fail = {
+            "results": [{
+                "canonicalId": "alpha",
+                "provider": "uma",
+                "status": "FAIL",
+                "parserExecution": True,
+                "detailsTraversal": False,
+                "chapterTraversal": False,
+                "pageExtraction": False,
+            }]
+        }
+        final = worker.finalize_results({"results": [row]}, parser_fail, 3)["results"][0]
+        self.assertEqual(final["state"], worker.HELD)
+
+    def test_failure_retries_then_holds_before_parser(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             uma = root / "uma"
             (uma / "src").mkdir(parents=True)
-            (uma / "src" / "alpha.kt").write_text(
-                'val baseUrl = "https://example.com"', encoding="utf-8"
-            )
+            (uma / "src" / "alpha.kt").write_text('val baseUrl = "https://example.com"', encoding="utf-8")
             original_probe = worker.http_probe
             worker.http_probe = lambda host, timeout: {"reachable": False, "detail": "timeout"}
             try:
-                base = {
-                    "canonicalId": "alpha",
-                    "language": "en",
-                    "providers": ["uma"],
-                    "upstreamIdentities": {
-                        "uma": {"sourceName": "Alpha", "file": "src/alpha.kt"}
-                    },
-                }
-                retry = worker.assess_plan(
-                    {"items": [{**base, "attempts": 0}]},
-                    {"uma": uma, "keiyoushi": root, "gekkoushi": root},
-                    {"uma": {"*": True}},
-                    1.0,
-                    3,
-                )
-                held = worker.assess_plan(
-                    {"items": [{**base, "attempts": 2}]},
-                    {"uma": uma, "keiyoushi": root, "gekkoushi": root},
-                    {"uma": {"*": True}},
-                    1.0,
-                    3,
-                )
+                base = {"canonicalId": "alpha", "language": "en", "providers": ["uma"], "upstreamIdentities": {"uma": {"sourceName": "Alpha", "file": "src/alpha.kt"}}}
+                retry = worker.assess_plan({"items": [{**base, "attempts": 0}]}, {"uma": uma, "keiyoushi": root, "gekkoushi": root}, {"uma": {"*": True}}, 1.0, 3)
+                held = worker.assess_plan({"items": [{**base, "attempts": 2}]}, {"uma": uma, "keiyoushi": root, "gekkoushi": root}, {"uma": {"*": True}}, 1.0, 3)
             finally:
                 worker.http_probe = original_probe
-
         self.assertEqual(retry["results"][0]["state"], worker.RETRY)
         self.assertEqual(held["results"][0]["state"], worker.HELD)
 
     def test_apply_updates_state_without_mutating_registry(self) -> None:
         registry = {"sources": [source("alpha", "en")]}
         before = repr(registry)
-        results = {
-            "results": [
-                {
-                    "canonicalId": "alpha",
-                    "state": worker.READY,
-                    "attempts": 1,
-                    "adapterFamily": "madara",
-                    "authType": "NO_AUTH",
-                    "evidence": {"gate": "PASS", "memberships": []},
-                    "evidenceSha256": "abc",
-                }
-            ]
-        }
-        state, summary = worker.apply_results(
-            registry,
-            worker.normalize_state({}),
-            results,
-            "123",
-            "2026-09-18T00:00:00Z",
-        )
+        result = profiled()
+        result["state"] = worker.READY
+        state, summary = worker.apply_results(registry, worker.normalize_state({}), {"results": [result]}, "123", "2026-09-18T00:00:00Z")
         self.assertEqual(repr(registry), before)
         self.assertEqual(state["sources"]["alpha"]["approvalState"], "WAITING_FOR_APPROVAL")
         self.assertFalse(state["sources"]["alpha"]["publishEligible"])
@@ -158,21 +146,8 @@ class PendingWorkerTest(unittest.TestCase):
         self.assertEqual(summary["states"][worker.READY], 1)
 
     def test_ready_and_held_are_not_requeued(self) -> None:
-        registry = {
-            "sources": [
-                source("ready", "id"),
-                source("held", "en"),
-                source("pending", "en"),
-            ]
-        }
-        state = worker.normalize_state(
-            {
-                "sources": {
-                    "ready": {"state": worker.READY},
-                    "held": {"state": worker.HELD},
-                }
-            }
-        )
+        registry = {"sources": [source("ready", "id"), source("held", "en"), source("pending", "en")]}
+        state = worker.normalize_state({"sources": {"ready": {"state": worker.READY}, "held": {"state": worker.HELD}}})
         plan = worker.build_plan(registry, state, 8)
         self.assertEqual([item["canonicalId"] for item in plan["items"]], ["pending"])
 
