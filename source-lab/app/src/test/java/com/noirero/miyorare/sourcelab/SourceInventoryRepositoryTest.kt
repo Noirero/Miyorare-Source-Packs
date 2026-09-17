@@ -151,7 +151,20 @@ class SourceInventoryRepositoryTest {
                   "authType": "NO_AUTH",
                   "adapterFamily": "reader",
                   "currentVersion": {"uma": "${"a".repeat(40)}"},
-                  "lastKnownGood": {"uma": "${"b".repeat(40)}"}
+                  "lastKnownGood": {"uma": "${"b".repeat(40)}"},
+                  "compatibilityBaseline": {
+                    "status": "PENDING",
+                    "capabilities": [
+                      "load",
+                      "browse",
+                      "search",
+                      "details",
+                      "chapters",
+                      "content",
+                      "download",
+                      "reader"
+                    ]
+                  }
                 }
               ]
             }
@@ -166,6 +179,11 @@ class SourceInventoryRepositoryTest {
         assertEquals("a".repeat(40), source.currentVersion.getValue("uma"))
         assertTrue(source.repairPolicy!!.safeSelfRepair)
         assertFalse(source.ownerActionRequired)
+        assertEquals("PENDING", source.compatibilityBaseline!!.status)
+        assertEquals(
+            listOf("load", "browse", "search", "details", "chapters", "content", "download", "reader"),
+            source.compatibilityBaseline!!.capabilities,
+        )
     }
 
     private fun mapping(provider: String) = InventoryProviderMapping(

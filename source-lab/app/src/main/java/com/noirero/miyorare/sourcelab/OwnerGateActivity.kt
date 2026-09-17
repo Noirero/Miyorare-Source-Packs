@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -15,16 +16,16 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -41,20 +42,22 @@ class OwnerGateActivity : ComponentActivity() {
         }
 
         setContent {
-            OwnerGateTheme {
-                OwnerGateScreen(
-                    operationScope = lifecycleScope,
-                    onViewer = {
-                        SourceLabOwnerSessionStore.clear()
-                        openDashboard(ownerAuthorized = false)
-                    },
-                    onAuthorized = { session ->
-                        SourceLabOwnerSessionStore.set(session)
-                    },
-                    onOpenOwnerDashboard = {
-                        openDashboard(ownerAuthorized = true)
-                    },
-                )
+            SourceLabPhase1Theme {
+                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    OwnerGateScreen(
+                        operationScope = lifecycleScope,
+                        onViewer = {
+                            SourceLabOwnerSessionStore.clear()
+                            openDashboard(ownerAuthorized = false)
+                        },
+                        onAuthorized = { session ->
+                            SourceLabOwnerSessionStore.set(session)
+                        },
+                        onOpenOwnerDashboard = {
+                            openDashboard(ownerAuthorized = true)
+                        },
+                    )
+                }
             }
         }
     }
@@ -76,26 +79,6 @@ class OwnerGateActivity : ComponentActivity() {
 }
 
 @Composable
-private fun OwnerGateTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = Color(0xFF8175FF),
-            secondary = Color(0xFFA780FF),
-            tertiary = Color(0xFF58D9C4),
-            background = Color(0xFF0B0E14),
-            surface = Color(0xFF111620),
-            surfaceVariant = Color(0xFF19202C),
-            onPrimary = Color.White,
-            onBackground = Color(0xFFF4F6FA),
-            onSurface = Color(0xFFF4F6FA),
-            onSurfaceVariant = Color(0xFFB8C0CC),
-            error = Color(0xFFFF6B74),
-        ),
-        content = content,
-    )
-}
-
-@Composable
 private fun OwnerGateScreen(
     operationScope: CoroutineScope,
     onViewer: () -> Unit,
@@ -113,22 +96,25 @@ private fun OwnerGateScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(20.dp),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item {
-            Text(
-                text = stringResource(R.string.owner_gate_heading),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = stringResource(R.string.owner_gate_subtitle),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        item(key = "header") {
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                SourceLabStatusBadge("COMPATIBILITY FARM", SourceLabTone.ACCENT)
+                Text(
+                    text = stringResource(R.string.owner_gate_heading),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = stringResource(R.string.owner_gate_subtitle),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
 
-        item {
+        item(key = "viewer") {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             ) {
@@ -136,13 +122,21 @@ private fun OwnerGateScreen(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Text(
-                        text = stringResource(R.string.public_viewer_title),
-                        fontWeight = FontWeight.Bold,
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.public_viewer_title),
+                            fontWeight = FontWeight.Bold,
+                        )
+                        SourceLabStatusBadge("READ ONLY", SourceLabTone.NEUTRAL)
+                    }
                     Text(
                         text = stringResource(R.string.public_viewer_supporting),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
                     )
                     Button(
                         onClick = onViewer,
@@ -154,7 +148,7 @@ private fun OwnerGateScreen(
             }
         }
 
-        item {
+        item(key = "owner") {
             OwnerAuthorizationCard(
                 operationScope = operationScope,
                 onSessionChanged = { session ->
@@ -164,16 +158,26 @@ private fun OwnerGateScreen(
         }
 
         if (authorizedSession != null) {
-            item {
-                Text(
-                    text = stringResource(R.string.opening_source_lab_dashboard),
-                    color = MaterialTheme.colorScheme.tertiary,
-                    fontWeight = FontWeight.Bold,
-                )
+            item(key = "opening") {
+                Card(colors = CardDefaults.cardColors(containerColor = SourceLabSurface)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.opening_source_lab_dashboard),
+                            color = SourceLabGood,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f),
+                        )
+                        SourceLabStatusBadge("OWNER", SourceLabTone.GOOD)
+                    }
+                }
             }
         }
 
-        item {
+        item(key = "boundary") {
             Text(
                 text = stringResource(R.string.owner_gate_capability_boundary),
                 style = MaterialTheme.typography.bodySmall,

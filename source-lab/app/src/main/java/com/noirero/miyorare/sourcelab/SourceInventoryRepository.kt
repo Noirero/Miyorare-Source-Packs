@@ -37,6 +37,11 @@ internal data class InventoryRepairPolicy(
     val validatedCanonicalFallback: Boolean,
 )
 
+internal data class InventoryCompatibilityBaseline(
+    val status: String,
+    val capabilities: List<String>,
+)
+
 internal data class FarmInventorySourceState(
     val canonicalId: String,
     val contentProfile: String,
@@ -49,6 +54,7 @@ internal data class FarmInventorySourceState(
     val publishEligible: Boolean,
     val currentVersion: Map<String, String>,
     val lastKnownGood: Map<String, String>,
+    val compatibilityBaseline: InventoryCompatibilityBaseline?,
     val repairPolicy: InventoryRepairPolicy?,
 )
 
@@ -276,6 +282,16 @@ internal object SourceInventoryRepository {
             for (index in 0 until sourceArray.length()) {
                 val source = sourceArray.getJSONObject(index)
                 val repair = source.optJSONObject("repairPolicy") ?: defaults.optJSONObject("repairPolicy")
+                val compatibility = source.optJSONObject("compatibilityBaseline")
+                val capabilities = buildList {
+                    val array = compatibility?.optJSONArray("capabilities")
+                    if (array != null) {
+                        for (capabilityIndex in 0 until array.length()) {
+                            val capability = array.optString(capabilityIndex).trim().lowercase()
+                            if (capability.isNotBlank()) add(capability)
+                        }
+                    }
+                }.distinct()
                 add(
                     FarmInventorySourceState(
                         canonicalId = source.getString("canonicalId"),
@@ -292,6 +308,12 @@ internal object SourceInventoryRepository {
                         publishEligible = source.optBoolean("publishEligible", false),
                         currentVersion = source.optJSONObject("currentVersion").toStringMap(),
                         lastKnownGood = source.optJSONObject("lastKnownGood").toStringMap(),
+                        compatibilityBaseline = compatibility?.let {
+                            InventoryCompatibilityBaseline(
+                                status = it.optString("status", "UNKNOWN"),
+                                capabilities = capabilities,
+                            )
+                        },
                         repairPolicy = repair?.let {
                             InventoryRepairPolicy(
                                 autoDiagnose = it.optBoolean("autoDiagnose", false),
