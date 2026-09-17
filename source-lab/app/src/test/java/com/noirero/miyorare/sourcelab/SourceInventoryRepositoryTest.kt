@@ -44,9 +44,11 @@ class SourceInventoryRepositoryTest {
               ]
             }
             """.trimIndent(),
+            branchCommit = "c".repeat(40),
         )
 
         assertEquals(1, snapshot.sources.size)
+        assertEquals("c".repeat(40), snapshot.branchCommit)
         val source = snapshot.sources.single()
         assertEquals("miyorare:miyorare-id:KOMIKU", source.canonicalId)
         assertEquals(4838485846640015979L, source.providers.getValue("keiyoushi").sourceId)
@@ -80,6 +82,7 @@ class SourceInventoryRepositoryTest {
             ),
             providerCommits = emptyMap(),
             branch = SourceInventoryRepository.inventoryBranch,
+            branchCommit = "d".repeat(40),
             retrievedAtEpochMs = 0L,
         )
 
@@ -89,6 +92,35 @@ class SourceInventoryRepositoryTest {
         assertEquals(1, summary.notEnrolled)
         assertEquals(1, summary.needsAttention)
         assertTrue(snapshot.sources[1].needsAttention)
+    }
+
+    @Test
+    fun allLanguageDoesNotDuplicateAllFilterSentinel() {
+        val filters = sourceInventoryLanguageFilters(
+            listOf(
+                InventorySource(
+                    "miyorare:x:GLOBAL",
+                    "Global",
+                    "ALL",
+                    "exact-name",
+                    false,
+                    emptyList(),
+                    mapOf("gekkoushi" to mapping("gekkoushi")),
+                ),
+                InventorySource(
+                    "miyorare:x:ID",
+                    "Indonesia",
+                    "ID",
+                    "exact-name",
+                    false,
+                    emptyList(),
+                    mapOf("uma" to mapping("uma")),
+                ),
+            ),
+        )
+
+        assertEquals(1, filters.count { it == "ALL" })
+        assertEquals(listOf("ALL", "ID"), filters)
     }
 
     @Test
@@ -121,8 +153,10 @@ class SourceInventoryRepositoryTest {
               ]
             }
             """.trimIndent(),
+            branchCommit = "e".repeat(40),
         )
         val source = farm.sources.single()
+        assertEquals("e".repeat(40), farm.branchCommit)
         assertEquals("PROMOTED", source.updateState)
         assertEquals("UNKNOWN", source.runtimeHealth)
         assertEquals("a".repeat(40), source.currentVersion.getValue("uma"))
