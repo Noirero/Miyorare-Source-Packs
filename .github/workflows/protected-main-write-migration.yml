@@ -7,7 +7,7 @@ on:
       - '.github/workflows/protected-main-write-migration.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   migrate:
@@ -101,17 +101,21 @@ jobs:
           ci.write_text(text.replace(step_marker, guard + step_marker), encoding='utf-8')
           PY
 
-      - name: Remove bootstrap workflow and commit migration
+      - name: Stage migration payload
         shell: bash
         run: |
           set -euo pipefail
-          git rm .github/workflows/protected-main-write-migration.yml
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add .github/workflows/upstream-sync.yml \
-                  .github/workflows/upstream-sync-status.yml \
-                  .github/workflows/repair-android-sdk-setup.yml \
-                  .github/workflows/upstream-sync-pr-check.yml \
-                  tools/protected_main_pr.sh
-          git commit -m "Route protected main automation through pull requests"
-          echo "MIGRATION_COMMIT=$(git rev-parse HEAD)"
+          mkdir -p _migration/.github/workflows _migration/tools
+          cp .github/workflows/upstream-sync.yml _migration/.github/workflows/
+          cp .github/workflows/upstream-sync-status.yml _migration/.github/workflows/
+          cp .github/workflows/repair-android-sdk-setup.yml _migration/.github/workflows/
+          cp .github/workflows/upstream-sync-pr-check.yml _migration/.github/workflows/
+          cp tools/protected_main_pr.sh _migration/tools/
+
+      - name: Upload final migration payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: protected-main-migration-payload
+          path: _migration/
+          if-no-files-found: error
+          retention-days: 1
