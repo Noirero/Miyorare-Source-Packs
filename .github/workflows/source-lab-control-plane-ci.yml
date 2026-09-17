@@ -43,7 +43,7 @@ jobs:
           end
 
       - name: Verify complete capability and action surface
-        shell: python
+        shell: python {0}
         run: |
           from pathlib import Path
 
