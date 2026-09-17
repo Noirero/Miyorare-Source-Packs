@@ -6,6 +6,7 @@ on:
       - 'compatibility/miyorare-source-pack-contract.v1.json'
       - 'tools/source_pack_outcome.py'
       - 'tools/verify_release_lock.py'
+      - 'upstream/status.json'
       - 'upstream/outcome.json'
       - '.github/workflows/source-pack-contract.yml'
       - '.github/workflows/source-pack-release-seal.yml'
@@ -16,6 +17,7 @@ on:
       - 'compatibility/miyorare-source-pack-contract.v1.json'
       - 'tools/source_pack_outcome.py'
       - 'tools/verify_release_lock.py'
+      - 'upstream/status.json'
       - 'upstream/outcome.json'
       - '.github/workflows/source-pack-contract.yml'
       - '.github/workflows/source-pack-release-seal.yml'
@@ -88,20 +90,38 @@ jobs:
           assert mod.classify({'schema': 99, 'providers': {}})['outcome'] == 'FAIL'
           PY
 
-      - name: Validate checked-in outcome against current status
+      - name: Validate atomic status/outcome consistency and deterministic regeneration
         shell: bash
         run: |
           set -euo pipefail
-          tmp="$(mktemp)"
-          python3 tools/source_pack_outcome.py --status upstream/status.json --output "$tmp"
-          python3 - "$tmp" <<'PY'
-          import json, sys
+          python3 - <<'PY'
+          import json
           from pathlib import Path
-          expected = json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
-          checked = json.loads(Path('upstream/outcome.json').read_text(encoding='utf-8'))
-          if expected != checked:
-              raise SystemExit('upstream/outcome.json is stale relative to upstream/status.json')
+
+          status = json.loads(Path('upstream/status.json').read_text(encoding='utf-8'))
+          outcome = json.loads(Path('upstream/outcome.json').read_text(encoding='utf-8'))
+          if status.get('workflowRunId') != outcome.get('workflowRunId'):
+              raise SystemExit(
+                  f"workflowRunId drift: status={status.get('workflowRunId')} outcome={outcome.get('workflowRunId')}"
+              )
           PY
+
+          set +e
+          python3 tools/source_pack_outcome.py \
+            --status upstream/status.json \
+            --output upstream/outcome.json
+          rc=$?
+          set -e
+          OUTCOME="$(python3 -c 'import json; print(json.load(open("upstream/outcome.json"))["outcome"])')"
+          if [[ "$OUTCOME" == "FAIL" && "$rc" -eq 0 ]]; then
+            echo "::error::FAIL outcome must return non-zero."
+            exit 1
+          fi
+          if [[ "$OUTCOME" != "FAIL" && "$rc" -ne 0 ]]; then
+            echo "::error::PASS/HELD outcome must return zero."
+            exit 1
+          fi
+          git diff --exit-code -- upstream/outcome.json
 
       - name: Unit test immutable release lock verifier
         shell: bash
