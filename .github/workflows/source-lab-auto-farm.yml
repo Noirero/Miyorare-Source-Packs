@@ -195,12 +195,12 @@ jobs:
           workflow = root / '.github/workflows/upstream-sync.yml'
           text = workflow.read_text(encoding='utf-8')
           needle = r'''            --output upstream/sync-plan.json \
-            --github-output "$GITHUB_OUTPUT"'''
+            --github-output "$GITHUB_OUTPUT"'''.replace('\\"', '"')
           replacement = r'''            --output upstream/sync-plan.json
           python3 tools/source_lab_scope_plan.py \
             --plan upstream/sync-plan.json \
             --provider "$SOURCE_LAB_PROVIDER_SCOPE" \
-            --github-output "$GITHUB_OUTPUT"'''
+            --github-output "$GITHUB_OUTPUT"'''.replace('\\"', '"')
           if text.count(needle) != 1:
               raise SystemExit('Could not safely patch exact upstream plan output block')
           text = text.replace(needle, replacement)
