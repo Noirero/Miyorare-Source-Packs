@@ -128,6 +128,19 @@ jobs:
           if source.get('needsAttention') is True:
               raise SystemExit('source needs attention and cannot be enrolled automatically')
 
+          scope = registry.get('scope')
+          if not isinstance(scope, dict):
+              raise SystemExit('Farm scope is missing')
+          farm_languages = scope.get('languages')
+          if not isinstance(farm_languages, list) or not farm_languages:
+              raise SystemExit('Farm language scope is invalid')
+          source_language = str(source.get('language') or '').lower()
+          if source_language not in {str(value).lower() for value in farm_languages}:
+              raise SystemExit(
+                  f'source language {source_language or "unknown"} is outside the current Farm contract; '
+                  'expand the Farm language contract before enrollment'
+              )
+
           sources = registry.get('sources')
           if not isinstance(sources, list):
               raise SystemExit('Farm registry sources is invalid')
@@ -196,9 +209,11 @@ jobs:
           new_source = {
               'canonicalId': canonical_id,
               'displayName': source.get('displayName') or canonical_id.rsplit(':', 1)[-1],
-              'language': str(source.get('language') or 'unknown').lower(),
+              'language': source_language,
               'contentProfile': 'manga',
-              'authType': 'UNKNOWN',
+              # Conservative contract-valid placeholder. Enrollment does not
+              # claim authentication support before the Farm profiles the source.
+              'authType': 'UNSUPPORTED',
               'adapterFamily': 'unclassified',
               'providers': sorted(identities),
               'upstreamIdentities': identities,
@@ -227,12 +242,6 @@ jobs:
           sources.append(new_source)
           sources.sort(key=lambda item: (str(item.get('language', '')), str(item.get('displayName', '')).casefold(), str(item.get('canonicalId', ''))))
 
-          scope = registry.setdefault('scope', {})
-          languages = scope.get('languages') if isinstance(scope.get('languages'), list) else []
-          lang = new_source['language']
-          if lang not in languages:
-              languages.append(lang)
-          scope['languages'] = sorted(set(str(x) for x in languages))
           scope['targetSize'] = len(sources)
           scope['enrollmentMode'] = 'owner-managed'
 
@@ -241,6 +250,7 @@ jobs:
               'schemaVersion': 1,
               'action': 'ADD_TO_FARM',
               'canonicalId': canonical_id,
+              'language': source_language,
               'inventoryCommit': os.environ['INVENTORY_COMMIT'],
               'foundationBefore': os.environ['FOUNDATION_COMMIT'],
               'workflowRunId': int(os.environ['GITHUB_RUN_ID']),
