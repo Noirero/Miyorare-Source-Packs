@@ -216,6 +216,16 @@
       "members": [
         {"canonicalId": "miyorare:miyorare-en:ASURASCANS", "module": "src/en/asurascans", "testClass": "compatibilityfarm.KeiyoushiAsuraScansParserHarnessTest", "runtimeProfile": "configurable"}
       ]
+    },
+    {
+      "id": "keiyoushi-aarlas-zeistmanga",
+      "provider": "keiyoushi",
+      "registryAdapterFamily": "unclassified",
+      "providerParserFamily": "zeistmanga",
+      "runner": "android-gradle-unit-test",
+      "members": [
+        {"canonicalId": "miyorare:inventory-id:AARLAS", "module": "src/id/aarlas", "testClass": "compatibilityfarm.KeiyoushiAarlasParserHarnessTest"}
+      ]
     }
   ]
 }
