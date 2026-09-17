@@ -1,0 +1,161 @@
+name: Source Pack Contract CI
+
+on:
+  pull_request:
+    paths:
+      - 'compatibility/miyorare-source-pack-contract.v1.json'
+      - 'tools/source_pack_outcome.py'
+      - 'tools/verify_release_lock.py'
+      - 'upstream/outcome.json'
+      - '.github/workflows/source-pack-contract.yml'
+      - '.github/workflows/source-pack-release-seal.yml'
+      - '.github/workflows/source-pack-release-audit.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'compatibility/miyorare-source-pack-contract.v1.json'
+      - 'tools/source_pack_outcome.py'
+      - 'tools/verify_release_lock.py'
+      - 'upstream/outcome.json'
+      - '.github/workflows/source-pack-contract.yml'
+      - '.github/workflows/source-pack-release-seal.yml'
+      - '.github/workflows/source-pack-release-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Packs
+        uses: actions/checkout@v5
+
+      - name: Validate contract semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          c = json.loads(Path('compatibility/miyorare-source-pack-contract.v1.json').read_text(encoding='utf-8'))
+          assert c['schemaVersion'] == 1
+          assert c['contractId'] == 'miyorare-source-pack'
+          assert c['consumer']['repository'] == 'Noirero/Miyorare'
+          assert c['consumer']['applicationId'] == 'org.noirero.miyorare'
+          assert c['producer']['repository'] == 'Noirero/Miyorare-Source-Packs'
+          assert c['format']['logicalPackManifestSchema'] == 2
+          assert c['format']['releaseManifestSchema'] == 2
+          assert c['format']['digestAlgorithm'] == 'sha256'
+          assert set(c['format']['requiredLanguages']) == {'id', 'en', 'global'}
+          assert c['runtime']['atomicLogicalPackInstall'] is True
+          assert c['runtime']['rollbackOnPartialInstallFailure'] is True
+          assert c['runtime']['downgradeProtection'] is True
+          assert c['trust']['releaseTagImmutable'] is True
+          assert c['trust']['releaseLockRequiredForNewRelease'] is True
+          assert c['trust']['releaseLockAttestationRequired'] is True
+          assert c['trust']['githubArtifactAttestationRequiredForNewRelease'] is True
+          assert c['trust']['sigstoreBundleRequiredForNewRelease'] is False
+          assert c['trust']['signatureIdentity']['workflow'] == '.github/workflows/source-pack-release-seal.yml'
+          assert c['compatibility']['candidateValidationFailure'] == 'held'
+          PY
+
+      - name: Compile trust helpers
+        run: python3 -m py_compile tools/source_pack_outcome.py tools/verify_release_lock.py
+
+      - name: Prove PASS HELD FAIL semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+
+          spec = importlib.util.spec_from_file_location('outcome', Path('tools/source_pack_outcome.py'))
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+
+          def status(*states):
+              return {'schema': 2, 'providers': {f'p{i}': {'state': s} for i, s in enumerate(states)}}
+
+          assert mod.classify(status('synced', 'promoted'))['outcome'] == 'PASS'
+          held = mod.classify(status('synced', 'held'))
+          assert held['outcome'] == 'HELD' and held['activeSetSafe'] is True
+          fail = mod.classify(status('synced', 'broken'))
+          assert fail['outcome'] == 'FAIL' and fail['activeSetSafe'] is False
+          assert mod.classify({'schema': 99, 'providers': {}})['outcome'] == 'FAIL'
+          PY
+
+      - name: Validate checked-in outcome against current status
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp)"
+          python3 tools/source_pack_outcome.py --status upstream/status.json --output "$tmp"
+          python3 - "$tmp" <<'PY'
+          import json, sys
+          from pathlib import Path
+          expected = json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
+          checked = json.loads(Path('upstream/outcome.json').read_text(encoding='utf-8'))
+          if expected != checked:
+              raise SystemExit('upstream/outcome.json is stale relative to upstream/status.json')
+          PY
+
+      - name: Unit test immutable release lock verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          printf 'payload\n' > "$tmp/a.jar"
+          printf '{"schema":2}\n' > "$tmp/miyorare-source-packs.json"
+          python3 - "$tmp" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          root = Path(sys.argv[1])
+          manifest = root / 'miyorare-source-packs.json'
+          asset = root / 'a.jar'
+          lock = {
+              'schemaVersion': 1,
+              'kind': 'MIYORARE_SOURCE_PACK_RELEASE_LOCK',
+              'immutable': True,
+              'tag': 'miyorare-sources-v9.9.9',
+              'releaseManifestSha256': hashlib.sha256(manifest.read_bytes()).hexdigest(),
+              'assets': [{
+                  'name': asset.name,
+                  'size': asset.stat().st_size,
+                  'sha256': hashlib.sha256(asset.read_bytes()).hexdigest(),
+              }, {
+                  'name': manifest.name,
+                  'size': manifest.stat().st_size,
+                  'sha256': hashlib.sha256(manifest.read_bytes()).hexdigest(),
+              }],
+          }
+          lock_path = root / 'miyorare-release-lock.json'
+          lock_path.write_text(json.dumps(lock, sort_keys=True) + '\n', encoding='utf-8')
+          digest = hashlib.sha256(lock_path.read_bytes()).hexdigest()
+          (root / 'miyorare-release-lock.sha256').write_text(
+              f'{digest}  miyorare-release-lock.json\n', encoding='utf-8'
+          )
+          PY
+          python3 tools/verify_release_lock.py --dir "$tmp" --tag miyorare-sources-v9.9.9
+          printf 'tamper\n' >> "$tmp/a.jar"
+          if python3 tools/verify_release_lock.py --dir "$tmp" --tag miyorare-sources-v9.9.9; then
+            echo '::error::Tampered release unexpectedly passed immutable lock verification.'
+            exit 1
+          fi
+
+      - name: Validate release trust workflow markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          seal=.github/workflows/source-pack-release-seal.yml
+          audit=.github/workflows/source-pack-release-audit.yml
+          grep -Fq 'actions/attest-build-provenance@v2' "$seal"
+          grep -Fq 'gh attestation verify' "$seal"
+          grep -Fq 'miyorare-release-lock.json' "$seal"
+          grep -Fq 'already_sealed' "$seal"
+          grep -Fq 'cmp --silent compatibility/miyorare-source-pack-contract.v1.json' "$seal"
+          grep -Fq 'verify_release_lock.py' "$seal"
+          grep -Fq 'verify_release_lock.py' "$audit"

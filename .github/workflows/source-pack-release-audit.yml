@@ -1,0 +1,91 @@
+name: Audit Source Pack Release Immutability
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Optional exact miyorare-sources-vX.Y.Z tag. Empty audits every sealed release.
+        required: false
+        type: string
+  release:
+    types: [edited]
+  schedule:
+    - cron: '41 3 * * *'
+
+permissions:
+  contents: read
+  attestations: read
+
+concurrency:
+  group: source-pack-release-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REQUESTED_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - name: Checkout verifier
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Resolve releases to audit
+        id: tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release-audit"
+          if [ -n "${REQUESTED_TAG:-}" ]; then
+            [[ "$REQUESTED_TAG" =~ ^miyorare-sources-v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+              echo "::error::Invalid Source Pack tag: $REQUESTED_TAG"
+              exit 1
+            }
+            printf '%s\n' "$REQUESTED_TAG" > "$RUNNER_TEMP/release-audit/tags.txt"
+          else
+            gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName,isDraft,isPrerelease \
+              --jq '.[] | select((.isDraft|not) and (.isPrerelease|not)) | .tagName' \
+              | grep -E '^miyorare-sources-v[0-9]+\.[0-9]+\.[0-9]+$' \
+              > "$RUNNER_TEMP/release-audit/tags.txt" || true
+          fi
+          echo "count=$(grep -c . "$RUNNER_TEMP/release-audit/tags.txt" || true)" >> "$GITHUB_OUTPUT"
+
+      - name: Verify every sealed release
+        shell: bash
+        run: |
+          set -euo pipefail
+          audited=0
+          legacy=0
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            safe="${tag//[^A-Za-z0-9._-]/_}"
+            dir="$RUNNER_TEMP/release-audit/$safe"
+            mkdir -p "$dir"
+            echo "Auditing $tag"
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir "$dir"
+
+            if [ ! -s "$dir/miyorare-release-lock.json" ] && [ ! -s "$dir/miyorare-release-lock.sha256" ]; then
+              echo "::notice title=Legacy unsealed Source Pack::$tag predates release-lock enforcement and is skipped by cryptographic immutability audit."
+              legacy=$((legacy + 1))
+              continue
+            fi
+            test -s "$dir/miyorare-release-lock.json"
+            test -s "$dir/miyorare-release-lock.sha256"
+
+            gh attestation verify "$dir/miyorare-release-lock.json" --repo "$GITHUB_REPOSITORY"
+            python3 tools/verify_release_lock.py --dir "$dir" --tag "$tag"
+            audited=$((audited + 1))
+          done < "$RUNNER_TEMP/release-audit/tags.txt"
+
+          {
+            echo '# Source Pack release immutability audit'
+            echo
+            echo "Sealed releases verified: \`$audited\`"
+            echo "Legacy unsealed releases skipped: \`$legacy\`"
+            echo
+            echo 'Each audited release matched the exact asset set, byte sizes, SHA-256 digests, signed release lock, and GitHub artifact attestation recorded at seal time.'
+          } >> "$GITHUB_STEP_SUMMARY"
