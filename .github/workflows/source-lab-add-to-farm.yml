@@ -211,8 +211,9 @@ jobs:
               'displayName': source.get('displayName') or canonical_id.rsplit(':', 1)[-1],
               'language': source_language,
               'contentProfile': 'manga',
-              # Conservative contract-valid placeholder. Enrollment does not
-              # claim authentication support before the Farm profiles the source.
+              # Enrollment is intentionally not activation. A new source remains
+              # outside parser/release-gate coverage until it is classified,
+              # receives a real parser family/harness, and passes that harness.
               'authType': 'UNSUPPORTED',
               'adapterFamily': 'unclassified',
               'providers': sorted(identities),
@@ -223,6 +224,10 @@ jobs:
               'updateState': 'PROMOTED',
               'runtimeHealth': 'UNKNOWN',
               'approvalState': 'NOT_READY',
+              'compatibilityEnrollment': {
+                  'state': 'PENDING',
+                  'parserCoverageRequired': False,
+              },
               'ownerActionRequired': False,
               'publishEligible': False,
               'protectedOverlays': [],
@@ -255,6 +260,10 @@ jobs:
               'foundationBefore': os.environ['FOUNDATION_COMMIT'],
               'workflowRunId': int(os.environ['GITHUB_RUN_ID']),
               'providers': sorted(identities),
+              'compatibilityEnrollment': {
+                  'state': 'PENDING',
+                  'parserCoverageRequired': False,
+              },
               'targetSize': len(sources),
           }
           Path('enrollment-receipt.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n', encoding='utf-8')
