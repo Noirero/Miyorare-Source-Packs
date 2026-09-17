@@ -67,6 +67,16 @@ def validate_plan(plan: dict[str, Any], registry: dict[str, Any]) -> dict[str, A
         raise ParserFamilyPlanError("registry.scope.providers must be non-empty")
     sources = _registry_sources(registry)
 
+    expected_memberships: set[tuple[str, str]] = set()
+    for canonical_id, source in sources.items():
+        source_providers = source.get("providers")
+        if not isinstance(source_providers, list) or not source_providers:
+            raise ParserFamilyPlanError(f"{canonical_id}: providers must be a non-empty list")
+        for provider in source_providers:
+            if provider not in providers:
+                raise ParserFamilyPlanError(f"{canonical_id}: unknown registry provider {provider!r}")
+            expected_memberships.add((provider, canonical_id))
+
     families = plan.get("families")
     if not isinstance(families, list) or not families:
         raise ParserFamilyPlanError("families must be a non-empty list")
@@ -160,10 +170,21 @@ def validate_plan(plan: dict[str, Any], registry: dict[str, Any]) -> dict[str, A
                     f"{family_id}/{canonical_id}: repairRecipes must be non-empty strings"
                 )
 
+    missing = sorted(expected_memberships - memberships)
+    if missing:
+        formatted = ", ".join(f"{provider}/{canonical_id}" for provider, canonical_id in missing)
+        raise ParserFamilyPlanError(f"missing parser execution membership(s): {formatted}")
+
+    unexpected = sorted(memberships - expected_memberships)
+    if unexpected:
+        formatted = ", ".join(f"{provider}/{canonical_id}" for provider, canonical_id in unexpected)
+        raise ParserFamilyPlanError(f"unexpected parser execution membership(s): {formatted}")
+
     return {
         "schemaVersion": 1,
         "familyCount": len(family_ids),
         "membershipCount": len(memberships),
+        "expectedMembershipCount": len(expected_memberships),
         "providerMembershipCounts": provider_counts,
         "status": "VALID",
     }
