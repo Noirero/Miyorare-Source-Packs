@@ -27,6 +27,46 @@ internal data class LiveSourceState(
     val approvalState: String,
 )
 
+internal data class LiveEvidenceBinding(
+    val farmEvidenceSha256: String,
+    val gateSha256: String,
+    val repairEvidenceSha256: String,
+    val repairEvidenceCount: Int,
+)
+
+internal data class LiveCandidateProvider(
+    val current: String,
+    val candidate: String,
+)
+
+internal data class LiveApprovalCandidate(
+    val candidateSetId: String,
+    val state: String,
+    val gateFingerprint: String,
+    val providers: Map<String, LiveCandidateProvider>,
+    val evidenceBinding: LiveEvidenceBinding,
+    val publishEligible: Boolean,
+)
+
+internal data class LivePromotionState(
+    val candidateSetId: String,
+    val promotionRunId: Long,
+    val providers: Map<String, String>,
+    val evidenceBinding: LiveEvidenceBinding?,
+    val publishEligible: Boolean,
+)
+
+internal data class LivePublishState(
+    val candidateSetId: String,
+    val signingRunId: Long,
+    val publishRunId: Long,
+    val releaseRunId: Long,
+    val foundationCommit: String,
+    val providers: Map<String, String>,
+    val version: String,
+    val tag: String,
+)
+
 internal data class LiveFarmRun(
     val id: Long,
     val runNumber: Int,
@@ -42,6 +82,9 @@ internal data class LiveFarmSnapshot(
     val sources: List<LiveSourceState>,
     val providers: List<LiveProviderState>,
     val recentRuns: List<LiveFarmRun>,
+    val approvalCandidate: LiveApprovalCandidate?,
+    val lastPromotion: LivePromotionState?,
+    val lastPublish: LivePublishState?,
     val cohort: String,
     val targetSize: Int,
     val branch: String,
@@ -102,20 +145,78 @@ internal object SourceLabRepository {
             )
         }.sortedBy { it.id }.toList()
 
-        // Workflow history is supplemental. A GitHub API/rate-limit failure must not
-        // hide the registry/runtime snapshot that is still available from raw content.
         val recentRuns = runCatching { loadRecentFarmRuns() }.getOrDefault(emptyList())
 
         return LiveFarmSnapshot(
             sources = sources,
             providers = providers,
             recentRuns = recentRuns,
+            approvalCandidate = status.optJSONObject("approvalCandidate")?.toApprovalCandidate(),
+            lastPromotion = status.optJSONObject("lastPromotion")?.toPromotionState(),
+            lastPublish = status.optJSONObject("lastPublish")?.toPublishState(),
             cohort = scope.optString("cohort", "unknown"),
             targetSize = scope.optInt("targetSize", sources.size),
             branch = farmBranch,
             retrievedAtEpochMs = System.currentTimeMillis(),
         )
     }
+
+    private fun JSONObject.toApprovalCandidate(): LiveApprovalCandidate {
+        val providerObject = getJSONObject("providers")
+        val providerMap = providerObject.keys().asSequence().associateWith { provider ->
+            val item = providerObject.getJSONObject(provider)
+            LiveCandidateProvider(
+                current = item.getString("current"),
+                candidate = item.getString("candidate"),
+            )
+        }
+        return LiveApprovalCandidate(
+            candidateSetId = getString("candidateSetId"),
+            state = getString("state"),
+            gateFingerprint = optString("gateFingerprint"),
+            providers = providerMap.toSortedMap(),
+            evidenceBinding = getJSONObject("evidenceBinding").toEvidenceBinding(),
+            publishEligible = optBoolean("publishEligible", false),
+        )
+    }
+
+    private fun JSONObject.toPromotionState(): LivePromotionState {
+        val providerObject = getJSONObject("providers")
+        val providerMap = providerObject.keys().asSequence().associateWith { provider ->
+            providerObject.getString(provider)
+        }
+        return LivePromotionState(
+            candidateSetId = getString("candidateSetId"),
+            promotionRunId = getLong("promotionRunId"),
+            providers = providerMap.toSortedMap(),
+            evidenceBinding = optJSONObject("evidenceBinding")?.toEvidenceBinding(),
+            publishEligible = optBoolean("publishEligible", false),
+        )
+    }
+
+    private fun JSONObject.toPublishState(): LivePublishState {
+        val providerObject = getJSONObject("providers")
+        val providerMap = providerObject.keys().asSequence().associateWith { provider ->
+            providerObject.getString(provider)
+        }
+        return LivePublishState(
+            candidateSetId = getString("candidateSetId"),
+            signingRunId = getLong("signingRunId"),
+            publishRunId = getLong("publishRunId"),
+            releaseRunId = getLong("releaseRunId"),
+            foundationCommit = getString("foundationCommit"),
+            providers = providerMap.toSortedMap(),
+            version = getString("version"),
+            tag = getString("tag"),
+        )
+    }
+
+    private fun JSONObject.toEvidenceBinding() = LiveEvidenceBinding(
+        farmEvidenceSha256 = getString("farmEvidenceSha256"),
+        gateSha256 = getString("gateSha256"),
+        repairEvidenceSha256 = getString("repairEvidenceSha256"),
+        repairEvidenceCount = optInt("repairEvidenceCount", 0),
+    )
 
     private fun loadRecentFarmRuns(): List<LiveFarmRun> {
         val url = "$apiBase/actions/workflows/compatibility-farm-accelerated.yml/runs" +
@@ -148,7 +249,7 @@ internal object SourceLabRepository {
             readTimeout = 15_000
             setRequestProperty("Accept", "application/vnd.github+json")
             setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
-            setRequestProperty("User-Agent", "Miyorare-Source-Lab/0.1")
+            setRequestProperty("User-Agent", "Miyorare-Source-Lab/0.1.8")
             useCaches = false
         }
 
