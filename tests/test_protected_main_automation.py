@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import unittest
 
 
@@ -46,6 +47,28 @@ class ProtectedMainAutomationTests(unittest.TestCase):
         self.assertIn("lastAttemptProvider", auto)
         self.assertIn("exceptions", auto)
         self.assertIn("recordedAt", auto)
+
+    def test_auto_farm_scope_patch_matches_authoritative_upstream_plan_block(self) -> None:
+        auto = workflow("source-lab-auto-farm.yml")
+        needle_match = re.search(r"needle = r'''(.*?)'''", auto, flags=re.DOTALL)
+        replacement_match = re.search(r"replacement = r'''(.*?)'''", auto, flags=re.DOTALL)
+        self.assertIsNotNone(needle_match)
+        self.assertIsNotNone(replacement_match)
+        needle = needle_match.group(1)
+        replacement = replacement_match.group(1)
+
+        authoritative_plan_block = (
+            '          python3 tools/upstream_sync.py plan \\\n'
+            '            --registry "$REGISTRY" \\\n'
+            '            --output upstream/sync-plan.json \\\n'
+            '            --github-output "$GITHUB_OUTPUT"\n'
+        )
+        self.assertEqual(authoritative_plan_block.count(needle), 1)
+        patched = authoritative_plan_block.replace(needle, replacement)
+        self.assertIn('python3 tools/source_lab_scope_plan.py', patched)
+        self.assertIn('--provider "$SOURCE_LAB_PROVIDER_SCOPE"', patched)
+        self.assertIn('--github-output "$GITHUB_OUTPUT"', patched)
+        self.assertNotIn('--output upstream/sync-plan.json \\\n            --github-output "$GITHUB_OUTPUT"', patched)
 
     def test_auto_farm_distinguishes_infrastructure_from_held_candidate_failures(self) -> None:
         auto = workflow("source-lab-auto-farm.yml")
