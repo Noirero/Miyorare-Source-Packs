@@ -280,8 +280,7 @@ private fun OwnerControlScreen() {
                 PendingApprovalCard(
                     snapshot = snapshot,
                     availability = control.actions.getValue(SourceLabControlAction.APPROVE),
-                    running = runningAction == SourceLabControlAction.APPROVE,
-                    onApprove = { confirmation = SourceLabControlAction.APPROVE },
+                    onReview = { context.startActivity(Intent(context, ApprovalReviewActivity::class.java)) },
                 )
             }
 
@@ -527,10 +526,10 @@ private fun RecentActivityCard(runs: List<LiveFarmRun>) {
 private fun PendingApprovalCard(
     snapshot: LiveFarmSnapshot,
     availability: SourceLabActionAvailability,
-    running: Boolean,
-    onApprove: () -> Unit,
+    onReview: () -> Unit,
 ) {
     val candidate = snapshot.approvalCandidate
+    val waiting = candidate?.state == "WAITING_FOR_APPROVAL"
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
@@ -540,24 +539,32 @@ private fun PendingApprovalCard(
             ) {
                 Text("Pending Approval", fontWeight = FontWeight.Bold)
                 SourceLabStatusBadge(
-                    if (candidate == null) "None" else candidate.state.replace('_', ' '),
-                    if (candidate?.publishEligible == true) SourceLabTone.GOOD else SourceLabTone.NEUTRAL,
+                    when {
+                        candidate == null -> "None"
+                        waiting -> "Ready for review"
+                        else -> candidate.state.replace('_', ' ')
+                    },
+                    when {
+                        candidate == null -> SourceLabTone.NEUTRAL
+                        waiting -> SourceLabTone.GOOD
+                        else -> SourceLabTone.WARNING
+                    },
                 )
             }
             if (candidate == null) {
                 Text("No candidate is waiting. Run Farm will evaluate live upstream state.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
-                Text("Candidate is ready for Owner review.")
+                Text("Review version changes and compatibility evidence before any Owner approval.")
                 Button(
-                    onClick = onApprove,
-                    enabled = availability.available && !running,
+                    onClick = onReview,
                     modifier = Modifier.fillMaxWidth(),
-                ) {
-                    if (running) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                    else Text("Approve & Auto Publish")
-                }
+                ) { Text("Review Candidate") }
                 if (!availability.available) {
-                    Text(availability.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "Approval currently locked · ${availability.reason}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
