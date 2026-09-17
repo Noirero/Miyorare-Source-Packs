@@ -18,6 +18,8 @@
     <string name="backend_authorized_supporting">Sesi owner valid dan berumur pendek. Tindakan sensitif tetap memerlukan capability gate masing-masing.</string>
     <string name="reauthorize_owner">Otorisasi ulang owner</string>
     <string name="owner_authorization_failed">Otorisasi owner gagal</string>
+    <string name="retry_backend_authorization">Coba otorisasi backend lagi</string>
+    <string name="restart_github_sign_in">Masuk ulang dengan GitHub</string>
     <string name="owner_token_memory_only">Token user GitHub hanya disimpan di memori. Tidak ada client secret, private key, atau write token yang ditanam di APK.</string>
     <string name="opening_source_lab_dashboard">Otorisasi selesai. Membuka Source Lab…</string>
     <string name="owner_gate_capability_boundary">Identitas owner dan otorisasi backend tidak otomatis membuka Jalankan Farm, Approve, Promote, Sign, atau Publish. Setiap tindakan tetap fail-closed sampai wiring capability khususnya selesai.</string>
@@ -26,5 +28,6 @@
     <string name="error_client_id_is_app_id">APK membawa GitHub App ID numerik sebagai pengganti Client ID publik. Build ini ditolak untuk login Owner.</string>
     <string name="error_client_id_invalid">Client ID GitHub yang tertanam di APK tidak valid. Pasang build Source Lab resmi yang sudah diperbaiki.</string>
     <string name="error_device_flow_endpoint">GitHub Device Flow mengembalikan error endpoint yang tidak diharapkan.</string>
+    <string name="error_backend_authorization">Login GitHub sudah berhasil, tetapi bukti otorisasi backend gagal diverifikasi. Source Lab tetap terkunci. Anda dapat mencoba backend lagi tanpa mengulangi login GitHub selama aplikasi masih terbuka.</string>
     <string name="error_owner_generic">Otorisasi owner GitHub gagal. Gate keamanan tetap terkunci; coba lagi proses masuk GitHub.</string>
 </resources>
