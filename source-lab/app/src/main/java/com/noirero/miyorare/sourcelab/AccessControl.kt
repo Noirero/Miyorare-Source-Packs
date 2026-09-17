@@ -11,6 +11,7 @@ internal enum class SourceLabControlAction {
     PROMOTE,
     SIGN,
     PUBLISH,
+    ADD_TO_FARM,
 }
 
 internal data class OwnerAccessSession(

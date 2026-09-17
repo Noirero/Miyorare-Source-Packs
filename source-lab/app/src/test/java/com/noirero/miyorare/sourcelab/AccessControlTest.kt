@@ -82,6 +82,17 @@ class AccessControlTest {
         assertFalse(SourceLabAccessPolicy.canPerform(SourceLabControlAction.PROMOTE, session, now))
         assertFalse(SourceLabAccessPolicy.canPerform(SourceLabControlAction.SIGN, session, now))
         assertFalse(SourceLabAccessPolicy.canPerform(SourceLabControlAction.PUBLISH, session, now))
+        assertFalse(SourceLabAccessPolicy.canPerform(SourceLabControlAction.ADD_TO_FARM, session, now))
+    }
+
+    @Test
+    fun addToFarmRequiresItsOwnExplicitCapability() {
+        val session = validSession(
+            capabilities = setOf(SourceLabControlAction.ADD_TO_FARM),
+        )
+        assertTrue(SourceLabAccessPolicy.canPerform(SourceLabControlAction.ADD_TO_FARM, session, now))
+        assertFalse(SourceLabAccessPolicy.canPerform(SourceLabControlAction.RUN_FARM, session, now))
+        assertFalse(SourceLabAccessPolicy.canPerform(SourceLabControlAction.APPROVE, session, now))
     }
 
     @Test

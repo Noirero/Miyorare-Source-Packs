@@ -13,8 +13,11 @@ import java.util.zip.ZipInputStream
  * Reads the capability list from the same short-lived workflow artifact whose
  * OIDC JWT has already been verified by [SourceLabBackendAuthorization].
  *
- * This keeps BackendAuthorization schema v1 compatible with v0.1.7 while still
- * requiring every control action to be explicitly advertised by the backend.
+ * Schema v1 keeps the original five capabilities in `capabilities` for older
+ * installed Source Lab versions. Newer, independently gated capabilities are
+ * advertised in `optionalCapabilities`; unknown optional values are ignored so
+ * future backend additions do not break an older client, while they never grant
+ * a capability unless this APK explicitly recognizes the enum value.
  */
 internal object SourceLabBackendCapabilityReader {
     private const val repository = SourceLabAccessPolicy.repository
@@ -61,6 +64,10 @@ internal object SourceLabBackendCapabilityReader {
         require(metadata.optString("ref") == "refs/heads/main") { "BACKEND_CAPABILITY_REF_MISMATCH" }
         require(metadata.optString("event") == "workflow_dispatch") { "BACKEND_CAPABILITY_EVENT_MISMATCH" }
 
+        parseCapabilityMetadata(metadata)
+    }
+
+    internal fun parseCapabilityMetadata(metadata: JSONObject): Set<SourceLabControlAction> {
         val raw = metadata.optJSONArray("capabilities")
             ?: error("BACKEND_CAPABILITIES_MISSING")
         val capabilities = mutableSetOf<SourceLabControlAction>()
@@ -70,7 +77,16 @@ internal object SourceLabBackendCapabilityReader {
                 ?: error("BACKEND_CAPABILITY_UNKNOWN_$value")
             capabilities += action
         }
-        capabilities.toSet()
+
+        val optional = metadata.optJSONArray("optionalCapabilities")
+        if (optional != null) {
+            for (index in 0 until optional.length()) {
+                val value = optional.optString(index)
+                val action = SourceLabControlAction.entries.firstOrNull { it.name == value }
+                if (action != null) capabilities += action
+            }
+        }
+        return capabilities.toSet()
     }
 
     private fun request(url: String, token: String): String {
@@ -136,7 +152,7 @@ internal object SourceLabBackendCapabilityReader {
             setRequestProperty("Accept", "application/vnd.github+json")
             setRequestProperty("Authorization", "Bearer $token")
             setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
-            setRequestProperty("User-Agent", "Miyorare-Source-Lab/0.1.8")
+            setRequestProperty("User-Agent", "Miyorare-Source-Lab/${BuildConfig.VERSION_NAME}")
             useCaches = false
         }
 
