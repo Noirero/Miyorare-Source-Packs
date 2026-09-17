@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Optional exact miyorare-sources-vX.Y.Z tag. Empty audits every sealed release.
+        description: Optional exact miyorare-sources-vX.Y.Z tag. Empty audits every stable release.
         required: false
         type: string
   release:
-    types: [edited]
+    types: [published, edited]
   schedule:
     - cron: '41 3 * * *'
 
@@ -54,7 +54,7 @@ jobs:
           fi
           echo "count=$(grep -c . "$RUNNER_TEMP/release-audit/tags.txt" || true)" >> "$GITHUB_OUTPUT"
 
-      - name: Verify every sealed release
+      - name: Verify every stable release
         shell: bash
         run: |
           set -euo pipefail
@@ -68,8 +68,24 @@ jobs:
             echo "Auditing $tag"
             gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir "$dir"
 
+            schema="legacy"
+            if [ -s "$dir/miyorare-source-packs.json" ]; then
+              schema="$(python3 - "$dir/miyorare-source-packs.json" <<'PY'
+          import json, sys
+          try:
+              print(json.load(open(sys.argv[1], encoding='utf-8')).get('schema', 'legacy'))
+          except Exception:
+              print('invalid')
+          PY
+              )"
+            fi
+
             if [ ! -s "$dir/miyorare-release-lock.json" ] && [ ! -s "$dir/miyorare-release-lock.sha256" ]; then
-              echo "::notice title=Legacy unsealed Source Pack::$tag predates release-lock enforcement and is skipped by cryptographic immutability audit."
+              if [ "$schema" = "3" ]; then
+                echo "::error::Schema 3 stable Source Pack $tag is published without the required pre-publish seal."
+                exit 1
+              fi
+              echo "::notice title=Legacy unsealed Source Pack::$tag predates seal-before-publish enforcement and is skipped."
               legacy=$((legacy + 1))
               continue
             fi
@@ -77,15 +93,26 @@ jobs:
             test -s "$dir/miyorare-release-lock.sha256"
 
             gh attestation verify "$dir/miyorare-release-lock.json" --repo "$GITHUB_REPOSITORY"
-            python3 tools/verify_release_lock.py --dir "$dir" --tag "$tag"
+            if [ "$schema" = "3" ]; then
+              python3 tools/source_pack_manifest.py validate \
+                --manifest "$dir/miyorare-source-packs.json" \
+                --contract compatibility/miyorare-source-pack-contract.v1.json \
+                --tag "$tag"
+              python3 tools/verify_release_lock.py \
+                --dir "$dir" \
+                --tag "$tag" \
+                --require-sealed-before-publish
+            else
+              python3 tools/verify_release_lock.py --dir "$dir" --tag "$tag"
+            fi
             audited=$((audited + 1))
           done < "$RUNNER_TEMP/release-audit/tags.txt"
 
           {
             echo '# Source Pack release immutability audit'
             echo
-            echo "Sealed releases verified: \`$audited\`"
+            echo "Sealed stable releases verified: \`$audited\`"
             echo "Legacy unsealed releases skipped: \`$legacy\`"
             echo
-            echo 'Each audited release matched the exact asset set, byte sizes, SHA-256 digests, signed release lock, and GitHub artifact attestation recorded at seal time.'
+            echo 'Schema 3 releases must prove seal-before-publish. Every audited sealed release matched the exact asset set, byte sizes, SHA-256 digests, signed release lock, and GitHub artifact attestation.'
           } >> "$GITHUB_STEP_SUMMARY"
