@@ -147,7 +147,7 @@ private fun SettingsScreen(onClose: () -> Unit) {
         item(key = "diagnostics") {
             SettingsSection("Diagnostics & Recovery") {
                 Text(
-                    "Routine upstream changes are detected and tested automatically. Manual Farm execution is retained only as a recovery tool; normal Owner work should stop at Review / Approve & Auto Publish.",
+                    "Routine upstream changes are detected and tested automatically. Manual Farm execution and stage recovery are retained only for exceptions; normal Owner work should stop at Review / Approve & Auto Publish.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -164,8 +164,15 @@ private fun SettingsScreen(onClose: () -> Unit) {
                     enabled = ownerDecision.canControl,
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Manual Run Farm · Recovery") }
+                OutlinedButton(
+                    onClick = {
+                        context.startActivity(Intent(context, OwnerControlActivity::class.java))
+                    },
+                    enabled = ownerDecision.canControl,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Advanced Promote / Sign / Publish Recovery") }
                 Text(
-                    "Manual Run Farm still uses the same fail-closed Owner/backend capability checks. It is not part of the routine autonomous path.",
+                    "Recovery screens still use the same fail-closed Owner/backend capability checks. They are not part of the routine autonomous path.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
