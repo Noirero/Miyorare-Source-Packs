@@ -1,0 +1,98 @@
+name: Protected Main Write Migration Bootstrap
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/protected-main-write-migration.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.head_ref == 'phase4/protected-main-pr-writes'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout migration branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Route default-branch writers through pull requests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one migration marker, found {count}')
+              p.write_text(text.replace(old, new), encoding='utf-8')
+
+          replace_once(
+              '.github/workflows/upstream-sync.yml',
+              "permissions:\n  contents: write\n  actions: write\n",
+              "permissions:\n  contents: write\n  actions: write\n  pull-requests: write\n",
+          )
+          replace_once(
+              '.github/workflows/upstream-sync.yml',
+              '''      - name: Commit promoted registry advancement\n        if: steps.promote.outputs.promoted == 'true'\n        shell: bash\n        run: |\n          set -euo pipefail\n          git config user.name github-actions[bot]\n          git config user.email 41898282+github-actions[bot]@users.noreply.github.com\n          git add upstream/registry.json\n          git commit -m "Promote validated upstream updates: ${{ steps.promote.outputs.providers }}"\n          git push origin "HEAD:${GITHUB_REF_NAME}"\n''',
+              '''      - name: Submit promoted registry through protected-main PR\n        if: steps.promote.outputs.promoted == 'true'\n        shell: bash\n        env:\n          PROTECTED_BRANCH_PREFIX: automation/upstream-promotion\n          PROTECTED_COMMIT_MESSAGE: Promote validated upstream updates: ${{ steps.promote.outputs.providers }}\n          PROTECTED_PR_TITLE: Promote validated upstream updates: ${{ steps.promote.outputs.providers }}\n          PROTECTED_PR_BODY: Automated validated upstream promotion. This PR replaces the former direct push to the protected default branch.\n        run: |\n          set -euo pipefail\n          tools/protected_main_pr.sh upstream/registry.json\n''',
+          )
+
+          replace_once(
+              '.github/workflows/upstream-sync-status.yml',
+              "permissions:\n  actions: read\n  contents: write\n",
+              "permissions:\n  actions: read\n  contents: write\n  pull-requests: write\n",
+          )
+          replace_once(
+              '.github/workflows/upstream-sync-status.yml',
+              '''      - name: Commit status and outcome atomically\n        shell: bash\n        run: |\n          set -euo pipefail\n          rm -f upstream/status.json.tmp upstream/outcome.json.tmp\n          if git diff --quiet -- upstream/status.json upstream/outcome.json; then\n            echo 'Status/outcome unchanged.'\n            exit 0\n          fi\n          git config user.name github-actions[bot]\n          git config user.email 41898282+github-actions[bot]@users.noreply.github.com\n          git add upstream/status.json upstream/outcome.json\n          git commit -m "Record atomic Source Pack ${{ steps.classify.outputs.outcome }} outcome"\n          git push origin "HEAD:${HEAD_BRANCH}"\n''',
+              '''      - name: Submit status and outcome atomically through protected-main PR\n        shell: bash\n        env:\n          PROTECTED_BASE_BRANCH: ${{ env.HEAD_BRANCH }}\n          PROTECTED_BRANCH_PREFIX: automation/source-sync-result\n          PROTECTED_COMMIT_MESSAGE: Record atomic Source Pack ${{ steps.classify.outputs.outcome }} outcome\n          PROTECTED_PR_TITLE: Record atomic Source Pack ${{ steps.classify.outputs.outcome }} outcome\n          PROTECTED_PR_BODY: Automated atomic status/outcome persistence for upstream run ${{ env.RUN_ID }}. Direct pushes to protected main are forbidden.\n        run: |\n          set -euo pipefail\n          rm -f upstream/status.json.tmp upstream/outcome.json.tmp\n          tools/protected_main_pr.sh upstream/status.json upstream/outcome.json\n''',
+          )
+
+          replace_once(
+              '.github/workflows/repair-android-sdk-setup.yml',
+              "permissions:\n  contents: write\n",
+              "permissions:\n  contents: write\n  pull-requests: write\n",
+          )
+          replace_once(
+              '.github/workflows/repair-android-sdk-setup.yml',
+              '''      - name: Commit repaired workflows\n        shell: bash\n        run: |\n          set -euo pipefail\n          if git diff --quiet -- .github/workflows; then\n            echo 'No workflow changes to commit.'\n            exit 0\n          fi\n          git config user.name github-actions[bot]\n          git config user.email 41898282+github-actions[bot]@users.noreply.github.com\n          git add .github/workflows\n          git commit -m "Use supported Android SDK packages in Source Pack CI"\n          git push origin HEAD:main\n''',
+              '''      - name: Submit repaired workflows through protected-main PR\n        shell: bash\n        env:\n          PROTECTED_BRANCH_PREFIX: automation/android-sdk-repair\n          PROTECTED_COMMIT_MESSAGE: Use supported Android SDK packages in Source Pack CI\n          PROTECTED_PR_TITLE: Repair Android SDK setup in Source Pack CI\n          PROTECTED_PR_BODY: Automated maintenance update routed through a pull request because main is protected.\n        run: |\n          set -euo pipefail\n          tools/protected_main_pr.sh .github/workflows\n''',
+          )
+
+          ci = Path('.github/workflows/upstream-sync-pr-check.yml')
+          text = ci.read_text(encoding='utf-8')
+          path_marker = "      - '.github/workflows/release-source-packs.yml'\n      - 'README.md'\n"
+          replacement = "      - '.github/workflows/release-source-packs.yml'\n      - '.github/workflows/repair-android-sdk-setup.yml'\n      - 'tools/protected_main_pr.sh'\n      - 'README.md'\n"
+          if text.count(path_marker) != 1:
+              raise SystemExit('upstream-sync-pr-check.yml: path marker mismatch')
+          text = text.replace(path_marker, replacement)
+          step_marker = "      - name: Validate registry materializer against Miyorare beta\n"
+          guard = '''      - name: Guard protected-main write path\n        shell: bash\n        run: |\n          set -euo pipefail\n          bash -n tools/protected_main_pr.sh\n          python3 - <<'PY2'\n          from pathlib import Path\n\n          targets = [\n              Path('.github/workflows/upstream-sync.yml'),\n              Path('.github/workflows/upstream-sync-status.yml'),\n              Path('.github/workflows/repair-android-sdk-setup.yml'),\n          ]\n          for path in targets:\n              text = path.read_text(encoding='utf-8')\n              assert 'git push' not in text, f'direct git push remains in {path}'\n              assert 'tools/protected_main_pr.sh' in text, f'protected PR writer missing from {path}'\n              assert 'pull-requests: write' in text, f'pull request permission missing from {path}'\n\n          helper = Path('tools/protected_main_pr.sh').read_text(encoding='utf-8')\n          assert 'gh pr create' in helper\n          assert 'gh pr merge' in helper\n          assert 'refs/heads/${branch}' in helper\n          assert 'HEAD:main' not in helper\n          PY2\n\n'''
+          if text.count(step_marker) != 1:
+              raise SystemExit('upstream-sync-pr-check.yml: step marker mismatch')
+          ci.write_text(text.replace(step_marker, guard + step_marker), encoding='utf-8')
+          PY
+
+      - name: Remove bootstrap workflow and commit migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/protected-main-write-migration.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .github/workflows/upstream-sync.yml \
+                  .github/workflows/upstream-sync-status.yml \
+                  .github/workflows/repair-android-sdk-setup.yml \
+                  .github/workflows/upstream-sync-pr-check.yml \
+                  tools/protected_main_pr.sh
+          git commit -m "Route protected main automation through pull requests"
+          git push origin "HEAD:${{ github.head_ref }}"
