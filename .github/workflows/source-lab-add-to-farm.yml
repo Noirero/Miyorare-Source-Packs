@@ -215,6 +215,10 @@ jobs:
               # claim authentication support before the Farm profiles the source.
               'authType': 'UNSUPPORTED',
               'adapterFamily': 'unclassified',
+              'compatibilityEnrollment': {
+                  'state': 'PENDING',
+                  'parserCoverageRequired': False,
+              },
               'providers': sorted(identities),
               'upstreamIdentities': identities,
               'currentVersion': dict(current),
@@ -255,6 +259,10 @@ jobs:
               'foundationBefore': os.environ['FOUNDATION_COMMIT'],
               'workflowRunId': int(os.environ['GITHUB_RUN_ID']),
               'providers': sorted(identities),
+              'compatibilityEnrollment': {
+                  'state': 'PENDING',
+                  'parserCoverageRequired': False,
+              },
               'targetSize': len(sources),
           }
           Path('enrollment-receipt.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n', encoding='utf-8')
