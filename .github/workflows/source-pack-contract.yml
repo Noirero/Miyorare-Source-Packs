@@ -4,10 +4,13 @@ on:
   pull_request:
     paths:
       - 'compatibility/miyorare-source-pack-contract.v1.json'
+      - 'tools/source_pack_manifest.py'
       - 'tools/source_pack_outcome.py'
       - 'tools/verify_release_lock.py'
+      - 'tests/test_source_pack_manifest.py'
       - 'upstream/status.json'
       - 'upstream/outcome.json'
+      - '.github/workflows/release-source-packs.yml'
       - '.github/workflows/source-pack-contract.yml'
       - '.github/workflows/source-pack-release-seal.yml'
       - '.github/workflows/source-pack-release-audit.yml'
@@ -15,10 +18,13 @@ on:
     branches: [main]
     paths:
       - 'compatibility/miyorare-source-pack-contract.v1.json'
+      - 'tools/source_pack_manifest.py'
       - 'tools/source_pack_outcome.py'
       - 'tools/verify_release_lock.py'
+      - 'tests/test_source_pack_manifest.py'
       - 'upstream/status.json'
       - 'upstream/outcome.json'
+      - '.github/workflows/release-source-packs.yml'
       - '.github/workflows/source-pack-contract.yml'
       - '.github/workflows/source-pack-release-seal.yml'
       - '.github/workflows/source-pack-release-audit.yml'
@@ -47,25 +53,51 @@ jobs:
           assert c['contractId'] == 'miyorare-source-pack'
           assert c['consumer']['repository'] == 'Noirero/Miyorare'
           assert c['consumer']['applicationId'] == 'org.noirero.miyorare'
+          assert c['consumer']['releaseChannel'] == 'stable'
+          assert c['consumer']['stableCompatibilityBranch'] == 'main'
           assert c['producer']['repository'] == 'Noirero/Miyorare-Source-Packs'
           assert c['format']['logicalPackManifestSchema'] == 2
-          assert c['format']['releaseManifestSchema'] == 2
+          assert c['format']['releaseManifestSchema'] == 3
+          assert c['format']['legacyReleaseManifestSchemas'] == [2]
           assert c['format']['digestAlgorithm'] == 'sha256'
           assert set(c['format']['requiredLanguages']) == {'id', 'en', 'global'}
+          assert set(c['format']['requiredLogicalPacks']) == {'miyorare-id', 'miyorare-en', 'miyorare-global'}
           assert c['runtime']['atomicLogicalPackInstall'] is True
           assert c['runtime']['rollbackOnPartialInstallFailure'] is True
           assert c['runtime']['downgradeProtection'] is True
+          assert c['runtime']['compatibilityAwareReleaseSelection'] is True
+          assert c['runtime']['installedLastKnownGoodOnNoCompatibleRelease'] is True
           assert c['trust']['releaseTagImmutable'] is True
           assert c['trust']['releaseLockRequiredForNewRelease'] is True
           assert c['trust']['releaseLockAttestationRequired'] is True
           assert c['trust']['githubArtifactAttestationRequiredForNewRelease'] is True
           assert c['trust']['sigstoreBundleRequiredForNewRelease'] is False
+          assert c['trust']['consumerVerification']['sha256EnforcedInApp'] is True
+          assert c['trust']['consumerVerification']['releaseLockConsistencyEnforcedInApp'] is True
           assert c['trust']['signatureIdentity']['workflow'] == '.github/workflows/source-pack-release-seal.yml'
-          assert c['compatibility']['candidateValidationFailure'] == 'held'
+          compatibility = c['compatibility']
+          assert compatibility['stableChannel'] == 'stable'
+          assert compatibility['compatibilityEpoch'] == 1
+          assert compatibility['tsukiApi'] == '1.0.5'
+          assert compatibility['miyorareVersionCodeRangeRequired'] is True
+          assert compatibility['builderCommitRequired'] is True
+          assert compatibility['stableRuntimeCompatibilityCommitRequired'] is True
+          assert compatibility['newestCompatibleStableRelease'] is True
+          assert compatibility['prereleaseForStableConsumer'] == 'reject'
+          assert compatibility['legacyManifestWithoutCompatibility'] == 'reject'
+          assert compatibility['unknownManifestSchema'] == 'reject'
+          assert compatibility['missingCompatibilityMetadata'] == 'reject'
+          assert compatibility['missingRequiredReleaseLock'] == 'reject'
+          assert compatibility['candidateValidationFailure'] == 'held'
+          assert compatibility['lastKnownGoodRemainsInstallable'] is True
           PY
 
-      - name: Compile trust helpers
-        run: python3 -m py_compile tools/source_pack_outcome.py tools/verify_release_lock.py
+      - name: Compile contract and trust helpers
+        run: |
+          python3 -m py_compile tools/source_pack_manifest.py tools/source_pack_outcome.py tools/verify_release_lock.py
+
+      - name: Test release manifest v3 compatibility rules
+        run: python3 -m unittest tests.test_source_pack_manifest -v
 
       - name: Prove PASS HELD FAIL semantics
         shell: bash
@@ -129,7 +161,7 @@ jobs:
           set -euo pipefail
           tmp="$(mktemp -d)"
           printf 'payload\n' > "$tmp/a.jar"
-          printf '{"schema":2}\n' > "$tmp/miyorare-source-packs.json"
+          printf '{"schema":3}\n' > "$tmp/miyorare-source-packs.json"
           python3 - "$tmp" <<'PY'
           import hashlib, json, sys
           from pathlib import Path
@@ -166,16 +198,21 @@ jobs:
             exit 1
           fi
 
-      - name: Validate release trust workflow markers
+      - name: Validate release workflow compatibility and trust markers
         shell: bash
         run: |
           set -euo pipefail
+          release=.github/workflows/release-source-packs.yml
           seal=.github/workflows/source-pack-release-seal.yml
           audit=.github/workflows/source-pack-release-audit.yml
+          grep -Fq 'stable Miyorare compatibility baseline' "$release"
+          grep -Fq 'tools/source_pack_manifest.py generate' "$release"
+          grep -Fq 'tools/source_pack_manifest.py validate' "$release"
           grep -Fq 'actions/attest-build-provenance@v2' "$seal"
           grep -Fq 'gh attestation verify' "$seal"
           grep -Fq 'miyorare-release-lock.json' "$seal"
           grep -Fq 'already_sealed' "$seal"
           grep -Fq 'cmp --silent compatibility/miyorare-source-pack-contract.v1.json' "$seal"
+          grep -Fq 'tools/source_pack_manifest.py validate' "$seal"
           grep -Fq 'verify_release_lock.py' "$seal"
           grep -Fq 'verify_release_lock.py' "$audit"

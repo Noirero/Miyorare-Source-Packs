@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Source pack version (for example 0.4.0)'
+        description: 'Source pack version (for example 0.5.0)'
         required: true
         type: string
 
@@ -17,10 +17,14 @@ concurrency:
 
 jobs:
   resolve-source:
-    name: Resolve validated source pins
+    name: Resolve validated source and compatibility baseline
     runs-on: ubuntu-latest
     outputs:
       source_commit: ${{ steps.source.outputs.commit }}
+      runtime_commit: ${{ steps.runtime.outputs.commit }}
+      runtime_version_code: ${{ steps.runtime.outputs.version_code }}
+      tsuki_api: ${{ steps.runtime.outputs.tsuki_api }}
+      compatibility_epoch: ${{ steps.runtime.outputs.compatibility_epoch }}
       uma_commit: ${{ steps.registry.outputs.uma_commit }}
       gekkoushi_commit: ${{ steps.registry.outputs.gekkoushi_commit }}
       keiyoushi_commit: ${{ steps.registry.outputs.keiyoushi_commit }}
@@ -66,7 +70,7 @@ jobs:
           print(f"keiyoushi_commit={providers['keiyoushi']['lastKnownGood']}")
           PY
 
-      - name: Checkout Miyorare beta
+      - name: Checkout Miyorare beta builder
         uses: actions/checkout@v5
         with:
           repository: Noirero/Miyorare
@@ -74,10 +78,59 @@ jobs:
           path: miyorare
           fetch-depth: 1
 
-      - name: Pin Miyorare source commit
+      - name: Pin Miyorare beta builder commit
         id: source
         shell: bash
         run: echo "commit=$(git -C miyorare rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout stable Miyorare compatibility baseline
+        uses: actions/checkout@v5
+        with:
+          repository: Noirero/Miyorare
+          ref: main
+          path: miyorare-stable
+          fetch-depth: 1
+
+      - name: Resolve stable runtime compatibility metadata
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmp --silent \
+            source-packs/compatibility/miyorare-source-pack-contract.v1.json \
+            miyorare-stable/compatibility/miyorare-source-pack-contract.v1.json || {
+            echo "::error::Miyorare and Source Packs compatibility contracts differ."
+            exit 1
+          }
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import re
+          import subprocess
+          from pathlib import Path
+
+          contract = json.loads(Path('source-packs/compatibility/miyorare-source-pack-contract.v1.json').read_text(encoding='utf-8'))
+          stable_gradle = Path('miyorare-stable/app/build.gradle').read_text(encoding='utf-8')
+          version_match = re.search(r'(?m)^\s*versionCode\s*=\s*(\d+)\s*$', stable_gradle)
+          if version_match is None:
+              raise SystemExit('could not resolve stable Miyorare versionCode')
+          version_code = int(version_match.group(1))
+          if version_code < 1:
+              raise SystemExit('stable Miyorare versionCode must be positive')
+
+          expected_api = contract['compatibility']['tsukiApi']
+          stable_packs = json.loads(Path('miyorare-stable/extensions/miyorare-sources/packs.json').read_text(encoding='utf-8'))
+          beta_packs = json.loads(Path('miyorare/extensions/miyorare-sources/packs.json').read_text(encoding='utf-8'))
+          if stable_packs.get('tsukiApi') != expected_api:
+              raise SystemExit('stable Miyorare Tsuki API does not match compatibility contract')
+          if beta_packs.get('tsukiApi') != expected_api:
+              raise SystemExit('beta builder Tsuki API does not match stable compatibility contract')
+
+          commit = subprocess.check_output(['git', '-C', 'miyorare-stable', 'rev-parse', 'HEAD'], text=True).strip()
+          print(f'commit={commit}')
+          print(f'version_code={version_code}')
+          print(f'tsuki_api={expected_api}')
+          print(f"compatibility_epoch={contract['compatibility']['compatibilityEpoch']}")
+          PY
 
   build-pack:
     name: Build Miyorare-${{ matrix.pack }}
@@ -94,7 +147,7 @@ jobs:
         with:
           path: source-packs
 
-      - name: Checkout pinned Miyorare source
+      - name: Checkout pinned Miyorare beta builder
         uses: actions/checkout@v5
         with:
           repository: Noirero/Miyorare
@@ -181,9 +234,7 @@ jobs:
           packages: platform-tools
 
       - name: Prepare curated UMA shard
-        shell: bash
         run: |
-          set -euo pipefail
           python3 miyorare/extensions/miyorare-sources/tools/prepare_pack.py \
             --manifest miyorare/extensions/miyorare-sources/packs.json \
             --upstream _upstream/uma \
@@ -196,9 +247,7 @@ jobs:
           ./gradlew buildJar --rerun-tasks --no-daemon
 
       - name: Finalize UMA shard
-        shell: bash
         run: |
-          set -euo pipefail
           python3 miyorare/extensions/miyorare-sources/tools/finalize_pack.py \
             --manifest miyorare/extensions/miyorare-sources/packs.json \
             --upstream _upstream/uma \
@@ -206,9 +255,7 @@ jobs:
             --output build/miyorare-source-packs/${{ matrix.pack }}
 
       - name: Prepare Gekkoushi shard
-        shell: bash
         run: |
-          set -euo pipefail
           python3 miyorare/extensions/miyorare-sources/tools/prepare_gekkoushi_shard.py \
             --manifest miyorare/extensions/miyorare-sources/packs.json \
             --uma-upstream _upstream/uma \
@@ -222,9 +269,7 @@ jobs:
           ./gradlew buildJar --rerun-tasks --no-daemon
 
       - name: Finalize Gekkoushi shard
-        shell: bash
         run: |
-          set -euo pipefail
           python3 miyorare/extensions/miyorare-sources/tools/finalize_pack.py \
             --manifest miyorare/extensions/miyorare-sources/packs.json \
             --upstream _upstream/gekkoushi \
@@ -232,9 +277,7 @@ jobs:
             --output build/miyorare-source-packs/${{ matrix.pack }}
 
       - name: Finalize logical pack manifest
-        shell: bash
         run: |
-          set -euo pipefail
           python3 miyorare/extensions/miyorare-sources/tools/finalize_logical_pack.py \
             --manifest miyorare/extensions/miyorare-sources/packs.json \
             --pack '${{ matrix.pack }}' \
@@ -261,7 +304,7 @@ jobs:
         with:
           path: source-packs
 
-      - name: Checkout pinned Miyorare source
+      - name: Checkout pinned Miyorare beta builder
         uses: actions/checkout@v5
         with:
           repository: Noirero/Miyorare
@@ -371,6 +414,10 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       SOURCE_VERSION: ${{ inputs.version }}
       SOURCE_COMMIT: ${{ needs.resolve-source.outputs.source_commit }}
+      RUNTIME_COMMIT: ${{ needs.resolve-source.outputs.runtime_commit }}
+      RUNTIME_VERSION_CODE: ${{ needs.resolve-source.outputs.runtime_version_code }}
+      TSUKI_API: ${{ needs.resolve-source.outputs.tsuki_api }}
+      COMPATIBILITY_EPOCH: ${{ needs.resolve-source.outputs.compatibility_epoch }}
       UMA_COMMIT: ${{ needs.resolve-source.outputs.uma_commit }}
       GEKKOUSHI_COMMIT: ${{ needs.resolve-source.outputs.gekkoushi_commit }}
       KEIYOUSHI_COMMIT: ${{ needs.resolve-source.outputs.keiyoushi_commit }}
@@ -392,6 +439,10 @@ jobs:
           set -euo pipefail
           TAG="miyorare-sources-v${SOURCE_VERSION}"
           test -n "$SOURCE_COMMIT"
+          test -n "$RUNTIME_COMMIT"
+          test -n "$RUNTIME_VERSION_CODE"
+          test -n "$TSUKI_API"
+          test -n "$COMPATIBILITY_EPOCH"
           test -n "$UMA_COMMIT"
           test -n "$GEKKOUSHI_COMMIT"
           test -n "$KEIYOUSHI_COMMIT"
@@ -412,58 +463,27 @@ jobs:
             exit 1
           fi
 
-      - name: Generate release manifest
+      - name: Generate and validate release manifest v3
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import hashlib
-          import json
-          import os
-          from pathlib import Path
-
-          version = os.environ['SOURCE_VERSION']
-          source_commit = os.environ['SOURCE_COMMIT']
-          tag = f'miyorare-sources-v{version}'
-          packs = []
-          for language in ('id', 'en', 'global'):
-              logical = json.loads((Path('dist') / f'miyorare-{language}-pack.json').read_text(encoding='utf-8'))
-              shards = []
-              for shard in logical['shards']:
-                  asset = Path('dist') / shard['assetName']
-                  data = asset.read_bytes()
-                  shards.append({
-                      'provider': shard['provider'],
-                      'pluginId': shard['pluginId'],
-                      'assetName': asset.name,
-                      'size': len(data),
-                      'sha256': hashlib.sha256(data).hexdigest(),
-                      'sourceCount': shard['sourceCount'],
-                  })
-              packs.append({
-                  'pluginId': logical['packId'],
-                  'language': logical['language'],
-                  'sourceCount': logical['sourceCount'],
-                  'shards': shards,
-              })
-          manifest = {
-              'schema': 2,
-              'version': version,
-              'tag': tag,
-              'sourceRepository': 'Noirero/Miyorare',
-              'sourceBranch': 'beta',
-              'sourceCommit': source_commit,
-              'upstreams': {
-                  'uma': os.environ['UMA_COMMIT'],
-                  'gekkoushi': os.environ['GEKKOUSHI_COMMIT'],
-                  'keiyoushi': os.environ['KEIYOUSHI_COMMIT'],
-              },
-              'packs': packs,
-          }
-          Path('dist/miyorare-source-packs.json').write_text(
-              json.dumps(manifest, indent=2) + '\n', encoding='utf-8'
-          )
-          PY
+          python3 tools/source_pack_manifest.py generate \
+            --dist dist \
+            --contract compatibility/miyorare-source-pack-contract.v1.json \
+            --version "$SOURCE_VERSION" \
+            --source-commit "$SOURCE_COMMIT" \
+            --runtime-commit "$RUNTIME_COMMIT" \
+            --runtime-version-code "$RUNTIME_VERSION_CODE" \
+            --tsuki-api "$TSUKI_API" \
+            --compatibility-epoch "$COMPATIBILITY_EPOCH" \
+            --uma-commit "$UMA_COMMIT" \
+            --gekkoushi-commit "$GEKKOUSHI_COMMIT" \
+            --keiyoushi-commit "$KEIYOUSHI_COMMIT" \
+            --output dist/miyorare-source-packs.json
+          python3 tools/source_pack_manifest.py validate \
+            --manifest dist/miyorare-source-packs.json \
+            --contract compatibility/miyorare-source-pack-contract.v1.json \
+            --tag "miyorare-sources-v${SOURCE_VERSION}"
 
       - name: Publish immutable GitHub release
         shell: bash
@@ -487,4 +507,4 @@ jobs:
             dist/miyorare-source-packs.json \
             --target "$GITHUB_SHA" \
             --title "Miyorare Source Packs v${SOURCE_VERSION}" \
-            --notes "Official Miyorare-ID, Miyorare-EN, and Miyorare-Global packs. Built from Miyorare beta ${SOURCE_COMMIT}; validated upstreams: UMA ${UMA_COMMIT}, Gekkoushi ${GEKKOUSHI_COMMIT}, Keiyoushi ${KEIYOUSHI_COMMIT}."
+            --notes "Official Miyorare-ID, Miyorare-EN, and Miyorare-Global packs. Built from Miyorare beta ${SOURCE_COMMIT}; stable runtime compatibility baseline Miyorare main ${RUNTIME_COMMIT} (versionCode ${RUNTIME_VERSION_CODE}, Tsuki ${TSUKI_API}); validated upstreams: UMA ${UMA_COMMIT}, Gekkoushi ${GEKKOUSHI_COMMIT}, Keiyoushi ${KEIYOUSHI_COMMIT}."
