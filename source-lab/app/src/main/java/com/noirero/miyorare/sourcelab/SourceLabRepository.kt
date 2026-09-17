@@ -98,11 +98,11 @@ internal data class LiveFarmSnapshot(
     val approvalCandidate: LiveApprovalCandidate?,
     val lastPromotion: LivePromotionState?,
     val lastPublish: LivePublishState?,
-    val automation: LiveAutomationState?,
     val cohort: String,
     val targetSize: Int,
     val branch: String,
     val retrievedAtEpochMs: Long,
+    val automation: LiveAutomationState? = null,
 )
 
 internal object SourceLabRepository {
@@ -168,11 +168,11 @@ internal object SourceLabRepository {
             approvalCandidate = status.optJSONObject("approvalCandidate")?.toApprovalCandidate(),
             lastPromotion = status.optJSONObject("lastPromotion")?.toPromotionState(),
             lastPublish = status.optJSONObject("lastPublish")?.toPublishState(),
-            automation = status.optJSONObject("automation")?.toAutomationState(),
             cohort = scope.optString("cohort", "unknown"),
             targetSize = scope.optInt("targetSize", sources.size),
             branch = farmBranch,
             retrievedAtEpochMs = System.currentTimeMillis(),
+            automation = status.optJSONObject("automation")?.toAutomationState(),
         )
     }
 
