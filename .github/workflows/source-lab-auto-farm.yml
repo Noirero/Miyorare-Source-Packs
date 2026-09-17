@@ -1,0 +1,360 @@
+name: Source Lab Auto Farm
+run-name: Source Lab auto farm ${{ github.run_id }}
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/source-lab-auto-farm.yml'
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: source-lab-auto-farm
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Detect upstream changes against authoritative LKG
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      should_run: ${{ steps.probe.outputs.should_run }}
+      changed: ${{ steps.probe.outputs.changed }}
+      candidates: ${{ steps.probe.outputs.candidates }}
+      pipeline_state: ${{ steps.probe.outputs.pipeline_state }}
+      foundation_sha: ${{ steps.probe.outputs.foundation_sha }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Fail closed on automation context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          case "$GITHUB_EVENT_NAME" in
+            schedule|workflow_dispatch|push) ;;
+            *) echo "Unexpected automation event: $GITHUB_EVENT_NAME" >&2; exit 1 ;;
+          esac
+
+      - name: Checkout authoritative Compatibility Farm
+        uses: actions/checkout@v5
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 1
+
+      - name: Compare upstream heads with authoritative last-known-good
+        id: probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          foundation_sha="$(git -C farm rev-parse HEAD)"
+          [[ "$foundation_sha" =~ ^[0-9a-f]{40}$ ]]
+
+          export KEI_HEAD="$(gh api repos/keiyoushi/extensions-source/git/ref/heads/main --jq '.object.sha')"
+          export UMA_HEAD="$(gh api repos/InvalidDavid/UMA/git/ref/heads/master --jq '.object.sha')"
+          export GEK_HEAD="$(gh api repos/Gekkoushi/plugin-source/git/ref/heads/master --jq '.object.sha')"
+          export FOUNDATION_SHA="$foundation_sha"
+
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          from pathlib import Path
+
+          registry = json.loads(Path('farm/upstream/registry.json').read_text(encoding='utf-8'))
+          status = json.loads(Path('farm/upstream/status.json').read_text(encoding='utf-8'))
+          heads = {
+              'keiyoushi': os.environ['KEI_HEAD'],
+              'uma': os.environ['UMA_HEAD'],
+              'gekkoushi': os.environ['GEK_HEAD'],
+          }
+          candidates = {}
+          for provider, head in heads.items():
+              current = registry['providers'][provider]['lastKnownGood']
+              if head != current:
+                  candidates[provider] = {'current': current, 'candidate': head}
+
+          pending = status.get('approvalCandidate')
+          promotion = status.get('lastPromotion')
+          published = status.get('lastPublish')
+          if isinstance(pending, dict):
+              pipeline_state = 'approval'
+          elif isinstance(promotion, dict) and (
+              not isinstance(published, dict)
+              or published.get('candidateSetId') != promotion.get('candidateSetId')
+          ):
+              pipeline_state = 'publishing'
+          else:
+              pipeline_state = 'clear'
+
+          changed = bool(candidates)
+          should_run = changed and pipeline_state == 'clear'
+          print(f"foundation_sha={os.environ['FOUNDATION_SHA']}")
+          print(f"changed={'true' if changed else 'false'}")
+          print(f"should_run={'true' if should_run else 'false'}")
+          print(f"pipeline_state={pipeline_state}")
+          print('candidates=' + json.dumps(candidates, separators=(',', ':'), sort_keys=True))
+          PY
+
+  intake:
+    name: Build isolated upstream candidate handoff
+    needs: probe
+    if: needs.probe.result == 'success' && needs.probe.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    outputs:
+      upstream_run_id: ${{ steps.run.outputs.upstream_run_id }}
+      upstream_conclusion: ${{ steps.run.outputs.upstream_conclusion }}
+      has_candidate: ${{ steps.run.outputs.has_candidate }}
+      temp_branch: ${{ steps.prepare.outputs.temp_branch }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      FOUNDATION_SHA: ${{ needs.probe.outputs.foundation_sha }}
+    steps:
+      - name: Create isolated candidate intake branch
+        id: prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$FOUNDATION_SHA" =~ ^[0-9a-f]{40}$ ]]
+          temp_branch="source-lab-auto-${GITHUB_RUN_ID}"
+          gh api --method DELETE \
+            "repos/$GITHUB_REPOSITORY/git/refs/heads/$temp_branch" \
+            >/dev/null 2>&1 || true
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/heads/$temp_branch" \
+            -f sha="$FOUNDATION_SHA" >/dev/null
+          echo "temp_branch=$temp_branch" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch authoritative candidate intake
+        id: run
+        env:
+          TEMP_BRANCH: ${{ steps.prepare.outputs.temp_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          started_epoch="$(date -u +%s)"
+          gh workflow run upstream-sync.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$TEMP_BRANCH"
+
+          upstream_run_id=""
+          for _ in $(seq 1 90); do
+            upstream_run_id="$(gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow upstream-sync.yml \
+              --branch "$TEMP_BRANCH" \
+              --event workflow_dispatch \
+              --limit 30 \
+              --json databaseId,headSha,createdAt \
+              --jq "[.[] | select(.headSha == \"$FOUNDATION_SHA\") |
+                select((.createdAt | fromdateiso8601) >= ($started_epoch - 5))] |
+                sort_by(.databaseId) | last | .databaseId // empty")"
+            [[ -n "$upstream_run_id" ]] && break
+            sleep 2
+          done
+          [[ "$upstream_run_id" =~ ^[0-9]+$ ]]
+
+          status=""
+          for _ in $(seq 1 720); do
+            status="$(gh run view "$upstream_run_id" --repo "$GITHUB_REPOSITORY" --json status --jq '.status')"
+            [[ "$status" == "completed" ]] && break
+            sleep 10
+          done
+          [[ "$status" == "completed" ]]
+          conclusion="$(gh run view "$upstream_run_id" --repo "$GITHUB_REPOSITORY" --json conclusion --jq '.conclusion')"
+
+          artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$upstream_run_id/artifacts?per_page=100")"
+          if jq -e '.artifacts[] | select(.name == "upstream-candidate-handoff" and .expired == false)' \
+            <<<"$artifacts" >/dev/null; then
+            has_candidate=true
+          else
+            has_candidate=false
+          fi
+
+          echo "upstream_run_id=$upstream_run_id" >> "$GITHUB_OUTPUT"
+          echo "upstream_conclusion=$conclusion" >> "$GITHUB_OUTPUT"
+          echo "has_candidate=$has_candidate" >> "$GITHUB_OUTPUT"
+
+  candidate-farm:
+    name: Run automatic exact candidate Farm
+    needs: [probe, intake]
+    if: >-
+      needs.intake.result == 'success' &&
+      needs.intake.outputs.upstream_conclusion == 'success' &&
+      needs.intake.outputs.has_candidate == 'true'
+    uses: ./.github/workflows/source-lab-candidate-farm.yml
+    with:
+      upstream_run_id: ${{ fromJSON(needs.intake.outputs.upstream_run_id) }}
+      foundation_sha: ${{ needs.probe.outputs.foundation_sha }}
+    permissions:
+      actions: read
+      contents: write
+
+  record:
+    name: Record autonomous Farm state
+    needs: [probe, intake, candidate-farm]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PROBE_RESULT: ${{ needs.probe.result }}
+      CHANGED: ${{ needs.probe.outputs.changed }}
+      CANDIDATES: ${{ needs.probe.outputs.candidates }}
+      PIPELINE_STATE: ${{ needs.probe.outputs.pipeline_state }}
+      INTAKE_RESULT: ${{ needs.intake.result }}
+      UPSTREAM_CONCLUSION: ${{ needs.intake.outputs.upstream_conclusion }}
+      HAS_CANDIDATE: ${{ needs.intake.outputs.has_candidate }}
+      CANDIDATE_FARM_RESULT: ${{ needs.candidate-farm.result }}
+    steps:
+      - name: Checkout latest authoritative Farm state
+        uses: actions/checkout@v5
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 0
+
+      - name: Persist semantic automation status only when it changes
+        id: state
+        shell: bash
+        run: |
+          set -euo pipefail
+          export AUTO_RUN_ID="$GITHUB_RUN_ID"
+          python3 - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          path = Path('farm/upstream/status.json')
+          status = json.loads(path.read_text(encoding='utf-8'))
+          try:
+              candidates = json.loads(os.environ.get('CANDIDATES') or '{}')
+          except json.JSONDecodeError:
+              candidates = {}
+
+          pending = status.get('approvalCandidate')
+          promotion = status.get('lastPromotion')
+          published = status.get('lastPublish')
+          if isinstance(pending, dict):
+              state = 'APPROVAL_REQUIRED'
+              reason = 'CANDIDATE_WAITING_FOR_OWNER'
+          elif isinstance(promotion, dict) and (
+              not isinstance(published, dict)
+              or published.get('candidateSetId') != promotion.get('candidateSetId')
+          ):
+              state = 'PUBLISHING'
+              reason = 'APPROVED_PIPELINE_IN_PROGRESS'
+          elif os.environ.get('PROBE_RESULT') != 'success':
+              state = 'INFRASTRUCTURE_FAILURE'
+              reason = 'AUTO_PROBE_FAILED'
+          elif os.environ.get('CHANGED') != 'true':
+              state = 'ALL_GOOD'
+              reason = 'NO_UPSTREAM_CHANGE'
+          elif os.environ.get('PIPELINE_STATE') != 'clear':
+              state = 'INFRASTRUCTURE_FAILURE'
+              reason = 'LIVE_PIPELINE_STATE_CONFLICT'
+          elif os.environ.get('INTAKE_RESULT') != 'success':
+              state = 'INFRASTRUCTURE_FAILURE'
+              reason = 'AUTO_INTAKE_DISPATCH_FAILED'
+          elif os.environ.get('UPSTREAM_CONCLUSION') != 'success':
+              state = 'HELD'
+              reason = 'UPSTREAM_INTAKE_NOT_SAFE'
+          elif os.environ.get('HAS_CANDIDATE') != 'true':
+              state = 'INFRASTRUCTURE_FAILURE'
+              reason = 'CANDIDATE_HANDOFF_MISSING'
+          elif os.environ.get('CANDIDATE_FARM_RESULT') == 'success':
+              state = 'APPROVAL_REQUIRED'
+              reason = 'CANDIDATE_PASSED_ALL_GATES'
+          elif os.environ.get('CANDIDATE_FARM_RESULT') == 'failure':
+              state = 'HELD'
+              reason = 'CANDIDATE_FARM_GATE_FAILED'
+          else:
+              state = 'INFRASTRUCTURE_FAILURE'
+              reason = 'AUTO_FARM_RESULT_UNKNOWN'
+
+          owner_required = state in {'APPROVAL_REQUIRED', 'INFRASTRUCTURE_FAILURE'}
+          semantic = {
+              'schemaVersion': 1,
+              'state': state,
+              'reason': reason,
+              'candidates': candidates,
+              'ownerActionRequired': owner_required,
+          }
+          existing = status.get('automation')
+          existing_semantic = None
+          if isinstance(existing, dict):
+              existing_semantic = {
+                  key: existing.get(key)
+                  for key in ('schemaVersion', 'state', 'reason', 'candidates', 'ownerActionRequired')
+              }
+          if existing_semantic == semantic:
+              print(f'automation state unchanged: {state}')
+          else:
+              semantic['workflowRunId'] = int(os.environ['AUTO_RUN_ID'])
+              semantic['updatedAt'] = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+              status['automation'] = semantic
+              path.write_text(json.dumps(status, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+              print(f'automation state -> {state}: {reason}')
+          PY
+
+          if git -C farm diff --quiet -- upstream/status.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          base_sha="$(git -C farm rev-parse HEAD)"
+          git -C farm fetch origin compatibility-farm-foundation
+          [[ "$(git -C farm rev-parse origin/compatibility-farm-foundation)" == "$base_sha" ]]
+          git -C farm config user.name github-actions[bot]
+          git -C farm config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C farm add upstream/status.json
+          git -C farm commit -m "Record autonomous Compatibility Farm state"
+          git -C farm push origin HEAD:compatibility-farm-foundation
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Summarize owner-facing state
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          status = json.loads(Path('farm/upstream/status.json').read_text(encoding='utf-8'))
+          state = status.get('automation', {}).get('state', 'UNKNOWN')
+          labels = {
+              'ALL_GOOD': '🟢 All good — no Owner action required.',
+              'APPROVAL_REQUIRED': '🟡 Update ready — Owner review/approval required.',
+              'PUBLISHING': '🟡 Approved update is publishing automatically.',
+              'HELD': '🟠 Held — last-known-good remains active; inspect Exceptions if needed.',
+              'INFRASTRUCTURE_FAILURE': '🔴 Infrastructure failure — Owner attention required.',
+          }
+          print('## Compatibility Farm')
+          print(labels.get(state, f'⚪ {state}'))
+          PY
+
+  cleanup:
+    name: Remove isolated auto-intake branch
+    needs: [intake, candidate-farm, record]
+    if: always() && needs.intake.outputs.temp_branch != ''
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TEMP_BRANCH: ${{ needs.intake.outputs.temp_branch }}
+    steps:
+      - name: Delete temporary ref
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method DELETE \
+            "repos/$GITHUB_REPOSITORY/git/refs/heads/$TEMP_BRANCH" \
+            >/dev/null 2>&1 || true
