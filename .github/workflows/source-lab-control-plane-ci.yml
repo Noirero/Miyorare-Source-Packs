@@ -1,0 +1,100 @@
+name: Source Lab Control Plane CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/source-lab-*.yml'
+      - '.github/workflows/release-source-packs.yml'
+      - 'tools/approval_state.py'
+      - 'tools/authorized_promotion.py'
+      - 'tools/candidate_lifecycle.py'
+      - 'tools/candidate_registry.py'
+      - 'tools/approval_evidence.py'
+      - 'tests/**'
+  push:
+    branches:
+      - 'source-lab-owner-control-plane-*'
+    paths:
+      - '.github/workflows/source-lab-*.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate fail-closed owner control plane
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout proposed control plane
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Parse Source Lab workflow YAML
+        shell: ruby {0}
+        run: |
+          require 'yaml'
+          Dir['.github/workflows/source-lab-*.yml'].sort.each do |path|
+            YAML.load_file(path, aliases: true)
+            puts "parsed #{path}"
+          end
+
+      - name: Verify complete capability and action surface
+        shell: python
+        run: |
+          from pathlib import Path
+
+          required = {
+              'source-lab-run-farm.yml': ['149634319', 'compatibility-farm-foundation', 'source-lab-candidate-farm.yml'],
+              'source-lab-approve-candidate.yml': ['WAITING_FOR_APPROVAL', 'approval_state.py approve', 'source-lab-approval-'],
+              'source-lab-promote-candidate.yml': ['authorized_promotion.py', 'approval_run_id', 'compatibility-farm-foundation'],
+              'source-lab-sign-candidate.yml': ['actions/attest-build-provenance@v2', 'GITHUB_ARTIFACT_ATTESTATION'],
+              'source-lab-publish-candidate.yml': ['gh attestation verify', 'release-source-packs.yml', 'compatibility-farm-foundation'],
+          }
+          root = Path('.github/workflows')
+          for name, needles in required.items():
+              text = (root / name).read_text(encoding='utf-8')
+              for needle in needles:
+                  if needle not in text:
+                      raise SystemExit(f'{name} missing required fail-closed marker: {needle}')
+
+          auth = (root / 'source-lab-backend-authorization.yml').read_text(encoding='utf-8')
+          for capability in ('RUN_FARM', 'APPROVE', 'PROMOTE', 'SIGN', 'PUBLISH'):
+              if capability not in auth:
+                  raise SystemExit(f'backend authorization missing capability {capability}')
+
+          forbidden = ('SOURCE_LAB_KEYSTORE_BASE64', 'SOURCE_LAB_STORE_PASSWORD', 'SOURCE_LAB_KEY_PASSWORD')
+          action_text = '\n'.join((root / name).read_text(encoding='utf-8') for name in required)
+          for secret in forbidden:
+              if secret in action_text:
+                  raise SystemExit(f'control-plane workflow must not consume APK signing secret: {secret}')
+
+      - name: Verify Compatibility Farm lifecycle dependencies exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin compatibility-farm-foundation
+          for path in \
+            tools/approval_state.py \
+            tools/authorized_promotion.py \
+            tools/candidate_lifecycle.py \
+            tools/candidate_registry.py \
+            tools/approval_evidence.py; do
+            git cat-file -e "origin/compatibility-farm-foundation:$path"
+          done
+
+      - name: Compile lifecycle helpers from authoritative foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/foundation"
+          git worktree add --detach "$work" origin/compatibility-farm-foundation
+          python3 -m py_compile \
+            "$work/tools/approval_state.py" \
+            "$work/tools/authorized_promotion.py" \
+            "$work/tools/candidate_lifecycle.py" \
+            "$work/tools/candidate_registry.py" \
+            "$work/tools/approval_evidence.py"
