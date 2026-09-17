@@ -1,3 +1,4 @@
+import copy
 import json
 import sys
 import unittest
@@ -13,6 +14,7 @@ class ParserHarnessAggregateTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.registry = json.loads((ROOT / "compatibility/source-registry.json").read_text(encoding="utf-8"))
+        cls.plan = json.loads((ROOT / "compatibility/parser-families.json").read_text(encoding="utf-8"))
 
     @staticmethod
     def report(provider, *sources):
@@ -54,6 +56,62 @@ class ParserHarnessAggregateTests(unittest.TestCase):
             "requiresRetest": True,
         }
 
+    def planned_reports(self):
+        grouped = {}
+        for family in self.plan["families"]:
+            grouped.setdefault(family["provider"], [])
+            grouped[family["provider"]].extend(member["canonicalId"] for member in family["members"])
+        return [
+            self.report(provider, *sorted(canonical_ids))
+            for provider, canonical_ids in sorted(grouped.items())
+        ]
+
+    def test_pending_source_is_excluded_but_full_active_coverage_passes(self):
+        aggregate = aggregate_reports(self.registry, self.planned_reports())
+        coverage = aggregate["coverage"]
+        self.assertEqual(13, coverage["totalRegisteredSources"])
+        self.assertEqual(12, coverage["requiredCanonicalSources"])
+        self.assertEqual(1, coverage["pendingCanonicalSources"])
+        self.assertEqual(12, coverage["canonicalExecuted"])
+        self.assertEqual(21, coverage["totalProviderMemberships"])
+        self.assertEqual(21, coverage["providerMembershipsExecuted"])
+        self.assertEqual(0, coverage["missingProviderMemberships"])
+        self.assertEqual(0, coverage["failingProviderMemberships"])
+        self.assertTrue(coverage["fullCanonicalCoverage"])
+        self.assertTrue(coverage["fullProviderMembershipCoverage"])
+        self.assertTrue(aggregate["candidatePass"])
+        self.assertEqual("REAL_PARSER_READY", aggregate["releaseGate"])
+        self.assertNotIn(
+            "miyorare:inventory-id:AARLAS",
+            {item["canonicalId"] for item in aggregate["results"]},
+        )
+
+    def test_activating_aarlas_without_real_harness_stays_partial_not_pass(self):
+        registry = copy.deepcopy(self.registry)
+        aarlas = next(
+            source for source in registry["sources"]
+            if source["canonicalId"] == "miyorare:inventory-id:AARLAS"
+        )
+        aarlas["compatibilityEnrollment"] = {
+            "state": "ACTIVE",
+            "parserCoverageRequired": True,
+        }
+        aggregate = aggregate_reports(registry, self.planned_reports())
+        coverage = aggregate["coverage"]
+        self.assertEqual(13, coverage["requiredCanonicalSources"])
+        self.assertEqual(22, coverage["totalProviderMemberships"])
+        self.assertEqual(21, coverage["providerMembershipsExecuted"])
+        self.assertEqual(1, coverage["missingProviderMemberships"])
+        self.assertFalse(aggregate["candidatePass"])
+        self.assertEqual("NOT_READY_PARTIAL_PARSER_HARNESS", aggregate["releaseGate"])
+
+    def test_pending_source_parser_result_is_rejected(self):
+        with self.assertRaisesRegex(AggregateError, "PENDING/non-required membership"):
+            aggregate_reports(
+                self.registry,
+                self.planned_reports() + [self.report("keiyoushi", "miyorare:inventory-id:AARLAS")],
+            )
+
     def test_partial_cross_provider_evidence_stays_non_publishable(self):
         aggregate = aggregate_reports(
             self.registry,
@@ -64,7 +122,8 @@ class ParserHarnessAggregateTests(unittest.TestCase):
         )
         self.assertEqual(aggregate["suiteStatus"], "PASS")
         self.assertEqual(aggregate["coverage"]["canonicalExecuted"], 3)
-        self.assertEqual(aggregate["coverage"]["totalRegisteredSources"], 12)
+        self.assertEqual(aggregate["coverage"]["totalRegisteredSources"], 13)
+        self.assertEqual(aggregate["coverage"]["requiredCanonicalSources"], 12)
         self.assertEqual(aggregate["repairEvidence"]["reportedMemberships"], 0)
         self.assertFalse(aggregate["candidatePass"])
         self.assertFalse(aggregate["publishEligible"])
