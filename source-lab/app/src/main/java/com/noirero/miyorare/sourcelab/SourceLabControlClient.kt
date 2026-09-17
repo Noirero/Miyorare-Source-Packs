@@ -30,6 +30,13 @@ internal data class SourceLabActionResult(
     val conclusion: String,
 )
 
+internal data class SourceLabApprovalPipelineResult(
+    val approvalRunId: Long,
+    val promotionRunId: Long,
+    val signingRunId: Long,
+    val publishRunId: Long,
+)
+
 internal class SourceLabControlException(
     val reason: String,
 ) : RuntimeException(reason)
@@ -40,6 +47,10 @@ internal object SourceLabControlClient {
     private const val mainRef = "main"
     private const val pollIntervalMs = 5_000L
     private const val maxPolls = 1_500
+
+    suspend fun resolveOwnerSession(context: Context): OwnerAccessSession = withContext(Dispatchers.IO) {
+        refreshOwnerContext(context).session
+    }
 
     suspend fun resolveState(
         context: Context,
@@ -74,11 +85,65 @@ internal object SourceLabControlClient {
         )
     }
 
+    suspend fun approveAndPublish(
+        context: Context,
+        snapshot: LiveFarmSnapshot,
+    ): SourceLabApprovalPipelineResult = withContext(Dispatchers.IO) {
+        val approval = execute(context, snapshot, SourceLabControlAction.APPROVE)
+        var current = SourceLabRepository.loadSnapshot()
+        val promotion = execute(context, current, SourceLabControlAction.PROMOTE)
+        current = SourceLabRepository.loadSnapshot()
+        val signing = execute(context, current, SourceLabControlAction.SIGN)
+        current = SourceLabRepository.loadSnapshot()
+        val publish = execute(context, current, SourceLabControlAction.PUBLISH)
+        SourceLabApprovalPipelineResult(
+            approvalRunId = approval.runId,
+            promotionRunId = promotion.runId,
+            signingRunId = signing.runId,
+            publishRunId = publish.runId,
+        )
+    }
+
+    suspend fun addToFarm(
+        context: Context,
+        source: InventorySource,
+        inventory: SourceInventorySnapshot,
+        farm: FarmInventorySnapshot,
+    ): SourceLabActionResult = withContext(Dispatchers.IO) {
+        val owner = refreshOwnerContext(context)
+        if (!SourceLabAccessPolicy.canPerform(SourceLabControlAction.ADD_TO_FARM, owner.session)) {
+            throw SourceLabControlException("BACKEND_CAPABILITY_ADD_TO_FARM_UNAVAILABLE")
+        }
+        if (source.needsAttention) throw SourceLabControlException("SOURCE_IDENTITY_NEEDS_ATTENTION")
+        if (farm.sources.any { it.canonicalId == source.canonicalId }) {
+            throw SourceLabControlException("SOURCE_ALREADY_ENROLLED")
+        }
+        if (!inventory.branchCommit.matches(Regex("^[0-9a-f]{40}$"))) {
+            throw SourceLabControlException("INVENTORY_COMMIT_INVALID")
+        }
+        if (!farm.branchCommit.matches(Regex("^[0-9a-f]{40}$"))) {
+            throw SourceLabControlException("FOUNDATION_COMMIT_INVALID")
+        }
+        val request = ControlRequest(
+            workflow = "source-lab-add-to-farm.yml",
+            title = "Source Lab add-to-farm ${source.canonicalId}",
+            inputs = mapOf(
+                "canonical_id" to source.canonicalId,
+                "inventory_commit" to inventory.branchCommit,
+                "foundation_commit" to farm.branchCommit,
+            ),
+        )
+        dispatchAndWait(owner.token, SourceLabControlAction.ADD_TO_FARM, request)
+    }
+
     suspend fun execute(
         context: Context,
         snapshot: LiveFarmSnapshot,
         action: SourceLabControlAction,
     ): SourceLabActionResult = withContext(Dispatchers.IO) {
+        if (action == SourceLabControlAction.ADD_TO_FARM) {
+            throw SourceLabControlException("SOURCE_DETAIL_REQUIRED")
+        }
         val owner = refreshOwnerContext(context)
         val candidateId = snapshot.approvalCandidate?.candidateSetId
         val promotionId = snapshot.lastPromotion?.candidateSetId
@@ -164,6 +229,7 @@ internal object SourceLabControlClient {
                     ),
                 )
             }
+            SourceLabControlAction.ADD_TO_FARM -> throw SourceLabControlException("SOURCE_DETAIL_REQUIRED")
         }
         dispatchAndWait(owner.token, action, request)
     }
@@ -195,7 +261,7 @@ internal object SourceLabControlClient {
                 candidate == null -> "NO_LIVE_APPROVAL_CANDIDATE"
                 candidate.state != "WAITING_FOR_APPROVAL" -> "CANDIDATE_NOT_WAITING_FOR_APPROVAL"
                 candidate.publishEligible -> "CANDIDATE_ALREADY_PUBLISH_ELIGIBLE_REJECTED"
-                approvalRunId != null -> "ALREADY_APPROVED_USE_PROMOTE"
+                approvalRunId != null -> "ALREADY_APPROVED_PIPELINE_CAN_RESUME_MANUALLY"
                 else -> "AVAILABLE"
             }
         val promoteReason = capability(SourceLabControlAction.PROMOTE)
@@ -219,6 +285,7 @@ internal object SourceLabControlClient {
                 signingRunId == null -> "SIGNING_ATTESTATION_REQUIRED"
                 else -> "AVAILABLE"
             }
+        val addToFarmReason = capability(SourceLabControlAction.ADD_TO_FARM) ?: "SOURCE_DETAIL_REQUIRED"
 
         return mapOf(
             SourceLabControlAction.RUN_FARM to availability(SourceLabControlAction.RUN_FARM, runFarmReason),
@@ -237,6 +304,10 @@ internal object SourceLabControlClient {
                 SourceLabControlAction.PUBLISH,
                 publishReason,
                 signingRunId,
+            ),
+            SourceLabControlAction.ADD_TO_FARM to availability(
+                SourceLabControlAction.ADD_TO_FARM,
+                addToFarmReason,
             ),
         )
     }
@@ -384,7 +455,7 @@ internal object SourceLabControlClient {
             setRequestProperty("Accept", "application/vnd.github+json")
             setRequestProperty("Authorization", "Bearer $token")
             setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
-            setRequestProperty("User-Agent", "Miyorare-Source-Lab/0.1.8")
+            setRequestProperty("User-Agent", "Miyorare-Source-Lab/${BuildConfig.VERSION_NAME}")
             useCaches = false
             if (body != null) {
                 doOutput = true
