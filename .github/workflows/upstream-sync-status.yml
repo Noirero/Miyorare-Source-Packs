@@ -67,8 +67,10 @@ jobs:
           failed_jobs = [job.get('name', 'unknown') for job in jobs if job.get('conclusion') in ('failure', 'cancelled', 'timed_out')]
 
           kei_report_path = Path('_diagnostics/keiyoushi/keiyoushi-intake.json')
+          kei_adapter_path = Path('_diagnostics/keiyoushi/keiyoushi-semantic-adapter.json')
           gek_report_path = Path('_diagnostics/gekkoushi/gekkoushi-overlay-report.json')
           kei_report = json.loads(kei_report_path.read_text(encoding='utf-8')) if kei_report_path.is_file() else None
+          kei_adapter = json.loads(kei_adapter_path.read_text(encoding='utf-8')) if kei_adapter_path.is_file() else None
           gek_report = json.loads(gek_report_path.read_text(encoding='utf-8')) if gek_report_path.is_file() else None
 
           result = {
@@ -112,6 +114,8 @@ jobs:
                   reason = 'candidate-validation-or-integration-held'
                   if provider == 'keiyoushi' and kei_report and kei_report.get('blockingSourceCount', 0):
                       reason = 'compatibility-or-intake-validation-failure'
+                  elif provider == 'keiyoushi' and kei_adapter and kei_adapter.get('blocked'):
+                      reason = 'semantic-adapter-blocked'
                   elif provider == 'gekkoushi' and gek_report and gek_report.get('conflicts'):
                       reason = 'protected-overlay-conflict'
                   entry = {
@@ -144,6 +148,29 @@ jobs:
                       entry['sharedRuntimeFiles'] = kei_report.get('sharedRuntimeFiles', [])
                       entry['affectedSourceCount'] = kei_report.get('affectedSourceCount', len(affected))
                       entry['blockingSourceCount'] = kei_report.get('blockingSourceCount', 0)
+                  elif kei_adapter and kei_adapter.get('blocked'):
+                      blocked = []
+                      for item in kei_adapter.get('blocked', []):
+                          changed_files = [
+                              path for path in (item.get('keiyoushiFile'), item.get('umaFile'))
+                              if path
+                          ]
+                          blocked.append({
+                              'canonicalId': item.get('canonicalId'),
+                              'pack': None,
+                              'sourceName': None,
+                              'module': item.get('module'),
+                              'state': 'review-required',
+                              'action': 'semantic-adapter-blocked',
+                              'reason': item.get('reason'),
+                              'changeClasses': [],
+                              'adapterCoverage': [],
+                              'changedFiles': changed_files,
+                          })
+                      entry['sourceStatus'] = blocked
+                      entry['adapterBlocked'] = kei_adapter.get('blocked', [])
+                      entry['affectedSourceCount'] = len(blocked)
+                      entry['blockingSourceCount'] = len(blocked)
                   else:
                       entry['sourceStatus'] = []
                       entry['affectedSourceCount'] = 0
@@ -153,6 +180,9 @@ jobs:
                   entry['overlayConflicts'] = gek_report.get('conflicts', [])
                   entry['overlayConflictDetails'] = gek_report.get('conflictDetails', [])
                   entry['protectedOverlayTargets'] = gek_report.get('protectedTargets', [])
+                  if gek_report.get('conflicts') and entry.get('state') == 'promoted':
+                      entry['state'] = 'promoted-with-held-sources'
+                      entry['heldSourceReason'] = 'protected-miyorare-overlay-diverged-from-upstream'
 
               result['providers'][provider] = entry
 
@@ -270,8 +300,18 @@ jobs:
                       lines.append('- Source terdampak:')
                       for item in blocking:
                           name = item.get('sourceName') or item.get('canonicalId') or 'unknown'
-                          change_classes = ', '.join(item.get('changeClasses', [])) or 'unknown change'
-                          lines.append(f'  - **{name}** — {change_classes}')
+                          detail = (
+                              ', '.join(item.get('changeClasses', []))
+                              or item.get('reason')
+                              or item.get('action')
+                              or 'validation hold'
+                          )
+                          lines.append(f'  - **{name}** — {detail}')
+                  overlay_conflicts = info.get('overlayConflicts', [])
+                  if overlay_conflicts:
+                      lines.append('- Protected overlay targets:')
+                      for target in overlay_conflicts:
+                          lines.append(f'  - `{target}`')
 
           if failed:
               lines.extend(['', '## Kegagalan'])
