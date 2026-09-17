@@ -512,41 +512,102 @@ private fun SourceDetail(
 ) {
     val canAdd = farmResolved && farm == null && !source.needsAttention &&
         SourceLabAccessPolicy.canPerform(SourceLabControlAction.ADD_TO_FARM, ownerSession)
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val versionBuild = source.providers.values.mapNotNull { it.extensionVersionCode }.maxOrNull()
+
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         item(key = "head") {
-            TextButton(onClick = onBack) { Text("Back to Sources") }
-            Text(source.displayName, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("${source.language} · ${source.providers.keys.joinToString(" / ") { providerName(it) }}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(source.canonicalId, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = onBack) { Text("← Sources") }
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Row(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Surface(shape = RoundedCornerShape(14.dp), color = SourceLabPrimaryStrong) {
+                        Text(
+                            source.displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+                            Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(source.displayName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text(
+                            "${source.language} · ${source.providers.keys.joinToString(" / ") { providerName(it) }}",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            source.canonicalId,
+                            fontFamily = FontFamily.Monospace,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    SourceLabStatusBadge(
+                        when {
+                            source.needsAttention -> "Review"
+                            farm?.runtimeHealth == "HEALTHY" -> "Healthy"
+                            farm != null -> farm.runtimeHealth.replace('_', ' ')
+                            farmResolved -> "Not enrolled"
+                            else -> "Unknown"
+                        },
+                        when {
+                            source.needsAttention -> SourceLabTone.WARNING
+                            farm?.runtimeHealth == "HEALTHY" -> SourceLabTone.GOOD
+                            farm?.runtimeHealth in setOf("BROKEN", "DEGRADED") -> SourceLabTone.ERROR
+                            else -> SourceLabTone.NEUTRAL
+                        },
+                    )
+                }
+            }
         }
+
         operation?.let { message -> item(key = "operation") { MessageCard(message) } }
+
         if (source.needsAttention) {
             item(key = "attention") {
                 Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF302616))) {
-                    Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Needs attention", color = SourceLabWarning, fontWeight = FontWeight.Bold)
-                        source.attentionReasons.forEach { Text(it) }
+                        source.attentionReasons.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
                     }
                 }
             }
         }
+
+        item(key = "identity") {
+            DetailCard("Source identity") {
+                Detail("Identity confidence", source.identityConfidence)
+                versionBuild?.let { Detail("Highest extension build", it.toString()) }
+                farm?.let {
+                    Detail("Content profile", it.contentProfile)
+                    Detail("Adapter family", it.adapterFamily)
+                    Detail("Authentication", it.authType)
+                }
+            }
+        }
+
         item(key = "farm") {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text("Compatibility Farm", fontWeight = FontWeight.Bold)
-                    when {
-                        !farmResolved -> SourceLabStatusBadge("Membership unavailable", SourceLabTone.WARNING)
-                        farm == null -> SourceLabStatusBadge("Not enrolled", SourceLabTone.NEUTRAL)
-                        farm.runtimeHealth == "HEALTHY" -> SourceLabStatusBadge("Healthy", SourceLabTone.GOOD)
-                        else -> SourceLabStatusBadge(farm.runtimeHealth, SourceLabTone.WARNING)
-                    }
-                    farm?.let {
-                        Detail("Content profile", it.contentProfile)
-                        Detail("Adapter family", it.adapterFamily)
-                        Detail("Update state", it.updateState)
-                        Detail("Approval state", it.approvalState)
-                        Detail("Publish eligible", it.publishEligible.toString())
-                    }
+            DetailCard("Compatibility Farm") {
+                when {
+                    !farmResolved -> SourceLabStatusBadge("Membership unavailable", SourceLabTone.WARNING)
+                    farm == null -> SourceLabStatusBadge("Not enrolled", SourceLabTone.NEUTRAL)
+                    farm.runtimeHealth == "HEALTHY" -> SourceLabStatusBadge("Healthy", SourceLabTone.GOOD)
+                    farm.runtimeHealth in setOf("BROKEN", "DEGRADED") -> SourceLabStatusBadge(farm.runtimeHealth, SourceLabTone.ERROR)
+                    else -> SourceLabStatusBadge(farm.runtimeHealth, SourceLabTone.NEUTRAL)
+                }
+                farm?.let {
+                    Detail("Update state", it.updateState)
+                    Detail("Approval state", it.approvalState)
+                    Detail("Owner action required", it.ownerActionRequired.toString())
+                    Detail("Publish eligible", it.publishEligible.toString())
                 }
             }
             if (farmResolved && farm == null) {
@@ -565,17 +626,156 @@ private fun SourceDetail(
                 }
             }
         }
+
+        farm?.takeIf { it.currentVersion.isNotEmpty() || it.lastKnownGood.isNotEmpty() }?.let { farmState ->
+            item(key = "versions") {
+                DetailCard("Versions") {
+                    farmState.currentVersion.forEach { (providerId, current) ->
+                        VersionLine(
+                            provider = providerName(providerId),
+                            current = current,
+                            lastKnownGood = farmState.lastKnownGood[providerId],
+                        )
+                    }
+                }
+            }
+        }
+
+        farm?.compatibilityBaseline?.let { baseline ->
+            item(key = "testing") {
+                DetailCard("Compatibility coverage") {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Declared Farm baseline", fontWeight = FontWeight.SemiBold)
+                        SourceLabStatusBadge(
+                            baseline.status.replace('_', ' '),
+                            if (baseline.status == "PASS" || baseline.status == "READY") SourceLabTone.GOOD else SourceLabTone.NEUTRAL,
+                        )
+                    }
+                    if (baseline.capabilities.isEmpty()) {
+                        Text("No compatibility capabilities are declared for this source.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        baseline.capabilities.forEach { capability ->
+                            CapabilityRow(capability)
+                        }
+                    }
+                }
+            }
+
+            item(key = "test-action-boundary") {
+                Card(colors = CardDefaults.cardColors(containerColor = SourceLabSurface)) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("Testing", fontWeight = FontWeight.Bold)
+                            SourceLabStatusBadge("Farm-wide only", SourceLabTone.ACCENT)
+                        }
+                        Text(
+                            "The current backend exposes Compatibility Farm execution as a farm-wide Owner action, not a per-source test dispatch. Source Lab therefore shows real declared coverage and live Farm state here without fabricating Run Full Test, progress, or PASS/FAIL results.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+
+        farm?.repairPolicy?.let { repair ->
+            item(key = "repair") {
+                DetailCard("Repair policy") {
+                    PolicyLine("Auto diagnose", repair.autoDiagnose)
+                    PolicyLine("Safe self-repair", repair.safeSelfRepair)
+                    PolicyLine("Keep last known good", repair.keepLastKnownGood)
+                    PolicyLine("Validated canonical fallback", repair.validatedCanonicalFallback)
+                }
+            }
+        }
+
         item(key = "providers-title") { Text("Provider mappings", fontWeight = FontWeight.Bold) }
         items(source.providers.entries.toList(), key = { it.key }) { entry ->
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text(providerName(entry.key), fontWeight = FontWeight.Bold)
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(providerName(entry.key), fontWeight = FontWeight.Bold)
+                        SourceLabStatusBadge(
+                            if (entry.value.available) "Available" else "Unavailable",
+                            if (entry.value.available) SourceLabTone.GOOD else SourceLabTone.WARNING,
+                        )
+                    }
                     entry.value.displayName?.let { Detail("Display name", it) }
+                    entry.value.sourceName?.let { Detail("Source name", it) }
                     entry.value.baseUrl?.let { Detail("Base URL", it) }
                     entry.value.extensionVersionCode?.let { Detail("Build", it.toString()) }
+                    entry.value.module?.let { Detail("Module", it) }
+                    entry.value.file?.let { Detail("File", it) }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DetailCard(title: String, content: @Composable () -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, fontWeight = FontWeight.Bold)
+            content()
+        }
+    }
+}
+
+@Composable
+private fun VersionLine(provider: String, current: String, lastKnownGood: String?) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(provider, fontWeight = FontWeight.SemiBold)
+            Text("Current · ${shortRef(current)}", fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+            lastKnownGood?.let {
+                Text("Last known good · ${shortRef(it)}", fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        SourceLabStatusBadge(
+            if (lastKnownGood == null || current == lastKnownGood) "Baseline" else "Changed",
+            if (lastKnownGood == null || current == lastKnownGood) SourceLabTone.GOOD else SourceLabTone.WARNING,
+        )
+    }
+}
+
+@Composable
+private fun CapabilityRow(capability: String) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(capabilityLabel(capability))
+        SourceLabStatusBadge("Covered", SourceLabTone.ACCENT)
+    }
+}
+
+@Composable
+private fun PolicyLine(label: String, enabled: Boolean) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label)
+        SourceLabStatusBadge(if (enabled) "Enabled" else "Off", if (enabled) SourceLabTone.GOOD else SourceLabTone.NEUTRAL)
     }
 }
 
@@ -585,6 +785,21 @@ private fun Detail(label: String, value: String) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.bodySmall)
     }
+}
+
+private fun shortRef(value: String): String = if (value.length > 12) value.take(12) else value
+
+private fun capabilityLabel(value: String): String = when (value.lowercase()) {
+    "load" -> "Load"
+    "browse" -> "Browse"
+    "search" -> "Search"
+    "details" -> "Details"
+    "chapters" -> "Chapters"
+    "content" -> "Pages / Content"
+    "authenticate" -> "Login / Authentication"
+    "download" -> "Download"
+    "reader" -> "Reader"
+    else -> value.replace('_', ' ').replaceFirstChar { it.titlecase() }
 }
 
 private fun providerName(value: String): String = when (value.lowercase()) {
