@@ -1,0 +1,274 @@
+name: Source Lab Add To Farm
+run-name: Source Lab add-to-farm ${{ inputs.canonical_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      canonical_id:
+        description: Exact Miyorare canonical source ID selected in Source Lab
+        required: true
+        type: string
+      inventory_commit:
+        description: Exact source-inventory-live commit read by Source Lab
+        required: true
+        type: string
+      foundation_commit:
+        description: Exact compatibility-farm-foundation commit read by Source Lab
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: source-lab-add-to-farm
+  cancel-in-progress: false
+
+jobs:
+  enroll:
+    name: Validate exact inventory source and enroll into Farm
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Fail closed on caller and request shape
+        shell: bash
+        env:
+          EXPECTED_OWNER_ID: '149634319'
+          CANONICAL_ID: ${{ inputs.canonical_id }}
+          INVENTORY_COMMIT: ${{ inputs.inventory_commit }}
+          FOUNDATION_COMMIT: ${{ inputs.foundation_commit }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+          [[ "$CANONICAL_ID" == miyorare:* ]]
+          [[ "$INVENTORY_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$FOUNDATION_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+
+      - name: Checkout exact inventory snapshot
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.inventory_commit }}
+          path: inventory
+          fetch-depth: 1
+
+      - name: Checkout exact Compatibility Farm foundation
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.foundation_commit }}
+          path: farm
+          fetch-depth: 0
+
+      - name: Reject stale branch heads
+        shell: bash
+        env:
+          INVENTORY_COMMIT: ${{ inputs.inventory_commit }}
+          FOUNDATION_COMMIT: ${{ inputs.foundation_commit }}
+        run: |
+          set -euo pipefail
+          LIVE_INVENTORY="$(git -C farm ls-remote origin refs/heads/source-inventory-live | awk '{print $1}')"
+          LIVE_FOUNDATION="$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')"
+          [[ "$LIVE_INVENTORY" == "$INVENTORY_COMMIT" ]] || { echo "source inventory changed; request is stale" >&2; exit 1; }
+          [[ "$LIVE_FOUNDATION" == "$FOUNDATION_COMMIT" ]] || { echo "Farm foundation changed; request is stale" >&2; exit 1; }
+
+      - name: Validate source and prepare enrollment
+        shell: bash
+        env:
+          CANONICAL_ID: ${{ inputs.canonical_id }}
+          INVENTORY_COMMIT: ${{ inputs.inventory_commit }}
+          FOUNDATION_COMMIT: ${{ inputs.foundation_commit }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          from copy import deepcopy
+          from pathlib import Path
+
+          HEX40 = re.compile(r'^[0-9a-f]{40}$')
+          provider_repos = {
+              'keiyoushi': 'https://github.com/keiyoushi/extensions-source.git',
+              'uma': 'https://github.com/InvalidDavid/UMA.git',
+              'gekkoushi': 'https://github.com/Gekkoushi/plugin-source.git',
+          }
+
+          inventory_path = Path('inventory/inventory/source-inventory.json')
+          registry_path = Path('farm/compatibility/source-registry.json')
+          status_path = Path('farm/upstream/status.json')
+          inventory = json.loads(inventory_path.read_text(encoding='utf-8'))
+          registry = json.loads(registry_path.read_text(encoding='utf-8'))
+          status = json.loads(status_path.read_text(encoding='utf-8'))
+
+          if inventory.get('schemaVersion') != 1 or inventory.get('kind') != 'MIYORARE_SOURCE_INVENTORY':
+              raise SystemExit('invalid source inventory schema')
+          if inventory.get('informationalOnly') is not True:
+              raise SystemExit('source inventory trust boundary is invalid')
+          if registry.get('schemaVersion') != 1 or status.get('schema') != 3:
+              raise SystemExit('unsupported Farm schema')
+          if status.get('approvalCandidate') is not None:
+              raise SystemExit('cannot change Farm membership while an approval candidate is staged')
+          promotion = status.get('lastPromotion')
+          published = status.get('lastPublish')
+          if isinstance(promotion, dict) and (
+              not isinstance(published, dict) or
+              published.get('candidateSetId') != promotion.get('candidateSetId')
+          ):
+              raise SystemExit('finish the promoted SIGN/PUBLISH lifecycle before changing membership')
+
+          canonical_id = os.environ['CANONICAL_ID']
+          matches = [s for s in inventory.get('sources', []) if s.get('canonicalId') == canonical_id]
+          if len(matches) != 1:
+              raise SystemExit('canonical source is missing or non-unique in exact inventory snapshot')
+          source = matches[0]
+          if source.get('needsAttention') is True:
+              raise SystemExit('source needs attention and cannot be enrolled automatically')
+
+          sources = registry.get('sources')
+          if not isinstance(sources, list):
+              raise SystemExit('Farm registry sources is invalid')
+          if any(s.get('canonicalId') == canonical_id for s in sources if isinstance(s, dict)):
+              raise SystemExit('source is already enrolled')
+
+          mappings = source.get('providers')
+          if not isinstance(mappings, dict) or not mappings:
+              raise SystemExit('source has no provider mappings')
+          baselines = registry.get('providerBaselines')
+          if not isinstance(baselines, dict):
+              raise SystemExit('Farm provider baselines are missing')
+
+          identities = {}
+          current = {}
+          for provider in sorted(mappings):
+              if provider not in provider_repos:
+                  raise SystemExit(f'unsupported provider {provider}')
+              mapping = mappings[provider]
+              if not isinstance(mapping, dict) or mapping.get('available') is False:
+                  raise SystemExit(f'provider {provider} is not available')
+              baseline = baselines.get(provider)
+              if not isinstance(baseline, str) or not HEX40.fullmatch(baseline):
+                  raise SystemExit(f'provider {provider} has no valid Farm baseline')
+
+              identity = {}
+              for key in ('sourceName', 'module', 'file', 'sourceId'):
+                  if key in mapping and mapping[key] not in (None, ''):
+                      identity[key] = mapping[key]
+              if not identity.get('sourceName'):
+                  raise SystemExit(f'provider {provider} sourceName is missing')
+              check_path = None
+              if provider == 'keiyoushi' and isinstance(identity.get('module'), str):
+                  check_path = f"{identity['module']}/build.gradle.kts"
+              elif provider in ('uma', 'gekkoushi') and isinstance(identity.get('file'), str):
+                  check_path = identity['file']
+              if not check_path:
+                  raise SystemExit(f'provider {provider} identity path is missing')
+
+              repo_dir = Path('baseline-check') / provider
+              repo_dir.mkdir(parents=True, exist_ok=True)
+              subprocess.run(['git', '-C', str(repo_dir), 'init', '-q'], check=True)
+              subprocess.run(['git', '-C', str(repo_dir), 'remote', 'add', 'origin', provider_repos[provider]], check=True)
+              subprocess.run(['git', '-C', str(repo_dir), 'fetch', '-q', '--depth', '1', 'origin', baseline], check=True)
+              probe = subprocess.run(
+                  ['git', '-C', str(repo_dir), 'cat-file', '-e', f'FETCH_HEAD:{check_path}'],
+                  stdout=subprocess.DEVNULL,
+                  stderr=subprocess.DEVNULL,
+              )
+              if probe.returncode != 0:
+                  raise SystemExit(
+                      f'{canonical_id} provider {provider} did not exist at the current Farm baseline; '
+                      'advance the provider baseline through the normal Farm lifecycle first'
+                  )
+              identities[provider] = identity
+              current[provider] = baseline
+
+          defaults = registry.get('defaults') if isinstance(registry.get('defaults'), dict) else {}
+          repair = deepcopy(defaults.get('repairPolicy')) if isinstance(defaults.get('repairPolicy'), dict) else {
+              'autoDiagnose': True,
+              'safeSelfRepair': True,
+              'keepLastKnownGood': True,
+              'validatedCanonicalFallback': True,
+              'holdRequiresOwnerAction': False,
+          }
+          new_source = {
+              'canonicalId': canonical_id,
+              'displayName': source.get('displayName') or canonical_id.rsplit(':', 1)[-1],
+              'language': str(source.get('language') or 'unknown').lower(),
+              'contentProfile': 'manga',
+              'authType': 'UNKNOWN',
+              'adapterFamily': 'unclassified',
+              'providers': sorted(identities),
+              'upstreamIdentities': identities,
+              'currentVersion': dict(current),
+              'lastKnownGood': dict(current),
+              'healthyHistory': [],
+              'updateState': 'PROMOTED',
+              'runtimeHealth': 'UNKNOWN',
+              'approvalState': 'NOT_READY',
+              'ownerActionRequired': False,
+              'publishEligible': False,
+              'protectedOverlays': [],
+              'compatibilityBaseline': {
+                  'status': 'PENDING',
+                  'capabilities': ['load', 'browse', 'search', 'details', 'chapters', 'content', 'authenticate', 'download', 'reader'],
+              },
+              'repairPolicy': repair,
+              'selectionReasons': ['owner-enrolled', 'automatic-source-inventory'],
+              'enrollmentEvidence': {
+                  'inventoryCommit': os.environ['INVENTORY_COMMIT'],
+                  'foundationBefore': os.environ['FOUNDATION_COMMIT'],
+                  'workflowRunId': int(os.environ['GITHUB_RUN_ID']),
+                  'actorId': os.environ['GITHUB_ACTOR_ID'],
+              },
+          }
+          sources.append(new_source)
+          sources.sort(key=lambda item: (str(item.get('language', '')), str(item.get('displayName', '')).casefold(), str(item.get('canonicalId', ''))))
+
+          scope = registry.setdefault('scope', {})
+          languages = scope.get('languages') if isinstance(scope.get('languages'), list) else []
+          lang = new_source['language']
+          if lang not in languages:
+              languages.append(lang)
+          scope['languages'] = sorted(set(str(x) for x in languages))
+          scope['targetSize'] = len(sources)
+          scope['enrollmentMode'] = 'owner-managed'
+
+          registry_path.write_text(json.dumps(registry, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+          receipt = {
+              'schemaVersion': 1,
+              'action': 'ADD_TO_FARM',
+              'canonicalId': canonical_id,
+              'inventoryCommit': os.environ['INVENTORY_COMMIT'],
+              'foundationBefore': os.environ['FOUNDATION_COMMIT'],
+              'workflowRunId': int(os.environ['GITHUB_RUN_ID']),
+              'providers': sorted(identities),
+              'targetSize': len(sources),
+          }
+          Path('enrollment-receipt.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+
+      - name: Commit exact enrollment with stale-safe lease
+        shell: bash
+        env:
+          CANONICAL_ID: ${{ inputs.canonical_id }}
+          FOUNDATION_COMMIT: ${{ inputs.foundation_commit }}
+        run: |
+          set -euo pipefail
+          git -C farm config user.name github-actions[bot]
+          git -C farm config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C farm add compatibility/source-registry.json
+          git -C farm diff --cached --quiet && { echo "No enrollment mutation was produced" >&2; exit 1; }
+          git -C farm commit -m "Enroll ${CANONICAL_ID} into Compatibility Farm"
+          git -C farm push origin HEAD:compatibility-farm-foundation \
+            --force-with-lease=refs/heads/compatibility-farm-foundation:${FOUNDATION_COMMIT}
+
+      - name: Upload enrollment receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-lab-enrollment-${{ github.run_id }}
+          path: enrollment-receipt.json
+          if-no-files-found: error
+          retention-days: 30
