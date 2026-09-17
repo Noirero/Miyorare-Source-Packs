@@ -1,6 +1,12 @@
 name: Source Inventory Sync
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'tools/source_inventory.py'
+      - '.github/workflows/source-inventory-sync.yml'
   schedule:
     - cron: '37 */4 * * *'
   workflow_dispatch:
