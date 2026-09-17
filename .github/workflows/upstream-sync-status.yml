@@ -17,12 +17,13 @@ concurrency:
 
 jobs:
   persist:
-    name: Build readable Source Sync Result
+    name: Persist atomic Source Sync result
     if: github.event.workflow_run.event != 'pull_request'
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
       RUN_ID: ${{ github.event.workflow_run.id }}
+      RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
       HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
     steps:
       - name: Checkout workflow branch after promotion
@@ -31,62 +32,74 @@ jobs:
           ref: ${{ env.HEAD_BRANCH }}
           fetch-depth: 0
 
-      - name: Download sync diagnostics
+      - name: Download sync evidence
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p _sync-plan _diagnostics/keiyoushi _diagnostics/gekkoushi
-          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name upstream-sync-plan --dir _sync-plan
-          test -f _sync-plan/sync-plan.json
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name upstream-sync-plan --dir _sync-plan || true
           gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name keiyoushi-intake-report --dir _diagnostics/keiyoushi || true
           gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name gekkoushi-overlay-report --dir _diagnostics/gekkoushi || true
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs > _sync-plan/jobs.json
 
-      - name: Resolve final provider and source status
+      - name: Generate status and outcome as one transaction
+        id: classify
         shell: bash
         run: |
           set -euo pipefail
-          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs > _sync-plan/jobs.json
           python3 - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          plan = json.loads(Path('_sync-plan/sync-plan.json').read_text(encoding='utf-8'))
-          jobs = json.loads(Path('_sync-plan/jobs.json').read_text(encoding='utf-8')).get('jobs', [])
+          run_id = int(os.environ['RUN_ID'])
+          run_conclusion = os.environ.get('RUN_CONCLUSION', '')
           registry = json.loads(Path('upstream/registry.json').read_text(encoding='utf-8'))
+          providers = registry['providers']
+
+          plan_path = Path('_sync-plan/sync-plan.json')
+          if plan_path.is_file():
+              plan = json.loads(plan_path.read_text(encoding='utf-8'))
+          else:
+              plan = {'providers': {}}
+
+          jobs = json.loads(Path('_sync-plan/jobs.json').read_text(encoding='utf-8')).get('jobs', [])
+          failed_jobs = [job.get('name', 'unknown') for job in jobs if job.get('conclusion') in ('failure', 'cancelled', 'timed_out')]
 
           kei_report_path = Path('_diagnostics/keiyoushi/keiyoushi-intake.json')
+          kei_adapter_path = Path('_diagnostics/keiyoushi/keiyoushi-semantic-adapter.json')
           gek_report_path = Path('_diagnostics/gekkoushi/gekkoushi-overlay-report.json')
           kei_report = json.loads(kei_report_path.read_text(encoding='utf-8')) if kei_report_path.is_file() else None
+          kei_adapter = json.loads(kei_adapter_path.read_text(encoding='utf-8')) if kei_adapter_path.is_file() else None
           gek_report = json.loads(gek_report_path.read_text(encoding='utf-8')) if gek_report_path.is_file() else None
-
-          conclusions = {job.get('name', ''): job.get('conclusion') for job in jobs}
-
-          def find(prefix):
-              values = [value for name, value in conclusions.items() if name.startswith(prefix)]
-              if not values:
-                  return None
-              if any(value == 'failure' for value in values):
-                  return 'failure'
-              if any(value == 'cancelled' for value in values):
-                  return 'cancelled'
-              if all(value in ('success', 'skipped') for value in values):
-                  return 'success'
-              return values[0]
 
           result = {
               'schema': 2,
-              'workflowRunId': int(os.environ['RUN_ID']),
+              'workflowRunId': run_id,
               'providers': {},
           }
 
-          for provider, candidate_info in plan['providers'].items():
-              provider_registry = registry['providers'][provider]
-              current = provider_registry['lastKnownGood']
-              candidate = candidate_info['candidate']
-              changed = bool(candidate_info['changed'])
+          pipeline_failed = run_conclusion != 'success'
+          if not plan_path.is_file() and not pipeline_failed:
+              raise SystemExit('successful upstream run did not publish upstream-sync-plan')
 
-              if not changed:
+          for provider in ('keiyoushi', 'uma', 'gekkoushi'):
+              provider_registry = providers[provider]
+              current = provider_registry['lastKnownGood']
+              candidate_info = plan.get('providers', {}).get(provider, {})
+              candidate = candidate_info.get('candidate', current)
+              changed = bool(candidate_info.get('changed', False))
+
+              if pipeline_failed:
+                  entry = {
+                      'state': 'broken',
+                      'lastKnownGood': current,
+                      'reason': 'upstream-sync-pipeline-failure',
+                      'failedJobs': failed_jobs,
+                  }
+                  if changed:
+                      entry['candidate'] = candidate
+              elif not changed:
                   entry = {
                       'state': 'synced',
                       'lastKnownGood': current,
@@ -98,16 +111,13 @@ jobs:
                       'lastKnownGood': current,
                   }
               else:
-                  if provider == 'gekkoushi':
-                      validation = find('Validate Gekkoushi ')
-                      reason = 'compatibility-or-build-validation-failure' if validation not in (None, 'success', 'skipped') else 'integration-or-promotion-failure'
-                  elif provider == 'keiyoushi':
-                      validation = find('Validate Keiyoushi candidate')
-                      reason = 'compatibility-or-intake-validation-failure' if validation not in (None, 'success', 'skipped') else 'integration-or-promotion-failure'
-                  else:
-                      validation = find('Validate UMA ')
-                      reason = 'compatibility-or-build-validation-failure' if validation not in (None, 'success', 'skipped') else 'integration-or-promotion-failure'
-
+                  reason = 'candidate-validation-or-integration-held'
+                  if provider == 'keiyoushi' and kei_report and kei_report.get('blockingSourceCount', 0):
+                      reason = 'compatibility-or-intake-validation-failure'
+                  elif provider == 'keiyoushi' and kei_adapter and kei_adapter.get('blocked'):
+                      reason = 'semantic-adapter-blocked'
+                  elif provider == 'gekkoushi' and gek_report and gek_report.get('conflicts'):
+                      reason = 'protected-overlay-conflict'
                   entry = {
                       'state': 'held',
                       'candidate': candidate,
@@ -138,24 +148,83 @@ jobs:
                       entry['sharedRuntimeFiles'] = kei_report.get('sharedRuntimeFiles', [])
                       entry['affectedSourceCount'] = kei_report.get('affectedSourceCount', len(affected))
                       entry['blockingSourceCount'] = kei_report.get('blockingSourceCount', 0)
+                  elif kei_adapter and kei_adapter.get('blocked'):
+                      blocked = []
+                      for item in kei_adapter.get('blocked', []):
+                          changed_files = [
+                              path for path in (item.get('keiyoushiFile'), item.get('umaFile'))
+                              if path
+                          ]
+                          blocked.append({
+                              'canonicalId': item.get('canonicalId'),
+                              'pack': None,
+                              'sourceName': None,
+                              'module': item.get('module'),
+                              'state': 'review-required',
+                              'action': 'semantic-adapter-blocked',
+                              'reason': item.get('reason'),
+                              'changeClasses': [],
+                              'adapterCoverage': [],
+                              'changedFiles': changed_files,
+                          })
+                      entry['sourceStatus'] = blocked
+                      entry['adapterBlocked'] = kei_adapter.get('blocked', [])
+                      entry['affectedSourceCount'] = len(blocked)
+                      entry['blockingSourceCount'] = len(blocked)
                   else:
                       entry['sourceStatus'] = []
                       entry['affectedSourceCount'] = 0
                       entry['blockingSourceCount'] = 0
 
               if provider == 'gekkoushi' and gek_report:
-                  conflicts = gek_report.get('conflicts', [])
-                  entry['overlayConflicts'] = conflicts
+                  entry['overlayConflicts'] = gek_report.get('conflicts', [])
                   entry['overlayConflictDetails'] = gek_report.get('conflictDetails', [])
                   entry['protectedOverlayTargets'] = gek_report.get('protectedTargets', [])
-                  if conflicts and entry['state'] == 'promoted':
+                  if gek_report.get('conflicts') and entry.get('state') == 'promoted':
                       entry['state'] = 'promoted-with-held-sources'
                       entry['heldSourceReason'] = 'protected-miyorare-overlay-diverged-from-upstream'
 
               result['providers'][provider] = entry
 
-          Path('upstream/status.json').write_text(json.dumps(result, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+          Path('upstream/status.json.tmp').write_text(
+              json.dumps(result, indent=2, ensure_ascii=False) + '\n', encoding='utf-8'
+          )
           PY
+
+          python3 tools/source_pack_outcome.py \
+            --status upstream/status.json.tmp \
+            --output upstream/outcome.json.tmp || OUTCOME_RC=$?
+          OUTCOME_RC="${OUTCOME_RC:-0}"
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          status = json.loads(Path('upstream/status.json.tmp').read_text(encoding='utf-8'))
+          outcome = json.loads(Path('upstream/outcome.json.tmp').read_text(encoding='utf-8'))
+          if status.get('workflowRunId') != outcome.get('workflowRunId'):
+              raise SystemExit('status/outcome workflowRunId mismatch')
+          if outcome.get('outcome') not in {'PASS', 'HELD', 'FAIL'}:
+              raise SystemExit('invalid Source Pack outcome')
+          Path('upstream/status.json').write_text(
+              Path('upstream/status.json.tmp').read_text(encoding='utf-8'), encoding='utf-8'
+          )
+          Path('upstream/outcome.json').write_text(
+              Path('upstream/outcome.json.tmp').read_text(encoding='utf-8'), encoding='utf-8'
+          )
+          print(outcome['outcome'])
+          PY
+
+          OUTCOME="$(python3 -c 'import json; print(json.load(open("upstream/outcome.json"))["outcome"])')"
+          echo "outcome=$OUTCOME" >> "$GITHUB_OUTPUT"
+          if [[ "$OUTCOME" == "FAIL" && "$OUTCOME_RC" -eq 0 ]]; then
+            echo "::error::FAIL outcome must make the classifier return non-zero."
+            exit 1
+          fi
+          if [[ "$OUTCOME" != "FAIL" && "$OUTCOME_RC" -ne 0 ]]; then
+            echo "::error::Non-FAIL outcome returned non-zero."
+            exit 1
+          fi
 
       - name: Write readable Actions summary
         shell: bash
@@ -167,6 +236,7 @@ jobs:
           from pathlib import Path
 
           status = json.loads(Path('upstream/status.json').read_text(encoding='utf-8'))
+          outcome = json.loads(Path('upstream/outcome.json').read_text(encoding='utf-8'))
           summary_path = Path(os.environ['GITHUB_STEP_SUMMARY'])
 
           labels = {
@@ -174,39 +244,46 @@ jobs:
               'promoted': ('🔵', 'UPDATED', 'Kandidat lolos dan sudah dipromosikan.'),
               'held': ('🟠', 'HELD', 'Kandidat baru ditahan. Last-known-good tetap dipakai.'),
               'promoted-with-held-sources': ('🟠', 'PARTIAL', 'Provider dipromosikan, tetapi source tertentu tetap ditahan.'),
-              'waiting-approval': ('🟡', 'READY', 'Sudah lolos pemeriksaan dan menunggu satu klik approval.'),
-              'broken': ('🔴', 'BROKEN', 'Versi aktif bermasalah dan perlu fail-safe.'),
+              'waiting-approval': ('🟡', 'READY', 'Sudah lolos pemeriksaan dan menunggu approval.'),
+              'broken': ('🔴', 'FAIL', 'Pipeline/active state gagal dan release diblokir.'),
               'unknown': ('⚪', 'UNKNOWN', 'Status belum dapat dipastikan.'),
           }
 
           lines = [
               '# Miyorare Source Sync Result',
               '',
-              f'Upstream workflow run: `{status.get("workflowRunId", "unknown")}`',
+              f"**Outcome: {outcome['outcome']}**",
+              f"Active last-known-good set safe: `{str(outcome['activeSetSafe']).lower()}`",
+              f"Upstream workflow run: `{status['workflowRunId']}`",
               '',
               '| Provider | Status | Hasil |',
               '|---|---|---|',
           ]
 
           held = []
+          failed = []
           promoted = []
           for provider in ('keiyoushi', 'uma', 'gekkoushi'):
               info = status.get('providers', {}).get(provider, {})
               state = info.get('state', 'unknown')
               icon, label, message = labels.get(state, labels['unknown'])
               lines.append(f'| {provider.capitalize()} | {icon} **{label}** | {message} |')
-              if state in ('held', 'promoted-with-held-sources'):
+              if state in ('held', 'promoted-with-held-sources', 'waiting-approval'):
                   held.append((provider, info))
+              elif state in ('broken', 'failed', 'unknown'):
+                  failed.append((provider, info))
               if state == 'promoted':
                   promoted.append(provider)
 
           lines.extend(['', '## Kesimpulan'])
-          if held:
-              lines.append('⚠️ Ada update upstream yang **tidak aman untuk dipublish**. Sistem otomatis mempertahankan versi last-known-good, jadi Anda tidak perlu memperbaiki atau menganalisis log secara manual.')
+          if failed:
+              lines.append('❌ **FAIL** — terjadi kegagalan pipeline/active-state. Kandidat tidak dipublish.')
+          elif held:
+              lines.append('⚠️ **HELD** — kandidat tidak aman untuk dipromosikan. Last-known-good tetap aktif; ini bukan production failure.')
           elif promoted:
-              lines.append('✅ Update yang lolos pemeriksaan sudah dipromosikan. Proses release otomatis akan menangani tahap berikutnya.')
+              lines.append('✅ **PASS** — kandidat yang lolos sudah dipromosikan.')
           else:
-              lines.append('✅ Semua provider aman dan tidak ada tindakan manual yang diperlukan.')
+              lines.append('✅ **PASS** — semua provider aman dan tidak ada update yang perlu dipromosikan.')
 
           if held:
               lines.extend(['', '## Yang ditahan'])
@@ -218,40 +295,58 @@ jobs:
                   candidate = info.get('candidate')
                   if candidate:
                       lines.append(f'- Kandidat: `{candidate}`')
-                  source_status = info.get('sourceStatus', [])
-                  blocking = [item for item in source_status if item.get('state') not in (None, 'unaffected')]
+                  blocking = [item for item in info.get('sourceStatus', []) if item.get('state') not in (None, 'unaffected')]
                   if blocking:
                       lines.append('- Source terdampak:')
                       for item in blocking:
                           name = item.get('sourceName') or item.get('canonicalId') or 'unknown'
-                          change_classes = ', '.join(item.get('changeClasses', [])) or 'unknown change'
-                          lines.append(f'  - **{name}** — {change_classes}')
+                          detail = (
+                              ', '.join(item.get('changeClasses', []))
+                              or item.get('reason')
+                              or item.get('action')
+                              or 'validation hold'
+                          )
+                          lines.append(f'  - **{name}** — {detail}')
+                  overlay_conflicts = info.get('overlayConflicts', [])
+                  if overlay_conflicts:
+                      lines.append('- Protected overlay targets:')
+                      for target in overlay_conflicts:
+                          lines.append(f'  - `{target}`')
 
-          lines.extend([
-              '',
-              '## Satu tindakan manual',
-              'Jika Anda ingin memulai pemeriksaan + update lengkap kapan saja, buka workflow berikut lalu tekan **Run workflow**. Setelah itu seluruh proses berjalan otomatis.',
-              '',
-              '[▶ One-Click Source Update](https://github.com/Noirero/Miyorare-Source-Packs/actions/workflows/one-click-source-update.yml)',
-          ])
+          if failed:
+              lines.extend(['', '## Kegagalan'])
+              for provider, info in failed:
+                  lines.append(f"- **{provider.capitalize()}** — `{info.get('reason', 'pipeline-failure')}`")
+                  jobs = info.get('failedJobs', [])
+                  if jobs:
+                      lines.append(f"  - Jobs: {', '.join(jobs)}")
 
           summary_path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
           for provider, info in held:
               count = info.get('blockingSourceCount') or len(info.get('sourceStatus', []))
-              print(f'::warning title={provider.capitalize()} update held::{count} source(s) are held; last-known-good remains active.')
+              reason = info.get('reason', 'candidate-held')
+              print(f'::warning title={provider.capitalize()} candidate HELD::{reason}; affected={count}; last-known-good remains active.')
           PY
 
-      - name: Commit status even when every candidate is held
+      - name: Commit status and outcome atomically
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- upstream/status.json; then
-            echo 'No status change to persist.'
+          rm -f upstream/status.json.tmp upstream/outcome.json.tmp
+          if git diff --quiet -- upstream/status.json upstream/outcome.json; then
+            echo 'Status/outcome unchanged.'
             exit 0
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add upstream/status.json
-          git commit -m "Record upstream sync provider/source status"
+          git add upstream/status.json upstream/outcome.json
+          git commit -m "Record atomic Source Pack ${{ steps.classify.outputs.outcome }} outcome"
           git push origin "HEAD:${HEAD_BRANCH}"
+
+      - name: Fail only for genuine FAIL state
+        if: steps.classify.outputs.outcome == 'FAIL'
+        shell: bash
+        run: |
+          echo "::error::Source Pack pipeline/active state is FAIL."
+          exit 1

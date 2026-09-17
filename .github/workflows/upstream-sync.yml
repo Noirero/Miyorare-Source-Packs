@@ -57,6 +57,9 @@ jobs:
     needs: plan
     if: needs.plan.outputs.keiyoushi_changed == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      state: ${{ steps.result.outputs.state }}
+      reason: ${{ steps.result.outputs.reason }}
     steps:
       - name: Checkout sync engine
         uses: actions/checkout@v5
@@ -88,14 +91,33 @@ jobs:
           fetch-depth: 0
 
       - name: Materialize candidate pin
+        id: materialize
+        shell: bash
         run: |
+          set +e
           python3 source-packs/tools/upstream_sync.py materialize \
             --registry source-packs/$REGISTRY \
             --miyorare-root miyorare \
             --override keiyoushi=${{ needs.plan.outputs.keiyoushi_candidate }}
+          rc=$?
+          set -e
+          if [[ "$rc" -eq 0 ]]; then
+            echo "state=pass" >> "$GITHUB_OUTPUT"
+            echo "reason=materialized" >> "$GITHUB_OUTPUT"
+          elif [[ "$rc" -eq 3 ]]; then
+            echo "state=held" >> "$GITHUB_OUTPUT"
+            echo "reason=semantic-adapter-blocked" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Keiyoushi candidate HELD::Semantic adapter requires review; last-known-good remains active."
+          else
+            exit "$rc"
+          fi
 
       - name: Classify registered Keiyoushi source impact
+        id: intake
+        if: steps.materialize.outputs.state == 'pass'
+        shell: bash
         run: |
+          set +e
           python3 source-packs/tools/keiyoushi_intake.py \
             --aliases miyorare/extensions/miyorare-sources/multi-upstream.json \
             --repo _upstream/keiyoushi \
@@ -103,8 +125,22 @@ jobs:
             --candidate ${{ needs.plan.outputs.keiyoushi_candidate }} \
             --output build/keiyoushi-intake.json \
             --strict
+          rc=$?
+          set -e
+          if [[ "$rc" -eq 0 ]]; then
+            echo "state=pass" >> "$GITHUB_OUTPUT"
+            echo "reason=intake-clear" >> "$GITHUB_OUTPUT"
+          elif [[ "$rc" -eq 3 ]]; then
+            test -f build/keiyoushi-intake.json
+            echo "state=held" >> "$GITHUB_OUTPUT"
+            echo "reason=compatibility-or-intake-validation-failure" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Keiyoushi candidate HELD::Registered source impact requires review; last-known-good remains active."
+          else
+            exit "$rc"
+          fi
 
       - name: Verify canonical aliases against candidate
+        if: steps.materialize.outputs.state == 'pass' && steps.intake.outputs.state == 'pass'
         run: |
           python3 miyorare/extensions/miyorare-sources/tools/verify_multi_upstream.py \
             --manifest miyorare/extensions/miyorare-sources/multi-upstream.json \
@@ -113,12 +149,33 @@ jobs:
             --keiyoushi _upstream/keiyoushi \
             --output build/verified-multi-upstream.json
 
+      - name: Resolve Keiyoushi validation state
+        id: result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          materialize_state='${{ steps.materialize.outputs.state }}'
+          intake_state='${{ steps.intake.outputs.state }}'
+          if [[ "$materialize_state" == "held" ]]; then
+            echo "state=held" >> "$GITHUB_OUTPUT"
+            echo "reason=${{ steps.materialize.outputs.reason }}" >> "$GITHUB_OUTPUT"
+          elif [[ "$intake_state" == "held" ]]; then
+            echo "state=held" >> "$GITHUB_OUTPUT"
+            echo "reason=${{ steps.intake.outputs.reason }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "state=pass" >> "$GITHUB_OUTPUT"
+            echo "reason=validated" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Upload Keiyoushi intake report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: keiyoushi-intake-report
-          path: build/keiyoushi-intake.json
+          path: |
+            build/keiyoushi-intake.json
+            build/keiyoushi-semantic-adapter.json
           if-no-files-found: ignore
           retention-days: 14
 
@@ -392,6 +449,7 @@ jobs:
     env:
       KEI_CHANGED: ${{ needs.plan.outputs.keiyoushi_changed }}
       KEI_RESULT: ${{ needs.validate-keiyoushi.result }}
+      KEI_STATE: ${{ needs.validate-keiyoushi.outputs.state }}
       UMA_CHANGED: ${{ needs.plan.outputs.uma_changed }}
       UMA_RESULT: ${{ needs.validate-uma.result }}
       GEK_CHANGED: ${{ needs.plan.outputs.gekkoushi_changed }}
@@ -411,7 +469,7 @@ jobs:
           kei='${{ needs.plan.outputs.keiyoushi_current }}'
           uma='${{ needs.plan.outputs.uma_current }}'
           gek='${{ needs.plan.outputs.gekkoushi_current }}'
-          if [[ "$KEI_CHANGED" == "true" && "$KEI_RESULT" == "success" ]]; then kei='${{ needs.plan.outputs.keiyoushi_candidate }}'; fi
+          if [[ "$KEI_CHANGED" == "true" && "$KEI_RESULT" == "success" && "$KEI_STATE" == "pass" ]]; then kei='${{ needs.plan.outputs.keiyoushi_candidate }}'; fi
           if [[ "$UMA_CHANGED" == "true" && "$UMA_RESULT" == "success" ]]; then uma='${{ needs.plan.outputs.uma_candidate }}'; fi
           if [[ "$GEK_CHANGED" == "true" && "$GEK_GUARD_RESULT" == "success" && "$GEK_RESULT" == "success" ]]; then gek='${{ needs.plan.outputs.gekkoushi_candidate }}'; fi
           echo "keiyoushi=$kei" >> "$GITHUB_OUTPUT"
@@ -601,6 +659,7 @@ jobs:
       KEI_CURRENT: ${{ needs.plan.outputs.keiyoushi_current }}
       KEI_CANDIDATE: ${{ needs.plan.outputs.keiyoushi_candidate }}
       KEI_RESULT: ${{ needs.validate-keiyoushi.result }}
+      KEI_STATE: ${{ needs.validate-keiyoushi.outputs.state }}
       UMA_CHANGED: ${{ needs.plan.outputs.uma_changed }}
       UMA_CURRENT: ${{ needs.plan.outputs.uma_current }}
       UMA_CANDIDATE: ${{ needs.plan.outputs.uma_candidate }}
@@ -617,14 +676,40 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Promote only validated candidates and write fail-safe status
+      - name: Promote only validated candidates
         id: promote
         shell: bash
         run: |
           set -euo pipefail
+
+          if [[ "$KEI_CHANGED" == "true" && "$KEI_RESULT" != "success" ]]; then
+            echo "::error::Keiyoushi validation job failed; treating as FAIL, not HELD."
+            exit 1
+          fi
+          if [[ "$KEI_CHANGED" == "true" && "$KEI_RESULT" == "success" && "$KEI_STATE" != "pass" && "$KEI_STATE" != "held" ]]; then
+            echo "::error::Keiyoushi validator returned no structured PASS/HELD state."
+            exit 1
+          fi
+          if [[ "$UMA_CHANGED" == "true" && "$UMA_RESULT" != "success" ]]; then
+            echo "::error::UMA validation job failed; treating as FAIL."
+            exit 1
+          fi
+          if [[ "$GEK_CHANGED" == "true" && "$GEK_GUARD_RESULT" != "success" ]]; then
+            echo "::error::Gekkoushi overlay guard failed; treating as FAIL."
+            exit 1
+          fi
+          if [[ "$GEK_CHANGED" == "true" && "$GEK_RESULT" != "success" ]]; then
+            echo "::error::Gekkoushi validation job failed; treating as FAIL."
+            exit 1
+          fi
+          if [[ "$INTEGRATION_RESULT" == "failure" || "$INTEGRATION_RESULT" == "cancelled" ]]; then
+            echo "::error::Effective-set integration failed; treating as FAIL."
+            exit 1
+          fi
+
           promoted=()
 
-          if [[ "$KEI_CHANGED" == "true" && "$KEI_RESULT" == "success" && "$INTEGRATION_RESULT" == "success" ]]; then
+          if [[ "$KEI_CHANGED" == "true" && "$KEI_RESULT" == "success" && "$KEI_STATE" == "pass" && "$INTEGRATION_RESULT" == "success" ]]; then
             python3 tools/upstream_sync.py promote --registry "$REGISTRY" --provider keiyoushi --commit "$KEI_CANDIDATE"
             promoted+=(keiyoushi)
           fi
@@ -637,45 +722,6 @@ jobs:
             promoted+=(gekkoushi)
           fi
 
-          python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          registry = json.loads(Path(os.environ['REGISTRY']).read_text(encoding='utf-8'))
-
-          def provider_state(name, changed, current, candidate, validation, guard=None):
-              lkg = registry['providers'][name]['lastKnownGood']
-              if changed != 'true':
-                  return {'state': 'synced', 'lastKnownGood': lkg}
-              if lkg == candidate:
-                  return {'state': 'promoted', 'candidate': candidate, 'lastKnownGood': lkg}
-              if guard not in (None, 'success', 'skipped'):
-                  reason = 'protected-overlay-conflict'
-              elif validation not in ('success',):
-                  reason = 'compatibility-or-build-validation-failure'
-              elif os.environ['INTEGRATION_RESULT'] != 'success':
-                  reason = 'combined-integration-validation-failure'
-              else:
-                  reason = 'promotion-not-authorized'
-              return {
-                  'state': 'held',
-                  'candidate': candidate,
-                  'lastKnownGood': current,
-                  'reason': reason,
-              }
-
-          status = {
-              'schema': 1,
-              'providers': {
-                  'keiyoushi': provider_state('keiyoushi', os.environ['KEI_CHANGED'], os.environ['KEI_CURRENT'], os.environ['KEI_CANDIDATE'], os.environ['KEI_RESULT']),
-                  'uma': provider_state('uma', os.environ['UMA_CHANGED'], os.environ['UMA_CURRENT'], os.environ['UMA_CANDIDATE'], os.environ['UMA_RESULT']),
-                  'gekkoushi': provider_state('gekkoushi', os.environ['GEK_CHANGED'], os.environ['GEK_CURRENT'], os.environ['GEK_CANDIDATE'], os.environ['GEK_RESULT'], os.environ['GEK_GUARD_RESULT']),
-              },
-          }
-          Path('upstream/status.json').write_text(json.dumps(status, indent=2) + '\n', encoding='utf-8')
-          PY
-
           if ((${#promoted[@]})); then
             echo "promoted=true" >> "$GITHUB_OUTPUT"
             printf 'providers=%s\n' "$(IFS=,; echo "${promoted[*]}")" >> "$GITHUB_OUTPUT"
@@ -684,25 +730,15 @@ jobs:
             echo "providers=" >> "$GITHUB_OUTPUT"
           fi
 
-          if git diff --quiet -- upstream/registry.json upstream/status.json; then
-            echo "state_changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "state_changed=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Commit registry or held-status advancement
-        if: steps.promote.outputs.state_changed == 'true'
+      - name: Commit promoted registry advancement
+        if: steps.promote.outputs.promoted == 'true'
         shell: bash
         run: |
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add upstream/registry.json upstream/status.json
-          if [[ "${{ steps.promote.outputs.promoted }}" == "true" ]]; then
-            git commit -m "Promote validated upstream updates: ${{ steps.promote.outputs.providers }}"
-          else
-            git commit -m "Record held upstream update candidates"
-          fi
+          git add upstream/registry.json
+          git commit -m "Promote validated upstream updates: ${{ steps.promote.outputs.providers }}"
           git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - name: Determine next immutable source-pack version
