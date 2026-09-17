@@ -12,12 +12,16 @@ on:
       - 'tools/candidate_lifecycle.py'
       - 'tools/candidate_registry.py'
       - 'tools/approval_evidence.py'
+      - 'tools/source_inventory_bulk_enroll.py'
       - 'tests/**'
   push:
     branches:
       - 'source-lab-owner-control-plane-*'
+      - 'source-lab-auto-enroll-*'
     paths:
       - '.github/workflows/source-lab-*.yml'
+      - 'tools/source_inventory_bulk_enroll.py'
+      - 'tests/test_source_inventory_bulk_enroll.py'
 
 permissions:
   contents: read
@@ -71,6 +75,14 @@ jobs:
                   "'parserCoverageRequired': False",
                   '--force-with-lease',
               ],
+              'source-lab-sync-farm-membership.yml': [
+                  '149634319',
+                  'source-inventory-live',
+                  'compatibility-farm-foundation',
+                  'source_inventory_bulk_enroll.py',
+                  'parser_family_plan.py',
+                  'git push origin HEAD:compatibility-farm-foundation',
+              ],
           }
           root = Path('.github/workflows')
           for name, needles in required.items():
@@ -120,3 +132,10 @@ jobs:
             "$work/tools/candidate_registry.py" \
             "$work/tools/approval_evidence.py" \
             "$work/tools/parser_family_plan.py"
+
+      - name: Test ID and EN bulk enrollment engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/source_inventory_bulk_enroll.py
+          python3 tests/test_source_inventory_bulk_enroll.py
