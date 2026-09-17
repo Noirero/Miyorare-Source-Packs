@@ -51,10 +51,32 @@ internal fun OwnerAuthorizationCard(
 ) {
     val context = LocalContext.current
     var state by remember { mutableStateOf<OwnerAuthorizationUiState>(OwnerAuthorizationUiState.Idle) }
+    var verifiedIdentity by remember { mutableStateOf<GitHubOwnerIdentity?>(null) }
     val busy = state is OwnerAuthorizationUiState.AuthorizingBackend ||
         state is OwnerAuthorizationUiState.WaitingForGitHub
     val embeddedClientIdAvailable = remember {
         GitHubOwnerAuthentication.isValidClientId(BuildConfig.SOURCE_LAB_GITHUB_CLIENT_ID)
+    }
+
+    suspend fun authorizeBackend(identity: GitHubOwnerIdentity) {
+        state = OwnerAuthorizationUiState.AuthorizingBackend
+        val proof = SourceLabBackendAuthorization.authorize(identity.accessToken)
+        val authorizedSession = proof.applyTo(identity.session)
+        val decision = SourceLabAccessPolicy.evaluate(authorizedSession)
+        if (!decision.canControl) {
+            onSessionChanged(null)
+            state = OwnerAuthorizationUiState.Failed(
+                if (!proof.authorized) proof.reason else decision.reason,
+            )
+        } else {
+            // The GitHub user token is no longer needed once the short-lived
+            // backend authorization proof has been accepted.
+            verifiedIdentity = null
+            onSessionChanged(authorizedSession)
+            state = OwnerAuthorizationUiState.Authorized(
+                proof.expiresAtEpochSeconds ?: 0L,
+            )
+        }
     }
 
     // v0.1.4 and older could persist a recovery value in SharedPreferences.
@@ -105,6 +127,7 @@ internal fun OwnerAuthorizationCard(
                         onClick = {
                             operationScope.launch {
                                 onSessionChanged(null)
+                                verifiedIdentity = null
                                 try {
                                     val resolvedClientId = GitHubOwnerAuthentication.resolveClientId()
                                     val code = GitHubOwnerAuthentication.requestDeviceCode(resolvedClientId)
@@ -112,24 +135,12 @@ internal fun OwnerAuthorizationCard(
                                     state = OwnerAuthorizationUiState.WaitingForGitHub(code)
                                     openVerificationPage(context, code.verificationUri)
                                     val identity = GitHubOwnerAuthentication.completeOwnerLogin(resolvedClientId, code)
-                                    state = OwnerAuthorizationUiState.AuthorizingBackend
-                                    val proof = SourceLabBackendAuthorization.authorize(identity.accessToken)
-                                    val authorizedSession = proof.applyTo(identity.session)
-                                    val decision = SourceLabAccessPolicy.evaluate(authorizedSession)
-                                    if (!decision.canControl) {
-                                        onSessionChanged(null)
-                                        state = OwnerAuthorizationUiState.Failed(
-                                            if (!proof.authorized) proof.reason else decision.reason,
-                                        )
-                                    } else {
-                                        onSessionChanged(authorizedSession)
-                                        state = OwnerAuthorizationUiState.Authorized(
-                                            proof.expiresAtEpochSeconds ?: 0L,
-                                        )
-                                    }
+                                    verifiedIdentity = identity
+                                    authorizeBackend(identity)
                                 } catch (error: CancellationException) {
                                     throw error
                                 } catch (error: GitHubOwnerAuthenticationException) {
+                                    verifiedIdentity = null
                                     onSessionChanged(null)
                                     state = OwnerAuthorizationUiState.Failed(error.reason)
                                 } catch (_: Throwable) {
@@ -190,6 +201,7 @@ internal fun OwnerAuthorizationCard(
                     )
                     OutlinedButton(
                         onClick = {
+                            verifiedIdentity = null
                             onSessionChanged(null)
                             state = OwnerAuthorizationUiState.Idle
                         },
@@ -215,11 +227,47 @@ internal fun OwnerAuthorizationCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontFamily = FontFamily.Monospace,
                     )
-                    Button(
-                        onClick = { state = OwnerAuthorizationUiState.Idle },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.retry))
+
+                    val identity = verifiedIdentity
+                    if (identity != null && current.reason.startsWith("BACKEND_")) {
+                        Button(
+                            onClick = {
+                                operationScope.launch {
+                                    try {
+                                        authorizeBackend(identity)
+                                    } catch (error: CancellationException) {
+                                        throw error
+                                    } catch (_: Throwable) {
+                                        onSessionChanged(null)
+                                        state = OwnerAuthorizationUiState.Failed(
+                                            "BACKEND_AUTHORIZATION_UNEXPECTED_ERROR",
+                                        )
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.retry_backend_authorization))
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                verifiedIdentity = null
+                                state = OwnerAuthorizationUiState.Idle
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.restart_github_sign_in))
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                verifiedIdentity = null
+                                state = OwnerAuthorizationUiState.Idle
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.retry))
+                        }
                     }
                 }
             }
@@ -235,14 +283,15 @@ internal fun OwnerAuthorizationCard(
 }
 
 @Composable
-private fun ownerAuthorizationErrorMessage(reason: String): String = when (reason) {
-    "GITHUB_CLIENT_ID_NOT_CONFIGURED" -> stringResource(R.string.error_client_id_not_configured)
-    "GITHUB_CLIENT_ID_IS_INSTALLATION_ID" -> stringResource(R.string.error_client_id_is_installation_id)
-    "GITHUB_CLIENT_ID_IS_APP_ID" -> stringResource(R.string.error_client_id_is_app_id)
-    "GITHUB_CLIENT_ID_MUST_NOT_BE_NUMERIC",
-    "GITHUB_CLIENT_ID_FORMAT_INVALID",
-    "GITHUB_CLIENT_ID_INVALID" -> stringResource(R.string.error_client_id_invalid)
-    "GITHUB_DEVICE_FLOW_ENDPOINT_NOT_FOUND" -> stringResource(R.string.error_device_flow_endpoint)
+private fun ownerAuthorizationErrorMessage(reason: String): String = when {
+    reason == "GITHUB_CLIENT_ID_NOT_CONFIGURED" -> stringResource(R.string.error_client_id_not_configured)
+    reason == "GITHUB_CLIENT_ID_IS_INSTALLATION_ID" -> stringResource(R.string.error_client_id_is_installation_id)
+    reason == "GITHUB_CLIENT_ID_IS_APP_ID" -> stringResource(R.string.error_client_id_is_app_id)
+    reason == "GITHUB_CLIENT_ID_MUST_NOT_BE_NUMERIC" ||
+        reason == "GITHUB_CLIENT_ID_FORMAT_INVALID" ||
+        reason == "GITHUB_CLIENT_ID_INVALID" -> stringResource(R.string.error_client_id_invalid)
+    reason == "GITHUB_DEVICE_FLOW_ENDPOINT_NOT_FOUND" -> stringResource(R.string.error_device_flow_endpoint)
+    reason.startsWith("BACKEND_") -> stringResource(R.string.error_backend_authorization)
     else -> stringResource(R.string.error_owner_generic)
 }
 
