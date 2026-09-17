@@ -6,8 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  actions: write
+  contents: read
 
 concurrency:
   group: miyorare-upstream-sync
@@ -654,7 +653,6 @@ jobs:
     if: always() && needs.plan.result == 'success'
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ github.token }}
       KEI_CHANGED: ${{ needs.plan.outputs.keiyoushi_changed }}
       KEI_CURRENT: ${{ needs.plan.outputs.keiyoushi_current }}
       KEI_CANDIDATE: ${{ needs.plan.outputs.keiyoushi_candidate }}
@@ -670,7 +668,6 @@ jobs:
       GEK_GUARD_RESULT: ${{ needs.gekkoushi-overlay-guard.result }}
       GEK_RESULT: ${{ needs.validate-gekkoushi.result }}
       INTEGRATION_RESULT: ${{ needs.integration.result }}
-      AUTOMATION_BRANCH: automation/upstream-sync-${{ github.run_id }}
     steps:
       - name: Checkout sync engine
         uses: actions/checkout@v5
@@ -731,23 +728,23 @@ jobs:
             echo "providers=" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Stage promoted registry on automation branch
+      - name: Upload promoted registry proposal
+        if: steps.promote.outputs.promoted == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: promoted-upstream-registry
+          path: upstream/registry.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Record PR delivery handoff
         if: steps.promote.outputs.promoted == 'true'
         shell: bash
         run: |
-          set -euo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add upstream/registry.json
-          git commit -m "Promote validated upstream updates: ${{ steps.promote.outputs.providers }}"
-
-          git fetch origin "$AUTOMATION_BRANCH" >/dev/null 2>&1 || true
-          git push --force-with-lease origin "HEAD:${AUTOMATION_BRANCH}"
-
           {
             echo '### Automation PR staging'
             echo
-            echo "Validated registry advancement staged on \`${AUTOMATION_BRANCH}\`."
-            echo 'The Source Sync Result workflow will append the matching status/outcome and open the pull request.'
-            echo 'No direct push to the protected base branch is performed.'
+            echo 'Validated registry advancement was stored as workflow evidence.'
+            echo 'The Source Sync Result workflow will combine it with atomic status/outcome and publish one automation PR.'
+            echo 'This workflow performs no repository push.'
           } >> "$GITHUB_STEP_SUMMARY"
