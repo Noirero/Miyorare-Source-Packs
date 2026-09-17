@@ -27,7 +27,11 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def verify(directory: Path, expected_tag: str | None = None) -> dict:
+def verify(
+    directory: Path,
+    expected_tag: str | None = None,
+    require_sealed_before_publish: bool = False,
+) -> dict:
     lock_path = directory / "miyorare-release-lock.json"
     checksum_path = directory / "miyorare-release-lock.sha256"
     if not lock_path.is_file() or not checksum_path.is_file():
@@ -40,6 +44,8 @@ def verify(directory: Path, expected_tag: str | None = None) -> dict:
         raise ReleaseLockError("release lock does not declare immutable=true")
     if expected_tag is not None and lock.get("tag") != expected_tag:
         raise ReleaseLockError("release lock tag mismatch")
+    if require_sealed_before_publish and lock.get("sealedBeforePublish") is not True:
+        raise ReleaseLockError("release lock does not prove seal-before-publish")
 
     checksum_line = checksum_path.read_text(encoding="utf-8").strip().split()
     if len(checksum_line) < 2 or checksum_line[1] != "miyorare-release-lock.json":
@@ -101,6 +107,7 @@ def verify(directory: Path, expected_tag: str | None = None) -> dict:
         "tag": lock.get("tag"),
         "assetCount": len(expected),
         "releaseManifestSha256": lock.get("releaseManifestSha256"),
+        "sealedBeforePublish": lock.get("sealedBeforePublish") is True,
     }
 
 
@@ -108,9 +115,18 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dir", required=True, type=Path)
     parser.add_argument("--tag")
+    parser.add_argument(
+        "--require-sealed-before-publish",
+        action="store_true",
+        help="Reject locks that do not prove they were created while the release was still draft.",
+    )
     args = parser.parse_args()
     try:
-        result = verify(args.dir, args.tag)
+        result = verify(
+            args.dir,
+            args.tag,
+            require_sealed_before_publish=args.require_sealed_before_publish,
+        )
     except (OSError, json.JSONDecodeError, ReleaseLockError) as exc:
         print(f"error: {exc}")
         return 1

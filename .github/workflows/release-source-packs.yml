@@ -406,10 +406,12 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
-  publish:
-    name: Publish official source packs
+  stage-draft:
+    name: Stage official source packs as draft
     needs: [resolve-source, build-pack, build-global]
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.draft.outputs.tag }}
     env:
       GH_TOKEN: ${{ github.token }}
       SOURCE_VERSION: ${{ inputs.version }}
@@ -485,7 +487,8 @@ jobs:
             --contract compatibility/miyorare-source-pack-contract.v1.json \
             --tag "miyorare-sources-v${SOURCE_VERSION}"
 
-      - name: Publish immutable GitHub release
+      - name: Create draft GitHub release with complete payload
+        id: draft
         shell: bash
         run: |
           set -euo pipefail
@@ -505,6 +508,109 @@ jobs:
             dist/miyorare-global-gekkoushi.jar.sha256 \
             dist/miyorare-global-pack.json \
             dist/miyorare-source-packs.json \
+            --draft \
+            --latest=false \
             --target "$GITHUB_SHA" \
             --title "Miyorare Source Packs v${SOURCE_VERSION}" \
             --notes "Official Miyorare-ID, Miyorare-EN, and Miyorare-Global packs. Built from Miyorare beta ${SOURCE_COMMIT}; stable runtime compatibility baseline Miyorare main ${RUNTIME_COMMIT} (versionCode ${RUNTIME_VERSION_CODE}, Tsuki ${TSUKI_API}); validated upstreams: UMA ${UMA_COMMIT}, Gekkoushi ${GEKKOUSHI_COMMIT}, Keiyoushi ${KEIYOUSHI_COMMIT}."
+          gh release view "$TAG" --json isDraft,isPrerelease --jq 'select(.isDraft == true and .isPrerelease == false)' >/dev/null
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  seal-draft:
+    name: Seal staged Source Pack draft
+    needs: stage-draft
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/source-pack-release-seal.yml
+    with:
+      tag: ${{ needs.stage-draft.outputs.tag }}
+
+  publish-stable:
+    name: Audit seal then publish stable release
+    needs: [resolve-source, stage-draft, seal-draft]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      attestations: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.stage-draft.outputs.tag }}
+      RUNTIME_COMMIT: ${{ needs.resolve-source.outputs.runtime_commit }}
+
+    steps:
+      - name: Checkout final release auditors
+        uses: actions/checkout@v5
+
+      - name: Require release to remain draft
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --json isDraft,isPrerelease,tagName > "$RUNNER_TEMP/release.json"
+          python3 - "$RUNNER_TEMP/release.json" <<'PY'
+          import json, os, sys
+          data = json.load(open(sys.argv[1], encoding='utf-8'))
+          if data.get('tagName') != os.environ['TAG']:
+              raise SystemExit('release tag mismatch')
+          if data.get('isDraft') is not True or data.get('isPrerelease') is True:
+              raise SystemExit('release must remain a non-prerelease draft until final audit succeeds')
+          PY
+
+      - name: Re-download complete sealed draft
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf audit
+          mkdir audit
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir audit
+          test -s audit/miyorare-release-lock.json
+          test -s audit/miyorare-release-lock.sha256
+
+      - name: Final compatibility integrity and authenticity audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/source_pack_manifest.py validate \
+            --manifest audit/miyorare-source-packs.json \
+            --contract compatibility/miyorare-source-pack-contract.v1.json \
+            --tag "$TAG"
+          MANIFEST_RUNTIME_COMMIT="$(python3 - <<'PY'
+          import json
+          print(json.load(open('audit/miyorare-source-packs.json', encoding='utf-8'))['runtimeCompatibility']['commit'])
+          PY
+          )"
+          test "$MANIFEST_RUNTIME_COMMIT" = "$RUNTIME_COMMIT"
+          curl --fail --silent --show-error --location \
+            "https://raw.githubusercontent.com/Noirero/Miyorare/${RUNTIME_COMMIT}/compatibility/miyorare-source-pack-contract.v1.json" \
+            -o "$RUNNER_TEMP/miyorare-contract.json"
+          cmp --silent compatibility/miyorare-source-pack-contract.v1.json "$RUNNER_TEMP/miyorare-contract.json" || {
+            echo "::error::Release contract differs from the exact stable Miyorare runtime baseline."
+            exit 1
+          }
+          gh attestation verify audit/miyorare-release-lock.json --repo "$GITHUB_REPOSITORY"
+          python3 tools/verify_release_lock.py \
+            --dir audit \
+            --tag "$TAG" \
+            --require-sealed-before-publish
+
+      - name: Publish audited stable release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --json isDraft,isPrerelease,tagName \
+            --jq 'select(.isDraft == false and .isPrerelease == false)' >/dev/null
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo '# Stable Source Pack publication'
+            echo
+            echo "Tag: \`$TAG\`"
+            echo 'The release remained draft through payload upload, manifest validation, release-lock generation, OIDC attestation, and remote re-download audit.'
+            echo 'Stable publication occurred only after seal-before-publish verification succeeded.'
+          } >> "$GITHUB_STEP_SUMMARY"
