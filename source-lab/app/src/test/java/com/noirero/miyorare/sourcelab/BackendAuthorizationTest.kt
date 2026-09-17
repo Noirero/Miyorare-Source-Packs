@@ -23,6 +23,27 @@ class BackendAuthorizationTest {
     }
 
     @Test
+    fun legacyGithubOidcSubjectIsAlsoAccepted() {
+        val claims = validClaims().put(
+            "sub",
+            "repo:Noirero/Miyorare-Source-Packs:ref:refs/heads/main",
+        )
+        assertNull(SourceLabOidcClaimsValidator.validate(claims, challenge, runId, now))
+    }
+
+    @Test
+    fun differentSubjectFailsClosed() {
+        val claims = validClaims().put(
+            "sub",
+            "repo:someone/else:ref:refs/heads/main",
+        )
+        assertEquals(
+            "BACKEND_CLAIM_SUBJECT_MISMATCH",
+            SourceLabOidcClaimsValidator.validate(claims, challenge, runId, now),
+        )
+    }
+
+    @Test
     fun differentActorFailsClosed() {
         val claims = validClaims().put("actor_id", "42")
         assertEquals(
@@ -75,7 +96,10 @@ class BackendAuthorizationTest {
     private fun validClaims() = JSONObject()
         .put("iss", "https://token.actions.githubusercontent.com")
         .put("aud", "miyorare-source-lab:$challenge")
-        .put("sub", "repo:Noirero/Miyorare-Source-Packs:ref:refs/heads/main")
+        .put(
+            "sub",
+            "repo:Noirero@149634319/Miyorare-Source-Packs@1367256631:ref:refs/heads/main",
+        )
         .put("repository", "Noirero/Miyorare-Source-Packs")
         .put("repository_id", SourceLabAccessPolicy.repositoryId.toString())
         .put("repository_owner_id", SourceLabAccessPolicy.ownerGithubUserId.toString())

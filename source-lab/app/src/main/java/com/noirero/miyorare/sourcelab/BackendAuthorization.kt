@@ -455,7 +455,9 @@ internal object SourceLabOidcClaimsValidator {
     private const val ownerId = "149634319"
     private const val workflowRef =
         "Noirero/Miyorare-Source-Packs/.github/workflows/source-lab-backend-authorization.yml@refs/heads/main"
-    private const val subject = "repo:Noirero/Miyorare-Source-Packs:ref:refs/heads/main"
+    private const val idBoundSubject =
+        "repo:Noirero@149634319/Miyorare-Source-Packs@1367256631:ref:refs/heads/main"
+    private const val legacySubject = "repo:Noirero/Miyorare-Source-Packs:ref:refs/heads/main"
 
     fun validate(
         payload: JSONObject,
@@ -477,7 +479,10 @@ internal object SourceLabOidcClaimsValidator {
         if (payload.optString("workflow") != "Source Lab Backend Authorization") {
             return "BACKEND_CLAIM_WORKFLOW_MISMATCH"
         }
-        if (payload.optString("sub") != subject) return "BACKEND_CLAIM_SUBJECT_MISMATCH"
+        val subject = payload.optString("sub")
+        if (subject != idBoundSubject && subject != legacySubject) {
+            return "BACKEND_CLAIM_SUBJECT_MISMATCH"
+        }
         if (payload.optString("run_id") != expectedRunId.toString()) return "BACKEND_CLAIM_RUN_ID_MISMATCH"
 
         val exp = payload.optLong("exp", 0L)
