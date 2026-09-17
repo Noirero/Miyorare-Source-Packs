@@ -38,7 +38,7 @@ jobs:
         with:
           path: source-packs
 
-      - name: Validate version and release tag
+      - name: Validate version release and tag immutability
         shell: bash
         run: |
           set -euo pipefail
@@ -47,8 +47,9 @@ jobs:
             exit 1
           }
           TAG="miyorare-sources-v${SOURCE_VERSION}"
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "::error::Release $TAG already exists. Source-pack releases are immutable."
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+             git -C source-packs ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::Release or tag $TAG already exists. Source-pack releases are immutable."
             exit 1
           fi
 
@@ -70,18 +71,36 @@ jobs:
           print(f"keiyoushi_commit={providers['keiyoushi']['lastKnownGood']}")
           PY
 
-      - name: Checkout Miyorare beta builder
+      - name: Resolve pinned Miyorare builder baseline
+        id: builder
+        shell: bash
+        run: |
+          set -euo pipefail
+          commit="$(python3 source-packs/tools/validate_builder_baseline.py \
+            --baseline source-packs/compatibility/miyorare-builder-baseline.json \
+            --contract source-packs/compatibility/miyorare-source-pack-contract.v1.json \
+            --print-commit)"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact pinned Miyorare builder
         uses: actions/checkout@v5
         with:
           repository: Noirero/Miyorare
-          ref: beta
+          ref: ${{ steps.builder.outputs.commit }}
           path: miyorare
           fetch-depth: 1
 
-      - name: Pin Miyorare beta builder commit
+      - name: Verify pinned Miyorare builder commit
         id: source
         shell: bash
-        run: echo "commit=$(git -C miyorare rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          actual="$(git -C miyorare rev-parse HEAD)"
+          test "$actual" = '${{ steps.builder.outputs.commit }}' || {
+            echo "::error::Checked-out Miyorare builder does not match pinned baseline."
+            exit 1
+          }
+          echo "commit=$actual" >> "$GITHUB_OUTPUT"
 
       - name: Checkout stable Miyorare compatibility baseline
         uses: actions/checkout@v5
@@ -109,6 +128,7 @@ jobs:
           from pathlib import Path
 
           contract = json.loads(Path('source-packs/compatibility/miyorare-source-pack-contract.v1.json').read_text(encoding='utf-8'))
+          baseline = json.loads(Path('source-packs/compatibility/miyorare-builder-baseline.json').read_text(encoding='utf-8'))
           stable_gradle = Path('miyorare-stable/app/build.gradle').read_text(encoding='utf-8')
           version_match = re.search(r'(?m)^\s*versionCode\s*=\s*(\d+)\s*$', stable_gradle)
           if version_match is None:
@@ -119,11 +139,13 @@ jobs:
 
           expected_api = contract['compatibility']['tsukiApi']
           stable_packs = json.loads(Path('miyorare-stable/extensions/miyorare-sources/packs.json').read_text(encoding='utf-8'))
-          beta_packs = json.loads(Path('miyorare/extensions/miyorare-sources/packs.json').read_text(encoding='utf-8'))
+          builder_packs = json.loads(Path('miyorare/extensions/miyorare-sources/packs.json').read_text(encoding='utf-8'))
           if stable_packs.get('tsukiApi') != expected_api:
               raise SystemExit('stable Miyorare Tsuki API does not match compatibility contract')
-          if beta_packs.get('tsukiApi') != expected_api:
-              raise SystemExit('beta builder Tsuki API does not match stable compatibility contract')
+          if baseline.get('tsukiApi') != expected_api or builder_packs.get('tsukiApi') != expected_api:
+              raise SystemExit('pinned builder Tsuki API does not match stable compatibility contract')
+          if baseline.get('compatibilityEpoch') != contract['compatibility']['compatibilityEpoch']:
+              raise SystemExit('pinned builder compatibility epoch does not match contract')
 
           commit = subprocess.check_output(['git', '-C', 'miyorare-stable', 'rev-parse', 'HEAD'], text=True).strip()
           print(f'commit={commit}')
@@ -147,7 +169,7 @@ jobs:
         with:
           path: source-packs
 
-      - name: Checkout pinned Miyorare beta builder
+      - name: Checkout exact pinned Miyorare builder
         uses: actions/checkout@v5
         with:
           repository: Noirero/Miyorare
@@ -304,7 +326,7 @@ jobs:
         with:
           path: source-packs
 
-      - name: Checkout pinned Miyorare beta builder
+      - name: Checkout exact pinned Miyorare builder
         uses: actions/checkout@v5
         with:
           repository: Noirero/Miyorare
@@ -435,7 +457,7 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Verify release payload
+      - name: Verify release payload and immutable tag namespace
         shell: bash
         run: |
           set -euo pipefail
@@ -460,8 +482,9 @@ jobs:
           test -f "dist/miyorare-global-gekkoushi.jar.sha256"
           (cd dist && sha256sum -c "miyorare-global-gekkoushi.jar.sha256")
           test -f "dist/miyorare-global-pack.json"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "::error::Release $TAG already exists. Source-pack releases are immutable."
+          if gh release view "$TAG" >/dev/null 2>&1 || \
+             git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::Release or tag $TAG already exists. Source-pack releases are immutable."
             exit 1
           fi
 
@@ -512,7 +535,7 @@ jobs:
             --latest=false \
             --target "$GITHUB_SHA" \
             --title "Miyorare Source Packs v${SOURCE_VERSION}" \
-            --notes "Official Miyorare-ID, Miyorare-EN, and Miyorare-Global packs. Built from Miyorare beta ${SOURCE_COMMIT}; stable runtime compatibility baseline Miyorare main ${RUNTIME_COMMIT} (versionCode ${RUNTIME_VERSION_CODE}, Tsuki ${TSUKI_API}); validated upstreams: UMA ${UMA_COMMIT}, Gekkoushi ${GEKKOUSHI_COMMIT}, Keiyoushi ${KEIYOUSHI_COMMIT}."
+            --notes "Official Miyorare-ID, Miyorare-EN, and Miyorare-Global packs. Built from pinned Miyorare builder ${SOURCE_COMMIT} (beta lineage); stable runtime compatibility baseline Miyorare main ${RUNTIME_COMMIT} (versionCode ${RUNTIME_VERSION_CODE}, Tsuki ${TSUKI_API}); validated upstreams: UMA ${UMA_COMMIT}, Gekkoushi ${GEKKOUSHI_COMMIT}, Keiyoushi ${KEIYOUSHI_COMMIT}."
           gh release view "$TAG" --json isDraft,isPrerelease --jq 'select(.isDraft == true and .isPrerelease == false)' >/dev/null
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
@@ -611,6 +634,7 @@ jobs:
             echo '# Stable Source Pack publication'
             echo
             echo "Tag: \`$TAG\`"
+            echo "Pinned builder: \`${{ needs.resolve-source.outputs.source_commit }}\`"
             echo 'The release remained draft through payload upload, manifest validation, release-lock generation, OIDC attestation, and remote re-download audit.'
             echo 'Stable publication occurred only after seal-before-publish verification succeeded.'
           } >> "$GITHUB_STEP_SUMMARY"
