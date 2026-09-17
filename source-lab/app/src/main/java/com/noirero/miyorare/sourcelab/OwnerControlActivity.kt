@@ -235,8 +235,8 @@ private fun OwnerControlScreen() {
                     )
                 }
                 TextButton(
-                    onClick = { context.startActivity(Intent(context, SourceLabDiagnosticsActivity::class.java)) },
-                ) { Text("Diagnostics") }
+                    onClick = { context.startActivity(Intent(context, SettingsActivity::class.java)) },
+                ) { Text("Settings") }
             }
         }
 
