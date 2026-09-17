@@ -67,6 +67,19 @@ internal data class LivePublishState(
     val tag: String,
 )
 
+internal data class LiveAutomationCandidate(
+    val current: String,
+    val candidate: String,
+)
+
+internal data class LiveAutomationState(
+    val state: String,
+    val reason: String,
+    val ownerActionRequired: Boolean,
+    val workflowRunId: Long?,
+    val candidates: Map<String, LiveAutomationCandidate>,
+)
+
 internal data class LiveFarmRun(
     val id: Long,
     val runNumber: Int,
@@ -89,6 +102,7 @@ internal data class LiveFarmSnapshot(
     val targetSize: Int,
     val branch: String,
     val retrievedAtEpochMs: Long,
+    val automation: LiveAutomationState? = null,
 )
 
 internal object SourceLabRepository {
@@ -158,6 +172,7 @@ internal object SourceLabRepository {
             targetSize = scope.optInt("targetSize", sources.size),
             branch = farmBranch,
             retrievedAtEpochMs = System.currentTimeMillis(),
+            automation = status.optJSONObject("automation")?.toAutomationState(),
         )
     }
 
@@ -211,6 +226,28 @@ internal object SourceLabRepository {
         )
     }
 
+    private fun JSONObject.toAutomationState(): LiveAutomationState {
+        val candidatesObject = optJSONObject("candidates")
+        val candidates = if (candidatesObject == null) {
+            emptyMap()
+        } else {
+            candidatesObject.keys().asSequence().mapNotNull { provider ->
+                val item = candidatesObject.optJSONObject(provider) ?: return@mapNotNull null
+                val current = item.optString("current")
+                val candidate = item.optString("candidate")
+                if (current.isBlank() || candidate.isBlank()) return@mapNotNull null
+                provider to LiveAutomationCandidate(current = current, candidate = candidate)
+            }.toMap().toSortedMap()
+        }
+        return LiveAutomationState(
+            state = optString("state", "UNKNOWN"),
+            reason = optString("reason", "UNKNOWN"),
+            ownerActionRequired = optBoolean("ownerActionRequired", false),
+            workflowRunId = optLong("workflowRunId", -1L).takeIf { it > 0L },
+            candidates = candidates,
+        )
+    }
+
     private fun JSONObject.toEvidenceBinding() = LiveEvidenceBinding(
         farmEvidenceSha256 = getString("farmEvidenceSha256"),
         gateSha256 = getString("gateSha256"),
@@ -219,8 +256,7 @@ internal object SourceLabRepository {
     )
 
     private fun loadRecentFarmRuns(): List<LiveFarmRun> {
-        val url = "$apiBase/actions/workflows/compatibility-farm-accelerated.yml/runs" +
-            "?branch=$farmBranch&per_page=5"
+        val url = "$apiBase/actions/workflows/source-lab-auto-farm.yml/runs?branch=main&per_page=5"
         val payload = JSONObject(fetchText(url))
         val runs = payload.getJSONArray("workflow_runs")
         return buildList {
