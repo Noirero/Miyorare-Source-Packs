@@ -52,11 +52,27 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
+
+          registry = json.loads(Path('compatibility/source-registry.json').read_text(encoding='utf-8'))
           result = json.loads(Path('build/parser-family-preflight.json').read_text(encoding='utf-8'))
+          sources = registry['sources']
+          required = [
+              source for source in sources
+              if source.get('compatibilityEnrollment', {}).get('parserCoverageRequired', True)
+          ]
+          pending = [source for source in sources if source not in required]
+          required_memberships = sum(len(source['providers']) for source in required)
+
           assert result['status'] == 'VALID', result
-          assert result['requiredSourceCount'] == 12, result
-          assert result['pendingSourceCount'] == 1, result
-          assert result['requiredMembershipCount'] == 21, result
+          assert result['requiredSourceCount'] == len(required), result
+          assert result['pendingSourceCount'] == len(pending), result
+          assert result['requiredMembershipCount'] == required_memberships, result
+          print(json.dumps({
+              'registeredSources': len(sources),
+              'requiredSources': len(required),
+              'pendingSources': len(pending),
+              'requiredMemberships': required_memberships,
+          }, sort_keys=True))
           PY
 
       - name: Run enrollment gate unit tests
