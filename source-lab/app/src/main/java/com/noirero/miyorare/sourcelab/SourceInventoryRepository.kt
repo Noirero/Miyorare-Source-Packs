@@ -1,8 +1,10 @@
 package com.noirero.miyorare.sourcelab
 
+import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -53,6 +55,7 @@ internal data class FarmInventorySourceState(
 internal data class FarmInventorySnapshot(
     val sources: List<FarmInventorySourceState>,
     val branch: String,
+    val branchCommit: String,
     val retrievedAtEpochMs: Long,
 )
 
@@ -60,7 +63,11 @@ internal data class SourceInventorySnapshot(
     val sources: List<InventorySource>,
     val providerCommits: Map<String, String>,
     val branch: String,
+    val branchCommit: String,
     val retrievedAtEpochMs: Long,
+    val fromCache: Boolean = false,
+    val cacheAgeMillis: Long = 0L,
+    val staleCacheFallback: Boolean = false,
 ) {
     fun summary(farmCanonicalIds: Set<String>): SourceInventorySummary {
         val inFarm = sources.count { it.canonicalId in farmCanonicalIds }
@@ -82,22 +89,105 @@ internal data class SourceInventorySummary(
 
 internal object SourceInventoryRepository {
     const val inventoryBranch = "source-inventory-live"
+    internal const val cacheTtlMillis = 30L * 60L * 1000L
 
     private const val repository = "Noirero/Miyorare-Source-Packs"
-    private const val inventoryUrl =
-        "https://raw.githubusercontent.com/$repository/$inventoryBranch/inventory/source-inventory.json"
-    private const val farmUrl =
-        "https://raw.githubusercontent.com/$repository/${SourceLabRepository.farmBranch}/compatibility/source-registry.json"
+    private const val apiBase = "https://api.github.com/repos/$repository"
+    private const val inventoryPath = "inventory/source-inventory.json"
+    private const val farmPath = "compatibility/source-registry.json"
+    private const val cacheDirectory = "source-inventory-cache"
+    private const val cachePayloadName = "source-inventory.json"
+    private const val cacheMetadataName = "metadata.json"
 
-    suspend fun loadInventory(): SourceInventorySnapshot = withContext(Dispatchers.IO) {
-        parseInventory(fetchText(inventoryUrl))
+    @Volatile
+    private var memorySnapshot: SourceInventorySnapshot? = null
+
+    suspend fun loadInventory(
+        context: Context,
+        forceRefresh: Boolean = false,
+    ): SourceInventorySnapshot = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        val memory = memorySnapshot
+        if (!forceRefresh && memory != null && now - memory.retrievedAtEpochMs <= cacheTtlMillis) {
+            return@withContext memory.copy(
+                fromCache = true,
+                cacheAgeMillis = (now - memory.retrievedAtEpochMs).coerceAtLeast(0L),
+            )
+        }
+
+        val disk = readDiskCache(context)
+        if (!forceRefresh && disk != null && now - disk.savedAtEpochMs <= cacheTtlMillis) {
+            return@withContext parseInventory(
+                disk.payload,
+                branchCommit = disk.commit,
+                retrievedAtEpochMs = disk.savedAtEpochMs,
+                fromCache = true,
+                cacheAgeMillis = (now - disk.savedAtEpochMs).coerceAtLeast(0L),
+            ).also { memorySnapshot = it }
+        }
+
+        try {
+            val liveCommit = fetchBranchHead(inventoryBranch)
+            val reusableMemory = memorySnapshot?.takeIf { it.branchCommit == liveCommit }
+            if (reusableMemory != null) {
+                val refreshed = reusableMemory.copy(
+                    retrievedAtEpochMs = now,
+                    fromCache = true,
+                    cacheAgeMillis = 0L,
+                    staleCacheFallback = false,
+                )
+                memorySnapshot = refreshed
+                return@withContext refreshed
+            }
+            if (disk != null && disk.commit == liveCommit) {
+                writeDiskCache(context, liveCommit, disk.payload, now)
+                return@withContext parseInventory(
+                    disk.payload,
+                    branchCommit = liveCommit,
+                    retrievedAtEpochMs = now,
+                    fromCache = true,
+                    cacheAgeMillis = 0L,
+                ).also { memorySnapshot = it }
+            }
+
+            val payload = fetchText(rawUrl(liveCommit, inventoryPath), "Source Inventory")
+            writeDiskCache(context, liveCommit, payload, now)
+            parseInventory(
+                payload,
+                branchCommit = liveCommit,
+                retrievedAtEpochMs = now,
+                fromCache = false,
+                cacheAgeMillis = 0L,
+            ).also { memorySnapshot = it }
+        } catch (error: Throwable) {
+            if (disk == null) throw error
+            parseInventory(
+                disk.payload,
+                branchCommit = disk.commit,
+                retrievedAtEpochMs = disk.savedAtEpochMs,
+                fromCache = true,
+                cacheAgeMillis = (now - disk.savedAtEpochMs).coerceAtLeast(0L),
+                staleCacheFallback = true,
+            ).also { memorySnapshot = it }
+        }
     }
 
     suspend fun loadFarmMembership(): FarmInventorySnapshot = withContext(Dispatchers.IO) {
-        parseFarmRegistry(fetchText(farmUrl))
+        val commit = fetchBranchHead(SourceLabRepository.farmBranch)
+        parseFarmRegistry(
+            payload = fetchText(rawUrl(commit, farmPath), "Farm membership"),
+            branchCommit = commit,
+        )
     }
 
-    internal fun parseInventory(payload: String): SourceInventorySnapshot {
+    internal fun parseInventory(
+        payload: String,
+        branchCommit: String = "unknown",
+        retrievedAtEpochMs: Long = System.currentTimeMillis(),
+        fromCache: Boolean = false,
+        cacheAgeMillis: Long = 0L,
+        staleCacheFallback: Boolean = false,
+    ): SourceInventorySnapshot {
         val root = JSONObject(payload)
         require(root.optInt("schemaVersion") == 1) { "Unsupported source inventory schema" }
         require(root.optString("kind") == "MIYORARE_SOURCE_INVENTORY") { "Invalid source inventory kind" }
@@ -144,7 +234,7 @@ internal object SourceInventoryRepository {
                         needsAttention = source.optBoolean("needsAttention", false),
                         attentionReasons = reasons,
                         providers = providers,
-                    )
+                    ),
                 )
             }
         }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.displayName })
@@ -153,11 +243,18 @@ internal object SourceInventoryRepository {
             sources = sources,
             providerCommits = providerCommits,
             branch = inventoryBranch,
-            retrievedAtEpochMs = System.currentTimeMillis(),
+            branchCommit = branchCommit,
+            retrievedAtEpochMs = retrievedAtEpochMs,
+            fromCache = fromCache,
+            cacheAgeMillis = cacheAgeMillis,
+            staleCacheFallback = staleCacheFallback,
         )
     }
 
-    internal fun parseFarmRegistry(payload: String): FarmInventorySnapshot {
+    internal fun parseFarmRegistry(
+        payload: String,
+        branchCommit: String = "unknown",
+    ): FarmInventorySnapshot {
         val root = JSONObject(payload)
         require(root.optInt("schemaVersion") == 1) { "Unsupported Farm registry schema" }
         val defaults = root.optJSONObject("defaults") ?: JSONObject()
@@ -190,13 +287,14 @@ internal object SourceInventoryRepository {
                                 validatedCanonicalFallback = it.optBoolean("validatedCanonicalFallback", false),
                             )
                         },
-                    )
+                    ),
                 )
             }
         }
         return FarmInventorySnapshot(
             sources = sources,
             branch = SourceLabRepository.farmBranch,
+            branchCommit = branchCommit,
             retrievedAtEpochMs = System.currentTimeMillis(),
         )
     }
@@ -226,11 +324,21 @@ internal object SourceInventoryRepository {
             },
         )
 
-    private fun fetchText(url: String): String {
+    private fun fetchBranchHead(branch: String): String {
+        val payload = JSONObject(fetchText("$apiBase/branches/$branch", "branch head"))
+        val sha = payload.getJSONObject("commit").getString("sha")
+        require(sha.matches(Regex("^[0-9a-f]{40}$"))) { "Invalid branch commit SHA" }
+        return sha
+    }
+
+    private fun rawUrl(commit: String, path: String): String =
+        "https://raw.githubusercontent.com/$repository/$commit/$path"
+
+    private fun fetchText(url: String, label: String): String {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 10_000
-            readTimeout = 15_000
+            readTimeout = 20_000
             setRequestProperty("Accept", "application/json")
             setRequestProperty("User-Agent", "Miyorare-Source-Lab/${BuildConfig.VERSION_NAME}")
             useCaches = false
@@ -238,11 +346,62 @@ internal object SourceInventoryRepository {
         return try {
             val statusCode = connection.responseCode
             if (statusCode !in 200..299) {
-                error("HTTP $statusCode while reading Source Inventory")
+                error("HTTP $statusCode while reading $label")
             }
             connection.inputStream.bufferedReader().use { it.readText() }
         } finally {
             connection.disconnect()
         }
     }
+
+    private fun readDiskCache(context: Context): DiskCache? {
+        val directory = File(context.cacheDir, cacheDirectory)
+        val payloadFile = File(directory, cachePayloadName)
+        val metadataFile = File(directory, cacheMetadataName)
+        if (!payloadFile.isFile || !metadataFile.isFile) return null
+        return runCatching {
+            val metadata = JSONObject(metadataFile.readText())
+            val commit = metadata.getString("commit")
+            val savedAt = metadata.getLong("savedAtEpochMs")
+            require(commit.matches(Regex("^[0-9a-f]{40}$")))
+            DiskCache(commit, savedAt, payloadFile.readText())
+        }.getOrNull()
+    }
+
+    private fun writeDiskCache(
+        context: Context,
+        commit: String,
+        payload: String,
+        savedAtEpochMs: Long,
+    ) {
+        val directory = File(context.cacheDir, cacheDirectory)
+        if (!directory.exists()) directory.mkdirs()
+        val payloadFile = File(directory, cachePayloadName)
+        val metadataFile = File(directory, cacheMetadataName)
+        val payloadTemp = File(directory, "$cachePayloadName.tmp")
+        val metadataTemp = File(directory, "$cacheMetadataName.tmp")
+        payloadTemp.writeText(payload)
+        metadataTemp.writeText(
+            JSONObject()
+                .put("commit", commit)
+                .put("savedAtEpochMs", savedAtEpochMs)
+                .toString(),
+        )
+        if (!payloadTemp.renameTo(payloadFile)) {
+            payloadFile.writeText(payload)
+            payloadTemp.delete()
+        }
+        if (!metadataTemp.renameTo(metadataFile)) {
+            metadataFile.writeText(
+                JSONObject().put("commit", commit).put("savedAtEpochMs", savedAtEpochMs).toString(),
+            )
+            metadataTemp.delete()
+        }
+    }
+
+    private data class DiskCache(
+        val commit: String,
+        val savedAtEpochMs: Long,
+        val payload: String,
+    )
 }
