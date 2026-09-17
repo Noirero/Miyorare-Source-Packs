@@ -1,0 +1,120 @@
+name: Source Inventory CI
+
+on:
+  push:
+    branches:
+      - 'source-inventory-*'
+    paths:
+      - 'tools/source_inventory.py'
+      - 'tests/test_source_inventory.py'
+      - '.github/workflows/source-inventory-*.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'tools/source_inventory.py'
+      - 'tests/test_source_inventory.py'
+      - '.github/workflows/source-inventory-*.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate automatic source inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout proposed inventory engine
+        uses: actions/checkout@v5
+        with:
+          path: source-packs
+
+      - name: Checkout Miyorare canonical manifests
+        uses: actions/checkout@v5
+        with:
+          repository: Noirero/Miyorare
+          ref: beta
+          path: miyorare
+          fetch-depth: 1
+
+      - name: Checkout Compatibility Farm membership
+        uses: actions/checkout@v5
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 1
+
+      - name: Checkout Keiyoushi
+        uses: actions/checkout@v5
+        with:
+          repository: keiyoushi/extensions-source
+          ref: main
+          path: upstream-keiyoushi
+          fetch-depth: 1
+
+      - name: Checkout UMA
+        uses: actions/checkout@v5
+        with:
+          repository: InvalidDavid/UMA
+          ref: master
+          path: upstream-uma
+          fetch-depth: 1
+
+      - name: Checkout Gekkoushi
+        uses: actions/checkout@v5
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: master
+          path: upstream-gekkoushi
+          fetch-depth: 1
+
+      - name: Run inventory unit tests
+        working-directory: source-packs
+        run: |
+          python3 -m unittest discover -s tests -p 'test_source_inventory.py' -v
+          python3 -m py_compile tools/source_inventory.py
+
+      - name: Build inventory from real upstream trees
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 source-packs/tools/source_inventory.py build \
+            --keiyoushi-root upstream-keiyoushi \
+            --uma-root upstream-uma \
+            --gekkoushi-root upstream-gekkoushi \
+            --aliases miyorare/extensions/miyorare-sources/multi-upstream.json \
+            --farm-registry farm/compatibility/source-registry.json \
+            --keiyoushi-commit "$(git -C upstream-keiyoushi rev-parse HEAD)" \
+            --uma-commit "$(git -C upstream-uma rev-parse HEAD)" \
+            --gekkoushi-commit "$(git -C upstream-gekkoushi rev-parse HEAD)" \
+            --output build/source-inventory.json
+          python3 source-packs/tools/source_inventory.py validate \
+            --inventory build/source-inventory.json
+
+      - name: Verify discovery coverage and Farm separation
+        shell: python {0}
+        run: |
+          import json
+          from pathlib import Path
+
+          inventory = json.loads(Path('build/source-inventory.json').read_text(encoding='utf-8'))
+          farm = json.loads(Path('farm/compatibility/source-registry.json').read_text(encoding='utf-8'))
+          if inventory.get('informationalOnly') is not True:
+              raise SystemExit('inventory must be informational only')
+          provider_mappings = inventory.get('stats', {}).get('providerMappings', 0)
+          if provider_mappings <= len(farm.get('sources', [])):
+              raise SystemExit('inventory did not expand beyond current Farm membership')
+          discovered = {provider for item in inventory['sources'] for provider in item['providers']}
+          expected = {'keiyoushi', 'uma', 'gekkoushi'}
+          if discovered != expected:
+              raise SystemExit(f'provider coverage mismatch: {sorted(discovered)}')
+          print(json.dumps(inventory['stats'], sort_keys=True))
+
+      - name: Upload generated inventory for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-inventory-preview
+          path: build/source-inventory.json
+          if-no-files-found: error
+          retention-days: 7
