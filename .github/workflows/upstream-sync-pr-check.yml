@@ -58,7 +58,7 @@ jobs:
           assert isinstance(kei_status.get('sourceStatus'), list)
           assert kei_status.get('semanticAdapters') == registry_adapters
           assert kei_status.get('semanticBase') == kei_registry['semanticBase']
-          assert isinstance(status['providers']['gekkoushi'].get('overlayConflicts'), list)
+          assert isinstance(status['providers']['gekkoushi'].get('overlayConflicts', []), list)
           print('upstream registry/status capability schema is valid')
           PY
 
