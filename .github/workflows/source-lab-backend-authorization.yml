@@ -65,6 +65,9 @@ jobs:
           import os
           from pathlib import Path
 
+          # Keep the legacy capability array unchanged so already-installed
+          # Source Lab versions remain able to parse schema v1. New capabilities
+          # are advertised separately and are opt-in for newer clients.
           payload = {
               "schemaVersion": 1,
               "challenge": os.environ["SOURCE_LAB_CHALLENGE"],
@@ -80,6 +83,8 @@ jobs:
                   "PROMOTE",
                   "SIGN",
                   "PUBLISH",
+              ],
+              "optionalCapabilities": [
                   "ADD_TO_FARM",
               ],
           }
@@ -122,9 +127,12 @@ jobs:
               raise SystemExit("metadata challenge mismatch")
           if metadata["runId"] != os.environ["GITHUB_RUN_ID"]:
               raise SystemExit("metadata run id mismatch")
-          expected = {"RUN_FARM", "APPROVE", "PROMOTE", "SIGN", "PUBLISH", "ADD_TO_FARM"}
-          if set(metadata.get("capabilities", [])) != expected:
-              raise SystemExit("metadata capability set mismatch")
+          legacy = {"RUN_FARM", "APPROVE", "PROMOTE", "SIGN", "PUBLISH"}
+          optional = {"ADD_TO_FARM"}
+          if set(metadata.get("capabilities", [])) != legacy:
+              raise SystemExit("legacy metadata capability set mismatch")
+          if set(metadata.get("optionalCapabilities", [])) != optional:
+              raise SystemExit("optional metadata capability set mismatch")
           PY
         env:
           SOURCE_LAB_CHALLENGE: ${{ inputs.challenge }}
@@ -204,9 +212,12 @@ jobs:
                   raise SystemExit("artifact challenge mismatch")
               if metadata.get("runId") != os.environ["GITHUB_RUN_ID"]:
                   raise SystemExit("artifact run id mismatch")
-              expected_capabilities = {"RUN_FARM", "APPROVE", "PROMOTE", "SIGN", "PUBLISH", "ADD_TO_FARM"}
-              if set(metadata.get("capabilities", [])) != expected_capabilities:
-                  raise SystemExit("artifact capability set mismatch")
+              legacy = {"RUN_FARM", "APPROVE", "PROMOTE", "SIGN", "PUBLISH"}
+              optional = {"ADD_TO_FARM"}
+              if set(metadata.get("capabilities", [])) != legacy:
+                  raise SystemExit("artifact legacy capability set mismatch")
+              if set(metadata.get("optionalCapabilities", [])) != optional:
+                  raise SystemExit("artifact optional capability set mismatch")
 
-          print("Authorization artifact is complete and Android ZipInputStream compatible.")
+          print("Authorization artifact is complete, backward-compatible, and Android ZipInputStream compatible.")
           PY
