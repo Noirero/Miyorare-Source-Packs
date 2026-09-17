@@ -39,7 +39,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class OwnerControlActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -94,7 +96,7 @@ private fun OwnerControlScreen() {
     LaunchedEffect(refreshKey) {
         state = OwnerDashboardState.Loading
         state = try {
-            val snapshot = SourceLabRepository.loadSnapshot()
+            val snapshot = withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
             val control = SourceLabControlClient.resolveState(context, snapshot)
             OwnerDashboardState.Ready(snapshot, control)
         } catch (error: SourceLabControlException) {
