@@ -14,18 +14,22 @@ on:
       - 'tools/approval_evidence.py'
       - 'tools/source_inventory_bulk_enroll.py'
       - 'tools/source_pending_worker.py'
+      - 'tools/source_live_parser_harness.py'
       - 'tests/**'
   push:
     branches:
       - 'source-lab-owner-control-plane-*'
       - 'source-lab-auto-enroll-*'
       - 'source-lab-autonomous-pending-*'
+      - 'source-lab-real-parser-*'
     paths:
       - '.github/workflows/source-lab-*.yml'
       - 'tools/source_inventory_bulk_enroll.py'
       - 'tools/source_pending_worker.py'
+      - 'tools/source_live_parser_harness.py'
       - 'tests/test_source_inventory_bulk_enroll.py'
       - 'tests/test_source_pending_worker.py'
+      - 'tests/test_source_live_parser_harness.py'
 
 permissions:
   contents: read
@@ -91,9 +95,13 @@ jobs:
                   '149634319',
                   'compatibility-farm-foundation',
                   'source_pending_worker.py',
+                  'source_live_parser_harness.py',
                   'pending-worker-state.json',
                   'buildJar --no-daemon',
                   'compileDebugKotlin',
+                  'testDebugUnitTest',
+                  'live-parser-results.json',
+                  'finalize',
                   '--fail-threshold 3',
                   'discarding stale batch state',
               ],
@@ -107,7 +115,10 @@ jobs:
 
           worker = Path('tools/source_pending_worker.py').read_text(encoding='utf-8')
           for marker in (
+              'PARSER_PENDING',
               'READY_FOR_APPROVAL',
+              'REAL_PARSER_PASS',
+              'REAL_PARSER_BLOCKED',
               'NEEDS_ATTENTION',
               'WAITING_FOR_APPROVAL',
               'ownerActionRequired',
@@ -117,6 +128,22 @@ jobs:
           ):
               if marker not in worker:
                   raise SystemExit(f'source_pending_worker.py missing state contract marker: {marker}')
+
+          harness = Path('tools/source_live_parser_harness.py').read_text(encoding='utf-8')
+          for marker in (
+              'real-live-parser',
+              'LiveMangaLoaderContext',
+              'parser.getList',
+              'parser.getDetails',
+              'parser.getPages',
+              'popularMangaRequest',
+              'mangaDetailsRequest',
+              'chapterListRequest',
+              'pageListRequest',
+              'AUTH_REQUIRED',
+          ):
+              if marker not in harness:
+                  raise SystemExit(f'source_live_parser_harness.py missing real-parser marker: {marker}')
 
           auth = (root / 'source-lab-backend-authorization.yml').read_text(encoding='utf-8')
           for capability in ('RUN_FARM', 'APPROVE', 'PROMOTE', 'SIGN', 'PUBLISH', 'ADD_TO_FARM'):
@@ -167,9 +194,10 @@ jobs:
           python3 -m py_compile tools/source_inventory_bulk_enroll.py
           python3 tests/test_source_inventory_bulk_enroll.py
 
-      - name: Test autonomous PENDING queue worker
+      - name: Test autonomous PENDING queue worker and parser gate
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m py_compile tools/source_pending_worker.py
+          python3 -m py_compile tools/source_pending_worker.py tools/source_live_parser_harness.py
           python3 tests/test_source_pending_worker.py
+          python3 tests/test_source_live_parser_harness.py
