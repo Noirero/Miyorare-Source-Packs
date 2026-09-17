@@ -262,7 +262,7 @@ private fun OwnerControlScreen() {
                     snapshot = snapshot,
                     availability = control.actions.getValue(SourceLabControlAction.RUN_FARM),
                     running = runningAction == SourceLabControlAction.RUN_FARM,
-                    onRun = { runAction(SourceLabControlAction.RUN_FARM, snapshot) },
+                    onRun = { context.startActivity(Intent(context, FarmRunActivity::class.java)) },
                 )
             }
 
