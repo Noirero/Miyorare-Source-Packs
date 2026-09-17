@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   id-token: write
 
 concurrency:
@@ -91,11 +92,106 @@ jobs:
             const token = await core.getIDToken(audience)
             fs.writeFileSync('build/source-lab-authz/authorization.jwt', token, { mode: 0o600 })
 
+      - name: Validate proof files before upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s build/source-lab-authz/authorization.jwt
+          test -s build/source-lab-authz/metadata.json
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          jwt = Path("build/source-lab-authz/authorization.jwt").read_text(encoding="utf-8").strip()
+          if len(jwt.split(".")) != 3:
+              raise SystemExit("OIDC token is not a three-part JWT")
+
+          metadata = json.loads(Path("build/source-lab-authz/metadata.json").read_text(encoding="utf-8"))
+          if metadata["challenge"] != os.environ["SOURCE_LAB_CHALLENGE"]:
+              raise SystemExit("metadata challenge mismatch")
+          if metadata["runId"] != os.environ["GITHUB_RUN_ID"]:
+              raise SystemExit("metadata run id mismatch")
+          PY
+        env:
+          SOURCE_LAB_CHALLENGE: ${{ inputs.challenge }}
+
       - name: Upload short-lived authorization proof
+        id: upload-proof
         uses: actions/upload-artifact@v4
         with:
           name: source-lab-authorization-${{ inputs.challenge }}
           path: build/source-lab-authz/
           if-no-files-found: error
           retention-days: 1
-          compression-level: 0
+          # Android's java.util.zip.ZipInputStream cannot read GitHub's STORED
+          # entries when they use an extended data descriptor. Force DEFLATED
+          # entries so the exact archive returned by GitHub is stream-readable.
+          compression-level: 9
+
+      - name: Verify uploaded proof archive is Android-compatible
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload-proof.outputs.artifact-id }}
+          SOURCE_LAB_CHALLENGE: ${{ inputs.challenge }}
+        run: |
+          set -euo pipefail
+          test -n "${ARTIFACT_ID:-}"
+          ARCHIVE="$RUNNER_TEMP/source-lab-auth-proof.zip"
+
+          downloaded=false
+          for attempt in 1 2 3 4 5; do
+            if curl --fail --silent --show-error --location \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" \
+              -o "$ARCHIVE"; then
+              downloaded=true
+              break
+            fi
+            sleep "$attempt"
+          done
+          if [ "$downloaded" != true ] || [ ! -s "$ARCHIVE" ]; then
+            echo "Uploaded authorization artifact could not be downloaded for verification." >&2
+            exit 1
+          fi
+
+          python3 - "$ARCHIVE" <<'PY'
+          import json
+          import os
+          import sys
+          import zipfile
+          from pathlib import PurePosixPath
+
+          archive_path = sys.argv[1]
+          expected = {"authorization.jwt", "metadata.json"}
+          with zipfile.ZipFile(archive_path) as archive:
+              entries = {
+                  PurePosixPath(info.filename).name: info
+                  for info in archive.infolist()
+                  if not info.is_dir()
+              }
+              missing = expected - set(entries)
+              if missing:
+                  raise SystemExit(f"artifact is missing required files: {sorted(missing)}")
+
+              for name in expected:
+                  if entries[name].compress_type != zipfile.ZIP_DEFLATED:
+                      raise SystemExit(
+                          f"{name} is not DEFLATED; Android ZipInputStream compatibility would regress"
+                      )
+
+              jwt = archive.read("authorization.jwt").decode("utf-8").strip()
+              if len(jwt.split(".")) != 3:
+                  raise SystemExit("artifact JWT is malformed")
+
+              metadata = json.loads(archive.read("metadata.json").decode("utf-8"))
+              if metadata.get("challenge") != os.environ["SOURCE_LAB_CHALLENGE"]:
+                  raise SystemExit("artifact challenge mismatch")
+              if metadata.get("runId") != os.environ["GITHUB_RUN_ID"]:
+                  raise SystemExit("artifact run id mismatch")
+
+          print("Authorization artifact is complete and Android ZipInputStream compatible.")
+          PY
