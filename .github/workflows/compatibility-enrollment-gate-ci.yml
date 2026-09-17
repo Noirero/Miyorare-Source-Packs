@@ -1,0 +1,82 @@
+name: Compatibility Enrollment Gate CI
+
+on:
+  pull_request:
+    branches:
+      - compatibility-farm-foundation
+    paths:
+      - 'compatibility/source-registry.json'
+      - 'compatibility/parser-families.json'
+      - 'tools/parser_family_plan.py'
+      - 'tools/parser_harness_aggregate.py'
+      - 'tests/test_parser_family_plan.py'
+      - 'tests/test_parser_harness_aggregate.py'
+      - '.github/workflows/compatibility-enrollment-gate-ci.yml'
+  push:
+    branches:
+      - 'compatibility-farm-enrollment-gate-*'
+    paths:
+      - 'compatibility/source-registry.json'
+      - 'compatibility/parser-families.json'
+      - 'tools/parser_family_plan.py'
+      - 'tools/parser_harness_aggregate.py'
+      - 'tests/test_parser_family_plan.py'
+      - 'tests/test_parser_harness_aggregate.py'
+      - '.github/workflows/compatibility-enrollment-gate-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate PENDING vs ACTIVE parser coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Compile enrollment gate helpers
+        run: |
+          python3 -m py_compile \
+            tools/parser_family_plan.py \
+            tools/parser_harness_aggregate.py
+
+      - name: Validate ACTIVE registry preflight
+        run: |
+          python3 tools/parser_family_plan.py \
+            --registry compatibility/source-registry.json \
+            --families compatibility/parser-families.json \
+            validate \
+            --output build/parser-family-preflight.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          registry = json.loads(Path('compatibility/source-registry.json').read_text(encoding='utf-8'))
+          result = json.loads(Path('build/parser-family-preflight.json').read_text(encoding='utf-8'))
+          sources = registry['sources']
+          required = [
+              source for source in sources
+              if source.get('compatibilityEnrollment', {}).get('parserCoverageRequired', True)
+          ]
+          pending = [source for source in sources if source not in required]
+          required_memberships = sum(len(source['providers']) for source in required)
+
+          assert result['status'] == 'VALID', result
+          assert result['requiredSourceCount'] == len(required), result
+          assert result['pendingSourceCount'] == len(pending), result
+          assert result['requiredMembershipCount'] == required_memberships, result
+          print(json.dumps({
+              'registeredSources': len(sources),
+              'requiredSources': len(required),
+              'pendingSources': len(pending),
+              'requiredMemberships': required_memberships,
+          }, sort_keys=True))
+          PY
+
+      - name: Run enrollment gate unit tests
+        run: |
+          python3 -m unittest \
+            tests.test_parser_family_plan \
+            tests.test_parser_harness_aggregate

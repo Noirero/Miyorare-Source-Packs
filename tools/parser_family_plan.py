@@ -3,8 +3,10 @@
 
 The planner intentionally contains no source-name special cases. Source/provider membership
 comes from source-registry.json; parser-families.json only describes how an implementation
-family is exercised. CI can consume the resulting matrix instead of hardcoding each source
-in workflow YAML.
+family is exercised. ACTIVE compatibility enrollments must have complete parser-family
+coverage before provider jobs start. PENDING sources may be profiled and may declare parser
+families during onboarding, but they are excluded from the release-gate execution plan until
+explicitly activated.
 """
 
 from __future__ import annotations
@@ -40,6 +42,37 @@ def _registry_sources(registry: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return indexed
 
 
+def _parser_coverage_required(source: dict[str, Any]) -> bool:
+    canonical_id = source.get("canonicalId", "<unknown>")
+    enrollment = source.get("compatibilityEnrollment")
+    if enrollment is None:
+        # Backward-compatible legacy behavior. New enrollments are explicit PENDING,
+        # while migrated release-gate members are explicit ACTIVE.
+        return True
+    if not isinstance(enrollment, dict):
+        raise ParserFamilyPlanError(f"{canonical_id}: compatibilityEnrollment must be an object")
+
+    state = enrollment.get("state")
+    required = enrollment.get("parserCoverageRequired")
+    if state not in {"PENDING", "ACTIVE"}:
+        raise ParserFamilyPlanError(
+            f"{canonical_id}: compatibilityEnrollment.state must be PENDING or ACTIVE"
+        )
+    if not isinstance(required, bool):
+        raise ParserFamilyPlanError(
+            f"{canonical_id}: compatibilityEnrollment.parserCoverageRequired must be boolean"
+        )
+    if state == "PENDING" and required:
+        raise ParserFamilyPlanError(
+            f"{canonical_id}: PENDING enrollment cannot require parser coverage"
+        )
+    if state == "ACTIVE" and not required:
+        raise ParserFamilyPlanError(
+            f"{canonical_id}: ACTIVE enrollment must require parser coverage"
+        )
+    return required
+
+
 def _require_true(document: dict[str, Any], key: str) -> None:
     if document.get(key) is not True:
         raise ParserFamilyPlanError(f"policies.{key} must be true")
@@ -66,6 +99,17 @@ def validate_plan(plan: dict[str, Any], registry: dict[str, Any]) -> dict[str, A
     if not providers:
         raise ParserFamilyPlanError("registry.scope.providers must be non-empty")
     sources = _registry_sources(registry)
+
+    required_sources = {
+        canonical_id: source
+        for canonical_id, source in sources.items()
+        if _parser_coverage_required(source)
+    }
+    required_memberships = {
+        (provider, canonical_id)
+        for canonical_id, source in required_sources.items()
+        for provider in source.get("providers", [])
+    }
 
     families = plan.get("families")
     if not isinstance(families, list) or not families:
@@ -129,7 +173,8 @@ def validate_plan(plan: dict[str, Any], registry: dict[str, Any]) -> dict[str, A
                     f"duplicate parser execution membership: {provider}/{canonical_id}"
                 )
             memberships.add(membership)
-            provider_counts[provider] += 1
+            if membership in required_memberships:
+                provider_counts[provider] += 1
 
             identity = source.get("upstreamIdentities", {}).get(provider, {})
             module = member.get("module")
@@ -160,10 +205,23 @@ def validate_plan(plan: dict[str, Any], registry: dict[str, Any]) -> dict[str, A
                     f"{family_id}/{canonical_id}: repairRecipes must be non-empty strings"
                 )
 
+    missing_required = sorted(required_memberships - memberships)
+    if missing_required:
+        rendered = ", ".join(f"{canonical_id}@{provider}" for provider, canonical_id in missing_required)
+        raise ParserFamilyPlanError(
+            f"ACTIVE registry membership(s) missing real parser family coverage: {rendered}"
+        )
+
+    pending_declared = memberships - required_memberships
     return {
         "schemaVersion": 1,
         "familyCount": len(family_ids),
-        "membershipCount": len(memberships),
+        "declaredMembershipCount": len(memberships),
+        "membershipCount": len(required_memberships),
+        "pendingDeclaredMembershipCount": len(pending_declared),
+        "requiredSourceCount": len(required_sources),
+        "pendingSourceCount": len(sources) - len(required_sources),
+        "requiredMembershipCount": len(required_memberships),
         "providerMembershipCounts": provider_counts,
         "status": "VALID",
     }
@@ -179,11 +237,15 @@ def execution_plan(
     if provider is not None and provider not in registry_providers:
         raise ParserFamilyPlanError(f"unknown provider: {provider}")
 
+    sources = _registry_sources(registry)
     include: list[dict[str, Any]] = []
     for family in plan["families"]:
         if provider is not None and family["provider"] != provider:
             continue
         for member in family["members"]:
+            source = sources[member["canonicalId"]]
+            if not _parser_coverage_required(source):
+                continue
             entry = {
                 "provider": family["provider"],
                 "familyId": family["id"],
@@ -206,6 +268,9 @@ def execution_plan(
         "familyCount": len({item["familyId"] for item in include}),
         "membershipCount": len(include),
         "validatedTotalMembershipCount": summary["membershipCount"],
+        "pendingDeclaredMembershipCount": summary["pendingDeclaredMembershipCount"],
+        "requiredSourceCount": summary["requiredSourceCount"],
+        "pendingSourceCount": summary["pendingSourceCount"],
         "include": include,
     }
 
@@ -216,10 +281,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--families", default="compatibility/parser-families.json")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    validate = sub.add_parser("validate", help="validate family execution metadata")
+    validate = sub.add_parser("validate", help="validate ACTIVE registry coverage and family execution metadata")
     validate.add_argument("--output")
 
-    plan = sub.add_parser("plan", help="emit a provider matrix for CI")
+    plan = sub.add_parser("plan", help="emit an ACTIVE-only provider matrix for release-gate CI")
     plan.add_argument("--provider", choices=["uma", "gekkoushi", "keiyoushi"])
     plan.add_argument("--output")
     return parser

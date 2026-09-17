@@ -2,11 +2,13 @@
 """Aggregate provider-level real Kotlin parser reports into release-gate evidence.
 
 Canonical source coverage and provider/source membership coverage are tracked separately.
-A cross-provider source is not considered fully exercised merely because one provider's
-implementation passed. Auto-repair evidence is accepted only when it is tied to an
-observed provider/source membership and followed by a real-parser retest. The aggregate
-never publishes; it only supplies trustworthy gate input for the future approve-only
-state machine.
+Only sources whose compatibilityEnrollment requires parser coverage participate in the
+release gate. Newly enrolled PENDING sources remain visible in the registry without
+turning partial onboarding into a false compatibility failure. A cross-provider ACTIVE
+source is not considered fully exercised merely because one provider's implementation
+passed. Auto-repair evidence is accepted only when it is tied to an observed required
+provider/source membership and followed by a real-parser retest. The aggregate never
+publishes; it only supplies trustworthy gate input for the approve-only state machine.
 """
 
 from __future__ import annotations
@@ -48,9 +50,35 @@ def _registry_index(registry: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return result
 
 
+def _parser_coverage_required(source: dict[str, Any]) -> bool:
+    canonical_id = source.get("canonicalId", "<unknown>")
+    enrollment = source.get("compatibilityEnrollment")
+    if enrollment is None:
+        # Legacy registries remain strict: absence means coverage is required.
+        # New enrollment writes are explicit PENDING/false.
+        return True
+    if not isinstance(enrollment, dict):
+        raise AggregateError(f"{canonical_id}: compatibilityEnrollment must be an object")
+
+    state = enrollment.get("state")
+    required = enrollment.get("parserCoverageRequired")
+    if state not in {"PENDING", "ACTIVE"}:
+        raise AggregateError(f"{canonical_id}: compatibilityEnrollment.state must be PENDING or ACTIVE")
+    if not isinstance(required, bool):
+        raise AggregateError(
+            f"{canonical_id}: compatibilityEnrollment.parserCoverageRequired must be boolean"
+        )
+    if state == "PENDING" and required:
+        raise AggregateError(f"{canonical_id}: PENDING enrollment cannot require parser coverage")
+    if state == "ACTIVE" and not required:
+        raise AggregateError(f"{canonical_id}: ACTIVE enrollment must require parser coverage")
+    return required
+
+
 def _repair_index(
     repairs: list[dict[str, Any]],
     source_index: dict[str, dict[str, Any]],
+    required_memberships: set[tuple[str, str]],
 ) -> dict[tuple[str, str], dict[str, Any]]:
     result: dict[tuple[str, str], dict[str, Any]] = {}
     for repair in repairs:
@@ -62,6 +90,11 @@ def _repair_index(
             raise AggregateError(f"repair references unregistered source {canonical_id!r}")
         if not isinstance(provider, str) or provider not in source_index[canonical_id]["providers"]:
             raise AggregateError(f"repair {canonical_id}: provider {provider!r} is not a registered membership")
+        membership = (canonical_id, provider)
+        if membership not in required_memberships:
+            raise AggregateError(
+                f"repair {canonical_id}@{provider}: PENDING/non-required membership cannot enter release-gate evidence"
+            )
         if repair.get("status") not in {"APPLIED", "ALREADY_APPLIED"}:
             raise AggregateError(f"repair {canonical_id}@{provider}: unsupported repair status")
         if repair.get("requiresRetest") is not True:
@@ -78,7 +111,6 @@ def _repair_index(
             raise AggregateError(f"repair {canonical_id}@{provider}: changes must be a non-negative integer")
         if repair["status"] == "APPLIED" and changes <= 0:
             raise AggregateError(f"repair {canonical_id}@{provider}: APPLIED repair must change source")
-        membership = (canonical_id, provider)
         if membership in result:
             raise AggregateError(f"duplicate repair evidence for {canonical_id}@{provider}")
         result[membership] = repair
@@ -93,13 +125,19 @@ def aggregate_reports(
     source_index = _registry_index(registry)
     if not reports:
         raise AggregateError("at least one real parser report is required")
-    repair_index = _repair_index(repairs or [], source_index)
 
+    required_sources = {
+        canonical_id: source
+        for canonical_id, source in source_index.items()
+        if _parser_coverage_required(source)
+    }
     required_memberships = {
         (canonical_id, provider)
-        for canonical_id, source in source_index.items()
+        for canonical_id, source in required_sources.items()
         for provider in source["providers"]
     }
+    repair_index = _repair_index(repairs or [], source_index, required_memberships)
+
     observed_memberships: set[tuple[str, str]] = set()
     canonical: dict[str, dict[str, Any]] = {}
     providers_seen: set[str] = set()
@@ -134,6 +172,10 @@ def aggregate_reports(
                 raise AggregateError(f"{canonical_id}: parser result status must be PASS or FAIL")
 
             membership = (canonical_id, provider)
+            if membership not in required_memberships:
+                raise AggregateError(
+                    f"{canonical_id}@{provider}: parser result is for a PENDING/non-required membership"
+                )
             if membership in observed_memberships:
                 duplicate_memberships.add(membership)
                 continue
@@ -164,7 +206,7 @@ def aggregate_reports(
                 canonical_id,
                 {
                     "canonicalId": canonical_id,
-                    "requiredProviders": sorted(source_index[canonical_id]["providers"]),
+                    "requiredProviders": sorted(required_sources[canonical_id]["providers"]),
                     "providerExecutions": [],
                 },
             )
@@ -221,21 +263,22 @@ def aggregate_reports(
         )
         results_out.append(item)
 
-    total_sources = len(source_index)
+    total_registered_sources = len(source_index)
+    total_required_sources = len(required_sources)
     canonical_executed = len(canonical)
     total_memberships = len(required_memberships)
     membership_executed = len(observed_memberships)
-    membership_missing = total_memberships - membership_executed
+    membership_missing = len(required_memberships - observed_memberships)
     all_memberships_pass = failing_memberships == 0
-    full_membership_coverage = membership_executed == total_memberships
-    full_canonical_coverage = canonical_executed == total_sources
+    full_membership_coverage = observed_memberships == required_memberships
+    full_canonical_coverage = canonical_executed == total_required_sources
 
     if failing_memberships:
         release_gate = "BLOCKED_REAL_PARSER_FAILURE"
         suite_status = "FAIL"
     elif not full_membership_coverage or not full_canonical_coverage:
         release_gate = "NOT_READY_PARTIAL_PARSER_HARNESS"
-        suite_status = "PASS"
+        suite_status = "FAIL"
     else:
         release_gate = "REAL_PARSER_READY"
         suite_status = "PASS"
@@ -248,7 +291,9 @@ def aggregate_reports(
         "suiteStatus": suite_status,
         "coverage": {
             "canonicalExecuted": canonical_executed,
-            "totalRegisteredSources": total_sources,
+            "totalRegisteredSources": total_registered_sources,
+            "requiredCanonicalSources": total_required_sources,
+            "pendingCanonicalSources": total_registered_sources - total_required_sources,
             "fullyExercisedSources": fully_exercised_sources,
             "providerMembershipsExecuted": membership_executed,
             "totalProviderMemberships": total_memberships,
