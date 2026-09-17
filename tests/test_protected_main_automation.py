@@ -36,6 +36,26 @@ class ProtectedMainAutomationTests(unittest.TestCase):
         self.assertNotIn("gh pr create", auto)
         self.assertNotIn("gh pr merge", auto)
 
+    def test_auto_farm_isolates_provider_candidates_and_suppresses_exact_held_sha(self) -> None:
+        auto = workflow("source-lab-auto-farm.yml")
+        self.assertIn("selected_provider", auto)
+        self.assertIn("source_lab_scope_plan.py", auto)
+        self.assertIn("SOURCE_LAB_PROVIDER_SCOPE", auto)
+        self.assertIn("exception.get('candidate') == item['candidate']", auto)
+        self.assertIn("ALL_OUTSTANDING_CANDIDATES_HELD", auto)
+        self.assertIn("lastAttemptProvider", auto)
+        self.assertIn("exceptions", auto)
+        self.assertIn("recordedAt", auto)
+
+    def test_auto_farm_distinguishes_infrastructure_from_held_candidate_failures(self) -> None:
+        auto = workflow("source-lab-auto-farm.yml")
+        self.assertIn("UPSTREAM_INTAKE_INFRASTRUCTURE_FAILURE", auto)
+        self.assertIn("UPSTREAM_INTAKE_NOT_SAFE", auto)
+        self.assertIn("CANDIDATE_FARM_INFRASTRUCTURE_FAILURE", auto)
+        self.assertIn("CANDIDATE_FARM_GATE_FAILED", auto)
+        self.assertIn("Set up ", auto)
+        self.assertIn("Classify Candidate Farm failure", auto)
+
     def test_sync_result_is_read_only_and_never_opens_automation_pr(self) -> None:
         status = workflow("upstream-sync-status.yml")
         self.assertIn("actions: read", status)

@@ -30,6 +30,9 @@ jobs:
       candidates: ${{ steps.probe.outputs.candidates }}
       pipeline_state: ${{ steps.probe.outputs.pipeline_state }}
       foundation_sha: ${{ steps.probe.outputs.foundation_sha }}
+      selected_provider: ${{ steps.probe.outputs.selected_provider }}
+      selected_current: ${{ steps.probe.outputs.selected_current }}
+      selected_candidate: ${{ steps.probe.outputs.selected_candidate }}
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -76,11 +79,39 @@ jobs:
               'uma': os.environ['UMA_HEAD'],
               'gekkoushi': os.environ['GEK_HEAD'],
           }
+          order = ['keiyoushi', 'uma', 'gekkoushi']
           candidates = {}
-          for provider, head in heads.items():
+          for provider in order:
+              head = heads[provider]
               current = registry['providers'][provider]['lastKnownGood']
               if head != current:
                   candidates[provider] = {'current': current, 'candidate': head}
+
+          automation = status.get('automation') if isinstance(status.get('automation'), dict) else {}
+          exceptions = automation.get('exceptions') if isinstance(automation.get('exceptions'), dict) else {}
+          last_attempt = automation.get('lastAttemptProvider')
+          if last_attempt in order:
+              start = (order.index(last_attempt) + 1) % len(order)
+              rotated = order[start:] + order[:start]
+          else:
+              rotated = order
+
+          eligible = []
+          for provider in rotated:
+              item = candidates.get(provider)
+              if not item:
+                  continue
+              exception = exceptions.get(provider)
+              exact_held = (
+                  isinstance(exception, dict)
+                  and exception.get('current') == item['current']
+                  and exception.get('candidate') == item['candidate']
+              )
+              if not exact_held:
+                  eligible.append(provider)
+
+          selected = eligible[0] if eligible else ''
+          selected_item = candidates.get(selected, {})
 
           pending = status.get('approvalCandidate')
           promotion = status.get('lastPromotion')
@@ -96,16 +127,19 @@ jobs:
               pipeline_state = 'clear'
 
           changed = bool(candidates)
-          should_run = changed and pipeline_state == 'clear'
+          should_run = bool(selected) and pipeline_state == 'clear'
           print(f"foundation_sha={os.environ['FOUNDATION_SHA']}")
           print(f"changed={'true' if changed else 'false'}")
           print(f"should_run={'true' if should_run else 'false'}")
           print(f"pipeline_state={pipeline_state}")
+          print(f"selected_provider={selected}")
+          print(f"selected_current={selected_item.get('current', '')}")
+          print(f"selected_candidate={selected_item.get('candidate', '')}")
           print('candidates=' + json.dumps(candidates, separators=(',', ':'), sort_keys=True))
           PY
 
   intake:
-    name: Build isolated upstream candidate handoff
+    name: Build isolated provider candidate handoff
     needs: probe
     if: needs.probe.result == 'success' && needs.probe.outputs.should_run == 'true'
     runs-on: ubuntu-latest
@@ -114,10 +148,14 @@ jobs:
       upstream_run_id: ${{ steps.run.outputs.upstream_run_id }}
       upstream_conclusion: ${{ steps.run.outputs.upstream_conclusion }}
       has_candidate: ${{ steps.run.outputs.has_candidate }}
+      failure_kind: ${{ steps.run.outputs.failure_kind }}
+      failure_reason: ${{ steps.run.outputs.failure_reason }}
       temp_branch: ${{ steps.prepare.outputs.temp_branch }}
+      scoped_sha: ${{ steps.scope.outputs.scoped_sha }}
     env:
       GH_TOKEN: ${{ github.token }}
       FOUNDATION_SHA: ${{ needs.probe.outputs.foundation_sha }}
+      SELECTED_PROVIDER: ${{ needs.probe.outputs.selected_provider }}
     steps:
       - name: Create isolated candidate intake branch
         id: prepare
@@ -125,7 +163,8 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$FOUNDATION_SHA" =~ ^[0-9a-f]{40}$ ]]
-          temp_branch="source-lab-auto-${GITHUB_RUN_ID}"
+          [[ "$SELECTED_PROVIDER" =~ ^(keiyoushi|uma|gekkoushi)$ ]]
+          temp_branch="source-lab-auto-${GITHUB_RUN_ID}-${SELECTED_PROVIDER}"
           gh api --method DELETE \
             "repos/$GITHUB_REPOSITORY/git/refs/heads/$temp_branch" \
             >/dev/null 2>&1 || true
@@ -134,10 +173,94 @@ jobs:
             -f sha="$FOUNDATION_SHA" >/dev/null
           echo "temp_branch=$temp_branch" >> "$GITHUB_OUTPUT"
 
-      - name: Dispatch authoritative candidate intake
+      - name: Checkout isolated intake branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.prepare.outputs.temp_branch }}
+          path: intake-branch
+          fetch-depth: 1
+
+      - name: Scope intake to one provider without mutating LKG
+        id: scope
+        env:
+          TEMP_BRANCH: ${{ steps.prepare.outputs.temp_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          root = Path('intake-branch')
+          workflow = root / '.github/workflows/upstream-sync.yml'
+          text = workflow.read_text(encoding='utf-8')
+          needle = r'''            --output upstream/sync-plan.json \
+            --github-output "$GITHUB_OUTPUT"'''
+          replacement = r'''            --output upstream/sync-plan.json
+          python3 tools/source_lab_scope_plan.py \
+            --plan upstream/sync-plan.json \
+            --provider "$SOURCE_LAB_PROVIDER_SCOPE" \
+            --github-output "$GITHUB_OUTPUT"'''
+          if text.count(needle) != 1:
+              raise SystemExit('Could not safely patch exact upstream plan output block')
+          text = text.replace(needle, replacement)
+          env_needle = 'env:\n  REGISTRY: upstream/registry.json\n'
+          env_replacement = (
+              'env:\n'
+              '  REGISTRY: upstream/registry.json\n'
+              f"  SOURCE_LAB_PROVIDER_SCOPE: {os.environ['SELECTED_PROVIDER']}\n"
+          )
+          if text.count(env_needle) != 1:
+              raise SystemExit('Could not safely patch upstream workflow provider scope env')
+          workflow.write_text(text.replace(env_needle, env_replacement), encoding='utf-8')
+
+          helper = root / 'tools/source_lab_scope_plan.py'
+          helper.write_text(r'''#!/usr/bin/env python3
+          import argparse
+          import json
+          from pathlib import Path
+
+          parser = argparse.ArgumentParser()
+          parser.add_argument('--plan', required=True, type=Path)
+          parser.add_argument('--provider', required=True, choices=('keiyoushi', 'uma', 'gekkoushi'))
+          parser.add_argument('--github-output', required=True, type=Path)
+          args = parser.parse_args()
+
+          plan = json.loads(args.plan.read_text(encoding='utf-8'))
+          providers = plan.get('providers')
+          if not isinstance(providers, dict) or args.provider not in providers:
+              raise SystemExit('provider-scoped plan is invalid')
+          for name, item in providers.items():
+              if name != args.provider:
+                  item['candidate'] = item['lastKnownGood']
+                  item['changed'] = False
+                  item['state'] = 'synced'
+          if providers[args.provider].get('changed') is not True:
+              raise SystemExit('selected provider no longer differs from LKG')
+          args.plan.write_text(json.dumps(plan, indent=2) + '\n', encoding='utf-8')
+          with args.github_output.open('a', encoding='utf-8') as out:
+              for name, item in providers.items():
+                  prefix = name.upper().replace('-', '_')
+                  out.write(f"{prefix}_CURRENT={item['lastKnownGood']}\n")
+                  out.write(f"{prefix}_CANDIDATE={item['candidate']}\n")
+                  out.write(f"{prefix}_CHANGED={'true' if item['changed'] else 'false'}\n")
+          ''', encoding='utf-8')
+          PY
+
+          git -C intake-branch config user.name github-actions[bot]
+          git -C intake-branch config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C intake-branch add .github/workflows/upstream-sync.yml tools/source_lab_scope_plan.py
+          git -C intake-branch commit -m "Scope autonomous intake to $SELECTED_PROVIDER"
+          git -C intake-branch push origin "HEAD:$TEMP_BRANCH"
+          scoped_sha="$(git -C intake-branch rev-parse HEAD)"
+          [[ "$scoped_sha" =~ ^[0-9a-f]{40}$ ]]
+          echo "scoped_sha=$scoped_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch authoritative provider candidate intake
         id: run
         env:
           TEMP_BRANCH: ${{ steps.prepare.outputs.temp_branch }}
+          SCOPED_SHA: ${{ steps.scope.outputs.scoped_sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -155,7 +278,7 @@ jobs:
               --event workflow_dispatch \
               --limit 30 \
               --json databaseId,headSha,createdAt \
-              --jq "[.[] | select(.headSha == \"$FOUNDATION_SHA\") |
+              --jq "[.[] | select(.headSha == \"$SCOPED_SHA\") |
                 select((.createdAt | fromdateiso8601) >= ($started_epoch - 5))] |
                 sort_by(.databaseId) | last | .databaseId // empty")"
             [[ -n "$upstream_run_id" ]] && break
@@ -180,12 +303,47 @@ jobs:
             has_candidate=false
           fi
 
+          jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$upstream_run_id/jobs?per_page=100")"
+          failures="$(jq -c '[.jobs[] as $job | ($job.steps // [])[] | select(.conclusion == "failure") | {job:$job.name,step:.name}]' <<<"$jobs")"
+          export CHILD_CONCLUSION="$conclusion"
+          export CHILD_FAILURES="$failures"
+          readarray -t classification < <(python3 - <<'PY'
+          import json
+          import os
+
+          conclusion = os.environ['CHILD_CONCLUSION']
+          failures = json.loads(os.environ.get('CHILD_FAILURES') or '[]')
+          if conclusion == 'success':
+              print('none')
+              print('')
+              raise SystemExit(0)
+          if not failures:
+              print('infrastructure')
+              print('UPSTREAM_WORKFLOW_FAILED_WITHOUT_STEP_DETAIL')
+              raise SystemExit(0)
+          infra_prefixes = ('Set up ', 'Checkout ', 'Upload ', 'Download ', 'Post ')
+          infra_exact = {'Resolve upstream heads', 'Validate registry'}
+          only_infra = all(
+              item.get('step', '').startswith(infra_prefixes) or item.get('step', '') in infra_exact
+              for item in failures
+          )
+          first = failures[0]
+          reason = f"{first.get('job', 'workflow')} / {first.get('step', 'unknown step')}"
+          print('infrastructure' if only_infra else 'held')
+          print(reason)
+          PY
+          )
+          failure_kind="${classification[0]:-infrastructure}"
+          failure_reason="${classification[1]:-UNKNOWN_UPSTREAM_FAILURE}"
+
           echo "upstream_run_id=$upstream_run_id" >> "$GITHUB_OUTPUT"
           echo "upstream_conclusion=$conclusion" >> "$GITHUB_OUTPUT"
           echo "has_candidate=$has_candidate" >> "$GITHUB_OUTPUT"
+          echo "failure_kind=$failure_kind" >> "$GITHUB_OUTPUT"
+          echo "failure_reason=$failure_reason" >> "$GITHUB_OUTPUT"
 
   candidate-farm:
-    name: Run automatic exact candidate Farm
+    name: Run automatic exact provider Candidate Farm
     needs: [probe, intake]
     if: >-
       needs.intake.result == 'success' &&
@@ -211,8 +369,14 @@ jobs:
       CHANGED: ${{ needs.probe.outputs.changed }}
       CANDIDATES: ${{ needs.probe.outputs.candidates }}
       PIPELINE_STATE: ${{ needs.probe.outputs.pipeline_state }}
+      SELECTED_PROVIDER: ${{ needs.probe.outputs.selected_provider }}
+      SELECTED_CURRENT: ${{ needs.probe.outputs.selected_current }}
+      SELECTED_CANDIDATE: ${{ needs.probe.outputs.selected_candidate }}
       INTAKE_RESULT: ${{ needs.intake.result }}
+      UPSTREAM_RUN_ID: ${{ needs.intake.outputs.upstream_run_id }}
       UPSTREAM_CONCLUSION: ${{ needs.intake.outputs.upstream_conclusion }}
+      INTAKE_FAILURE_KIND: ${{ needs.intake.outputs.failure_kind }}
+      INTAKE_FAILURE_REASON: ${{ needs.intake.outputs.failure_reason }}
       HAS_CANDIDATE: ${{ needs.intake.outputs.has_candidate }}
       CANDIDATE_FARM_RESULT: ${{ needs.candidate-farm.result }}
     steps:
@@ -223,8 +387,40 @@ jobs:
           path: farm
           fetch-depth: 0
 
+      - name: Classify Candidate Farm failure
+        id: farm_failure
+        if: env.CANDIDATE_FARM_RESULT == 'failure'
+        shell: bash
+        run: |
+          set -euo pipefail
+          jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100")"
+          failures="$(jq -c '[.jobs[] as $job | ($job.steps // [])[] | select(.conclusion == "failure") | {job:$job.name,step:.name}]' <<<"$jobs")"
+          export FARM_FAILURES="$failures"
+          readarray -t classification < <(python3 - <<'PY'
+          import json
+          import os
+
+          failures = json.loads(os.environ.get('FARM_FAILURES') or '[]')
+          if not failures:
+              print('infrastructure')
+              print('CANDIDATE_FARM_FAILED_WITHOUT_STEP_DETAIL')
+              raise SystemExit(0)
+          infra_prefixes = ('Set up ', 'Checkout ', 'Upload ', 'Download ', 'Post ')
+          only_infra = all(item.get('step', '').startswith(infra_prefixes) for item in failures)
+          first = failures[0]
+          reason = f"{first.get('job', 'farm')} / {first.get('step', 'unknown step')}"
+          print('infrastructure' if only_infra else 'held')
+          print(reason)
+          PY
+          )
+          echo "kind=${classification[0]:-infrastructure}" >> "$GITHUB_OUTPUT"
+          echo "reason=${classification[1]:-UNKNOWN_FARM_FAILURE}" >> "$GITHUB_OUTPUT"
+
       - name: Persist semantic automation status only when it changes
         id: state
+        env:
+          FARM_FAILURE_KIND: ${{ steps.farm_failure.outputs.kind }}
+          FARM_FAILURE_REASON: ${{ steps.farm_failure.outputs.reason }}
         shell: bash
         run: |
           set -euo pipefail
@@ -242,9 +438,28 @@ jobs:
           except json.JSONDecodeError:
               candidates = {}
 
+          existing = status.get('automation') if isinstance(status.get('automation'), dict) else {}
+          existing_exceptions = existing.get('exceptions') if isinstance(existing.get('exceptions'), dict) else {}
+          exceptions = {}
+          for provider, exception in existing_exceptions.items():
+              candidate = candidates.get(provider)
+              if not isinstance(exception, dict) or not isinstance(candidate, dict):
+                  continue
+              if (
+                  exception.get('current') == candidate.get('current')
+                  and exception.get('candidate') == candidate.get('candidate')
+              ):
+                  exceptions[provider] = exception
+
+          selected = os.environ.get('SELECTED_PROVIDER') or ''
+          selected_current = os.environ.get('SELECTED_CURRENT') or ''
+          selected_candidate = os.environ.get('SELECTED_CANDIDATE') or ''
+
           pending = status.get('approvalCandidate')
           promotion = status.get('lastPromotion')
           published = status.get('lastPublish')
+          held_reason = None
+
           if isinstance(pending, dict):
               state = 'APPROVAL_REQUIRED'
               reason = 'CANDIDATE_WAITING_FOR_OWNER'
@@ -263,12 +478,20 @@ jobs:
           elif os.environ.get('PIPELINE_STATE') != 'clear':
               state = 'INFRASTRUCTURE_FAILURE'
               reason = 'LIVE_PIPELINE_STATE_CONFLICT'
+          elif not selected:
+              state = 'HELD'
+              reason = 'ALL_OUTSTANDING_CANDIDATES_HELD'
           elif os.environ.get('INTAKE_RESULT') != 'success':
               state = 'INFRASTRUCTURE_FAILURE'
               reason = 'AUTO_INTAKE_DISPATCH_FAILED'
           elif os.environ.get('UPSTREAM_CONCLUSION') != 'success':
-              state = 'HELD'
-              reason = 'UPSTREAM_INTAKE_NOT_SAFE'
+              if os.environ.get('INTAKE_FAILURE_KIND') == 'held':
+                  state = 'HELD'
+                  reason = 'UPSTREAM_INTAKE_NOT_SAFE'
+                  held_reason = os.environ.get('INTAKE_FAILURE_REASON') or reason
+              else:
+                  state = 'INFRASTRUCTURE_FAILURE'
+                  reason = 'UPSTREAM_INTAKE_INFRASTRUCTURE_FAILURE'
           elif os.environ.get('HAS_CANDIDATE') != 'true':
               state = 'INFRASTRUCTURE_FAILURE'
               reason = 'CANDIDATE_HANDOFF_MISSING'
@@ -276,26 +499,45 @@ jobs:
               state = 'APPROVAL_REQUIRED'
               reason = 'CANDIDATE_PASSED_ALL_GATES'
           elif os.environ.get('CANDIDATE_FARM_RESULT') == 'failure':
-              state = 'HELD'
-              reason = 'CANDIDATE_FARM_GATE_FAILED'
+              if os.environ.get('FARM_FAILURE_KIND') == 'held':
+                  state = 'HELD'
+                  reason = 'CANDIDATE_FARM_GATE_FAILED'
+                  held_reason = os.environ.get('FARM_FAILURE_REASON') or reason
+              else:
+                  state = 'INFRASTRUCTURE_FAILURE'
+                  reason = 'CANDIDATE_FARM_INFRASTRUCTURE_FAILURE'
           else:
               state = 'INFRASTRUCTURE_FAILURE'
               reason = 'AUTO_FARM_RESULT_UNKNOWN'
 
+          if held_reason and selected and selected_current and selected_candidate:
+              exceptions[selected] = {
+                  'current': selected_current,
+                  'candidate': selected_candidate,
+                  'reason': held_reason,
+                  'workflowRunId': int(os.environ['AUTO_RUN_ID']),
+                  'upstreamRunId': int(os.environ['UPSTREAM_RUN_ID']) if (os.environ.get('UPSTREAM_RUN_ID') or '').isdigit() else None,
+                  'recordedAt': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+              }
+
           owner_required = state in {'APPROVAL_REQUIRED', 'INFRASTRUCTURE_FAILURE'}
           semantic = {
-              'schemaVersion': 1,
+              'schemaVersion': 2,
               'state': state,
               'reason': reason,
               'candidates': candidates,
+              'exceptions': exceptions,
               'ownerActionRequired': owner_required,
+              'lastAttemptProvider': selected or existing.get('lastAttemptProvider'),
           }
-          existing = status.get('automation')
           existing_semantic = None
           if isinstance(existing, dict):
               existing_semantic = {
                   key: existing.get(key)
-                  for key in ('schemaVersion', 'state', 'reason', 'candidates', 'ownerActionRequired')
+                  for key in (
+                      'schemaVersion', 'state', 'reason', 'candidates', 'exceptions',
+                      'ownerActionRequired', 'lastAttemptProvider'
+                  )
               }
           if existing_semantic == semantic:
               print(f'automation state unchanged: {state}')
@@ -330,7 +572,8 @@ jobs:
           import json
           from pathlib import Path
           status = json.loads(Path('farm/upstream/status.json').read_text(encoding='utf-8'))
-          state = status.get('automation', {}).get('state', 'UNKNOWN')
+          automation = status.get('automation', {})
+          state = automation.get('state', 'UNKNOWN')
           labels = {
               'ALL_GOOD': '🟢 All good — no Owner action required.',
               'APPROVAL_REQUIRED': '🟡 Update ready — Owner review/approval required.',
@@ -340,6 +583,12 @@ jobs:
           }
           print('## Compatibility Farm')
           print(labels.get(state, f'⚪ {state}'))
+          exceptions = automation.get('exceptions', {})
+          if exceptions:
+              print('')
+              print('### Exceptions')
+              for provider, item in sorted(exceptions.items()):
+                  print(f"- **{provider}** `{item.get('candidate', '')[:12]}` — {item.get('reason', 'HELD')}")
           PY
 
   cleanup:
