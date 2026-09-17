@@ -27,8 +27,14 @@ class ProtectedMainAutomationTests(unittest.TestCase):
         self.assertIn('origin "HEAD:${AUTOMATION_BRANCH}"', status)
         self.assertNotIn('origin "HEAD:${HEAD_BRANCH}"', status)
         self.assertIn("gh pr create", status)
+        self.assertIn("gh workflow run upstream-sync-pr-check.yml", status)
         self.assertIn("gh workflow run source-pack-contract.yml", status)
         self.assertIn("promoted-upstream-registry", status)
+
+    def test_automation_pr_validation_supports_explicit_dispatch(self) -> None:
+        check = workflow("upstream-sync-pr-check.yml")
+        self.assertIn("workflow_dispatch:", check)
+        self.assertIn("github.event.pull_request.number || github.ref_name", check)
 
     def test_release_is_dispatched_only_from_merged_main_registry_change(self) -> None:
         release = workflow("release-source-packs-after-merge.yml")
