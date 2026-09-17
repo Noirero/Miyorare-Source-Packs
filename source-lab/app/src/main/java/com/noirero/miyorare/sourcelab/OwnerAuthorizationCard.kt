@@ -38,6 +38,7 @@ import kotlinx.coroutines.launch
 
 private sealed interface OwnerAuthorizationUiState {
     data object Idle : OwnerAuthorizationUiState
+    data object RestoringOwner : OwnerAuthorizationUiState
     data class WaitingForGitHub(val code: GitHubDeviceCode) : OwnerAuthorizationUiState
     data object AuthorizingBackend : OwnerAuthorizationUiState
     data class Authorized(val expiresAtEpochSeconds: Long) : OwnerAuthorizationUiState
@@ -52,7 +53,8 @@ internal fun OwnerAuthorizationCard(
     val context = LocalContext.current
     var state by remember { mutableStateOf<OwnerAuthorizationUiState>(OwnerAuthorizationUiState.Idle) }
     var verifiedIdentity by remember { mutableStateOf<GitHubOwnerIdentity?>(null) }
-    val busy = state is OwnerAuthorizationUiState.AuthorizingBackend ||
+    val busy = state is OwnerAuthorizationUiState.RestoringOwner ||
+        state is OwnerAuthorizationUiState.AuthorizingBackend ||
         state is OwnerAuthorizationUiState.WaitingForGitHub
     val embeddedClientIdAvailable = remember {
         GitHubOwnerAuthentication.isValidClientId(BuildConfig.SOURCE_LAB_GITHUB_CLIENT_ID)
@@ -69,8 +71,6 @@ internal fun OwnerAuthorizationCard(
                 if (!proof.authorized) proof.reason else decision.reason,
             )
         } else {
-            // The GitHub user token is no longer needed once the short-lived
-            // backend authorization proof has been accepted.
             verifiedIdentity = null
             onSessionChanged(authorizedSession)
             state = OwnerAuthorizationUiState.Authorized(
@@ -79,14 +79,44 @@ internal fun OwnerAuthorizationCard(
         }
     }
 
-    // v0.1.4 and older could persist a recovery value in SharedPreferences.
-    // Official builds no longer accept a manually entered Client ID, so remove
-    // stale App/Installation IDs once and keep owner login deterministic.
+    suspend fun restoreSavedOwner(credential: GitHubOwnerCredential) {
+        state = OwnerAuthorizationUiState.RestoringOwner
+        val clientId = GitHubOwnerAuthentication.resolveClientId()
+        val identity = GitHubOwnerAuthentication.restoreOwnerLogin(clientId, credential)
+        // A refresh rotates the refresh token, so always persist the newest pair
+        // before requesting a fresh short-lived backend proof.
+        GitHubOwnerCredentialVault.save(context, identity.credential)
+        verifiedIdentity = identity
+        authorizeBackend(identity)
+    }
+
+    // Clean the obsolete manual Client ID recovery value and silently restore a
+    // previously verified owner credential. The GitHub identity/install/repo
+    // checks still run before a fresh backend authorization proof is accepted.
     LaunchedEffect(Unit) {
         context.getSharedPreferences("source_lab_public_config", Context.MODE_PRIVATE)
             .edit()
             .remove("github_app_client_id")
             .apply()
+
+        if (!embeddedClientIdAvailable) return@LaunchedEffect
+        val storedCredential = GitHubOwnerCredentialVault.load(context) ?: return@LaunchedEffect
+        try {
+            restoreSavedOwner(storedCredential)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: GitHubOwnerAuthenticationException) {
+            if (shouldForgetStoredCredential(error.reason)) {
+                GitHubOwnerCredentialVault.clear(context)
+            }
+            verifiedIdentity = null
+            onSessionChanged(null)
+            state = OwnerAuthorizationUiState.Failed(error.reason)
+        } catch (_: Throwable) {
+            verifiedIdentity = null
+            onSessionChanged(null)
+            state = OwnerAuthorizationUiState.Failed("OWNER_RESTORE_UNEXPECTED_ERROR")
+        }
     }
 
     Card(
@@ -131,15 +161,22 @@ internal fun OwnerAuthorizationCard(
                                 try {
                                     val resolvedClientId = GitHubOwnerAuthentication.resolveClientId()
                                     val code = GitHubOwnerAuthentication.requestDeviceCode(resolvedClientId)
-                                    copyUserCode(context, code.userCode)
+                                    copyUserCodeForPaste(context, code.userCode)
                                     state = OwnerAuthorizationUiState.WaitingForGitHub(code)
                                     openVerificationPage(context, code.verificationUri)
                                     val identity = GitHubOwnerAuthentication.completeOwnerLogin(resolvedClientId, code)
+                                    // Save immediately after GitHub identity validation. If backend
+                                    // authorization has a transient failure, the user does not have
+                                    // to repeat Device Flow.
+                                    GitHubOwnerCredentialVault.save(context, identity.credential)
                                     verifiedIdentity = identity
                                     authorizeBackend(identity)
                                 } catch (error: CancellationException) {
                                     throw error
                                 } catch (error: GitHubOwnerAuthenticationException) {
+                                    if (shouldForgetStoredCredential(error.reason)) {
+                                        GitHubOwnerCredentialVault.clear(context)
+                                    }
                                     verifiedIdentity = null
                                     onSessionChanged(null)
                                     state = OwnerAuthorizationUiState.Failed(error.reason)
@@ -156,6 +193,15 @@ internal fun OwnerAuthorizationCard(
                     }
                 }
 
+                OwnerAuthorizationUiState.RestoringOwner -> {
+                    AuthorizationProgress(stringResource(R.string.restoring_saved_owner))
+                    Text(
+                        text = stringResource(R.string.restoring_saved_owner_supporting),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+
                 is OwnerAuthorizationUiState.WaitingForGitHub -> {
                     Text(stringResource(R.string.github_device_code_copied))
                     Text(
@@ -165,23 +211,35 @@ internal fun OwnerAuthorizationCard(
                         fontFamily = FontFamily.Monospace,
                     )
                     Text(
-                        stringResource(R.string.github_waiting_authorization),
+                        stringResource(R.string.github_paste_friendly_code),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         CircularProgressIndicator()
-                        OutlinedButton(
-                            onClick = {
-                                copyUserCode(context, current.code.userCode)
-                                openVerificationPage(context, current.code.verificationUri)
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(stringResource(R.string.open_github_again))
-                        }
+                        Text(
+                            stringResource(R.string.github_waiting_authorization),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    Button(
+                        onClick = { copyUserCodeForPaste(context, current.code.userCode) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.copy_github_code))
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            copyUserCodeForPaste(context, current.code.userCode)
+                            openVerificationPage(context, current.code.verificationUri)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.open_github_again))
                     }
                 }
 
@@ -201,13 +259,14 @@ internal fun OwnerAuthorizationCard(
                     )
                     OutlinedButton(
                         onClick = {
+                            GitHubOwnerCredentialVault.clear(context)
                             verifiedIdentity = null
                             onSessionChanged(null)
                             state = OwnerAuthorizationUiState.Idle
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(stringResource(R.string.reauthorize_owner))
+                        Text(stringResource(R.string.forget_owner_device))
                     }
                 }
 
@@ -251,6 +310,7 @@ internal fun OwnerAuthorizationCard(
                         }
                         OutlinedButton(
                             onClick = {
+                                GitHubOwnerCredentialVault.clear(context)
                                 verifiedIdentity = null
                                 state = OwnerAuthorizationUiState.Idle
                             },
@@ -274,12 +334,25 @@ internal fun OwnerAuthorizationCard(
 
             Spacer(Modifier.height(2.dp))
             Text(
-                text = stringResource(R.string.owner_token_memory_only),
+                text = stringResource(R.string.owner_token_secure_storage),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
+}
+
+private fun shouldForgetStoredCredential(reason: String): Boolean = when (reason) {
+    "GITHUB_SAVED_SESSION_EXPIRED",
+    "GITHUB_IDENTITY_UNAUTHORIZED",
+    "OWNER_ID_MISMATCH",
+    "REPOSITORY_ID_MISMATCH",
+    "INSUFFICIENT_REPOSITORY_PERMISSION",
+    "INSTALLATION_MISMATCH",
+    "GITHUB_APP_MISMATCH",
+    "INSTALLATION_ACCOUNT_MISMATCH",
+    "REPOSITORY_NOT_IN_INSTALLATION" -> true
+    else -> false
 }
 
 @Composable
@@ -290,6 +363,8 @@ private fun ownerAuthorizationErrorMessage(reason: String): String = when {
     reason == "GITHUB_CLIENT_ID_MUST_NOT_BE_NUMERIC" ||
         reason == "GITHUB_CLIENT_ID_FORMAT_INVALID" ||
         reason == "GITHUB_CLIENT_ID_INVALID" -> stringResource(R.string.error_client_id_invalid)
+    reason == "GITHUB_SAVED_SESSION_EXPIRED" ||
+        reason == "GITHUB_IDENTITY_UNAUTHORIZED" -> stringResource(R.string.error_saved_owner_expired)
     reason == "GITHUB_DEVICE_FLOW_ENDPOINT_NOT_FOUND" -> stringResource(R.string.error_device_flow_endpoint)
     reason.startsWith("BACKEND_") -> stringResource(R.string.error_backend_authorization)
     else -> stringResource(R.string.error_owner_generic)
@@ -306,9 +381,13 @@ private fun AuthorizationProgress(label: String) {
     }
 }
 
-private fun copyUserCode(context: Context, userCode: String) {
+private fun copyUserCodeForPaste(context: Context, userCode: String) {
+    // GitHub displays the code as XXXX-XXXX, while its mobile entry UI uses
+    // eight character slots. Copying only the eight characters is friendlier
+    // to paste/autofill behavior on mobile keyboards and browsers.
+    val pasteFriendlyCode = userCode.filter(Char::isLetterOrDigit).uppercase()
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    clipboard.setPrimaryClip(ClipData.newPlainText("GitHub device code", userCode))
+    clipboard.setPrimaryClip(ClipData.newPlainText("GitHub device code", pasteFriendlyCode))
 }
 
 private fun openVerificationPage(context: Context, verificationUri: String) {
