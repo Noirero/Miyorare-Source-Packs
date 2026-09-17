@@ -17,29 +17,37 @@ internal data class GitHubDeviceCode(
     val intervalSeconds: Long,
 )
 
-internal data class GitHubOwnerIdentity(
+internal data class GitHubOwnerCredential(
     val accessToken: String,
-    val session: OwnerAccessSession,
+    val accessTokenExpiresAtEpochSeconds: Long?,
+    val refreshToken: String?,
+    val refreshTokenExpiresAtEpochSeconds: Long?,
 )
+
+internal data class GitHubOwnerIdentity(
+    val credential: GitHubOwnerCredential,
+    val session: OwnerAccessSession,
+) {
+    val accessToken: String get() = credential.accessToken
+}
 
 internal class GitHubOwnerAuthenticationException(
     val reason: String,
 ) : RuntimeException(reason)
 
 /**
- * Interactive GitHub App Device Flow for the Source Lab owner session.
+ * GitHub App Device Flow for the Source Lab owner session.
  *
- * The public GitHub App Client ID is embedded by the official release build.
- * Runtime/manual Client ID overrides are intentionally unsupported so an App ID
- * or Installation ID can never replace the trusted build configuration.
- *
- * The returned user access token is kept in memory only and is never written
- * to SharedPreferences, files, logs, or the APK.
+ * The first sign-in remains interactive. Afterwards the token pair can be kept
+ * in the Android-Keystore-backed credential vault and refreshed silently. The
+ * owner identity, exact GitHub App installation and repository permissions are
+ * revalidated every time a saved credential is restored.
  */
 internal object GitHubOwnerAuthentication {
     private const val deviceCodeEndpoint = "https://github.com/login/device/code"
     private const val tokenEndpoint = "https://github.com/login/oauth/access_token"
     private const val apiBase = "https://api.github.com"
+    private const val refreshEarlySeconds = 120L
 
     internal fun resolveClientId(): String {
         val embedded = BuildConfig.SOURCE_LAB_GITHUB_CLIENT_ID.trim()
@@ -68,7 +76,6 @@ internal object GitHubOwnerAuthentication {
         if (value.all(Char::isDigit)) {
             throw GitHubOwnerAuthenticationException("GITHUB_CLIENT_ID_MUST_NOT_BE_NUMERIC")
         }
-        // GitHub App Client IDs currently look like `Iv1.ab1112223334445c`.
         if (!value.matches(Regex("[A-Za-z0-9._-]{10,128}"))) {
             throw GitHubOwnerAuthenticationException("GITHUB_CLIENT_ID_FORMAT_INVALID")
         }
@@ -115,18 +122,68 @@ internal object GitHubOwnerAuthentication {
         clientId: String,
         deviceCode: GitHubDeviceCode,
     ): GitHubOwnerIdentity = withContext(Dispatchers.IO) {
-        val token = pollForToken(clientId.trim(), deviceCode)
-        val session = validateOwnerSession(token)
-        GitHubOwnerIdentity(
-            accessToken = token,
-            session = session,
+        val credential = pollForToken(clientId.trim(), deviceCode)
+        val session = validateOwnerSession(credential.accessToken)
+        GitHubOwnerIdentity(credential = credential, session = session)
+    }
+
+    suspend fun restoreOwnerLogin(
+        clientId: String,
+        storedCredential: GitHubOwnerCredential,
+    ): GitHubOwnerIdentity = withContext(Dispatchers.IO) {
+        val normalizedClientId = clientId.trim()
+        validateClientId(normalizedClientId)
+        val now = System.currentTimeMillis() / 1000L
+
+        var credential = storedCredential
+        if (credentialNeedsRefresh(credential, now)) {
+            credential = refreshCredential(normalizedClientId, credential, now)
+        }
+
+        val session = try {
+            validateOwnerSession(credential.accessToken)
+        } catch (error: GitHubOwnerAuthenticationException) {
+            if (error.reason != "GITHUB_IDENTITY_UNAUTHORIZED" || !canRefresh(credential, now)) {
+                throw error
+            }
+            credential = refreshCredential(normalizedClientId, credential, now)
+            validateOwnerSession(credential.accessToken)
+        }
+
+        GitHubOwnerIdentity(credential = credential, session = session)
+    }
+
+    internal fun credentialNeedsRefresh(
+        credential: GitHubOwnerCredential,
+        nowEpochSeconds: Long = System.currentTimeMillis() / 1000L,
+    ): Boolean {
+        val expiresAt = credential.accessTokenExpiresAtEpochSeconds ?: return false
+        return expiresAt <= nowEpochSeconds + refreshEarlySeconds
+    }
+
+    internal fun parseTokenCredentialResponse(
+        json: JSONObject,
+        nowEpochSeconds: Long = System.currentTimeMillis() / 1000L,
+    ): GitHubOwnerCredential {
+        val accessToken = json.optString("access_token").trim()
+        if (accessToken.isBlank()) {
+            throw GitHubOwnerAuthenticationException("DEVICE_TOKEN_RESPONSE_INVALID")
+        }
+        val expiresIn = json.optLong("expires_in", 0L).takeIf { it > 0L }
+        val refreshToken = json.optString("refresh_token").trim().takeIf { it.isNotEmpty() }
+        val refreshExpiresIn = json.optLong("refresh_token_expires_in", 0L).takeIf { it > 0L }
+        return GitHubOwnerCredential(
+            accessToken = accessToken,
+            accessTokenExpiresAtEpochSeconds = expiresIn?.let { nowEpochSeconds + it },
+            refreshToken = refreshToken,
+            refreshTokenExpiresAtEpochSeconds = refreshExpiresIn?.let { nowEpochSeconds + it },
         )
     }
 
     private suspend fun pollForToken(
         clientId: String,
         code: GitHubDeviceCode,
-    ): String {
+    ): GitHubOwnerCredential {
         validateClientId(clientId)
 
         val deadline = System.currentTimeMillis() + code.expiresInSeconds * 1_000L
@@ -142,11 +199,18 @@ internal object GitHubOwnerAuthentication {
             )
             val json = JSONObject(payload)
             val accessToken = json.optString("access_token")
-            if (accessToken.isNotBlank()) return accessToken
+            if (accessToken.isNotBlank()) return parseTokenCredentialResponse(json)
 
             when (val error = json.optString("error")) {
                 "authorization_pending" -> Unit
-                "slow_down" -> intervalMs += 5_000L
+                "slow_down" -> {
+                    val serverInterval = json.optLong("interval", 0L)
+                    intervalMs = if (serverInterval > 0L) {
+                        serverInterval.coerceAtLeast(5L) * 1_000L
+                    } else {
+                        intervalMs + 5_000L
+                    }
+                }
                 "expired_token" -> throw GitHubOwnerAuthenticationException("DEVICE_CODE_EXPIRED")
                 "access_denied" -> throw GitHubOwnerAuthenticationException("DEVICE_CODE_ACCESS_DENIED")
                 "incorrect_device_code" -> throw GitHubOwnerAuthenticationException("DEVICE_CODE_INVALID")
@@ -161,6 +225,47 @@ internal object GitHubOwnerAuthentication {
             delay(intervalMs)
         }
         throw GitHubOwnerAuthenticationException("DEVICE_CODE_EXPIRED")
+    }
+
+    private fun refreshCredential(
+        clientId: String,
+        credential: GitHubOwnerCredential,
+        nowEpochSeconds: Long,
+    ): GitHubOwnerCredential {
+        val refreshToken = credential.refreshToken
+            ?.takeIf { it.isNotBlank() }
+            ?: throw GitHubOwnerAuthenticationException("GITHUB_SAVED_SESSION_EXPIRED")
+        val refreshExpiresAt = credential.refreshTokenExpiresAtEpochSeconds
+        if (refreshExpiresAt != null && refreshExpiresAt <= nowEpochSeconds + refreshEarlySeconds) {
+            throw GitHubOwnerAuthenticationException("GITHUB_SAVED_SESSION_EXPIRED")
+        }
+
+        val json = JSONObject(
+            formPost(
+                url = tokenEndpoint,
+                fields = mapOf(
+                    "client_id" to clientId,
+                    "grant_type" to "refresh_token",
+                    "refresh_token" to refreshToken,
+                ),
+            ),
+        )
+        val error = json.optString("error").takeIf { it.isNotBlank() }
+        if (error != null) {
+            val reason = when (error) {
+                "bad_refresh_token", "expired_token" -> "GITHUB_SAVED_SESSION_EXPIRED"
+                "incorrect_client_credentials" -> "GITHUB_CLIENT_ID_INVALID"
+                else -> "GITHUB_REFRESH_${error.uppercase()}"
+            }
+            throw GitHubOwnerAuthenticationException(reason)
+        }
+        return parseTokenCredentialResponse(json, nowEpochSeconds)
+    }
+
+    private fun canRefresh(credential: GitHubOwnerCredential, nowEpochSeconds: Long): Boolean {
+        if (credential.refreshToken.isNullOrBlank()) return false
+        val expiresAt = credential.refreshTokenExpiresAtEpochSeconds ?: return true
+        return expiresAt > nowEpochSeconds + refreshEarlySeconds
     }
 
     private fun validateOwnerSession(accessToken: String): OwnerAccessSession {
