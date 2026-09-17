@@ -19,9 +19,6 @@ def source(canonical_id: str, language: str, *, state: str = "PENDING") -> dict:
     return {
         "canonicalId": canonical_id,
         "language": language,
-        "contentProfile": "manga",
-        "authType": "UNSUPPORTED",
-        "adapterFamily": "unclassified",
         "providers": ["uma"],
         "upstreamIdentities": {
             "uma": {"sourceName": canonical_id, "file": f"src/{canonical_id}.kt"}
@@ -30,11 +27,6 @@ def source(canonical_id: str, language: str, *, state: str = "PENDING") -> dict:
             "state": state,
             "parserCoverageRequired": state == "ACTIVE",
         },
-        "updateState": "CANDIDATE",
-        "runtimeHealth": "UNKNOWN",
-        "approvalState": "NOT_READY",
-        "ownerActionRequired": False,
-        "publishEligible": False,
     }
 
 
@@ -48,7 +40,7 @@ class PendingWorkerTest(unittest.TestCase):
                 source("active", "en", state="ACTIVE"),
             ]
         }
-        plan = worker.build_plan(registry, 2)
+        plan = worker.build_plan(registry, worker.normalize_state({}), 2)
         self.assertEqual(plan["batchSize"], 2)
         self.assertEqual({item["language"] for item in plan["items"]}, {"id", "en"})
         self.assertNotIn("active", {item["canonicalId"] for item in plan["items"]})
@@ -136,8 +128,9 @@ class PendingWorkerTest(unittest.TestCase):
         self.assertEqual(retry["results"][0]["state"], worker.RETRY)
         self.assertEqual(held["results"][0]["state"], worker.HELD)
 
-    def test_apply_marks_ready_without_activating(self) -> None:
+    def test_apply_updates_state_without_mutating_registry(self) -> None:
         registry = {"sources": [source("alpha", "en")]}
+        before = repr(registry)
         results = {
             "results": [
                 {
@@ -151,22 +144,36 @@ class PendingWorkerTest(unittest.TestCase):
                 }
             ]
         }
-        worker.apply_results(registry, results, "123", "2026-09-18T00:00:00Z")
-        item = registry["sources"][0]
-        self.assertEqual(item["approvalState"], "WAITING_FOR_APPROVAL")
-        self.assertEqual(item["runtimeHealth"], "HEALTHY")
-        self.assertEqual(item["compatibilityEnrollment"]["state"], "PENDING")
-        self.assertFalse(item["publishEligible"])
-        self.assertFalse(item["ownerActionRequired"])
+        state, summary = worker.apply_results(
+            registry,
+            worker.normalize_state({}),
+            results,
+            "123",
+            "2026-09-18T00:00:00Z",
+        )
+        self.assertEqual(repr(registry), before)
+        self.assertEqual(state["sources"]["alpha"]["approvalState"], "WAITING_FOR_APPROVAL")
+        self.assertFalse(state["sources"]["alpha"]["publishEligible"])
+        self.assertFalse(state["sources"]["alpha"]["ownerActionRequired"])
+        self.assertEqual(summary["states"][worker.READY], 1)
 
     def test_ready_and_held_are_not_requeued(self) -> None:
-        ready = source("ready", "id")
-        ready["approvalState"] = "WAITING_FOR_APPROVAL"
-        ready["onboarding"] = {"state": worker.READY}
-        held = source("held", "en")
-        held["onboarding"] = {"state": worker.HELD}
-        pending = source("pending", "en")
-        plan = worker.build_plan({"sources": [ready, held, pending]}, 8)
+        registry = {
+            "sources": [
+                source("ready", "id"),
+                source("held", "en"),
+                source("pending", "en"),
+            ]
+        }
+        state = worker.normalize_state(
+            {
+                "sources": {
+                    "ready": {"state": worker.READY},
+                    "held": {"state": worker.HELD},
+                }
+            }
+        )
+        plan = worker.build_plan(registry, state, 8)
         self.assertEqual([item["canonicalId"] for item in plan["items"]], ["pending"])
 
 
