@@ -66,7 +66,7 @@ jobs:
           from pathlib import Path
 
           payload = {
-              "schemaVersion": 1,
+              "schemaVersion": 2,
               "challenge": os.environ["SOURCE_LAB_CHALLENGE"],
               "repository": os.environ["GITHUB_REPOSITORY"],
               "actorId": os.environ["GITHUB_ACTOR_ID"],
@@ -74,6 +74,13 @@ jobs:
               "runAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
               "ref": os.environ["GITHUB_REF"],
               "event": os.environ["GITHUB_EVENT_NAME"],
+              "capabilities": [
+                  "RUN_FARM",
+                  "APPROVE",
+                  "PROMOTE",
+                  "SIGN",
+                  "PUBLISH",
+              ],
           }
           Path("build/source-lab-authz/metadata.json").write_text(
               json.dumps(payload, sort_keys=True, separators=(",", ":")),
@@ -108,10 +115,15 @@ jobs:
               raise SystemExit("OIDC token is not a three-part JWT")
 
           metadata = json.loads(Path("build/source-lab-authz/metadata.json").read_text(encoding="utf-8"))
+          if metadata.get("schemaVersion") != 2:
+              raise SystemExit("metadata schema mismatch")
           if metadata["challenge"] != os.environ["SOURCE_LAB_CHALLENGE"]:
               raise SystemExit("metadata challenge mismatch")
           if metadata["runId"] != os.environ["GITHUB_RUN_ID"]:
               raise SystemExit("metadata run id mismatch")
+          expected = {"RUN_FARM", "APPROVE", "PROMOTE", "SIGN", "PUBLISH"}
+          if set(metadata.get("capabilities", [])) != expected:
+              raise SystemExit("metadata capability set mismatch")
           PY
         env:
           SOURCE_LAB_CHALLENGE: ${{ inputs.challenge }}
@@ -188,10 +200,15 @@ jobs:
                   raise SystemExit("artifact JWT is malformed")
 
               metadata = json.loads(archive.read("metadata.json").decode("utf-8"))
+              if metadata.get("schemaVersion") != 2:
+                  raise SystemExit("artifact metadata schema mismatch")
               if metadata.get("challenge") != os.environ["SOURCE_LAB_CHALLENGE"]:
                   raise SystemExit("artifact challenge mismatch")
               if metadata.get("runId") != os.environ["GITHUB_RUN_ID"]:
                   raise SystemExit("artifact run id mismatch")
+              expected_capabilities = {"RUN_FARM", "APPROVE", "PROMOTE", "SIGN", "PUBLISH"}
+              if set(metadata.get("capabilities", [])) != expected_capabilities:
+                  raise SystemExit("artifact capability set mismatch")
 
           print("Authorization artifact is complete and Android ZipInputStream compatible.")
           PY
