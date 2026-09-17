@@ -70,6 +70,7 @@ jobs:
           assert c['trust']['releaseTagImmutable'] is True
           assert c['trust']['releaseLockRequiredForNewRelease'] is True
           assert c['trust']['releaseLockAttestationRequired'] is True
+          assert c['trust']['sealBeforeStablePublishRequired'] is True
           assert c['trust']['githubArtifactAttestationRequiredForNewRelease'] is True
           assert c['trust']['sigstoreBundleRequiredForNewRelease'] is False
           assert c['trust']['consumerVerification']['sha256EnforcedInApp'] is True
@@ -172,6 +173,7 @@ jobs:
               'schemaVersion': 1,
               'kind': 'MIYORARE_SOURCE_PACK_RELEASE_LOCK',
               'immutable': True,
+              'sealedBeforePublish': True,
               'tag': 'miyorare-sources-v9.9.9',
               'releaseManifestSha256': hashlib.sha256(manifest.read_bytes()).hexdigest(),
               'assets': [{
@@ -191,14 +193,82 @@ jobs:
               f'{digest}  miyorare-release-lock.json\n', encoding='utf-8'
           )
           PY
-          python3 tools/verify_release_lock.py --dir "$tmp" --tag miyorare-sources-v9.9.9
+          python3 tools/verify_release_lock.py \
+            --dir "$tmp" \
+            --tag miyorare-sources-v9.9.9 \
+            --require-sealed-before-publish
+
+          python3 - "$tmp" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          root = Path(sys.argv[1])
+          lock_path = root / 'miyorare-release-lock.json'
+          lock = json.loads(lock_path.read_text(encoding='utf-8'))
+          lock['sealedBeforePublish'] = False
+          lock_path.write_text(json.dumps(lock, sort_keys=True) + '\n', encoding='utf-8')
+          digest = hashlib.sha256(lock_path.read_bytes()).hexdigest()
+          (root / 'miyorare-release-lock.sha256').write_text(
+              f'{digest}  miyorare-release-lock.json\n', encoding='utf-8'
+          )
+          PY
+          if python3 tools/verify_release_lock.py \
+            --dir "$tmp" \
+            --tag miyorare-sources-v9.9.9 \
+            --require-sealed-before-publish; then
+            echo '::error::Lock without seal-before-publish proof unexpectedly passed.'
+            exit 1
+          fi
+
+          python3 - "$tmp" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          root = Path(sys.argv[1])
+          lock_path = root / 'miyorare-release-lock.json'
+          lock = json.loads(lock_path.read_text(encoding='utf-8'))
+          lock['sealedBeforePublish'] = True
+          lock_path.write_text(json.dumps(lock, sort_keys=True) + '\n', encoding='utf-8')
+          digest = hashlib.sha256(lock_path.read_bytes()).hexdigest()
+          (root / 'miyorare-release-lock.sha256').write_text(
+              f'{digest}  miyorare-release-lock.json\n', encoding='utf-8'
+          )
+          PY
           printf 'tamper\n' >> "$tmp/a.jar"
-          if python3 tools/verify_release_lock.py --dir "$tmp" --tag miyorare-sources-v9.9.9; then
+          if python3 tools/verify_release_lock.py \
+            --dir "$tmp" \
+            --tag miyorare-sources-v9.9.9 \
+            --require-sealed-before-publish; then
             echo '::error::Tampered release unexpectedly passed immutable lock verification.'
             exit 1
           fi
 
-      - name: Validate release workflow compatibility and trust markers
+      - name: Validate seal-before-publish workflow ordering
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          release = Path('.github/workflows/release-source-packs.yml').read_text(encoding='utf-8')
+          seal = Path('.github/workflows/source-pack-release-seal.yml').read_text(encoding='utf-8')
+          audit = Path('.github/workflows/source-pack-release-audit.yml').read_text(encoding='utf-8')
+
+          create = release.index('gh release create "$TAG"')
+          draft = release.index('--draft', create)
+          sealer = release.index('uses: ./.github/workflows/source-pack-release-seal.yml')
+          final_audit = release.index('Final compatibility integrity and authenticity audit')
+          publish = release.index('gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest')
+          assert create < draft < sealer < final_audit < publish
+          assert '--require-sealed-before-publish' in release
+          assert 'workflow_call:' in seal
+          assert "'sealedBeforePublish': True" in seal
+          assert 'Refuse retroactive sealing of published releases' in seal
+          assert '--require-sealed-before-publish' in seal
+          assert 'types: [published]' not in seal
+          assert 'types: [published, edited]' in audit
+          assert '--require-sealed-before-publish' in audit
+          PY
+
+      - name: Validate release compatibility and trust markers
         shell: bash
         run: |
           set -euo pipefail
@@ -212,7 +282,6 @@ jobs:
           grep -Fq 'gh attestation verify' "$seal"
           grep -Fq 'miyorare-release-lock.json' "$seal"
           grep -Fq 'already_sealed' "$seal"
-          grep -Fq 'cmp --silent compatibility/miyorare-source-pack-contract.v1.json' "$seal"
           grep -Fq 'tools/source_pack_manifest.py validate' "$seal"
           grep -Fq 'verify_release_lock.py' "$seal"
           grep -Fq 'verify_release_lock.py' "$audit"
