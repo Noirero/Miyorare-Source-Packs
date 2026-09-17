@@ -254,6 +254,40 @@ jobs:
           )
           PY
 
+      - name: Record completed publish cycle in live Farm status
+        env:
+          FOUNDATION_COMMIT: ${{ steps.signature.outputs.foundation_commit }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --branch compatibility-farm-foundation \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" farm
+          [[ "$(git -C farm rev-parse HEAD)" == "$FOUNDATION_COMMIT" ]] || {
+            echo "Compatibility Farm moved before publish receipt could be committed." >&2
+            exit 1
+          }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          receipt = json.loads(Path("build/source-lab-publish-receipt.json").read_text(encoding="utf-8"))
+          status_path = Path("farm/upstream/status.json")
+          status = json.loads(status_path.read_text(encoding="utf-8"))
+          last = status.get("lastPromotion")
+          if not isinstance(last, dict) or last.get("candidateSetId") != receipt["candidateSetId"]:
+              raise SystemExit("live lastPromotion changed before publish marker")
+          if status.get("approvalCandidate") is not None:
+              raise SystemExit("a new approvalCandidate appeared before publish marker")
+          status["lastPublish"] = receipt
+          status_path.write_text(
+              json.dumps(status, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+          )
+          PY
+          git -C farm config user.name github-actions[bot]
+          git -C farm config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C farm add upstream/status.json
+          git -C farm commit -m "Record Source Lab published candidate $CANDIDATE_SET_ID"
+          git -C farm push origin HEAD:compatibility-farm-foundation
+
       - name: Upload publish receipt
         uses: actions/upload-artifact@v4
         with:
