@@ -1,0 +1,113 @@
+name: Source Pack Contract CI
+
+on:
+  pull_request:
+    paths:
+      - 'compatibility/miyorare-source-pack-contract.v1.json'
+      - 'tools/source_pack_outcome.py'
+      - 'upstream/outcome.json'
+      - '.github/workflows/source-pack-contract.yml'
+      - '.github/workflows/source-pack-release-seal.yml'
+      - '.github/workflows/source-pack-release-audit.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'compatibility/miyorare-source-pack-contract.v1.json'
+      - 'tools/source_pack_outcome.py'
+      - 'upstream/outcome.json'
+      - '.github/workflows/source-pack-contract.yml'
+      - '.github/workflows/source-pack-release-seal.yml'
+      - '.github/workflows/source-pack-release-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Packs
+        uses: actions/checkout@v5
+
+      - name: Validate contract semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          c = json.loads(Path('compatibility/miyorare-source-pack-contract.v1.json').read_text(encoding='utf-8'))
+          assert c['schemaVersion'] == 1
+          assert c['contractId'] == 'miyorare-source-pack'
+          assert c['consumer']['repository'] == 'Noirero/Miyorare'
+          assert c['consumer']['applicationId'] == 'org.noirero.miyorare'
+          assert c['producer']['repository'] == 'Noirero/Miyorare-Source-Packs'
+          assert c['format']['logicalPackManifestSchema'] == 2
+          assert c['format']['releaseManifestSchema'] == 2
+          assert c['format']['digestAlgorithm'] == 'sha256'
+          assert set(c['format']['requiredLanguages']) == {'id', 'en', 'global'}
+          assert c['runtime']['atomicLogicalPackInstall'] is True
+          assert c['runtime']['rollbackOnPartialInstallFailure'] is True
+          assert c['runtime']['downgradeProtection'] is True
+          assert c['trust']['releaseTagImmutable'] is True
+          assert c['trust']['releaseLockRequiredForNewRelease'] is True
+          assert c['trust']['releaseLockAttestationRequired'] is True
+          assert c['trust']['githubArtifactAttestationRequiredForNewRelease'] is True
+          assert c['trust']['sigstoreBundleRequiredForNewRelease'] is False
+          assert c['trust']['signatureIdentity']['workflow'] == '.github/workflows/source-pack-release-seal.yml'
+          assert c['compatibility']['candidateValidationFailure'] == 'held'
+          PY
+
+      - name: Compile tri-state classifier
+        run: python3 -m py_compile tools/source_pack_outcome.py
+
+      - name: Prove PASS HELD FAIL semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+
+          spec = importlib.util.spec_from_file_location('outcome', Path('tools/source_pack_outcome.py'))
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+
+          def status(*states):
+              return {'schema': 2, 'providers': {f'p{i}': {'state': s} for i, s in enumerate(states)}}
+
+          assert mod.classify(status('synced', 'promoted'))['outcome'] == 'PASS'
+          held = mod.classify(status('synced', 'held'))
+          assert held['outcome'] == 'HELD' and held['activeSetSafe'] is True
+          fail = mod.classify(status('synced', 'broken'))
+          assert fail['outcome'] == 'FAIL' and fail['activeSetSafe'] is False
+          assert mod.classify({'schema': 99, 'providers': {}})['outcome'] == 'FAIL'
+          PY
+
+      - name: Validate checked-in outcome against current status
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp)"
+          python3 tools/source_pack_outcome.py --status upstream/status.json --output "$tmp"
+          python3 - "$tmp" <<'PY'
+          import json, sys
+          from pathlib import Path
+          expected = json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
+          checked = json.loads(Path('upstream/outcome.json').read_text(encoding='utf-8'))
+          if expected != checked:
+              raise SystemExit('upstream/outcome.json is stale relative to upstream/status.json')
+          PY
+
+      - name: Validate release trust workflow markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          seal=.github/workflows/source-pack-release-seal.yml
+          grep -Fq 'actions/attest-build-provenance@v2' "$seal"
+          grep -Fq 'gh attestation verify' "$seal"
+          grep -Fq 'miyorare-release-lock.json' "$seal"
+          grep -Fq 'already_sealed' "$seal"
+          grep -Fq 'cmp --silent compatibility/miyorare-source-pack-contract.v1.json' "$seal"
