@@ -68,7 +68,23 @@ jobs:
               print('providers=')
               raise SystemExit(0)
 
+          status = json.loads(Path('upstream/status.json').read_text(encoding='utf-8'))
           outcome = json.loads(Path('upstream/outcome.json').read_text(encoding='utf-8'))
+
+          if status.get('schema') != 2:
+              raise SystemExit('merged upstream/status.json is not schema 2')
+          if status.get('workflowRunId') != outcome.get('workflowRunId'):
+              raise SystemExit('merged status/outcome workflowRunId mismatch')
+
+          for provider in ('keiyoushi', 'uma', 'gekkoushi'):
+              registry_lkg = after['providers'][provider]['lastKnownGood']
+              status_lkg = status.get('providers', {}).get(provider, {}).get('lastKnownGood')
+              if status_lkg != registry_lkg:
+                  raise SystemExit(
+                      f'merged status/registry last-known-good mismatch for {provider}: '
+                      f'{status_lkg!r} != {registry_lkg!r}'
+                  )
+
           if outcome.get('outcome') not in {'PASS', 'HELD'} or outcome.get('activeSetSafe') is not True:
               raise SystemExit(
                   'registry last-known-good changed but merged upstream/outcome.json is not an active-set-safe PASS/HELD result'
