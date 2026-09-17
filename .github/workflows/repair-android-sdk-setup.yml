@@ -1,33 +1,34 @@
-name: Repair Android SDK Setup
+name: Audit Android SDK Setup
 
 on:
   push:
     branches:
       - main
     paths:
-      - .github/workflows/repair-android-sdk-setup.yml
+      - '.github/workflows/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/**'
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
-  group: repair-source-pack-android-sdk-setup
-  cancel-in-progress: false
+  group: audit-source-pack-android-sdk-setup-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  repair:
-    name: Replace obsolete Android SDK tools package
+  audit:
+    name: Verify explicit Android SDK packages
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-        with:
-          ref: main
-          fetch-depth: 0
 
-      - name: Patch Source Pack workflows
+      - name: Audit Source Pack workflows
         shell: bash
         run: |
           set -euo pipefail
@@ -35,51 +36,40 @@ jobs:
           from pathlib import Path
 
           root = Path('.github/workflows')
-          needle = "      - name: Set up Android SDK\n        uses: android-actions/setup-android@v4\n"
-          replacement = needle + "        with:\n          packages: platform-tools\n"
-          changed = []
+          self_name = 'repair-android-sdk-setup.yml'
+          uses_line = 'uses: android-actions/setup-android@v4'
+          failures = []
+          checked = 0
 
           for path in sorted([*root.glob('*.yml'), *root.glob('*.yaml')]):
-              if path.name == 'repair-android-sdk-setup.yml':
+              if path.name == self_name:
                   continue
-              text = path.read_text(encoding='utf-8')
-              if needle not in text:
-                  continue
-              updated = text.replace(needle, replacement)
-              if updated == text:
-                  continue
-              path.write_text(updated, encoding='utf-8')
-              changed.append(path.as_posix())
+              lines = path.read_text(encoding='utf-8').splitlines()
+              for index, line in enumerate(lines):
+                  if line.strip() != uses_line:
+                      continue
+                  checked += 1
+                  base_indent = len(line) - len(line.lstrip())
+                  block = []
+                  for following in lines[index + 1:]:
+                      if following.strip():
+                          indent = len(following) - len(following.lstrip())
+                          if indent < base_indent:
+                              break
+                      block.append(following)
 
-          if not changed:
-              print('No obsolete setup-android package defaults found.')
-          else:
-              print('Patched:')
-              for item in changed:
+                  expected_with = ' ' * base_indent + 'with:'
+                  expected_packages = ' ' * (base_indent + 2) + 'packages: platform-tools'
+                  if expected_with not in block or expected_packages not in block:
+                      failures.append(f'{path}:{index + 1}')
+
+          if checked == 0:
+              raise SystemExit('No android-actions/setup-android@v4 usage found to audit.')
+          if failures:
+              print('Android SDK setup must explicitly request packages: platform-tools at:')
+              for item in failures:
                   print(f' - {item}')
+              raise SystemExit(1)
+
+          print(f'Android SDK audit passed for {checked} setup-android step(s).')
           PY
-
-      - name: Open repair pull request
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPAIR_BRANCH: automation/android-sdk-repair-${{ github.run_id }}
-        run: |
-          set -euo pipefail
-          if git diff --quiet -- .github/workflows; then
-            echo 'No workflow changes to propose.'
-            exit 0
-          fi
-
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git checkout -b "$REPAIR_BRANCH"
-          git add .github/workflows
-          git commit -m "Use supported Android SDK packages in Source Pack CI"
-          git push origin "HEAD:${REPAIR_BRANCH}"
-
-          gh pr create \
-            --base main \
-            --head "$REPAIR_BRANCH" \
-            --title "chore(ci): repair Android SDK setup" \
-            --body "Automated repair for obsolete Android SDK setup declarations. This change is intentionally delivered through a pull request so protected main does not need an automation bypass."

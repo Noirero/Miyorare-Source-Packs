@@ -48,12 +48,17 @@ class ProtectedMainAutomationTests(unittest.TestCase):
         self.assertIn("gh workflow run release-source-packs.yml", release)
         self.assertIn("--ref main", release)
 
-    def test_android_sdk_repair_uses_pr_instead_of_main_push(self) -> None:
-        repair = workflow("repair-android-sdk-setup.yml")
-        self.assertNotIn("git push origin HEAD:main", repair)
-        self.assertIn('git push origin "HEAD:${REPAIR_BRANCH}"', repair)
-        self.assertIn("gh pr create", repair)
-        self.assertIn("--base main", repair)
+    def test_android_sdk_guard_is_read_only_audit(self) -> None:
+        audit = workflow("repair-android-sdk-setup.yml")
+        self.assertIn("name: Audit Android SDK Setup", audit)
+        self.assertIn("contents: read", audit)
+        self.assertNotIn("contents: write", audit)
+        self.assertNotIn("pull-requests: write", audit)
+        self.assertNotIn("git push", audit)
+        self.assertNotIn("gh pr create", audit)
+        self.assertIn("pull_request:", audit)
+        self.assertIn("'.github/workflows/**'", audit)
+        self.assertIn("packages: platform-tools", audit)
 
 
 if __name__ == "__main__":
