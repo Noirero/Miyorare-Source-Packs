@@ -13,13 +13,15 @@ on:
       - '.github/workflows/upstream-sync-status.yml'
       - '.github/workflows/upstream-sync-pr-check.yml'
       - '.github/workflows/release-source-packs.yml'
+      - '.github/workflows/release-source-packs-after-merge.yml'
       - 'README.md'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: upstream-sync-pr-${{ github.event.pull_request.number }}
+  group: upstream-sync-pr-${{ github.event.pull_request.number || github.ref_name }}
   cancel-in-progress: true
 
 jobs:

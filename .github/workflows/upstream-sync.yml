@@ -6,8 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  actions: write
+  contents: read
 
 concurrency:
   group: miyorare-upstream-sync
@@ -654,7 +653,6 @@ jobs:
     if: always() && needs.plan.result == 'success'
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ github.token }}
       KEI_CHANGED: ${{ needs.plan.outputs.keiyoushi_changed }}
       KEI_CURRENT: ${{ needs.plan.outputs.keiyoushi_current }}
       KEI_CANDIDATE: ${{ needs.plan.outputs.keiyoushi_candidate }}
@@ -730,49 +728,23 @@ jobs:
             echo "providers=" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Commit promoted registry advancement
+      - name: Upload promoted registry proposal
+        if: steps.promote.outputs.promoted == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: promoted-upstream-registry
+          path: upstream/registry.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Record PR delivery handoff
         if: steps.promote.outputs.promoted == 'true'
         shell: bash
         run: |
-          set -euo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add upstream/registry.json
-          git commit -m "Promote validated upstream updates: ${{ steps.promote.outputs.providers }}"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
-
-      - name: Determine next immutable source-pack version
-        if: steps.promote.outputs.promoted == 'true' && github.ref_name == github.event.repository.default_branch
-        id: version
-        shell: bash
-        run: |
-          set -euo pipefail
-          next_version="$(python3 - <<'PY'
-          import json
-          import re
-          import subprocess
-
-          raw = subprocess.check_output(
-              ['gh', 'release', 'list', '--limit', '100', '--json', 'tagName'],
-              text=True,
-          )
-          versions = []
-          for item in json.loads(raw):
-              match = re.fullmatch(r'miyorare-sources-v(\d+)\.(\d+)\.(\d+)', item['tagName'])
-              if match:
-                  versions.append(tuple(map(int, match.groups())))
-          if not versions:
-              print('0.1.0')
-          else:
-              major, minor, patch = max(versions)
-              print(f'{major}.{minor}.{patch + 1}')
-          PY
-          )"
-          echo "version=$next_version" >> "$GITHUB_OUTPUT"
-
-      - name: Dispatch immutable Source Pack release
-        if: steps.promote.outputs.promoted == 'true' && github.ref_name == github.event.repository.default_branch
-        run: |
-          gh workflow run release-source-packs.yml \
-            --ref "$GITHUB_REF_NAME" \
-            -f version="${{ steps.version.outputs.version }}"
+          {
+            echo '### Automation PR staging'
+            echo
+            echo 'Validated registry advancement was stored as workflow evidence.'
+            echo 'The Source Sync Result workflow will combine it with atomic status/outcome and publish one automation PR.'
+            echo 'This workflow performs no repository push.'
+          } >> "$GITHUB_STEP_SUMMARY"
