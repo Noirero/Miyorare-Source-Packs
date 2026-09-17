@@ -1,0 +1,317 @@
+name: Source Lab Promote Candidate
+run-name: Source Lab promote ${{ inputs.candidate_set_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_set_id:
+        description: Exact live candidateSetId approved by the Owner
+        required: true
+        type: string
+      approval_run_id:
+        description: Exact successful Source Lab approval workflow run
+        required: true
+        type: number
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: source-lab-promote-${{ inputs.candidate_set_id }}
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote exact approved candidate set
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_OWNER_ID: '149634319'
+      CANDIDATE_SET_ID: ${{ inputs.candidate_set_id }}
+      APPROVAL_RUN_ID: ${{ inputs.approval_run_id }}
+    steps:
+      - name: Fail closed on caller and request
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+          [[ "$CANDIDATE_SET_ID" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$APPROVAL_RUN_ID" =~ ^[0-9]+$ ]]
+
+      - name: Verify exact approval workflow run
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$APPROVAL_RUN_ID" > "$RUNNER_TEMP/approval-run.json"
+          python3 - "$RUNNER_TEMP/approval-run.json" <<'PY'
+          import json, os, sys
+          run = json.load(open(sys.argv[1], encoding="utf-8"))
+          expected = {
+              "event": "workflow_dispatch",
+              "head_branch": "main",
+              "conclusion": "success",
+              "path": ".github/workflows/source-lab-approve-candidate.yml",
+          }
+          for key, value in expected.items():
+              if run.get(key) != value:
+                  raise SystemExit(f"approval run {key} mismatch: {run.get(key)!r}")
+          if str(run.get("actor", {}).get("id")) != os.environ["EXPECTED_OWNER_ID"]:
+              raise SystemExit("approval run actor mismatch")
+          if run.get("display_title") != f"Source Lab approve {os.environ['CANDIDATE_SET_ID']}":
+              raise SystemExit("approval run candidate title mismatch")
+          PY
+
+      - name: Checkout authoritative Compatibility Farm
+        uses: actions/checkout@v5
+        with:
+          ref: compatibility-farm-foundation
+          fetch-depth: 0
+          path: farm
+
+      - name: Record foundation head before mutation
+        id: base
+        shell: bash
+        run: echo "sha=$(git -C farm rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Download immutable approval proof
+        uses: actions/download-artifact@v5
+        with:
+          name: source-lab-approval-${{ inputs.candidate_set_id }}
+          path: build/approval
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.approval_run_id }}
+
+      - name: Revalidate live candidate and approval proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          approval="$(find build/approval -type f -name approval-proof.json -print -quit)"
+          [[ -n "$approval" ]]
+          cp "$approval" build/approval-proof.json
+
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          status = json.loads(Path("farm/upstream/status.json").read_text(encoding="utf-8"))
+          pending = status.get("approvalCandidate")
+          if not isinstance(pending, dict):
+              raise SystemExit("no live approvalCandidate exists")
+          if pending.get("candidateSetId") != os.environ["CANDIDATE_SET_ID"]:
+              raise SystemExit("live candidateSetId changed; promotion is stale")
+          if pending.get("state") != "WAITING_FOR_APPROVAL":
+              raise SystemExit("candidate is no longer waiting for approval")
+          Path("build/pending-approval.json").write_text(
+              json.dumps(pending, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+
+          approval = json.loads(Path("build/approval-proof.json").read_text(encoding="utf-8"))
+          if approval.get("approvalState") != "APPROVED":
+              raise SystemExit("approval proof is not APPROVED")
+          if approval.get("candidateSetId") != pending.get("candidateSetId"):
+              raise SystemExit("approval belongs to another candidate")
+          if approval.get("gateFingerprint") != pending.get("gateFingerprint"):
+              raise SystemExit("approval gate fingerprint changed")
+          if approval.get("evidenceBinding") != pending.get("evidenceBinding"):
+              raise SystemExit("approval evidence binding changed")
+          if approval.get("providers") != {
+              provider: item["candidate"]
+              for provider, item in sorted(pending["providers"].items())
+          }:
+              raise SystemExit("approved provider SHAs do not match live candidate")
+          PY
+
+      - name: Authorize and promote every provider atomically
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t providers < <(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          pending = json.loads(Path("build/pending-approval.json").read_text(encoding="utf-8"))
+          for provider in sorted(pending["providers"]):
+              print(provider)
+          PY
+          )
+          ((${#providers[@]} > 0))
+
+          mkdir -p build/promotion-auth build/promotion-receipts
+          for provider in "${providers[@]}"; do
+            commit="$(python3 - "$provider" <<'PY'
+          import json, sys
+          from pathlib import Path
+          pending = json.loads(Path("build/pending-approval.json").read_text(encoding="utf-8"))
+          print(pending["providers"][sys.argv[1]]["candidate"])
+          PY
+            )"
+            python3 farm/tools/approval_state.py authorize \
+              --registry farm/upstream/registry.json \
+              --pending build/pending-approval.json \
+              --approval build/approval-proof.json \
+              --provider "$provider" \
+              --commit "$commit" \
+              --output "build/promotion-auth/$provider.json"
+
+            python3 farm/tools/authorized_promotion.py \
+              --registry farm/upstream/registry.json \
+              --authorization "build/promotion-auth/$provider.json" \
+              --provider "$provider" \
+              --commit "$commit" \
+              --receipt "build/promotion-receipts/$provider.json"
+          done
+
+      - name: Advance Compatibility Farm baseline and runtime status
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+
+          pending = json.loads(Path("build/pending-approval.json").read_text(encoding="utf-8"))
+          approval = json.loads(Path("build/approval-proof.json").read_text(encoding="utf-8"))
+          registry_path = Path("farm/compatibility/source-registry.json")
+          status_path = Path("farm/upstream/status.json")
+          registry = json.loads(registry_path.read_text(encoding="utf-8"))
+          status = json.loads(status_path.read_text(encoding="utf-8"))
+
+          if status.get("schema") != 3:
+              raise SystemExit("upstream status schema must remain 3")
+          if status.get("approvalCandidate", {}).get("candidateSetId") != pending["candidateSetId"]:
+              raise SystemExit("live candidate changed before promotion commit")
+
+          for provider, item in sorted(pending["providers"].items()):
+              current = item["current"]
+              candidate = item["candidate"]
+              if registry["providerBaselines"].get(provider) != current:
+                  raise SystemExit(f"{provider} compatibility baseline moved")
+              registry["providerBaselines"][provider] = candidate
+
+              for source in registry["sources"]:
+                  if provider not in source.get("providers", []):
+                      continue
+                  if source["lastKnownGood"].get(provider) != current:
+                      raise SystemExit(
+                          f"{source.get('canonicalId')} {provider} lastKnownGood moved"
+                      )
+                  source["currentVersion"][provider] = candidate
+                  source["lastKnownGood"][provider] = candidate
+                  history = source.setdefault("healthyHistory", [])
+                  if candidate not in history:
+                      history.append(candidate)
+                  source["updateState"] = "PROMOTED"
+                  source["approvalState"] = "NOT_READY"
+                  source["ownerActionRequired"] = False
+                  source["publishEligible"] = False
+
+              provider_status = status["providers"].get(provider)
+              if not isinstance(provider_status, dict):
+                  raise SystemExit(f"status provider missing: {provider}")
+              if provider_status.get("activeCommit") != current:
+                  raise SystemExit(f"{provider} activeCommit moved")
+              if provider_status.get("lastKnownGood") != current:
+                  raise SystemExit(f"{provider} lastKnownGood moved")
+              provider_status["activeCommit"] = candidate
+              provider_status["lastKnownGood"] = candidate
+              history = provider_status.setdefault("healthyHistory", [])
+              if candidate not in history:
+                  history.append(candidate)
+              provider_status["updateState"] = "PROMOTED"
+              provider_status["reason"] = "owner-approved-exact-promotion"
+              provider_status.pop("candidate", None)
+
+          status.pop("approvalCandidate", None)
+          status["lastPromotion"] = {
+              "schemaVersion": 1,
+              "state": "PROMOTED",
+              "candidateSetId": pending["candidateSetId"],
+              "approvalRunId": int(os.environ["APPROVAL_RUN_ID"]),
+              "promotionRunId": int(os.environ["GITHUB_RUN_ID"]),
+              "providers": {
+                  provider: item["candidate"]
+                  for provider, item in sorted(pending["providers"].items())
+              },
+              "evidenceBinding": pending["evidenceBinding"],
+              "approvedBy": approval["approvedBy"],
+              "publishEligible": False,
+          }
+
+          registry_path.write_text(
+              json.dumps(registry, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+          )
+          status_path.write_text(
+              json.dumps(status, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Refuse promotion if foundation moved after validation
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C farm fetch origin compatibility-farm-foundation
+          [[ "$(git -C farm rev-parse origin/compatibility-farm-foundation)" == "$BASE_SHA" ]]
+
+      - name: Commit exact authorized promotion
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C farm config user.name github-actions[bot]
+          git -C farm config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C farm add upstream/registry.json upstream/status.json compatibility/source-registry.json
+          git -C farm diff --cached --quiet && {
+            echo "Promotion produced no state change; replay rejected." >&2
+            exit 1
+          }
+          git -C farm commit -m "Promote Source Lab approved candidate $CANDIDATE_SET_ID"
+          git -C farm push origin HEAD:compatibility-farm-foundation
+          echo "foundation_commit=$(git -C farm rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Emit immutable promotion receipt
+        env:
+          FOUNDATION_COMMIT: ${{ steps.commit.outputs.foundation_commit }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          pending = json.loads(Path("build/pending-approval.json").read_text(encoding="utf-8"))
+          approval = json.loads(Path("build/approval-proof.json").read_text(encoding="utf-8"))
+          receipt = {
+              "schemaVersion": 1,
+              "action": "PROMOTE",
+              "state": "PROMOTED",
+              "candidateSetId": pending["candidateSetId"],
+              "approvalRunId": int(os.environ["APPROVAL_RUN_ID"]),
+              "promotionRunId": int(os.environ["GITHUB_RUN_ID"]),
+              "foundationCommit": os.environ["FOUNDATION_COMMIT"],
+              "providers": {
+                  provider: item["candidate"]
+                  for provider, item in sorted(pending["providers"].items())
+              },
+              "evidenceBinding": pending["evidenceBinding"],
+              "approvedBy": approval["approvedBy"],
+              "publishEligible": False,
+          }
+          Path("build/source-lab-promotion-receipt.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Upload promotion receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-lab-promotion-${{ inputs.candidate_set_id }}
+          path: |
+            build/source-lab-promotion-receipt.json
+            build/promotion-receipts/*.json
+          if-no-files-found: error
+          retention-days: 30
