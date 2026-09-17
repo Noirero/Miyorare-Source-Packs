@@ -23,19 +23,31 @@ class ParserFamilyPlanTests(unittest.TestCase):
         cls.registry = json.loads((ROOT / "compatibility/source-registry.json").read_text(encoding="utf-8"))
         cls.plan = json.loads((ROOT / "compatibility/parser-families.json").read_text(encoding="utf-8"))
 
+    def required_sources(self, registry=None):
+        registry = registry or self.registry
+        return [
+            source for source in registry["sources"]
+            if source.get("compatibilityEnrollment", {}).get("parserCoverageRequired", True)
+        ]
+
     def test_repository_plan_is_valid_and_covers_active_memberships(self):
         result = validate_plan(self.plan, self.registry)
-        self.assertEqual("VALID", result["status"])
-        self.assertEqual(21, result["membershipCount"])
-        self.assertEqual(21, result["requiredMembershipCount"])
-        self.assertEqual(12, result["requiredSourceCount"])
-        self.assertEqual(1, result["pendingSourceCount"])
-        self.assertEqual(
-            {"gekkoushi": 4, "keiyoushi": 6, "uma": 11},
-            result["providerMembershipCounts"],
-        )
+        required_sources = self.required_sources()
+        required_memberships = sum(len(source["providers"]) for source in required_sources)
+        provider_counts = {
+            provider: sum(provider in source["providers"] for source in required_sources)
+            for provider in self.registry["scope"]["providers"]
+        }
 
-    def test_aarlas_is_pending_and_not_in_parser_execution_plan(self):
+        self.assertEqual("VALID", result["status"])
+        self.assertEqual(required_memberships, result["membershipCount"])
+        self.assertEqual(required_memberships, result["requiredMembershipCount"])
+        self.assertEqual(len(required_sources), result["requiredSourceCount"])
+        self.assertEqual(len(self.registry["sources"]) - len(required_sources), result["pendingSourceCount"])
+        self.assertEqual(provider_counts, result["providerMembershipCounts"])
+        self.assertEqual(0, result["pendingDeclaredMembershipCount"])
+
+    def test_aarlas_is_pending_and_not_in_release_execution_plan(self):
         aarlas = next(
             source for source in self.registry["sources"]
             if source["canonicalId"] == "miyorare:inventory-id:AARLAS"
@@ -50,10 +62,12 @@ class ParserFamilyPlanTests(unittest.TestCase):
 
     def test_provider_plan_is_machine_readable_and_filtered(self):
         result = execution_plan(self.plan, self.registry, "keiyoushi")
+        required_sources = self.required_sources()
+        expected_keiyoushi = sum("keiyoushi" in source["providers"] for source in required_sources)
         self.assertEqual("keiyoushi", result["provider"])
-        self.assertEqual(6, result["membershipCount"])
-        self.assertEqual(12, result["requiredSourceCount"])
-        self.assertEqual(1, result["pendingSourceCount"])
+        self.assertEqual(expected_keiyoushi, result["membershipCount"])
+        self.assertEqual(len(required_sources), result["requiredSourceCount"])
+        self.assertEqual(len(self.registry["sources"]) - len(required_sources), result["pendingSourceCount"])
         self.assertTrue(all(entry["provider"] == "keiyoushi" for entry in result["include"]))
         self.assertTrue(all(entry["testClass"].startswith("compatibilityfarm.") for entry in result["include"]))
         self.assertIn("miyorare:miyorare-id:KIRYUU", {entry["canonicalId"] for entry in result["include"]})
@@ -74,6 +88,41 @@ class ParserFamilyPlanTests(unittest.TestCase):
             "ACTIVE registry membership.*missing real parser family coverage",
         ):
             validate_plan(self.plan, broken)
+
+    def test_pending_source_can_be_profiled_without_entering_release_plan(self):
+        registry = copy.deepcopy(self.registry)
+        plan = copy.deepcopy(self.plan)
+        aarlas = next(
+            source for source in registry["sources"]
+            if source["canonicalId"] == "miyorare:inventory-id:AARLAS"
+        )
+        aarlas["adapterFamily"] = "zeistmanga"
+        aarlas["authType"] = "NO_AUTH"
+        plan["families"].append(
+            {
+                "id": "keiyoushi-zeistmanga-pending",
+                "provider": "keiyoushi",
+                "registryAdapterFamily": "zeistmanga",
+                "providerParserFamily": "zeistmanga",
+                "runner": "android-gradle-unit-test",
+                "members": [
+                    {
+                        "canonicalId": "miyorare:inventory-id:AARLAS",
+                        "module": "src/id/aarlas",
+                        "testClass": "compatibilityfarm.KeiyoushiAarlasParserHarnessTest",
+                    }
+                ],
+            }
+        )
+
+        validation = validate_plan(plan, registry)
+        self.assertEqual("VALID", validation["status"])
+        self.assertEqual(1, validation["pendingDeclaredMembershipCount"])
+        release_plan = execution_plan(plan, registry, "keiyoushi")
+        self.assertNotIn(
+            "miyorare:inventory-id:AARLAS",
+            {entry["canonicalId"] for entry in release_plan["include"]},
+        )
 
     def test_pending_source_cannot_claim_required_parser_coverage(self):
         broken = copy.deepcopy(self.registry)
