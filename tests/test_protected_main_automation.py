@@ -36,10 +36,13 @@ class ProtectedMainAutomationTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", check)
         self.assertIn("github.event.pull_request.number || github.ref_name", check)
 
-    def test_release_is_dispatched_only_from_merged_main_registry_change(self) -> None:
+    def test_release_is_dispatched_only_from_merged_atomic_state(self) -> None:
         release = workflow("release-source-packs-after-merge.yml")
         self.assertIn("branches:\n      - main", release)
         self.assertIn("- upstream/registry.json", release)
+        self.assertIn("status.get('schema') != 2", release)
+        self.assertIn("status.get('workflowRunId') != outcome.get('workflowRunId')", release)
+        self.assertIn("status_lkg != registry_lkg", release)
         self.assertIn("outcome.get('outcome') not in {'PASS', 'HELD'}", release)
         self.assertIn("outcome.get('activeSetSafe') is not True", release)
         self.assertIn("gh workflow run release-source-packs.yml", release)
