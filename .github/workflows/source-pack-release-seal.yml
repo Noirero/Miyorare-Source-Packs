@@ -81,6 +81,15 @@ jobs:
             echo "already_sealed=false" >> "$GITHUB_ENV"
           fi
 
+      - name: Validate authoritative compatibility manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/source_pack_manifest.py validate \
+            --manifest dist/miyorare-source-packs.json \
+            --contract compatibility/miyorare-source-pack-contract.v1.json \
+            --tag "$TAG"
+
       - name: Build canonical release lock
         if: env.already_sealed != 'true'
         shell: bash
@@ -97,8 +106,6 @@ jobs:
           contract_path = Path('compatibility/miyorare-source-pack-contract.v1.json')
           manifest_path = dist / 'miyorare-source-packs.json'
           manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
-          if manifest.get('schema') != 2:
-              raise SystemExit(f"unsupported release manifest schema: {manifest.get('schema')!r}")
           if manifest.get('tag') != os.environ['TAG']:
               raise SystemExit('release manifest tag does not match GitHub release tag')
 
@@ -194,6 +201,7 @@ jobs:
             echo '# Source Pack release seal'
             echo
             echo "Tag: \`$TAG\`"
+            echo 'Schema 3 compatibility metadata was validated before sealing.'
             echo 'Release payload is bound by SHA-256 in an immutable lock manifest.'
             echo 'The lock is cryptographically signed using GitHub OIDC artifact attestation.'
             echo 'Seal files are never overwritten by this workflow.'
