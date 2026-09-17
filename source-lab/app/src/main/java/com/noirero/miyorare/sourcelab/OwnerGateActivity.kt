@@ -63,7 +63,7 @@ class OwnerGateActivity : ComponentActivity() {
     }
 
     private fun openDashboard(ownerAuthorized: Boolean) {
-        val target = if (ownerAuthorized) OwnerControlActivity::class.java else LocalizedMainActivity::class.java
+        val target = if (ownerAuthorized) AutonomousOwnerControlActivity::class.java else LocalizedMainActivity::class.java
         startActivity(
             Intent(this, target).apply {
                 putExtra("source_lab_backend_authorized", ownerAuthorized)

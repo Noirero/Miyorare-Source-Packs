@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,6 +32,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,6 +66,7 @@ class FarmRunActivity : ComponentActivity() {
 }
 
 private enum class FarmRunPhase {
+    READY,
     PREPARING,
     RUNNING,
     SUCCESS,
@@ -70,12 +74,14 @@ private enum class FarmRunPhase {
 }
 
 private data class FarmRunUiState(
-    val phase: FarmRunPhase = FarmRunPhase.PREPARING,
+    val phase: FarmRunPhase = FarmRunPhase.READY,
     val progress: MonitoredFarmRun? = null,
     val snapshot: LiveFarmSnapshot? = null,
     val result: SourceLabActionResult? = null,
     val error: String? = null,
-    val startedAtEpochMs: Long = System.currentTimeMillis(),
+    val canStart: Boolean = false,
+    val availabilityReason: String = "CHECKING_OWNER_AND_BACKEND",
+    val startedAtEpochMs: Long = 0L,
 )
 
 internal data class MonitoredFarmStep(
@@ -105,17 +111,85 @@ internal data class MonitoredFarmRun(
 @Composable
 private fun FarmRunScreen(onClose: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var ui by remember { mutableStateOf(FarmRunUiState()) }
     var clockEpochMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    var confirmStart by remember { mutableStateOf(false) }
+    var dispatchLocked by rememberSaveable { mutableStateOf(false) }
 
-    LaunchedEffect(ui.phase) {
-        while (ui.phase == FarmRunPhase.PREPARING || ui.phase == FarmRunPhase.RUNNING) {
-            clockEpochMs = System.currentTimeMillis()
-            delay(1_000L)
+    suspend fun loadReadyState() {
+        try {
+            val snapshot = withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
+            val control = SourceLabControlClient.resolveState(context, snapshot)
+            val availability = control.actions.getValue(SourceLabControlAction.RUN_FARM)
+
+            val activeRun = runCatching {
+                val stored = GitHubOwnerCredentialVault.load(context) ?: return@runCatching null
+                val identity = GitHubOwnerAuthentication.restoreOwnerLogin(
+                    GitHubOwnerAuthentication.resolveClientId(),
+                    stored,
+                )
+                GitHubOwnerCredentialVault.save(context, identity.credential)
+                withContext(Dispatchers.IO) {
+                    FarmRunMonitor.latestOwnerRun(identity.accessToken)
+                }
+            }.getOrNull()
+
+            if (activeRun != null && activeRun.status != "completed") {
+                dispatchLocked = true
+                ui = FarmRunUiState(
+                    phase = FarmRunPhase.RUNNING,
+                    progress = activeRun,
+                    snapshot = snapshot,
+                    canStart = false,
+                    availabilityReason = "EXISTING_RECOVERY_RUN_ACTIVE",
+                    startedAtEpochMs = System.currentTimeMillis(),
+                )
+                return
+            }
+
+            ui = FarmRunUiState(
+                phase = FarmRunPhase.READY,
+                snapshot = snapshot,
+                canStart = availability.available && !dispatchLocked,
+                availabilityReason = if (dispatchLocked) "RECOVERY_DISPATCH_ALREADY_REQUESTED" else availability.reason,
+            )
+        } catch (error: SourceLabControlException) {
+            ui = FarmRunUiState(
+                phase = FarmRunPhase.FAILED,
+                error = error.reason,
+                canStart = false,
+                availabilityReason = error.reason,
+            )
+        } catch (error: Throwable) {
+            ui = FarmRunUiState(
+                phase = FarmRunPhase.FAILED,
+                error = error.message ?: error.javaClass.simpleName,
+                canStart = false,
+                availabilityReason = "RECOVERY_STATE_RESOLUTION_FAILED",
+            )
         }
     }
 
-    LaunchedEffect(Unit) {
+    suspend fun executeRecoveryFarm() {
+        val snapshot = ui.snapshot ?: run {
+            loadReadyState()
+            return
+        }
+        dispatchLocked = true
+        confirmStart = false
+        val startedAt = System.currentTimeMillis()
+        clockEpochMs = startedAt
+        ui = ui.copy(
+            phase = FarmRunPhase.PREPARING,
+            progress = null,
+            result = null,
+            error = null,
+            canStart = false,
+            availabilityReason = "RECOVERY_DISPATCH_IN_PROGRESS",
+            startedAtEpochMs = startedAt,
+        )
+
         val monitorCredential = runCatching {
             val stored = GitHubOwnerCredentialVault.load(context)
                 ?: throw SourceLabControlException("OWNER_CREDENTIAL_REQUIRED")
@@ -133,19 +207,24 @@ private fun FarmRunScreen(onClose: () -> Unit) {
         val baselineRunId = monitorCredential?.second ?: 0L
 
         var monitorJob: Job? = null
+        var clockJob: Job? = null
         try {
-            val snapshot = withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
             val control = SourceLabControlClient.resolveState(context, snapshot)
             val availability = control.actions.getValue(SourceLabControlAction.RUN_FARM)
             if (!availability.available) throw SourceLabControlException(availability.reason)
 
-            ui = ui.copy(phase = FarmRunPhase.PREPARING, snapshot = snapshot, error = null)
+            clockJob = scope.launch {
+                while (isActive && ui.phase in setOf(FarmRunPhase.PREPARING, FarmRunPhase.RUNNING)) {
+                    clockEpochMs = System.currentTimeMillis()
+                    delay(1_000L)
+                }
+            }
 
             if (monitorToken != null) {
-                monitorJob = launch {
+                monitorJob = scope.launch {
                     var discoveredRunId: Long? = null
                     var discoveryPolls = 0
-                    while (isActive && ui.phase != FarmRunPhase.SUCCESS && ui.phase != FarmRunPhase.FAILED) {
+                    while (isActive && ui.phase !in setOf(FarmRunPhase.SUCCESS, FarmRunPhase.FAILED)) {
                         val progress = runCatching {
                             withContext(Dispatchers.IO) {
                                 if (discoveredRunId == null) {
@@ -172,7 +251,9 @@ private fun FarmRunScreen(onClose: () -> Unit) {
             val result = SourceLabControlClient.execute(context, snapshot, SourceLabControlAction.RUN_FARM)
             monitorJob?.cancel()
             val finalProgress = monitorToken?.let { token ->
-                runCatching { withContext(Dispatchers.IO) { FarmRunMonitor.loadRun(token, result.runId) } }.getOrNull()
+                runCatching {
+                    withContext(Dispatchers.IO) { FarmRunMonitor.loadRun(token, result.runId) }
+                }.getOrNull()
             } ?: ui.progress
             val freshSnapshot = runCatching {
                 withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
@@ -184,6 +265,8 @@ private fun FarmRunScreen(onClose: () -> Unit) {
                 snapshot = freshSnapshot ?: ui.snapshot,
                 result = result,
                 error = null,
+                canStart = false,
+                availabilityReason = "RECOVERY_RUN_COMPLETED",
             )
         } catch (error: SourceLabControlException) {
             monitorJob?.cancel()
@@ -207,6 +290,8 @@ private fun FarmRunScreen(onClose: () -> Unit) {
                 progress = finalProgress ?: ui.progress,
                 snapshot = freshSnapshot ?: ui.snapshot,
                 error = error.reason,
+                canStart = false,
+                availabilityReason = error.reason,
             )
         } catch (error: Throwable) {
             monitorJob?.cancel()
@@ -214,11 +299,80 @@ private fun FarmRunScreen(onClose: () -> Unit) {
             ui = ui.copy(
                 phase = FarmRunPhase.FAILED,
                 error = error.message ?: error.javaClass.simpleName,
+                canStart = false,
+                availabilityReason = "RECOVERY_RUN_FAILED",
             )
+        } finally {
+            clockJob?.cancel()
         }
     }
 
-    val elapsedSeconds = ((clockEpochMs - ui.startedAtEpochMs).coerceAtLeast(0L)) / 1_000L
+    LaunchedEffect(Unit) {
+        loadReadyState()
+        val existing = ui.progress
+        if (ui.phase == FarmRunPhase.RUNNING && existing != null) {
+            val monitorToken = runCatching {
+                val stored = GitHubOwnerCredentialVault.load(context) ?: return@runCatching null
+                val identity = GitHubOwnerAuthentication.restoreOwnerLogin(
+                    GitHubOwnerAuthentication.resolveClientId(),
+                    stored,
+                )
+                GitHubOwnerCredentialVault.save(context, identity.credential)
+                identity.accessToken
+            }.getOrNull()
+            if (monitorToken != null) {
+                while (ui.phase == FarmRunPhase.RUNNING) {
+                    val progress = runCatching {
+                        withContext(Dispatchers.IO) { FarmRunMonitor.loadRun(monitorToken, ui.progress!!.id) }
+                    }.getOrNull()
+                    if (progress == null) break
+                    ui = ui.copy(progress = progress)
+                    if (progress.status == "completed") {
+                        val freshSnapshot = runCatching {
+                            withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
+                        }.getOrNull()
+                        val failed = progress.conclusion?.lowercase() !in setOf("success", "neutral", "skipped")
+                        ui = ui.copy(
+                            phase = if (failed) FarmRunPhase.FAILED else FarmRunPhase.SUCCESS,
+                            snapshot = freshSnapshot ?: ui.snapshot,
+                            error = if (failed) "EXISTING_RECOVERY_RUN_${progress.conclusion?.uppercase() ?: "FAILED"}" else null,
+                            availabilityReason = "EXISTING_RECOVERY_RUN_COMPLETED",
+                        )
+                        break
+                    }
+                    clockEpochMs = System.currentTimeMillis()
+                    delay(8_000L)
+                }
+            }
+        }
+    }
+
+    if (confirmStart) {
+        AlertDialog(
+            onDismissRequest = { if (ui.phase == FarmRunPhase.READY) confirmStart = false },
+            title = { Text("Run Compatibility Farm manually?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "This is a recovery-only action. Routine upstream changes should be handled by the autonomous Candidate Farm. Continue only when diagnostics or recovery requires a manual Farm run.",
+                )
+            },
+            confirmButton = {
+                Button(
+                    enabled = ui.canStart && !dispatchLocked,
+                    onClick = { scope.launch { executeRecoveryFarm() } },
+                ) { Text("Start Recovery Farm") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmStart = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    val elapsedSeconds = if (ui.startedAtEpochMs > 0L) {
+        ((clockEpochMs - ui.startedAtEpochMs).coerceAtLeast(0L)) / 1_000L
+    } else {
+        0L
+    }
     val jobs = ui.progress?.jobs.orEmpty()
     val completedJobs = jobs.count { it.status == "completed" }
     val progressFraction = if (jobs.isNotEmpty()) completedJobs.toFloat() / jobs.size.toFloat() else 0f
@@ -237,9 +391,9 @@ private fun FarmRunScreen(onClose: () -> Unit) {
     ) {
         item(key = "header") {
             TextButton(onClick = onClose) { Text("← Dashboard") }
-            Text("Compatibility Farm Test", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("Compatibility Farm Recovery", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Text(
-                "Live status is read from the real Source Lab workflow. No test state is simulated in the APK.",
+                "Manual Farm execution is recovery-only. Opening this screen never dispatches a workflow automatically.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -254,6 +408,23 @@ private fun FarmRunScreen(onClose: () -> Unit) {
                 progressFraction = progressFraction,
                 currentJob = currentJob,
             )
+        }
+
+        if (ui.phase == FarmRunPhase.READY) {
+            item(key = "manual-start") {
+                Button(
+                    onClick = { confirmStart = true },
+                    enabled = ui.canStart && !dispatchLocked,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Start Manual Recovery Farm") }
+                if (!ui.canStart || dispatchLocked) {
+                    Text(
+                        "Manual run unavailable · ${ui.availabilityReason}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
 
         if (jobs.isNotEmpty()) {
@@ -354,6 +525,7 @@ private fun FarmRunStatusCard(
     currentJob: MonitoredFarmJob?,
 ) {
     val status = when (ui.phase) {
+        FarmRunPhase.READY -> "Recovery only" to if (ui.canStart) SourceLabTone.WARNING else SourceLabTone.NEUTRAL
         FarmRunPhase.PREPARING -> "Preparing" to SourceLabTone.ACCENT
         FarmRunPhase.RUNNING -> "Testing" to SourceLabTone.ACCENT
         FarmRunPhase.SUCCESS -> "Passed" to SourceLabTone.GOOD
@@ -369,6 +541,7 @@ private fun FarmRunStatusCard(
                 Column(Modifier.weight(1f)) {
                     Text(
                         when (ui.phase) {
+                            FarmRunPhase.READY -> if (ui.canStart) "Manual recovery Farm is idle" else "Manual recovery Farm is unavailable"
                             FarmRunPhase.PREPARING -> "Preparing secure Owner run"
                             FarmRunPhase.RUNNING -> "Compatibility Farm is running"
                             FarmRunPhase.SUCCESS -> "Compatibility Farm completed"
@@ -378,8 +551,12 @@ private fun FarmRunStatusCard(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        ui.progress?.let { "Run #${it.runNumber} · ${formatElapsed(elapsedSeconds)}" }
-                            ?: "Elapsed ${formatElapsed(elapsedSeconds)}",
+                        when {
+                            ui.progress != null && ui.startedAtEpochMs > 0L -> "Run #${ui.progress.runNumber} · ${formatElapsed(elapsedSeconds)}"
+                            ui.progress != null -> "Run #${ui.progress.runNumber}"
+                            ui.startedAtEpochMs > 0L -> "Elapsed ${formatElapsed(elapsedSeconds)}"
+                            else -> ui.availabilityReason
+                        },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -472,11 +649,13 @@ private fun FarmSuccessResult(
             passPercent?.let {
                 Text("Parser compatibility jobs passed: $it%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
-            Text(
-                "Duration · ${formatElapsed(elapsedSeconds)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (ui.startedAtEpochMs > 0L) {
+                Text(
+                    "Duration · ${formatElapsed(elapsedSeconds)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             when {
                 candidate != null -> {
                     SourceLabStatusBadge("Ready for Approval", SourceLabTone.GOOD)
@@ -603,6 +782,8 @@ private object FarmRunMonitor {
     fun latestOwnerRunId(token: String): Long? = listRuns(token)
         .firstOrNull { it.actorId == SourceLabAccessPolicy.ownerGithubUserId }
         ?.id
+
+    fun latestOwnerRun(token: String): MonitoredFarmRun? = latestOwnerRunId(token)?.let { loadRun(token, it) }
 
     fun findOwnerRunAfter(token: String, baselineRunId: Long): MonitoredFarmRun? {
         val run = listRuns(token).firstOrNull {
