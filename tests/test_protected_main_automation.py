@@ -1,5 +1,4 @@
 from pathlib import Path
-import re
 import unittest
 
 
@@ -41,37 +40,24 @@ class ProtectedMainAutomationTests(unittest.TestCase):
         auto = workflow("source-lab-auto-farm.yml")
         self.assertIn("selected_provider", auto)
         self.assertIn("source_lab_scope_plan.py", auto)
-        self.assertIn("SOURCE_LAB_PROVIDER_SCOPE", auto)
+        self.assertIn("upstream_sync_impl.py", auto)
+        self.assertIn("shutil.copy2(original, impl)", auto)
+        self.assertIn("if not args or args[0] != 'plan'", auto)
         self.assertIn("exception.get('candidate') == item['candidate']", auto)
         self.assertIn("ALL_OUTSTANDING_CANDIDATES_HELD", auto)
         self.assertIn("lastAttemptProvider", auto)
         self.assertIn("exceptions", auto)
         self.assertIn("recordedAt", auto)
 
-    def test_auto_farm_scope_patch_matches_authoritative_upstream_plan_block(self) -> None:
+    def test_auto_farm_scoping_does_not_patch_authoritative_workflow_text(self) -> None:
         auto = workflow("source-lab-auto-farm.yml")
-        needle_match = re.search(r"needle = r'''(.*?)'''", auto, flags=re.DOTALL)
-        replacement_match = re.search(r"replacement = r'''(.*?)'''", auto, flags=re.DOTALL)
-        self.assertIsNotNone(needle_match)
-        self.assertIsNotNone(replacement_match)
-        needle = needle_match.group(1)
-        replacement = replacement_match.group(1)
-
-        authoritative_plan_block = r'''          python3 tools/upstream_sync.py plan \
-            --registry "$REGISTRY" \
-            --output upstream/sync-plan.json \
-            --github-output "$GITHUB_OUTPUT"
-'''
-        self.assertEqual(authoritative_plan_block.count(needle), 1)
-        patched = authoritative_plan_block.replace(needle, replacement)
-        self.assertIn('python3 tools/source_lab_scope_plan.py', patched)
-        self.assertIn('--provider "$SOURCE_LAB_PROVIDER_SCOPE"', patched)
-        self.assertIn('--github-output "$GITHUB_OUTPUT"', patched)
-        self.assertNotIn(
-            r'''--output upstream/sync-plan.json \
-            --github-output "$GITHUB_OUTPUT"''',
-            patched,
-        )
+        self.assertNotIn("needle = r'''", auto)
+        self.assertNotIn("replacement = r'''", auto)
+        self.assertNotIn("workflow.write_text", auto)
+        self.assertNotIn("SOURCE_LAB_PROVIDER_SCOPE", auto)
+        self.assertIn("authoritative upstream sync helper is missing", auto)
+        self.assertIn("selected provider no longer differs from LKG", auto)
+        self.assertIn("git -C intake-branch add tools/upstream_sync.py tools/upstream_sync_impl.py tools/source_lab_scope_plan.py", auto)
 
     def test_auto_farm_distinguishes_infrastructure_from_held_candidate_failures(self) -> None:
         auto = workflow("source-lab-auto-farm.yml")
