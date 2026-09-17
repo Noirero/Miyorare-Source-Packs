@@ -2,7 +2,6 @@ package com.noirero.miyorare.sourcelab
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -176,10 +175,10 @@ internal object SourceLabControlClient {
         signingRunId: Long?,
         publishRunId: Long?,
     ): Map<SourceLabControlAction, SourceLabActionAvailability> {
-        val publishedCurrentPromotion = snapshot.lastPromotion?.candidateSetId != null &&
-            snapshot.lastPublish?.candidateSetId == snapshot.lastPromotion.candidateSetId
         val candidate = snapshot.approvalCandidate
         val promotion = snapshot.lastPromotion
+        val publishedCurrentPromotion =
+            promotion != null && snapshot.lastPublish?.candidateSetId == promotion.candidateSetId
 
         fun capability(action: SourceLabControlAction): String? =
             if (SourceLabAccessPolicy.canPerform(action, session)) null
@@ -302,11 +301,11 @@ internal object SourceLabControlClient {
         )
 
         var run: ControlRun? = null
-        repeat(90) {
+        for (attempt in 0 until 90) {
             val candidate = findLatestRun(token, request.workflow, request.title)
             if (candidate != null && candidate.id > before) {
                 run = candidate
-                return@repeat
+                break
             }
             Thread.sleep(2_000L)
         }
