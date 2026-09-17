@@ -11,42 +11,62 @@ def workflow(name: str) -> str:
 
 
 class ProtectedMainAutomationTests(unittest.TestCase):
-    def test_upstream_sync_hands_off_registry_without_pushing_refs(self) -> None:
+    def test_main_upstream_sync_is_manual_read_only_recovery(self) -> None:
         sync = workflow("upstream-sync.yml")
+        self.assertIn("workflow_dispatch:", sync)
+        self.assertNotIn("schedule:", sync)
+        self.assertIn("contents: read", sync)
+        self.assertNotIn("contents: write", sync)
         self.assertNotIn("git push", sync)
-        self.assertIn("actions/upload-artifact@v4", sync)
-        self.assertIn("name: promoted-upstream-registry", sync)
-        self.assertIn("path: upstream/registry.json", sync)
+        self.assertNotIn("gh pr create", sync)
+        self.assertIn("Source Lab Auto Farm", sync)
 
-    def test_sync_result_writes_only_automation_branch_and_uses_pr(self) -> None:
+    def test_auto_farm_is_the_scheduled_candidate_path(self) -> None:
+        auto = workflow("source-lab-auto-farm.yml")
+        self.assertIn("schedule:", auto)
+        self.assertIn("compatibility-farm-foundation", auto)
+        self.assertIn("source-lab-candidate-farm.yml", auto)
+        self.assertIn("upstream-candidate-handoff", auto)
+        self.assertIn("APPROVAL_REQUIRED", auto)
+        self.assertIn("CANDIDATE_PASSED_ALL_GATES", auto)
+        self.assertIn("HELD", auto)
+        self.assertIn("INFRASTRUCTURE_FAILURE", auto)
+        self.assertIn("NO_UPSTREAM_CHANGE", auto)
+        self.assertIn("lastKnownGood", auto)
+        self.assertNotIn("gh pr create", auto)
+        self.assertNotIn("gh pr merge", auto)
+
+    def test_sync_result_is_read_only_and_never_opens_automation_pr(self) -> None:
         status = workflow("upstream-sync-status.yml")
-        self.assertIn(
-            "AUTOMATION_BRANCH: automation/upstream-sync-${{ github.event.workflow_run.head_branch }}",
-            status,
-        )
-        self.assertIn('origin "HEAD:${AUTOMATION_BRANCH}"', status)
-        self.assertNotIn('origin "HEAD:${HEAD_BRANCH}"', status)
-        self.assertIn("gh pr create", status)
-        self.assertIn("gh workflow run upstream-sync-pr-check.yml", status)
-        self.assertIn("gh workflow run source-pack-contract.yml", status)
-        self.assertIn("promoted-upstream-registry", status)
+        self.assertIn("actions: read", status)
+        self.assertIn("contents: read", status)
+        self.assertNotIn("contents: write", status)
+        self.assertNotIn("pull-requests: write", status)
+        self.assertNotIn("git push", status)
+        self.assertNotIn("gh pr create", status)
+        self.assertNotIn("AUTOMATION_BRANCH", status)
+        self.assertIn("Routine upstream intake no longer opens or refreshes automation pull requests", status)
 
-    def test_automation_pr_validation_supports_explicit_dispatch(self) -> None:
-        check = workflow("upstream-sync-pr-check.yml")
-        self.assertIn("workflow_dispatch:", check)
-        self.assertIn("github.event.pull_request.number || github.ref_name", check)
+    def test_manual_source_lab_run_farm_remains_recovery_only(self) -> None:
+        run_farm = workflow("source-lab-run-farm.yml")
+        self.assertIn("workflow_dispatch:", run_farm)
+        self.assertIn("EXPECTED_OWNER_ID: '149634319'", run_farm)
+        self.assertIn("compatibility-farm-foundation", run_farm)
+        self.assertIn("source-lab-candidate-farm.yml", run_farm)
 
-    def test_release_is_dispatched_only_from_merged_atomic_state(self) -> None:
+    def test_candidate_farm_stages_waiting_for_approval_only_after_real_parser_gate(self) -> None:
+        farm = workflow("source-lab-candidate-farm.yml")
+        self.assertIn("Enforce all parser jobs before staging", farm)
+        self.assertIn("candidate_gate.py", farm)
+        self.assertIn("approval_evidence.py", farm)
+        self.assertIn("WAITING_FOR_APPROVAL", farm)
+        self.assertIn("activeLastKnownGoodMutated", farm)
+        self.assertIn("publishEligible", farm)
+
+    def test_release_after_merge_remains_legacy_only(self) -> None:
         release = workflow("release-source-packs-after-merge.yml")
         self.assertIn("branches:\n      - main", release)
-        self.assertIn("- upstream/registry.json", release)
-        self.assertIn("status.get('schema') != 2", release)
-        self.assertIn("status.get('workflowRunId') != outcome.get('workflowRunId')", release)
-        self.assertIn("status_lkg != registry_lkg", release)
-        self.assertIn("outcome.get('outcome') not in {'PASS', 'HELD'}", release)
-        self.assertIn("outcome.get('activeSetSafe') is not True", release)
         self.assertIn("gh workflow run release-source-packs.yml", release)
-        self.assertIn("--ref main", release)
 
     def test_android_sdk_guard_is_read_only_audit(self) -> None:
         audit = workflow("repair-android-sdk-setup.yml")
