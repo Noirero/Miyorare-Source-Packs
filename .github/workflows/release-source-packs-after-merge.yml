@@ -1,0 +1,118 @@
+name: Miyorare Source Pack Release After Merge
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - upstream/registry.json
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: miyorare-source-pack-release-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Dispatch release from merged upstream promotion
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BEFORE_SHA: ${{ github.event.before }}
+      AFTER_SHA: ${{ github.sha }}
+    steps:
+      - name: Checkout merged main
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Verify last-known-good advancement
+        id: promotion
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          before_sha = os.environ['BEFORE_SHA']
+          after_sha = os.environ['AFTER_SHA']
+          if not before_sha or set(before_sha) == {'0'}:
+              raise SystemExit('cannot release without a concrete pre-merge registry revision')
+
+          before_raw = subprocess.check_output(
+              ['git', 'show', f'{before_sha}:upstream/registry.json'],
+              text=True,
+          )
+          after_raw = subprocess.check_output(
+              ['git', 'show', f'{after_sha}:upstream/registry.json'],
+              text=True,
+          )
+          before = json.loads(before_raw)
+          after = json.loads(after_raw)
+
+          promoted = []
+          for provider in ('keiyoushi', 'uma', 'gekkoushi'):
+              old = before['providers'][provider]['lastKnownGood']
+              new = after['providers'][provider]['lastKnownGood']
+              if old != new:
+                  promoted.append(provider)
+
+          if not promoted:
+              print('promoted=false')
+              print('providers=')
+              raise SystemExit(0)
+
+          outcome = json.loads(Path('upstream/outcome.json').read_text(encoding='utf-8'))
+          if outcome.get('outcome') != 'PASS' or outcome.get('activeSetSafe') is not True:
+              raise SystemExit(
+                  'registry last-known-good changed but merged upstream/outcome.json is not a safe PASS'
+              )
+
+          print('promoted=true')
+          print(f"providers={','.join(promoted)}")
+          PY
+
+      - name: Determine next immutable source-pack version
+        if: steps.promotion.outputs.promoted == 'true'
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          next_version="$(python3 - <<'PY'
+          import json
+          import re
+          import subprocess
+
+          raw = subprocess.check_output(
+              ['gh', 'release', 'list', '--limit', '100', '--json', 'tagName'],
+              text=True,
+          )
+          versions = []
+          for item in json.loads(raw):
+              match = re.fullmatch(r'miyorare-sources-v(\d+)\.(\d+)\.(\d+)', item['tagName'])
+              if match:
+                  versions.append(tuple(map(int, match.groups())))
+          if not versions:
+              print('0.1.0')
+          else:
+              major, minor, patch = max(versions)
+              print(f'{major}.{minor}.{patch + 1}')
+          PY
+          )"
+          echo "version=$next_version" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch immutable Source Pack release
+        if: steps.promotion.outputs.promoted == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Dispatching Source Pack ${{ steps.version.outputs.version }} for ${{ steps.promotion.outputs.providers }} from merged main $GITHUB_SHA"
+          gh workflow run release-source-packs.yml \
+            --ref main \
+            -f version="${{ steps.version.outputs.version }}"
