@@ -6,14 +6,14 @@ on:
       - 'source-inventory-*'
     paths:
       - 'tools/source_inventory.py'
-      - 'tests/test_source_inventory.py'
+      - 'source-inventory-tests/**'
       - '.github/workflows/source-inventory-*.yml'
   pull_request:
     branches:
       - main
     paths:
       - 'tools/source_inventory.py'
-      - 'tests/test_source_inventory.py'
+      - 'source-inventory-tests/**'
       - '.github/workflows/source-inventory-*.yml'
 
 permissions:
@@ -72,7 +72,7 @@ jobs:
       - name: Run inventory unit tests
         working-directory: source-packs
         run: |
-          python3 -m unittest discover -s tests -p 'test_source_inventory.py' -v
+          python3 -m unittest discover -s source-inventory-tests -p 'test_*.py' -v
           python3 -m py_compile tools/source_inventory.py
 
       - name: Build inventory from real upstream trees
