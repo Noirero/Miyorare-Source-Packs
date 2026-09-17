@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,19 +27,20 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -48,7 +50,7 @@ class OwnerControlActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            OwnerControlTheme {
+            SourceLabPhase1Theme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
@@ -60,145 +62,151 @@ class OwnerControlActivity : ComponentActivity() {
     }
 }
 
-private sealed interface OwnerDashboardState {
-    data object Loading : OwnerDashboardState
-    data class Ready(
-        val snapshot: LiveFarmSnapshot,
-        val control: SourceLabResolvedControlState,
-    ) : OwnerDashboardState
-    data class Failed(val reason: String) : OwnerDashboardState
-}
+private data class OwnerDashboardUiState(
+    val snapshot: LiveFarmSnapshot? = null,
+    val control: SourceLabResolvedControlState? = null,
+    val initialLoading: Boolean = true,
+    val refreshing: Boolean = false,
+    val error: String? = null,
+)
 
-private sealed interface OwnerInventoryState {
-    data object Loading : OwnerInventoryState
-    data class Ready(val snapshot: SourceInventorySnapshot) : OwnerInventoryState
-    data class Failed(val reason: String) : OwnerInventoryState
-}
-
-@Composable
-private fun OwnerControlTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = Color(0xFF8175FF),
-            secondary = Color(0xFFA780FF),
-            tertiary = Color(0xFF58D9C4),
-            background = Color(0xFF0B0E14),
-            surface = Color(0xFF111620),
-            surfaceVariant = Color(0xFF19202C),
-            onPrimary = Color.White,
-            onBackground = Color(0xFFF4F6FA),
-            onSurface = Color(0xFFF4F6FA),
-            onSurfaceVariant = Color(0xFFB8C0CC),
-            error = Color(0xFFFF6B74),
-        ),
-        content = content,
-    )
-}
+private data class OwnerInventoryUiState(
+    val snapshot: SourceInventorySnapshot? = null,
+    val loading: Boolean = true,
+    val refreshing: Boolean = false,
+    val error: String? = null,
+)
 
 @Composable
 private fun OwnerControlScreen() {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var refreshKey by remember { mutableIntStateOf(0) }
-    var inventoryRefreshKey by remember { mutableIntStateOf(0) }
-    var state by remember { mutableStateOf<OwnerDashboardState>(OwnerDashboardState.Loading) }
-    var inventoryState by remember { mutableStateOf<OwnerInventoryState>(OwnerInventoryState.Loading) }
+    var dashboard by remember { mutableStateOf(OwnerDashboardUiState()) }
+    var inventory by remember { mutableStateOf(OwnerInventoryUiState()) }
     var runningAction by remember { mutableStateOf<SourceLabControlAction?>(null) }
     var confirmation by remember { mutableStateOf<SourceLabControlAction?>(null) }
     var operationMessage by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(refreshKey) {
-        state = OwnerDashboardState.Loading
-        state = try {
+    suspend fun refreshDashboard() {
+        val hadData = dashboard.snapshot != null && dashboard.control != null
+        dashboard = dashboard.copy(
+            control = null,
+            initialLoading = !hadData,
+            refreshing = hadData,
+            error = null,
+        )
+        dashboard = try {
             val snapshot = withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
             val control = SourceLabControlClient.resolveState(context, snapshot)
-            OwnerDashboardState.Ready(snapshot, control)
+            OwnerDashboardUiState(
+                snapshot = snapshot,
+                control = control,
+                initialLoading = false,
+                refreshing = false,
+            )
         } catch (error: SourceLabControlException) {
-            OwnerDashboardState.Failed(error.reason)
-        } catch (error: Throwable) {
-            OwnerDashboardState.Failed(error.message ?: error.javaClass.simpleName)
-        }
-    }
-
-    LaunchedEffect(inventoryRefreshKey) {
-        inventoryState = OwnerInventoryState.Loading
-        inventoryState = try {
-            OwnerInventoryState.Ready(
-                SourceInventoryRepository.loadInventory(
-                    context = context,
-                    forceRefresh = inventoryRefreshKey > 0,
-                ),
+            dashboard.copy(
+                control = null,
+                initialLoading = false,
+                refreshing = false,
+                error = error.reason,
             )
         } catch (error: Throwable) {
-            OwnerInventoryState.Failed(error.message ?: error.javaClass.simpleName)
+            dashboard.copy(
+                control = null,
+                initialLoading = false,
+                refreshing = false,
+                error = error.message ?: error.javaClass.simpleName,
+            )
         }
     }
 
-    fun runAction(action: SourceLabControlAction, ready: OwnerDashboardState.Ready) {
+    suspend fun refreshInventory(forceRefresh: Boolean) {
+        val hadData = inventory.snapshot != null
+        inventory = inventory.copy(loading = !hadData, refreshing = hadData, error = null)
+        val result = runCatching {
+            SourceInventoryRepository.loadInventory(context, forceRefresh = forceRefresh)
+        }
+        inventory = OwnerInventoryUiState(
+            snapshot = result.getOrNull() ?: inventory.snapshot,
+            loading = false,
+            refreshing = false,
+            error = result.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName },
+        )
+    }
+
+    LaunchedEffect(Unit) {
+        val cached = SourceInventoryCacheReader.load(context)
+        if (cached != null) {
+            inventory = OwnerInventoryUiState(snapshot = cached, loading = false, refreshing = true)
+        }
+        launch { refreshDashboard() }
+        launch { refreshInventory(forceRefresh = false) }
+    }
+
+    fun refreshAll() {
+        scope.launch { refreshDashboard() }
+        scope.launch { refreshInventory(forceRefresh = true) }
+    }
+
+    fun runAction(action: SourceLabControlAction, snapshot: LiveFarmSnapshot) {
         scope.launch {
             runningAction = action
             operationMessage = null
             try {
                 if (action == SourceLabControlAction.APPROVE) {
-                    val result = SourceLabControlClient.approveAndPublish(context, ready.snapshot)
+                    val result = SourceLabControlClient.approveAndPublish(context, snapshot)
                     operationMessage =
-                        "APPROVE → PROMOTE → SIGN → PUBLISH · SUCCESS · " +
-                            "runs ${result.approvalRunId}/${result.promotionRunId}/${result.signingRunId}/${result.publishRunId}"
+                        "Approve → Promote → Sign → Publish succeeded · runs " +
+                            "${result.approvalRunId}/${result.promotionRunId}/${result.signingRunId}/${result.publishRunId}"
                 } else {
-                    val result = SourceLabControlClient.execute(context, ready.snapshot, action)
-                    operationMessage = "${action.name} · SUCCESS · run ${result.runId}"
+                    val result = SourceLabControlClient.execute(context, snapshot, action)
+                    operationMessage = "${action.name.replace('_', ' ')} succeeded · run ${result.runId}"
                 }
-                refreshKey++
+                refreshAll()
             } catch (error: SourceLabControlException) {
-                operationMessage = "${action.name} · ${error.reason}"
-                refreshKey++
+                operationMessage = "${action.name.replace('_', ' ')} · ${error.reason}"
+                refreshAll()
             } catch (error: Throwable) {
-                operationMessage = "${action.name} · ${error.message ?: error.javaClass.simpleName}"
-                refreshKey++
+                operationMessage = "${action.name.replace('_', ' ')} · ${error.message ?: error.javaClass.simpleName}"
+                refreshAll()
             } finally {
                 runningAction = null
             }
         }
     }
 
-    val ready = state as? OwnerDashboardState.Ready
-    if (confirmation != null && ready != null) {
+    val snapshot = dashboard.snapshot
+    val control = dashboard.control
+    val ready = snapshot != null && control != null && dashboard.error == null
+
+    if (confirmation != null && snapshot != null && control != null && dashboard.error == null) {
         val action = confirmation!!
         AlertDialog(
             onDismissRequest = { if (runningAction == null) confirmation = null },
             title = {
                 Text(
-                    if (action == SourceLabControlAction.APPROVE) {
-                        "Confirm APPROVE → PUBLISH"
-                    } else if (action == SourceLabControlAction.PUBLISH) {
-                        "Confirm OFFICIAL PUBLISH"
-                    } else {
-                        "Confirm ${action.name}"
-                    },
+                    if (action == SourceLabControlAction.APPROVE) "Confirm Approve & Auto Publish"
+                    else "Confirm ${action.name.replace('_', ' ')}",
                     fontWeight = FontWeight.Bold,
                 )
             },
             text = {
                 Text(
-                    confirmationText(action, ready.snapshot, ready.control),
+                    confirmationText(action, snapshot, control),
                     fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodySmall,
                 )
             },
             confirmButton = {
                 Button(
+                    enabled = runningAction == null,
                     onClick = {
                         confirmation = null
-                        runAction(action, ready)
+                        runAction(action, snapshot)
                     },
-                    enabled = runningAction == null,
                 ) {
-                    Text(
-                        when (action) {
-                            SourceLabControlAction.APPROVE -> "APPROVE & AUTO PUBLISH"
-                            SourceLabControlAction.PUBLISH -> "PUBLISH OFFICIAL RELEASE"
-                            else -> "CONFIRM ${action.name}"
-                        },
-                    )
+                    Text(if (action == SourceLabControlAction.APPROVE) "Approve & Auto Publish" else "Confirm")
                 }
             },
             dismissButton = {
@@ -209,93 +217,71 @@ private fun OwnerControlScreen() {
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item {
-            Text(
-                "Miyorare Source Lab",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                "Compatibility Farm Owner control plane · v${BuildConfig.VERSION_NAME}",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        item {
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF123229))) {
-                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("OWNER · AUTHORIZED", color = Color(0xFF75E8B0), fontWeight = FontWeight.Bold)
-                    when (val current = state) {
-                        OwnerDashboardState.Loading -> {
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                CircularProgressIndicator()
-                                Text("Refreshing identity, backend proof, capabilities, and live Farm state…")
-                            }
-                        }
-                        is OwnerDashboardState.Failed -> {
-                            Text("CONTROL LOCKED · ${current.reason}", color = MaterialTheme.colorScheme.error)
-                            OutlinedButton(onClick = { refreshKey++ }) { Text("Retry authorization") }
-                        }
-                        is OwnerDashboardState.Ready -> {
-                            Text(
-                                "Backend capability proof: ${current.control.session.backendCapabilities.size}/" +
-                                    SourceLabControlAction.entries.size,
-                            )
-                            Text("Branch: ${current.snapshot.branch}")
-                            OutlinedButton(
-                                onClick = {
-                                    refreshKey++
-                                    inventoryRefreshKey++
-                                },
-                                enabled = runningAction == null,
-                            ) {
-                                Text("Refresh live state")
-                            }
-                        }
-                    }
+        item(key = "header") {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Miyorare Source Lab", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Compatibility Farm Control Panel",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
+                TextButton(
+                    onClick = { context.startActivity(Intent(context, SourceLabDiagnosticsActivity::class.java)) },
+                ) { Text("Diagnostics") }
             }
         }
 
+        item(key = "owner") {
+            OwnerStatusCard(
+                state = dashboard,
+                ready = ready,
+                onRefresh = ::refreshAll,
+            )
+        }
+
         operationMessage?.let { message ->
-            item {
-                Card {
+            item(key = "operation") {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                     Text(message, Modifier.fillMaxWidth().padding(14.dp), fontWeight = FontWeight.SemiBold)
                 }
             }
         }
 
-        if (ready != null) {
-            item { LiveCycleCard(ready.snapshot) }
-            item {
-                SourceInventorySummaryCard(
-                    state = inventoryState,
-                    farmSnapshot = ready.snapshot,
-                    onOpen = {
-                        context.startActivity(Intent(context, SourceInventoryActivity::class.java))
-                    },
-                    onRetry = { inventoryRefreshKey++ },
+        if (snapshot != null && control != null && dashboard.error == null) {
+            item(key = "farm-status") {
+                FarmStatusCard(
+                    snapshot = snapshot,
+                    availability = control.actions.getValue(SourceLabControlAction.RUN_FARM),
+                    running = runningAction == SourceLabControlAction.RUN_FARM,
+                    onRun = { runAction(SourceLabControlAction.RUN_FARM, snapshot) },
                 )
             }
-            item { ExactEvidenceCard(ready.snapshot) }
-            item { Text("Owner actions", fontWeight = FontWeight.Bold) }
 
-            items(
-                listOf(SourceLabControlAction.RUN_FARM, SourceLabControlAction.APPROVE),
-                key = { it.name },
-            ) { action ->
-                val availability = ready.control.actions.getValue(action)
-                OwnerActionCard(
-                    availability = availability,
-                    running = runningAction == action,
-                    label = if (action == SourceLabControlAction.APPROVE) "APPROVE & AUTO PUBLISH" else null,
-                    onClick = {
-                        if (action == SourceLabControlAction.RUN_FARM) runAction(action, ready)
-                        else confirmation = action
-                    },
+            item(key = "overview") {
+                SourceOverviewCard(
+                    snapshot = snapshot,
+                    inventory = inventory,
+                    onOpenSources = { context.startActivity(Intent(context, SourceInventoryActivity::class.java)) },
+                )
+            }
+
+            item(key = "recent") { RecentActivityCard(snapshot.recentRuns) }
+
+            item(key = "approval") {
+                PendingApprovalCard(
+                    snapshot = snapshot,
+                    availability = control.actions.getValue(SourceLabControlAction.APPROVE),
+                    running = runningAction == SourceLabControlAction.APPROVE,
+                    onApprove = { confirmation = SourceLabControlAction.APPROVE },
                 )
             }
 
@@ -303,30 +289,146 @@ private fun OwnerControlScreen() {
                 SourceLabControlAction.PROMOTE,
                 SourceLabControlAction.SIGN,
                 SourceLabControlAction.PUBLISH,
-            ).filter { ready.control.actions.getValue(it).available }
+            ).filter { control.actions.getValue(it).available }
             if (recoveryActions.isNotEmpty()) {
-                item {
-                    Text("Recovery actions", fontWeight = FontWeight.Bold)
-                    Text(
-                        "Shown only when an automatic approval pipeline needs manual recovery.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                item(key = "recovery-title") {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Recovery actions", fontWeight = FontWeight.Bold)
+                        Text(
+                            "Only shown when the backend exposes a valid recovery capability.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 items(recoveryActions, key = { "recovery-${it.name}" }) { action ->
-                    OwnerActionCard(
-                        availability = ready.control.actions.getValue(action),
+                    RecoveryActionCard(
+                        availability = control.actions.getValue(action),
                         running = runningAction == action,
                         onClick = { confirmation = action },
                     )
                 }
             }
+        }
 
-            item {
+        item(key = "security-note") {
+            Text(
+                "Owner actions remain fail-closed. Repository writes, promotion, signing and publishing are performed by GitHub Actions; the APK does not store repository write tokens or signing material.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun OwnerStatusCard(
+    state: OwnerDashboardUiState,
+    ready: Boolean,
+    onRefresh: () -> Unit,
+) {
+    val locked = state.error != null
+    val container = when {
+        ready -> Color(0xFF103328)
+        locked -> Color(0xFF2A2024)
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    Card(colors = CardDefaults.cardColors(containerColor = container)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column {
+                    Text(
+                        when {
+                            ready -> "OWNER · AUTHORIZED"
+                            locked -> "OWNER · CONTROL LOCKED"
+                            else -> "OWNER · VERIFYING"
+                        },
+                        color = when {
+                            ready -> SourceLabGood
+                            locked -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.onSurface
+                        },
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        when {
+                            ready -> "GitHub identity and backend authorization verified"
+                            locked -> "Authorization refresh failed; Owner actions are disabled"
+                            else -> "Validating Owner session and backend capability"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                when {
+                    state.refreshing || state.initialLoading -> CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                    locked -> SourceLabStatusBadge("Locked", SourceLabTone.ERROR)
+                    ready -> SourceLabStatusBadge("Live", SourceLabTone.GOOD)
+                }
+            }
+            state.error?.let { error ->
+                Text("Control refresh: $error", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+            OutlinedButton(onClick = onRefresh, enabled = !state.refreshing && !state.initialLoading) {
+                Text(if (ready) "Refresh state" else "Retry authorization")
+            }
+        }
+    }
+}
+
+@Composable
+private fun FarmStatusCard(
+    snapshot: LiveFarmSnapshot,
+    availability: SourceLabActionAvailability,
+    running: Boolean,
+    onRun: () -> Unit,
+) {
+    val stateLabel = when {
+        snapshot.approvalCandidate != null -> "Pending approval"
+        snapshot.lastPromotion != null && snapshot.lastPublish?.candidateSetId != snapshot.lastPromotion.candidateSetId -> "Promotion pending"
+        else -> "Ready for Farm"
+    }
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Farm Status", fontWeight = FontWeight.Bold)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column {
+                    Text(stateLabel, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        "${snapshot.sources.size} sources in Farm",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                SourceLabStatusBadge(
+                    if (availability.available) "Available" else "Locked",
+                    if (availability.available) SourceLabTone.GOOD else SourceLabTone.NEUTRAL,
+                )
+            }
+            Button(
+                onClick = onRun,
+                enabled = availability.available && !running,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (running) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Running Farm")
+                } else {
+                    Text("Run Compatibility Farm")
+                }
+            }
+            if (!availability.available) {
                 Text(
-                    "Normal lifecycle: RUN FARM → one Owner APPROVE → automatic PROMOTE → SIGN → PUBLISH. " +
-                        "All writes, promotion, attestation, enrollment, and publishing happen in GitHub Actions. " +
-                        "The APK stores no repository write token, signing key, keystore, or signing password.",
+                    availability.reason,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -336,153 +438,154 @@ private fun OwnerControlScreen() {
 }
 
 @Composable
-private fun SourceInventorySummaryCard(
-    state: OwnerInventoryState,
-    farmSnapshot: LiveFarmSnapshot,
-    onOpen: () -> Unit,
-    onRetry: () -> Unit,
+private fun SourceOverviewCard(
+    snapshot: LiveFarmSnapshot,
+    inventory: OwnerInventoryUiState,
+    onOpenSources: () -> Unit,
 ) {
+    val sourceInventory = inventory.snapshot
+    val summary = sourceInventory?.summary(snapshot.sources.map { it.canonicalId }.toSet())
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text("SOURCE INVENTORY", fontWeight = FontWeight.Bold)
-            when (state) {
-                OwnerInventoryState.Loading -> {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        CircularProgressIndicator(modifier = Modifier.height(20.dp))
-                        Text("Loading automatic upstream inventory…")
-                    }
-                }
-                is OwnerInventoryState.Failed -> {
-                    Text("Inventory unavailable · Farm controls remain independent.", color = MaterialTheme.colorScheme.error)
-                    Text(state.reason, style = MaterialTheme.typography.bodySmall)
-                    OutlinedButton(onClick = onRetry) { Text("Retry inventory") }
-                }
-                is OwnerInventoryState.Ready -> {
-                    val summary = state.snapshot.summary(farmSnapshot.sources.map { it.canonicalId }.toSet())
-                    Text("All Sources       ${summary.allSources}")
-                    Text("In Farm           ${summary.inFarm}")
-                    Text("Not Enrolled      ${summary.notEnrolled}")
-                    Text("Needs Attention   ${summary.needsAttention}")
-                    val cacheNote = when {
-                        state.snapshot.staleCacheFallback -> " · stale cache fallback"
-                        state.snapshot.fromCache -> " · cached"
-                        else -> ""
-                    }
-                    Text(
-                        "${state.snapshot.branch} · ${state.snapshot.branchCommit.take(12)}$cacheNote",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Button(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
-                        Text("OPEN ALL SOURCES")
-                    }
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Source Overview", fontWeight = FontWeight.Bold)
+                if (inventory.refreshing || inventory.loading) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 }
             }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OverviewMetric("All Sources", summary?.allSources?.toString() ?: "—", Modifier.weight(1f))
+                OverviewMetric("In Farm", snapshot.sources.size.toString(), Modifier.weight(1f))
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OverviewMetric("Needs Attention", summary?.needsAttention?.toString() ?: "—", Modifier.weight(1f))
+                OverviewMetric("Candidate", if (snapshot.approvalCandidate != null) "1" else "0", Modifier.weight(1f))
+            }
+            inventory.error?.let {
+                Text("Inventory refresh unavailable; cached data is retained.", color = SourceLabWarning, style = MaterialTheme.typography.bodySmall)
+            }
+            Button(onClick = onOpenSources, modifier = Modifier.fillMaxWidth()) { Text("Open Sources") }
         }
     }
 }
 
 @Composable
-private fun LiveCycleCard(snapshot: LiveFarmSnapshot) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("LIVE · CONTROL ENABLED", color = Color(0xFF75E8B0), fontWeight = FontWeight.Bold)
-            Text("Sources ${snapshot.sources.size}/${snapshot.targetSize} · ${snapshot.cohort}")
-            when {
-                snapshot.approvalCandidate != null -> {
-                    Text("State · ${snapshot.approvalCandidate.state}", fontWeight = FontWeight.Bold)
-                    Text("Candidate · ${snapshot.approvalCandidate.candidateSetId}", fontFamily = FontFamily.Monospace)
-                }
-                snapshot.lastPromotion != null && snapshot.lastPublish?.candidateSetId != snapshot.lastPromotion.candidateSetId -> {
-                    Text("State · PROMOTED · automatic pipeline/recovery pending", fontWeight = FontWeight.Bold)
-                    Text("Candidate · ${snapshot.lastPromotion.candidateSetId}", fontFamily = FontFamily.Monospace)
-                }
-                snapshot.lastPublish != null -> {
-                    Text("State · PUBLISHED", fontWeight = FontWeight.Bold)
-                    Text("${snapshot.lastPublish.tag} · release run ${snapshot.lastPublish.releaseRunId}")
-                }
-                else -> Text("State · READY FOR FARM", fontWeight = FontWeight.Bold)
-            }
+private fun OverviewMetric(label: String, value: String, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier, shape = RoundedCornerShape(12.dp), color = SourceLabSurface) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 @Composable
-private fun ExactEvidenceCard(snapshot: LiveFarmSnapshot) {
-    val candidate = snapshot.approvalCandidate
-    val promotion = snapshot.lastPromotion
-    Card {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Exact live target", fontWeight = FontWeight.Bold)
-            if (candidate != null) {
-                Text("candidateSetId", style = MaterialTheme.typography.labelSmall)
-                Mono(candidate.candidateSetId)
-                candidate.providers.forEach { (provider, item) ->
-                    Text(provider.uppercase(), fontWeight = FontWeight.SemiBold)
-                    Mono("current   ${item.current}")
-                    Mono("candidate ${item.candidate}")
-                }
-                Text("Evidence binding", fontWeight = FontWeight.SemiBold)
-                Mono("farm   ${candidate.evidenceBinding.farmEvidenceSha256}")
-                Mono("gate   ${candidate.evidenceBinding.gateSha256}")
-                Mono("repair ${candidate.evidenceBinding.repairEvidenceSha256}")
-                Mono("gateFingerprint ${candidate.gateFingerprint}")
-                Text("publishEligible=${candidate.publishEligible}")
-            } else if (promotion != null) {
-                Text("candidateSetId", style = MaterialTheme.typography.labelSmall)
-                Mono(promotion.candidateSetId)
-                promotion.providers.forEach { (provider, commit) -> Mono("${provider.uppercase()} $commit") }
-                Mono("promotionRunId ${promotion.promotionRunId}")
-                snapshot.lastPublish?.takeIf { it.candidateSetId == promotion.candidateSetId }?.let { published ->
-                    Mono("published ${published.tag}")
-                    Mono("publishRunId ${published.publishRunId}")
-                }
+private fun RecentActivityCard(runs: List<LiveFarmRun>) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Recent Activity", fontWeight = FontWeight.Bold)
+            if (runs.isEmpty()) {
+                Text("No recent Farm runs available.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
-                Text("No candidate is staged. Run Farm will evaluate live upstream state.")
+                runs.take(4).forEach { run ->
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Surface(shape = RoundedCornerShape(10.dp), color = SourceLabPrimaryStrong) {
+                            Text("F", Modifier.padding(horizontal = 10.dp, vertical = 7.dp), fontWeight = FontWeight.Bold)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(run.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Run #${run.runNumber}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        val conclusion = run.conclusion?.uppercase() ?: run.status.uppercase()
+                        val tone = when (conclusion) {
+                            "SUCCESS" -> SourceLabTone.GOOD
+                            "FAILURE", "CANCELLED" -> SourceLabTone.ERROR
+                            "IN_PROGRESS", "QUEUED" -> SourceLabTone.ACCENT
+                            else -> SourceLabTone.NEUTRAL
+                        }
+                        SourceLabStatusBadge(conclusion.replace('_', ' '), tone)
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun OwnerActionCard(
+private fun PendingApprovalCard(
+    snapshot: LiveFarmSnapshot,
     availability: SourceLabActionAvailability,
     running: Boolean,
-    label: String? = null,
+    onApprove: () -> Unit,
+) {
+    val candidate = snapshot.approvalCandidate
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Pending Approval", fontWeight = FontWeight.Bold)
+                SourceLabStatusBadge(
+                    if (candidate == null) "None" else candidate.state.replace('_', ' '),
+                    if (candidate?.publishEligible == true) SourceLabTone.GOOD else SourceLabTone.NEUTRAL,
+                )
+            }
+            if (candidate == null) {
+                Text("No candidate is waiting. Run Farm will evaluate live upstream state.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Text("Candidate is ready for Owner review.")
+                Button(
+                    onClick = onApprove,
+                    enabled = availability.available && !running,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (running) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    else Text("Approve & Auto Publish")
+                }
+                if (!availability.available) {
+                    Text(availability.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecoveryActionCard(
+    availability: SourceLabActionAvailability,
+    running: Boolean,
     onClick: () -> Unit,
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(label ?: availability.action.name.replace('_', ' '), fontWeight = FontWeight.Bold)
-                Surface(
-                    shape = RoundedCornerShape(999.dp),
-                    color = if (availability.available) Color(0xFF123229) else Color(0xFF2A2024),
-                ) {
-                    Text(
-                        if (availability.available) "AVAILABLE" else "LOCKED",
-                        Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        color = if (availability.available) Color(0xFF75E8B0) else MaterialTheme.colorScheme.error,
-                    )
-                }
+        Row(
+            Modifier.fillMaxWidth().padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(availability.action.name.replace('_', ' '), fontWeight = FontWeight.Bold)
+                Text(availability.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text(availability.reason, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            availability.prerequisiteRunId?.let { Mono("prerequisiteRunId $it") }
-            Button(
-                onClick = onClick,
-                enabled = availability.available && !running,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (running) CircularProgressIndicator(modifier = Modifier.height(20.dp))
-                else Text(label ?: availability.action.name.replace('_', ' '))
+            OutlinedButton(onClick = onClick, enabled = availability.available && !running) {
+                if (running) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Text("Open")
             }
         }
     }
-}
-
-@Composable
-private fun Mono(text: String) {
-    Text(text, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
 }
 
 private fun confirmationText(
@@ -511,15 +614,14 @@ private fun confirmationText(
     }
     when (action) {
         SourceLabControlAction.APPROVE -> {
-            lines += "One confirmation starts APPROVE → PROMOTE → SIGN → PUBLISH automatically."
+            lines += "One confirmation starts APPROVE → PROMOTE → SIGN → PUBLISH."
             lines += "Each stage reloads live state and revalidates its exact prerequisite."
         }
         SourceLabControlAction.PROMOTE -> lines += "approvalRunId=${control.approvalRunId ?: "MISSING"}"
         SourceLabControlAction.SIGN -> lines += "Signing: GitHub Artifact Attestation only"
         SourceLabControlAction.PUBLISH -> {
             lines += "signingRunId=${control.signingRunId ?: "MISSING"}"
-            lines += "This creates an OFFICIAL immutable Source Pack GitHub release."
-            lines += "Version is resolved server-side as the next Source Pack patch version."
+            lines += "This creates an official immutable Source Pack GitHub release."
         }
         else -> Unit
     }
