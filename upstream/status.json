@@ -49,8 +49,8 @@
   },
   "automation": {
     "schemaVersion": 2,
-    "state": "INFRASTRUCTURE_FAILURE",
-    "reason": "AUTO_INTAKE_DISPATCH_FAILED",
+    "state": "HELD",
+    "reason": "CANDIDATE_FARM_GATE_FAILED",
     "candidates": {
       "gekkoushi": {
         "candidate": "12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67",
@@ -65,10 +65,19 @@
         "current": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
       }
     },
-    "exceptions": {},
-    "ownerActionRequired": true,
-    "lastAttemptProvider": "uma",
-    "workflowRunId": 35251001931,
-    "updatedAt": "2026-09-17T17:09:53.774606Z"
+    "exceptions": {
+      "gekkoushi": {
+        "current": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "candidate": "12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67",
+        "reason": "Run automatic exact provider Candidate Farm / Bind exact evidence and stage approval candidate / Aggregate real parser evidence",
+        "workflowRunId": 35253058989,
+        "upstreamRunId": 35253087187,
+        "recordedAt": "2026-09-17T17:41:48.451161Z"
+      }
+    },
+    "ownerActionRequired": false,
+    "lastAttemptProvider": "gekkoushi",
+    "workflowRunId": 35253058989,
+    "updatedAt": "2026-09-17T17:41:48.451175Z"
   }
 }
