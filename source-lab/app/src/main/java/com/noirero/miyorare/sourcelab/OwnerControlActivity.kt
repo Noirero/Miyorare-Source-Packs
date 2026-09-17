@@ -484,6 +484,7 @@ private fun OverviewMetric(label: String, value: String, modifier: Modifier = Mo
 
 @Composable
 private fun RecentActivityCard(runs: List<LiveFarmRun>) {
+    val context = LocalContext.current
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Recent Activity", fontWeight = FontWeight.Bold)
@@ -518,6 +519,10 @@ private fun RecentActivityCard(runs: List<LiveFarmRun>) {
                     }
                 }
             }
+            OutlinedButton(
+                onClick = { context.startActivity(Intent(context, ReportsActivity::class.java)) },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("View Reports") }
         }
     }
 }
