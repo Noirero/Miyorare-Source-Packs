@@ -50,7 +50,7 @@
   "automation": {
     "schemaVersion": 2,
     "state": "HELD",
-    "reason": "CANDIDATE_FARM_GATE_FAILED",
+    "reason": "UPSTREAM_INTAKE_NOT_SAFE",
     "candidates": {
       "gekkoushi": {
         "candidate": "12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67",
@@ -73,11 +73,19 @@
         "workflowRunId": 35253058989,
         "upstreamRunId": 35253087187,
         "recordedAt": "2026-09-17T17:41:48.451161Z"
+      },
+      "keiyoushi": {
+        "current": "2025891752e4705effc28e87a043f7205014cde3",
+        "candidate": "2fb2e7efaf9bcd34841bf5c5a55b348892c8ea72",
+        "reason": "Validate Keiyoushi candidate / Classify registered Keiyoushi source impact",
+        "workflowRunId": 35270186451,
+        "upstreamRunId": 35270211920,
+        "recordedAt": "2026-09-17T20:25:18.319750Z"
       }
     },
     "ownerActionRequired": false,
-    "lastAttemptProvider": "gekkoushi",
-    "workflowRunId": 35253058989,
-    "updatedAt": "2026-09-17T17:41:48.451175Z"
+    "lastAttemptProvider": "keiyoushi",
+    "workflowRunId": 35270186451,
+    "updatedAt": "2026-09-17T20:25:18.319764Z"
   }
 }
