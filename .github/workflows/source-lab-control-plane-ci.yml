@@ -53,6 +53,15 @@ jobs:
               'source-lab-promote-candidate.yml': ['authorized_promotion.py', 'approval_run_id', 'compatibility-farm-foundation'],
               'source-lab-sign-candidate.yml': ['actions/attest-build-provenance@v2', 'GITHUB_ARTIFACT_ATTESTATION'],
               'source-lab-publish-candidate.yml': ['gh attestation verify', 'release-source-packs.yml', 'compatibility-farm-foundation'],
+              'source-lab-add-to-farm.yml': [
+                  '149634319',
+                  'source-inventory-live',
+                  'compatibility-farm-foundation',
+                  'inventory_commit',
+                  'foundation_commit',
+                  'needsAttention',
+                  '--force-with-lease',
+              ],
           }
           root = Path('.github/workflows')
           for name, needles in required.items():
@@ -62,9 +71,11 @@ jobs:
                       raise SystemExit(f'{name} missing required fail-closed marker: {needle}')
 
           auth = (root / 'source-lab-backend-authorization.yml').read_text(encoding='utf-8')
-          for capability in ('RUN_FARM', 'APPROVE', 'PROMOTE', 'SIGN', 'PUBLISH'):
+          for capability in ('RUN_FARM', 'APPROVE', 'PROMOTE', 'SIGN', 'PUBLISH', 'ADD_TO_FARM'):
               if capability not in auth:
                   raise SystemExit(f'backend authorization missing capability {capability}')
+          if 'optionalCapabilities' not in auth:
+              raise SystemExit('new capabilities must remain backward-compatible through optionalCapabilities')
 
           forbidden = ('SOURCE_LAB_KEYSTORE_BASE64', 'SOURCE_LAB_STORE_PASSWORD', 'SOURCE_LAB_KEY_PASSWORD')
           action_text = '\n'.join((root / name).read_text(encoding='utf-8') for name in required)
