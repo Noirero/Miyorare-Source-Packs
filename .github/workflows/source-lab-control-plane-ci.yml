@@ -13,15 +13,19 @@ on:
       - 'tools/candidate_registry.py'
       - 'tools/approval_evidence.py'
       - 'tools/source_inventory_bulk_enroll.py'
+      - 'tools/source_pending_worker.py'
       - 'tests/**'
   push:
     branches:
       - 'source-lab-owner-control-plane-*'
       - 'source-lab-auto-enroll-*'
+      - 'source-lab-autonomous-pending-*'
     paths:
       - '.github/workflows/source-lab-*.yml'
       - 'tools/source_inventory_bulk_enroll.py'
+      - 'tools/source_pending_worker.py'
       - 'tests/test_source_inventory_bulk_enroll.py'
+      - 'tests/test_source_pending_worker.py'
 
 permissions:
   contents: read
@@ -83,6 +87,18 @@ jobs:
                   'parser_family_plan.py',
                   'git push origin HEAD:compatibility-farm-foundation',
               ],
+              'source-lab-pending-worker.yml': [
+                  '149634319',
+                  'compatibility-farm-foundation',
+                  'source_pending_worker.py',
+                  'pending-worker-state.json',
+                  'buildJar --no-daemon',
+                  'compileDebugKotlin',
+                  '--fail-threshold 3',
+                  'READY_FOR_APPROVAL',
+                  'ownerActionRequired',
+                  'publishEligible',
+              ],
           }
           root = Path('.github/workflows')
           for name, needles in required.items():
@@ -139,3 +155,10 @@ jobs:
           set -euo pipefail
           python3 -m py_compile tools/source_inventory_bulk_enroll.py
           python3 tests/test_source_inventory_bulk_enroll.py
+
+      - name: Test autonomous PENDING queue worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/source_pending_worker.py
+          python3 tests/test_source_pending_worker.py
