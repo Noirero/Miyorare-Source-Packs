@@ -71,6 +71,8 @@ jobs:
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir dist
           test -s dist/miyorare-source-packs.json
           if [ -e dist/miyorare-release-lock.json ] || [ -e dist/miyorare-release-lock.sha256 ]; then
+            test -s dist/miyorare-release-lock.json
+            test -s dist/miyorare-release-lock.sha256
             echo "Existing seal assets found; this workflow never overwrites release seals."
             cp dist/miyorare-release-lock.json seal/miyorare-release-lock.json
             cp dist/miyorare-release-lock.sha256 seal/miyorare-release-lock.sha256
@@ -165,12 +167,15 @@ jobs:
         with:
           subject-path: seal/miyorare-release-lock.json
 
-      - name: Verify cryptographic attestation before publication
+      - name: Verify cryptographic attestation and immutable payload
         shell: bash
         run: |
           set -euo pipefail
           (cd seal && sha256sum -c miyorare-release-lock.sha256)
           gh attestation verify seal/miyorare-release-lock.json --repo "$GITHUB_REPOSITORY"
+          cp seal/miyorare-release-lock.json dist/miyorare-release-lock.json
+          cp seal/miyorare-release-lock.sha256 dist/miyorare-release-lock.sha256
+          python3 tools/verify_release_lock.py --dir dist --tag "$TAG"
 
       - name: Publish immutable seal assets once
         if: env.already_sealed != 'true'
