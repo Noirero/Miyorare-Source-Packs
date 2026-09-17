@@ -1,12 +1,16 @@
-name: Seal Source Pack Release
+name: Seal Source Pack Draft
 
 on:
-  release:
-    types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        description: Draft miyorare-sources-vX.Y.Z release tag to seal
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing miyorare-sources-vX.Y.Z release tag to verify or seal
+        description: Existing miyorare-sources-vX.Y.Z draft to seal, or sealed release to verify
         required: true
         type: string
 
@@ -16,7 +20,7 @@ permissions:
   attestations: write
 
 concurrency:
-  group: source-pack-seal-${{ github.event.release.tag_name || inputs.tag }}
+  group: source-pack-seal-${{ inputs.tag }}
   cancel-in-progress: false
 
 jobs:
@@ -25,15 +29,12 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ github.token }}
-      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      TAG: ${{ inputs.tag }}
     steps:
       - name: Checkout trust contract
         uses: actions/checkout@v5
-        with:
-          ref: main
-          fetch-depth: 1
 
-      - name: Validate release identity
+      - name: Validate release identity and state
         shell: bash
         run: |
           set -euo pipefail
@@ -41,29 +42,19 @@ jobs:
             echo "::error::Not an official Source Pack tag: $TAG"
             exit 1
           }
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease,tagName > "$RUNNER_TEMP/release.json"
-          python3 - "$RUNNER_TEMP/release.json" <<'PY'
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --json isDraft,isPrerelease,tagName > "$RUNNER_TEMP/release.json"
+          python3 - "$RUNNER_TEMP/release.json" <<'PY' >> "$GITHUB_ENV"
           import json, os, sys
           data = json.load(open(sys.argv[1], encoding='utf-8'))
           if data.get('tagName') != os.environ['TAG']:
               raise SystemExit('release tag mismatch')
-          if data.get('isDraft') or data.get('isPrerelease'):
-              raise SystemExit('only stable published Source Pack releases may be sealed')
+          if data.get('isPrerelease'):
+              raise SystemExit('Source Pack stable release staging must not be prerelease')
+          print(f"RELEASE_IS_DRAFT={'true' if data.get('isDraft') else 'false'}")
           PY
 
-      - name: Require identical Miyorare compatibility contract
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --silent --show-error --location \
-            "https://raw.githubusercontent.com/Noirero/Miyorare/main/compatibility/miyorare-source-pack-contract.v1.json" \
-            -o "$RUNNER_TEMP/miyorare-contract.json"
-          cmp --silent compatibility/miyorare-source-pack-contract.v1.json "$RUNNER_TEMP/miyorare-contract.json" || {
-            echo "::error::Miyorare and Source Packs compatibility contracts differ."
-            exit 1
-          }
-
-      - name: Download immutable payload
+      - name: Download staged payload
         shell: bash
         run: |
           set -euo pipefail
@@ -90,12 +81,39 @@ jobs:
             --contract compatibility/miyorare-source-pack-contract.v1.json \
             --tag "$TAG"
 
-      - name: Build canonical release lock
-        if: env.already_sealed != 'true'
+      - name: Require exact stable runtime compatibility contract
         shell: bash
         run: |
           set -euo pipefail
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json id,tagName,targetCommitish,publishedAt,url > "$RUNNER_TEMP/release-metadata.json"
+          RUNTIME_COMMIT="$(python3 - <<'PY'
+          import json
+          print(json.load(open('dist/miyorare-source-packs.json', encoding='utf-8'))['runtimeCompatibility']['commit'])
+          PY
+          )"
+          [[ "$RUNTIME_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          curl --fail --silent --show-error --location \
+            "https://raw.githubusercontent.com/Noirero/Miyorare/${RUNTIME_COMMIT}/compatibility/miyorare-source-pack-contract.v1.json" \
+            -o "$RUNNER_TEMP/miyorare-contract.json"
+          cmp --silent compatibility/miyorare-source-pack-contract.v1.json "$RUNNER_TEMP/miyorare-contract.json" || {
+            echo "::error::Source Pack contract differs from the exact stable Miyorare runtime baseline."
+            exit 1
+          }
+
+      - name: Refuse retroactive sealing of published releases
+        if: env.RELEASE_IS_DRAFT != 'true' && env.already_sealed != 'true'
+        shell: bash
+        run: |
+          echo "::error::Published Source Pack $TAG is unsealed. Phase 3 forbids retroactive sealing; stable releases must be sealed while draft."
+          exit 1
+
+      - name: Build canonical release lock while draft
+        if: env.RELEASE_IS_DRAFT == 'true' && env.already_sealed != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --json id,tagName,targetCommitish,publishedAt,url,isDraft,isPrerelease \
+            > "$RUNNER_TEMP/release-metadata.json"
           python3 - <<'PY'
           import hashlib
           import json
@@ -139,11 +157,14 @@ jobs:
               })
 
           metadata = json.loads(Path(os.environ['RUNNER_TEMP'], 'release-metadata.json').read_text(encoding='utf-8'))
+          if metadata.get('isDraft') is not True or metadata.get('isPrerelease') is True:
+              raise SystemExit('release must still be a stable-channel draft when the lock is created')
           contract_bytes = contract_path.read_bytes()
           lock = {
               'schemaVersion': 1,
               'kind': 'MIYORARE_SOURCE_PACK_RELEASE_LOCK',
               'immutable': True,
+              'sealedBeforePublish': True,
               'tag': os.environ['TAG'],
               'releaseId': metadata.get('id'),
               'releaseUrl': metadata.get('url'),
@@ -168,13 +189,13 @@ jobs:
           )
           PY
 
-      - name: Cryptographically sign release lock with GitHub OIDC
-        if: env.already_sealed != 'true'
+      - name: Cryptographically attest release lock with GitHub OIDC
+        if: env.RELEASE_IS_DRAFT == 'true' && env.already_sealed != 'true'
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: seal/miyorare-release-lock.json
 
-      - name: Verify cryptographic attestation and immutable payload
+      - name: Verify cryptographic attestation and staged payload
         shell: bash
         run: |
           set -euo pipefail
@@ -182,10 +203,13 @@ jobs:
           gh attestation verify seal/miyorare-release-lock.json --repo "$GITHUB_REPOSITORY"
           cp seal/miyorare-release-lock.json dist/miyorare-release-lock.json
           cp seal/miyorare-release-lock.sha256 dist/miyorare-release-lock.sha256
-          python3 tools/verify_release_lock.py --dir dist --tag "$TAG"
+          python3 tools/verify_release_lock.py \
+            --dir dist \
+            --tag "$TAG" \
+            --require-sealed-before-publish
 
-      - name: Publish immutable seal assets once
-        if: env.already_sealed != 'true'
+      - name: Upload immutable seal assets to draft once
+        if: env.RELEASE_IS_DRAFT == 'true' && env.already_sealed != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -194,15 +218,36 @@ jobs:
             seal/miyorare-release-lock.sha256 \
             --repo "$GITHUB_REPOSITORY"
 
+      - name: Re-download and audit staged release from GitHub
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf audit
+          mkdir audit
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir audit
+          test -s audit/miyorare-release-lock.json
+          test -s audit/miyorare-release-lock.sha256
+          python3 tools/source_pack_manifest.py validate \
+            --manifest audit/miyorare-source-packs.json \
+            --contract compatibility/miyorare-source-pack-contract.v1.json \
+            --tag "$TAG"
+          gh attestation verify audit/miyorare-release-lock.json --repo "$GITHUB_REPOSITORY"
+          python3 tools/verify_release_lock.py \
+            --dir audit \
+            --tag "$TAG" \
+            --require-sealed-before-publish
+
       - name: Summary
         shell: bash
         run: |
           {
-            echo '# Source Pack release seal'
+            echo '# Source Pack draft seal'
             echo
             echo "Tag: \`$TAG\`"
-            echo 'Schema 3 compatibility metadata was validated before sealing.'
-            echo 'Release payload is bound by SHA-256 in an immutable lock manifest.'
-            echo 'The lock is cryptographically signed using GitHub OIDC artifact attestation.'
+            echo "Draft at verification: \`$RELEASE_IS_DRAFT\`"
+            echo 'Schema 3 compatibility metadata was validated.'
+            echo 'Release payload is bound by SHA-256 in a canonical release lock.'
+            echo 'The lock proves seal-before-publish and is attested using GitHub OIDC.'
+            echo 'The complete remote asset set was downloaded again and verified before stable publication.'
             echo 'Seal files are never overwritten by this workflow.'
           } >> "$GITHUB_STEP_SUMMARY"
