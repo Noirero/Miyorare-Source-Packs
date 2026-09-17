@@ -3,8 +3,10 @@
 
 The planner intentionally contains no source-name special cases. Source/provider membership
 comes from source-registry.json; parser-families.json only describes how an implementation
-family is exercised. CI can consume the resulting matrix instead of hardcoding each source
-in workflow YAML.
+family is exercised. ACTIVE compatibility enrollments must have complete parser-family
+coverage before provider jobs start. PENDING sources may be profiled and may declare parser
+families during onboarding, but they are excluded from the release-gate execution plan until
+explicitly activated.
 """
 
 from __future__ import annotations
@@ -171,7 +173,8 @@ def validate_plan(plan: dict[str, Any], registry: dict[str, Any]) -> dict[str, A
                     f"duplicate parser execution membership: {provider}/{canonical_id}"
                 )
             memberships.add(membership)
-            provider_counts[provider] += 1
+            if membership in required_memberships:
+                provider_counts[provider] += 1
 
             identity = source.get("upstreamIdentities", {}).get(provider, {})
             module = member.get("module")
@@ -209,17 +212,13 @@ def validate_plan(plan: dict[str, Any], registry: dict[str, Any]) -> dict[str, A
             f"ACTIVE registry membership(s) missing real parser family coverage: {rendered}"
         )
 
-    unexpected = sorted(memberships - required_memberships)
-    if unexpected:
-        rendered = ", ".join(f"{canonical_id}@{provider}" for provider, canonical_id in unexpected)
-        raise ParserFamilyPlanError(
-            f"parser family coverage references PENDING/non-required membership(s): {rendered}"
-        )
-
+    pending_declared = memberships - required_memberships
     return {
         "schemaVersion": 1,
         "familyCount": len(family_ids),
-        "membershipCount": len(memberships),
+        "declaredMembershipCount": len(memberships),
+        "membershipCount": len(required_memberships),
+        "pendingDeclaredMembershipCount": len(pending_declared),
         "requiredSourceCount": len(required_sources),
         "pendingSourceCount": len(sources) - len(required_sources),
         "requiredMembershipCount": len(required_memberships),
@@ -238,11 +237,15 @@ def execution_plan(
     if provider is not None and provider not in registry_providers:
         raise ParserFamilyPlanError(f"unknown provider: {provider}")
 
+    sources = _registry_sources(registry)
     include: list[dict[str, Any]] = []
     for family in plan["families"]:
         if provider is not None and family["provider"] != provider:
             continue
         for member in family["members"]:
+            source = sources[member["canonicalId"]]
+            if not _parser_coverage_required(source):
+                continue
             entry = {
                 "provider": family["provider"],
                 "familyId": family["id"],
@@ -265,6 +268,7 @@ def execution_plan(
         "familyCount": len({item["familyId"] for item in include}),
         "membershipCount": len(include),
         "validatedTotalMembershipCount": summary["membershipCount"],
+        "pendingDeclaredMembershipCount": summary["pendingDeclaredMembershipCount"],
         "requiredSourceCount": summary["requiredSourceCount"],
         "pendingSourceCount": summary["pendingSourceCount"],
         "include": include,
@@ -280,7 +284,7 @@ def build_parser() -> argparse.ArgumentParser:
     validate = sub.add_parser("validate", help="validate ACTIVE registry coverage and family execution metadata")
     validate.add_argument("--output")
 
-    plan = sub.add_parser("plan", help="emit a provider matrix for CI")
+    plan = sub.add_parser("plan", help="emit an ACTIVE-only provider matrix for release-gate CI")
     plan.add_argument("--provider", choices=["uma", "gekkoushi", "keiyoushi"])
     plan.add_argument("--output")
     return parser
