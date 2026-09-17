@@ -114,4 +114,4 @@ jobs:
                   .github/workflows/upstream-sync-pr-check.yml \
                   tools/protected_main_pr.sh
           git commit -m "Route protected main automation through pull requests"
-          git push origin "HEAD:${{ github.head_ref }}"
+          echo "MIGRATION_COMMIT=$(git rev-parse HEAD)"
