@@ -4,6 +4,7 @@ import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -56,6 +57,27 @@ internal object SourceLabControlClient {
 
     internal fun clearCachedOwnerContext() {
         cachedOwnerContext = null
+    }
+
+    /**
+     * Seeds the short-lived in-process Owner context after the gate has already
+     * verified GitHub identity, backend authorization and capability metadata.
+     * This prevents an immediate duplicate authorization workflow when the
+     * Owner dashboard opens.
+     */
+    internal fun acceptAuthorizedOwnerContext(
+        accessToken: String,
+        session: OwnerAccessSession,
+    ) {
+        if (accessToken.isBlank()) throw SourceLabControlException("OWNER_CREDENTIAL_REQUIRED")
+        val decision = SourceLabAccessPolicy.evaluate(session)
+        if (!decision.canControl) {
+            cachedOwnerContext = null
+            SourceLabOwnerSessionStore.clear()
+            throw SourceLabControlException(decision.reason)
+        }
+        SourceLabOwnerSessionStore.set(session)
+        cachedOwnerContext = OwnerContext(accessToken, session)
     }
 
     suspend fun resolveOwnerSession(context: Context): OwnerAccessSession = withContext(Dispatchers.IO) {
@@ -144,13 +166,38 @@ internal object SourceLabControlClient {
         context: Context,
         snapshot: LiveFarmSnapshot,
     ): SourceLabApprovalPipelineResult = withContext(Dispatchers.IO) {
-        val approval = execute(context, snapshot, SourceLabControlAction.APPROVE)
+        // Revalidate once at the mutation boundary. Later stages may reuse the
+        // same still-valid short-lived proof; refreshOwnerContext() will
+        // transparently reauthorize if it expires while the pipeline is
+        // running. Exact live state and prerequisite receipts are still
+        // reloaded and validated before every stage.
+        val approval = executeInternal(
+            context,
+            snapshot,
+            SourceLabControlAction.APPROVE,
+            forceOwnerRefresh = true,
+        )
         var current = SourceLabRepository.loadSnapshot()
-        val promotion = execute(context, current, SourceLabControlAction.PROMOTE)
+        val promotion = executeInternal(
+            context,
+            current,
+            SourceLabControlAction.PROMOTE,
+            forceOwnerRefresh = false,
+        )
         current = SourceLabRepository.loadSnapshot()
-        val signing = execute(context, current, SourceLabControlAction.SIGN)
+        val signing = executeInternal(
+            context,
+            current,
+            SourceLabControlAction.SIGN,
+            forceOwnerRefresh = false,
+        )
         current = SourceLabRepository.loadSnapshot()
-        val publish = execute(context, current, SourceLabControlAction.PUBLISH)
+        val publish = executeInternal(
+            context,
+            current,
+            SourceLabControlAction.PUBLISH,
+            forceOwnerRefresh = false,
+        )
         SourceLabApprovalPipelineResult(
             approvalRunId = approval.runId,
             promotionRunId = promotion.runId,
@@ -195,13 +242,25 @@ internal object SourceLabControlClient {
         context: Context,
         snapshot: LiveFarmSnapshot,
         action: SourceLabControlAction,
+    ): SourceLabActionResult = executeInternal(
+        context = context,
+        snapshot = snapshot,
+        action = action,
+        forceOwnerRefresh = true,
+    )
+
+    private suspend fun executeInternal(
+        context: Context,
+        snapshot: LiveFarmSnapshot,
+        action: SourceLabControlAction,
+        forceOwnerRefresh: Boolean,
     ): SourceLabActionResult = withContext(Dispatchers.IO) {
         if (action == SourceLabControlAction.ADD_TO_FARM) {
             throw SourceLabControlException("SOURCE_DETAIL_REQUIRED")
         }
-        // Mutating actions keep the existing fail-closed guarantee: they never
-        // use the read cache and always revalidate identity/backend capability.
-        val owner = refreshOwnerContext(context, forceRefresh = true)
+        // Standalone mutations force a fresh proof. A multi-stage pipeline can
+        // reuse only an unexpired proof established by its first mutation.
+        val owner = refreshOwnerContext(context, forceRefresh = forceOwnerRefresh)
         val candidateId = snapshot.approvalCandidate?.candidateSetId
         val promotionId = snapshot.lastPromotion?.candidateSetId
         val approvalRunId = candidateId?.let {
@@ -445,7 +504,7 @@ internal object SourceLabControlClient {
         }
     }
 
-    private fun dispatchAndWait(
+    private suspend fun dispatchAndWait(
         token: String,
         action: SourceLabControlAction,
         request: ControlRequest,
@@ -472,7 +531,7 @@ internal object SourceLabControlClient {
                 run = candidate
                 break
             }
-            Thread.sleep(2_000L)
+            delay(2_000L)
         }
         var current = run ?: throw SourceLabControlException("CONTROL_WORKFLOW_RUN_NOT_FOUND")
         repeat(maxPolls) {
@@ -485,7 +544,7 @@ internal object SourceLabControlClient {
                 }
                 return SourceLabActionResult(action, current.id, current.conclusion)
             }
-            Thread.sleep(pollIntervalMs)
+            delay(pollIntervalMs)
         }
         throw SourceLabControlException("${action.name}_WORKFLOW_TIMEOUT")
     }
