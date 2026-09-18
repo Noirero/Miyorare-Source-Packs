@@ -575,42 +575,54 @@ private fun SourceDetail(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item(key = "head") {
-            TextButton(onClick = onBack) { Text("← Sources") }
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+            SourceLabTopBar(
+                title = source.displayName,
+                subtitle = source.canonicalId,
+                onBack = onBack,
+            )
+            Spacer(Modifier.height(10.dp))
+            SourceLabCard(
+                tone = when {
+                    source.needsAttention -> SourceLabTone.WARNING
+                    farm?.runtimeHealth == "HEALTHY" -> SourceLabTone.GOOD
+                    farm?.runtimeHealth in setOf("BROKEN", "DEGRADED") -> SourceLabTone.ERROR
+                    else -> SourceLabTone.NEUTRAL
+                },
+            ) {
                 Row(
-                    Modifier.fillMaxWidth().padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Surface(shape = RoundedCornerShape(14.dp), color = SourceLabPrimaryStrong) {
-                        Text(
-                            source.displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-                            Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        Box(Modifier.size(54.dp), contentAlignment = Alignment.Center) {
+                            Text(
+                                source.displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                            )
+                        }
                     }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(source.displayName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            SourceLabStatusBadge(source.language, SourceLabTone.NEUTRAL)
+                            source.providers.keys.take(1).forEach {
+                                SourceLabStatusBadge(providerName(it), SourceLabTone.ACCENT)
+                            }
+                        }
                         Text(
-                            "${source.language} · ${source.providers.keys.joinToString(" / ") { providerName(it) }}",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            source.canonicalId,
-                            fontFamily = FontFamily.Monospace,
+                            "Identity ${source.identityConfidence}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                     SourceLabStatusBadge(
                         when {
-                            source.needsAttention -> "Review"
+                            source.needsAttention -> "Needs Review"
                             farm?.runtimeHealth == "HEALTHY" -> "Healthy"
                             farm != null -> farm.runtimeHealth.replace('_', ' ')
-                            farmResolved -> "Not enrolled"
+                            farmResolved -> "Not Enrolled"
                             else -> "Unknown"
                         },
                         when {
@@ -632,6 +644,66 @@ private fun SourceDetail(
                     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Needs attention", color = SourceLabWarning, fontWeight = FontWeight.Bold)
                         source.attentionReasons.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    }
+                }
+            }
+        }
+
+        item(key = "current-candidate") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                SourceLabCard(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(12.dp),
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("Current / Stable", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                        if (farm?.currentVersion?.isNotEmpty() == true) {
+                            farm.currentVersion.entries.take(2).forEach { (providerId, ref) ->
+                                Text(
+                                    "${providerName(providerId)} · ${shortRef(ref)}",
+                                    fontFamily = FontFamily.Monospace,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        } else if (versionBuild != null) {
+                            Text("Build $versionBuild", style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            Text("No version exposed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+                SourceLabCard(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(12.dp),
+                    tone = if (farm?.ownerActionRequired == true) SourceLabTone.WARNING else SourceLabTone.ACCENT,
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("Candidate / Update", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                        if (farm != null) {
+                            Text(
+                                farm.updateState.replace('_', ' '),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (farm.ownerActionRequired) SourceLabWarning else SourceLabPrimarySoft,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                farm.approvalState.replace('_', ' '),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        } else {
+                            Text(
+                                if (farmResolved) "Not enrolled" else "Unresolved",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }
@@ -667,9 +739,13 @@ private fun SourceDetail(
             }
             if (farmResolved && farm == null) {
                 Spacer(Modifier.height(10.dp))
-                Button(onClick = onAdd, enabled = canAdd && !enrolling, modifier = Modifier.fillMaxWidth()) {
-                    if (enrolling) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else Text("Add to Farm")
-                }
+                SourceLabPrimaryButton(
+                    text = if (enrolling) "Adding to Farm…" else "Add to Farm",
+                    onClick = onAdd,
+                    enabled = canAdd && !enrolling,
+                    modifier = Modifier.fillMaxWidth(),
+                    icon = SourceLabIconKind.FARM,
+                )
                 if (!canAdd) {
                     val reason = when {
                         source.needsAttention -> "Resolve source identity attention before enrollment."
@@ -781,8 +857,8 @@ private fun SourceDetail(
 
 @Composable
 private fun DetailCard(title: String, content: @Composable () -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    SourceLabCard {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, fontWeight = FontWeight.Bold)
             content()
         }
