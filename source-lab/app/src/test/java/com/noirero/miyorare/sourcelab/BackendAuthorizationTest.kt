@@ -3,12 +3,41 @@ package com.noirero.miyorare.sourcelab
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BackendAuthorizationTest {
     private val now = 1_800_000_000L
     private val challenge = "ab".repeat(32)
     private val runId = 123456789L
+
+    @Test
+    fun authorizedProofAppliesValidatedCapabilitiesWithoutSecondDownload() {
+        val capabilities = setOf(
+            SourceLabControlAction.RUN_FARM,
+            SourceLabControlAction.APPROVE,
+        )
+        val session = OwnerAccessSession(
+            authenticated = true,
+            githubUserId = SourceLabAccessPolicy.ownerGithubUserId,
+            githubAppId = SourceLabAccessPolicy.githubAppId,
+            installationId = SourceLabAccessPolicy.installationId,
+            repository = SourceLabAccessPolicy.repository,
+            repositoryPermission = SourceLabAccessPolicy.minimumRepositoryPermission,
+            backendAuthorized = false,
+        )
+        val applied = BackendAuthorizationProof(
+            authorized = true,
+            reason = "BACKEND_AUTHORIZED",
+            challenge = challenge,
+            runId = runId,
+            expiresAtEpochSeconds = now + 300L,
+            backendCapabilities = capabilities,
+        ).applyTo(session)
+
+        assertTrue(applied.backendAuthorized)
+        assertEquals(capabilities, applied.backendCapabilities)
+    }
 
     @Test
     fun exactGithubOidcClaimsAreAccepted() {
