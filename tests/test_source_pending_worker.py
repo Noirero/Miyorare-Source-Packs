@@ -19,6 +19,8 @@ def source(canonical_id: str, language: str, *, state: str = "PENDING") -> dict:
         "language": language,
         "providers": ["uma"],
         "upstreamIdentities": {"uma": {"sourceName": canonical_id, "file": f"src/{canonical_id}.kt"}},
+        "currentVersion": {"uma": "a" * 40},
+        "lastKnownGood": {"uma": "a" * 40},
         "compatibilityEnrollment": {"state": state, "parserCoverageRequired": state == "ACTIVE"},
     }
 
@@ -165,6 +167,10 @@ class PendingWorkerTest(unittest.TestCase):
         state, summary = worker.apply_results(registry, worker.normalize_state({}), {"results": [result]}, "123", "2026-09-18T00:00:00Z")
         self.assertEqual(repr(registry), before)
         self.assertEqual(state["sources"]["alpha"]["approvalState"], "WAITING_FOR_APPROVAL")
+        self.assertEqual(
+            state["sources"]["alpha"]["testedVersions"],
+            {"uma": registry["sources"][0]["currentVersion"]["uma"]},
+        )
         self.assertFalse(state["sources"]["alpha"]["publishEligible"])
         self.assertFalse(state["sources"]["alpha"]["ownerActionRequired"])
         self.assertEqual(summary["states"][worker.READY], 1)
