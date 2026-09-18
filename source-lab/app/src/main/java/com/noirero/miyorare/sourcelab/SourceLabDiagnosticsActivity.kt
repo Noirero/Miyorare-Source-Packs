@@ -70,26 +70,49 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
         val previous = state
         state = state.copy(loading = true, error = null, inventoryError = null)
         coroutineScope {
-            val liveJob = async {
-                runCatching {
-                    val snapshot = withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
-                    snapshot to SourceLabControlClient.resolveState(context, snapshot)
+            launch {
+                val snapshotResult = runCatching {
+                    withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
+                }
+                val snapshot = snapshotResult.getOrNull()
+                if (snapshot == null) {
+                    state = state.copy(
+                        snapshot = previous.snapshot,
+                        control = previous.control,
+                        error = snapshotResult.exceptionOrNull()?.let {
+                            it.message ?: it.javaClass.simpleName
+                        },
+                    )
+                } else {
+                    // Runtime diagnostics are useful even when privileged
+                    // capability resolution fails. Surface the snapshot first.
+                    state = state.copy(snapshot = snapshot, error = null)
+                    val controlResult = runCatching {
+                        SourceLabControlClient.resolveState(context, snapshot)
+                    }
+                    state = state.copy(
+                        control = controlResult.getOrNull(),
+                        error = controlResult.exceptionOrNull()?.let {
+                            if (it is SourceLabControlException) it.reason
+                            else it.message ?: it.javaClass.simpleName
+                        },
+                    )
                 }
             }
-            val inventoryJob = async {
-                runCatching { SourceInventoryRepository.loadInventory(context, forceRefresh = false) }
+
+            launch {
+                val inventoryResult = runCatching {
+                    SourceInventoryRepository.loadInventory(context, forceRefresh = false)
+                }
+                state = state.copy(
+                    inventory = inventoryResult.getOrNull() ?: previous.inventory,
+                    inventoryError = inventoryResult.exceptionOrNull()?.let {
+                        it.message ?: it.javaClass.simpleName
+                    },
+                )
             }
-            val live = liveJob.await()
-            val inventory = inventoryJob.await()
-            state = DiagnosticsState(
-                loading = false,
-                snapshot = live.getOrNull()?.first ?: previous.snapshot,
-                control = live.getOrNull()?.second ?: previous.control,
-                inventory = inventory.getOrNull() ?: previous.inventory,
-                error = live.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName },
-                inventoryError = inventory.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName },
-            )
         }
+        state = state.copy(loading = false)
     }
 
     LazyColumn(
@@ -151,7 +174,7 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
 
         val snapshot = state.snapshot
         val control = state.control
-        if (snapshot != null && control != null) {
+        if (snapshot != null) {
             item(key = "runtime") {
                 DiagnosticCard("Runtime") {
                     DiagnosticLine("App version", BuildConfig.VERSION_NAME)
@@ -161,15 +184,17 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
                     DiagnosticLine("Retrieved at", snapshot.retrievedAtEpochMs.toString(), true)
                 }
             }
-            item(key = "capabilities") {
-                DiagnosticCard("Backend capability proof") {
-                    DiagnosticLine("Capabilities", "${control.session.backendCapabilities.size}/${SourceLabControlAction.entries.size}")
-                    SourceLabControlAction.entries.forEach { action ->
-                        val availability = control.actions[action]
-                        DiagnosticLine(
-                            action.name,
-                            if (availability?.available == true) "AVAILABLE" else "LOCKED · ${availability?.reason ?: "unresolved"}",
-                        )
+            if (control != null) {
+                item(key = "capabilities") {
+                    DiagnosticCard("Backend capability proof") {
+                        DiagnosticLine("Capabilities", "${control.session.backendCapabilities.size}/${SourceLabControlAction.entries.size}")
+                        SourceLabControlAction.entries.forEach { action ->
+                            val availability = control.actions[action]
+                            DiagnosticLine(
+                                action.name,
+                                if (availability?.available == true) "AVAILABLE" else "LOCKED · ${availability?.reason ?: "unresolved"}",
+                            )
+                        }
                     }
                 }
             }
