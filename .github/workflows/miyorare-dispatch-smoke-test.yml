@@ -1,0 +1,52 @@
+name: Miyorare dispatch secret smoke test
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/miyorare-dispatch-smoke-test.yml
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Resolve exact Compatibility Farm SHA
+        id: farm
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          FARM_SHA="$(gh api repos/Noirero/Miyorare-Source-Packs/branches/compatibility-farm-foundation --jq '.commit.sha')"
+          [[ "$FARM_SHA" =~ ^[0-9a-f]{40}$ ]]
+          echo "sha=$FARM_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Verify configured cross-repo token
+        env:
+          MIYORARE_DISPATCH_TOKEN: ${{ secrets.MIYORARE_DISPATCH_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$MIYORARE_DISPATCH_TOKEN" ]]; then
+            echo "::error::MIYORARE_DISPATCH_TOKEN is not configured."
+            exit 1
+          fi
+
+      - name: Dispatch exact snapshot to Miyorare
+        env:
+          GH_TOKEN: ${{ secrets.MIYORARE_DISPATCH_TOKEN }}
+          FARM_SHA: ${{ steps.farm.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run miyorare-farm-pack-membership-sync.yml \
+            --repo Noirero/Miyorare \
+            --ref main \
+            -f farm_sha="$FARM_SHA" \
+            -f source_run_id="$GITHUB_RUN_ID"
+          echo "Dispatched exact Farm SHA $FARM_SHA to Miyorare."
