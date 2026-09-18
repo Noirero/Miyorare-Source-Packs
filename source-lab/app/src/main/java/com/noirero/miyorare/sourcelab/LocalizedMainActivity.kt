@@ -536,7 +536,7 @@ private fun LocalizedTestsScreen(sync: LocalizedSyncState) {
                         icon = SourceLabIconKind.LOCK,
                     )
                     Text(
-                        "Viewer mode remains read-only until Owner/backend authorization succeeds.",
+                        stringResource(R.string.viewer_owner_required),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
