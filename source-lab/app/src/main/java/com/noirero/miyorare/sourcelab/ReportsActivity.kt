@@ -48,7 +48,7 @@ class ReportsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             SourceLabPhase1Theme {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                SourceLabAppSurface {
                     ReportsScreen(onClose = { finish() })
                 }
             }
