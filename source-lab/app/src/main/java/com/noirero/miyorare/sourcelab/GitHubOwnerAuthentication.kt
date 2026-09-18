@@ -1,6 +1,8 @@
 package com.noirero.miyorare.sourcelab
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -268,16 +270,35 @@ internal object GitHubOwnerAuthentication {
         return expiresAt > nowEpochSeconds + refreshEarlySeconds
     }
 
-    private fun validateOwnerSession(accessToken: String): OwnerAccessSession {
-        val user = JSONObject(githubGet("$apiBase/user", accessToken))
+    private suspend fun validateOwnerSession(accessToken: String): OwnerAccessSession = coroutineScope {
+        // These GitHub reads are independent. Run them concurrently so a saved
+        // Owner session is bounded by the slowest request instead of four
+        // sequential network round-trips.
+        val userJob = async(Dispatchers.IO) {
+            JSONObject(githubGet("$apiBase/user", accessToken))
+        }
+        val repositoryJob = async(Dispatchers.IO) {
+            JSONObject(githubGet("$apiBase/repos/${SourceLabAccessPolicy.repository}", accessToken))
+        }
+        val installationsJob = async(Dispatchers.IO) {
+            JSONObject(githubGet("$apiBase/user/installations?per_page=100", accessToken))
+        }
+        val installedRepositoriesJob = async(Dispatchers.IO) {
+            JSONObject(
+                githubGet(
+                    "$apiBase/user/installations/${SourceLabAccessPolicy.installationId}/repositories?per_page=100",
+                    accessToken,
+                ),
+            )
+        }
+
+        val user = userJob.await()
         val userId = user.optLong("id", -1L)
         if (userId != SourceLabAccessPolicy.ownerGithubUserId) {
             throw GitHubOwnerAuthenticationException("OWNER_ID_MISMATCH")
         }
 
-        val repository = JSONObject(
-            githubGet("$apiBase/repos/${SourceLabAccessPolicy.repository}", accessToken),
-        )
+        val repository = repositoryJob.await()
         if (repository.optLong("id", -1L) != SourceLabAccessPolicy.repositoryId) {
             throw GitHubOwnerAuthenticationException("REPOSITORY_ID_MISMATCH")
         }
@@ -286,8 +307,7 @@ internal object GitHubOwnerAuthentication {
             throw GitHubOwnerAuthenticationException("INSUFFICIENT_REPOSITORY_PERMISSION")
         }
 
-        val installations = JSONObject(githubGet("$apiBase/user/installations?per_page=100", accessToken))
-            .optJSONArray("installations")
+        val installations = installationsJob.await().optJSONArray("installations")
             ?: throw GitHubOwnerAuthenticationException("INSTALLATION_LIST_MISSING")
         var exactInstallationFound = false
         for (index in 0 until installations.length()) {
@@ -307,12 +327,7 @@ internal object GitHubOwnerAuthentication {
             throw GitHubOwnerAuthenticationException("INSTALLATION_MISMATCH")
         }
 
-        val installedRepositories = JSONObject(
-            githubGet(
-                "$apiBase/user/installations/${SourceLabAccessPolicy.installationId}/repositories?per_page=100",
-                accessToken,
-            ),
-        ).optJSONArray("repositories")
+        val installedRepositories = installedRepositoriesJob.await().optJSONArray("repositories")
             ?: throw GitHubOwnerAuthenticationException("INSTALLATION_REPOSITORY_LIST_MISSING")
         val exactRepositoryInstalled = (0 until installedRepositories.length()).any { index ->
             installedRepositories.optJSONObject(index)?.optLong("id", -1L) == SourceLabAccessPolicy.repositoryId
@@ -321,7 +336,7 @@ internal object GitHubOwnerAuthentication {
             throw GitHubOwnerAuthenticationException("REPOSITORY_NOT_IN_INSTALLATION")
         }
 
-        return OwnerAccessSession(
+        OwnerAccessSession(
             authenticated = true,
             githubUserId = SourceLabAccessPolicy.ownerGithubUserId,
             githubAppId = SourceLabAccessPolicy.githubAppId,
