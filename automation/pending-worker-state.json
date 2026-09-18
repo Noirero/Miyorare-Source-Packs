@@ -1,16 +1,60 @@
 {
-  "lastWorkflowRunId": "35299242891",
+  "lastWorkflowRunId": "35300731451",
   "schemaVersion": 2,
   "sources": {
     "miyorare:inventory-en:18PORNCOMIC": {
       "adapterFamily": "multi-provider",
       "approvalState": "NOT_READY",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
-        "profile": {
+        "attempts": 2,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
           "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:18PORNCOMIC",
+              "chapterTraversal": true,
+              "detailsTraversal": true,
+              "errors": 0,
+              "failureMessage": null,
+              "failureType": null,
+              "failures": 0,
+              "fqcn": "tsuki.site.manga18.en.PornComic18",
+              "locator": "src/main/kotlin/tsuki/site/manga18/en/PornComic18.kt",
+              "pageExtraction": true,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "PASS",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_fe26b7a00c3e",
+              "tests": 1
+            },
+            {
+              "canonicalId": "miyorare:inventory-en:18PORNCOMIC",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.IllegalStateException: Method mangaDetailsRequest not found on keiyoushi.source.Generated",
+              "failureType": "java.lang.IllegalStateException",
+              "failures": 1,
+              "locator": "src/en/eighteenporncomic",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/eighteenporncomic/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_7bad0f6acc2a",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
           "memberships": [
             {
               "authType": "NO_AUTH",
@@ -19,12 +63,14 @@
               "family": "gekkoushi-native",
               "locator": "src/main/kotlin/tsuki/site/manga18/en/PornComic18.kt",
               "probe": {
-                "detail": "no-probe-host",
-                "reachable": false
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://18porncomic.com/"
               },
-              "probeHost": null,
-              "profilePass": false,
-              "provider": "gekkoushi"
+              "probeHost": "18porncomic.com",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
             },
             {
               "authType": "NO_AUTH",
@@ -39,13 +85,14 @@
               },
               "probeHost": "18porncomic.com",
               "profilePass": true,
-              "provider": "keiyoushi"
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
             }
           ]
         }
       },
-      "evidenceSha256": "e4c8471f601fc3b4abed54970734f849a12bbc937f8b1603d55e463f158813f4",
-      "lastCheckedAt": "2026-09-18T01:00:14Z",
+      "evidenceSha256": "4fe2a5e655ba3d4fafb36ddb8ff3f6253ebbecd614a1abcaf3fc0a8f3773a7a4",
+      "lastCheckedAt": "2026-09-18T02:51:28Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
@@ -54,7 +101,7 @@
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
-      "workflowRunId": "35293172456"
+      "workflowRunId": "35300731451"
     },
     "miyorare:inventory-en:1MANGACO": {
       "adapterFamily": "keiyoushi-native",
@@ -391,7 +438,7 @@
       },
       "workflowRunId": "35299242891"
     },
-    "miyorare:inventory-id:AARLAS": {
+    "miyorare:inventory-en:AKAZASCANS": {
       "adapterFamily": "keiyoushi-native",
       "approvalState": "NOT_READY",
       "attempts": 1,
@@ -404,10 +451,207 @@
           "gate": "FAIL",
           "memberships": [
             {
+              "canonicalId": "miyorare:inventory-en:AKAZASCANS",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.IllegalStateException: Unexpected live-network attempt: GET https://akazascans.org/manga/?page=1&order=popular",
+              "failureType": "java.lang.IllegalStateException",
+              "failures": 1,
+              "locator": "src/en/akazascans",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/akazascans/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_a056b5de03ce",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "keiyoushi-native",
+              "locator": "src/en/akazascans",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://akazascans.org/"
+              },
+              "probeHost": "akazascans.org",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "21065ba45ff3493dfc1fe113dd603ab31a26db4296f93dd3da7cd3ed505dbdb2",
+      "lastCheckedAt": "2026-09-18T02:51:28Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35300731451"
+    },
+    "miyorare:inventory-en:ALANDAL": {
+      "adapterFamily": "custom-rest-json",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:ALANDAL",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.net.UnknownHostException: qq.alandal.com: Name or service not known",
+              "failureType": "java.net.UnknownHostException",
+              "failures": 1,
+              "locator": "src/en/alandal",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/alandal/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_20062ea37ce2",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-rest-json",
+              "locator": "src/en/alandal",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://alandal.com/"
+              },
+              "probeHost": "alandal.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "4a5b2f5534071bff3acd94af4314109049a37e89aeb28c61f22d5d283eb5bbb7",
+      "lastCheckedAt": "2026-09-18T02:51:28Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35300731451"
+    },
+    "miyorare:inventory-en:ALLMANGA": {
+      "adapterFamily": "custom-paged-form-api",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:ALLMANGA",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.ExceptionInInitializerError",
+              "failureType": "java.lang.ExceptionInInitializerError",
+              "failures": 1,
+              "locator": "src/en/allanime",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/allanime/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_4784ced017c5",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-paged-form-api",
+              "locator": "src/en/allanime",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://mkissa.to/"
+              },
+              "probeHost": "mkissa.to",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "892beca740d0ae06fc415842081cf1aa52b63dc65645565c0e27b31636073841",
+      "lastCheckedAt": "2026-09-18T02:51:28Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35300731451"
+    },
+    "miyorare:inventory-id:AARLAS": {
+      "adapterFamily": "keiyoushi-native",
+      "approvalState": "NOT_READY",
+      "attempts": 2,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 2,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
               "canonicalId": "miyorare:inventory-id:AARLAS",
               "chapterTraversal": false,
               "detailsTraversal": false,
               "errors": 0,
+              "failureMessage": "java.lang.IllegalStateException: Unexpected live-network attempt: GET https://www.arlas.online/",
+              "failureType": "java.lang.IllegalStateException",
               "failures": 1,
               "locator": "src/id/aarlas",
               "pageExtraction": false,
@@ -437,13 +681,14 @@
               },
               "probeHost": "www.arlas.online",
               "profilePass": true,
-              "provider": "keiyoushi"
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
             }
           ]
         }
       },
-      "evidenceSha256": "49c9a2e8af53455167f8390947845c82a19afec3232dcb6ff773193d242da877",
-      "lastCheckedAt": "2026-09-18T01:00:14Z",
+      "evidenceSha256": "c3ed086556c3011cfa009b46ab7265538fa3f2932eb6c39928f2bce35d0839e7",
+      "lastCheckedAt": "2026-09-18T02:51:28Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
@@ -451,7 +696,7 @@
       "testedVersions": {
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
-      "workflowRunId": "35293172456"
+      "workflowRunId": "35300731451"
     },
     "miyorare:inventory-id:AINZSCANS": {
       "adapterFamily": "multi-provider",
@@ -885,7 +1130,151 @@
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
       "workflowRunId": "35299242891"
+    },
+    "miyorare:inventory-id:ASTRALSCANS": {
+      "adapterFamily": "custom-paged-form-api",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-paged-form-api",
+              "locator": "src/id/astralscans",
+              "probe": {
+                "detail": "URLError",
+                "reachable": false,
+                "url": "https://astralscans.top/"
+              },
+              "probeHost": "astralscans.top",
+              "profilePass": false,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "4d64135ef50f26a1223cfea115ff791b945d6a7beac4137e5e18763fcef6d549",
+      "lastCheckedAt": "2026-09-18T02:51:28Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35300731451"
+    },
+    "miyorare:inventory-id:ASUPANKOMIK": {
+      "adapterFamily": "gekkoushi-native",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "gekkoushi-native",
+              "locator": "src/main/kotlin/tsuki/site/zeistmanga/id/AsupanKomik.kt",
+              "probe": {
+                "detail": "upstream-declared-broken",
+                "reachable": false
+              },
+              "probeHost": "www.asupankomik.my.id",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "7570d4b5c0c41c6302fcb5aa25ab9d5dd6c46ef86ff5019dc985706d6ddfa66a",
+      "lastCheckedAt": "2026-09-18T02:51:28Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "NEEDS_ATTENTION",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "35300731451"
+    },
+    "miyorare:inventory-id:BACAKOMIK": {
+      "adapterFamily": "custom-paged-html",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-id:BACAKOMIK",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.IllegalStateException: Method mangaDetailsRequest not found on keiyoushi.source.Generated",
+              "failureType": "java.lang.IllegalStateException",
+              "failures": 1,
+              "locator": "src/id/bacakomik",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/bacakomik/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_10956ce7ed47",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-paged-html",
+              "locator": "src/id/bacakomik",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://bacakomik.my/"
+              },
+              "probeHost": "bacakomik.my",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "476178c03725608a252973273d28ffbb58878a2842210d3a01c81f8b3a98c0cb",
+      "lastCheckedAt": "2026-09-18T02:51:28Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35300731451"
     }
   },
-  "updatedAt": "2026-09-18T02:32:26Z"
+  "updatedAt": "2026-09-18T02:51:28Z"
 }
