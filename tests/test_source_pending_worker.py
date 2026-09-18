@@ -142,7 +142,7 @@ class PendingWorkerTest(unittest.TestCase):
         final = worker.finalize_results({"results": [row]}, parser_fail, 3)["results"][0]
         self.assertEqual(final["state"], worker.HELD)
 
-    def test_failure_retries_then_holds_before_parser(self) -> None:
+    def test_unreachable_static_probe_is_advisory_and_reaches_parser_gate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             uma = root / "uma"
@@ -151,11 +151,41 @@ class PendingWorkerTest(unittest.TestCase):
             original_probe = worker.http_probe
             worker.http_probe = lambda host, timeout: {"reachable": False, "detail": "timeout"}
             try:
-                base = {"canonicalId": "alpha", "language": "en", "providers": ["uma"], "upstreamIdentities": {"uma": {"sourceName": "Alpha", "file": "src/alpha.kt"}}}
-                retry = worker.assess_plan({"items": [{**base, "attempts": 0}]}, {"uma": uma, "keiyoushi": root, "gekkoushi": root}, {"uma": {"*": True}}, 1.0, 3)
-                held = worker.assess_plan({"items": [{**base, "attempts": 2}]}, {"uma": uma, "keiyoushi": root, "gekkoushi": root}, {"uma": {"*": True}}, 1.0, 3)
+                base = {"canonicalId": "alpha", "language": "en", "providers": ["uma"], "upstreamIdentities": {"uma": {"sourceName": "Alpha", "file": "src/alpha.kt"}}, "attempts": 0}
+                result = worker.assess_plan({"items": [base]}, {"uma": uma, "keiyoushi": root, "gekkoushi": root}, {"uma": {"*": True}}, 1.0, 3)
             finally:
                 worker.http_probe = original_probe
+        row = result["results"][0]
+        self.assertEqual(row["state"], worker.PROFILE)
+        membership = row["evidence"]["profile"]["memberships"][0]
+        self.assertTrue(membership["profilePass"])
+        self.assertFalse(membership["probe"]["reachable"])
+        self.assertTrue(membership["probe"]["advisory"])
+
+    def test_dynamic_or_missing_host_is_advisory(self) -> None:
+        self.assertIsNone(worker.infer_host('val baseUrl = "https://$domain/"'))
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            uma = root / "uma"
+            (uma / "src").mkdir(parents=True)
+            (uma / "src" / "alpha.kt").write_text('fun url() = "https://" + domain', encoding="utf-8")
+            base = {"canonicalId": "alpha", "language": "en", "providers": ["uma"], "upstreamIdentities": {"uma": {"sourceName": "Alpha", "file": "src/alpha.kt"}}, "attempts": 0}
+            result = worker.assess_plan({"items": [base]}, {"uma": uma, "keiyoushi": root, "gekkoushi": root}, {"uma": {"*": True}}, 1.0, 3)
+        row = result["results"][0]
+        self.assertEqual(row["state"], worker.PROFILE)
+        membership = row["evidence"]["profile"]["memberships"][0]
+        self.assertIsNone(membership["probeHost"])
+        self.assertEqual(membership["probe"]["detail"], "no-reliable-static-host")
+
+    def test_compile_failure_retries_then_holds_before_parser(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            uma = root / "uma"
+            (uma / "src").mkdir(parents=True)
+            (uma / "src" / "alpha.kt").write_text('val baseUrl = "https://example.com"', encoding="utf-8")
+            base = {"canonicalId": "alpha", "language": "en", "providers": ["uma"], "upstreamIdentities": {"uma": {"sourceName": "Alpha", "file": "src/alpha.kt"}}}
+            retry = worker.assess_plan({"items": [{**base, "attempts": 0}]}, {"uma": uma, "keiyoushi": root, "gekkoushi": root}, {"uma": {"*": False}}, 1.0, 3)
+            held = worker.assess_plan({"items": [{**base, "attempts": 2}]}, {"uma": uma, "keiyoushi": root, "gekkoushi": root}, {"uma": {"*": False}}, 1.0, 3)
         self.assertEqual(retry["results"][0]["state"], worker.RETRY)
         self.assertEqual(held["results"][0]["state"], worker.HELD)
 
