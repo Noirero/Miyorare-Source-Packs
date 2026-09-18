@@ -45,7 +45,40 @@ def require_hex40(value: Any, label: str) -> str:
     return value.lower()
 
 
-def validate(manifest: dict[str, Any], contract: dict[str, Any], expected_tag: str | None = None) -> None:
+def require_hex64(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not HEX64.fullmatch(value.lower()):
+        raise ManifestError(f"{label} must be a SHA-256 digest")
+    return value.lower()
+
+
+def compatibility_snapshot_id(
+    contract_sha256: str,
+    runtime_commit: str,
+    builder_commit: str,
+    farm_commit: str,
+    upstreams: dict[str, str],
+) -> str:
+    payload = {
+        "schemaVersion": 1,
+        "contractSha256": require_hex64(contract_sha256, "compatibilitySnapshot.contractSha256"),
+        "runtimeCommit": require_hex40(runtime_commit, "runtimeCompatibility.commit"),
+        "builderCommit": require_hex40(builder_commit, "sourceCommit"),
+        "farmCommit": require_hex40(farm_commit, "compatibilitySnapshot.farmCommit"),
+        "providerCommits": {
+            name: require_hex40(upstreams.get(name), f"upstreams.{name}")
+            for name in REQUIRED_UPSTREAMS
+        },
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(b"miyorare-compatibility-snapshot-v1\n" + canonical).hexdigest()
+
+
+def validate(
+    manifest: dict[str, Any],
+    contract: dict[str, Any],
+    expected_tag: str | None = None,
+    expected_contract_sha256: str | None = None,
+) -> None:
     if manifest.get("schema") != contract.get("format", {}).get("releaseManifestSchema"):
         raise ManifestError(f"unsupported release manifest schema: {manifest.get('schema')!r}")
     if manifest.get("schema") != 3:
@@ -105,6 +138,28 @@ def validate(manifest: dict[str, Any], contract: dict[str, Any], expected_tag: s
     for name in REQUIRED_UPSTREAMS:
         require_hex40(upstreams.get(name), f"upstreams.{name}")
 
+    snapshot = manifest.get("compatibilitySnapshot")
+    if not isinstance(snapshot, dict) or snapshot.get("schemaVersion") != 1:
+        raise ManifestError("compatibilitySnapshot schemaVersion must be 1")
+    if snapshot.get("algorithm") != "sha256":
+        raise ManifestError("compatibilitySnapshot algorithm must be sha256")
+    contract_digest = require_hex64(snapshot.get("contractSha256"), "compatibilitySnapshot.contractSha256")
+    farm_commit = require_hex40(snapshot.get("farmCommit"), "compatibilitySnapshot.farmCommit")
+    if expected_contract_sha256 is not None and contract_digest != require_hex64(
+        expected_contract_sha256, "expected contract SHA-256"
+    ):
+        raise ManifestError("compatibilitySnapshot contract SHA-256 mismatch")
+    snapshot_id = require_hex64(manifest.get("compatibilitySnapshotId"), "compatibilitySnapshotId")
+    expected_snapshot_id = compatibility_snapshot_id(
+        contract_digest,
+        runtime["commit"],
+        manifest["sourceCommit"],
+        farm_commit,
+        upstreams,
+    )
+    if snapshot_id != expected_snapshot_id:
+        raise ManifestError("compatibilitySnapshotId does not match immutable compatibility inputs")
+
     packs = manifest.get("packs")
     if not isinstance(packs, list) or not packs:
         raise ManifestError("manifest.packs is required")
@@ -157,6 +212,8 @@ def generate(
     tsuki_api: str,
     compatibility_epoch: int,
     upstreams: dict[str, str],
+    farm_commit: str,
+    contract_sha256: str,
     contract: dict[str, Any],
 ) -> dict[str, Any]:
     if not SEMVER.fullmatch(version):
@@ -165,6 +222,15 @@ def generate(
     require_hex40(runtime_commit, "runtimeCompatibility.commit")
     for name in REQUIRED_UPSTREAMS:
         require_hex40(upstreams.get(name), f"upstreams.{name}")
+    require_hex40(farm_commit, "compatibilitySnapshot.farmCommit")
+    require_hex64(contract_sha256, "compatibilitySnapshot.contractSha256")
+    snapshot_id = compatibility_snapshot_id(
+        contract_sha256,
+        runtime_commit,
+        source_commit,
+        farm_commit,
+        upstreams,
+    )
 
     packs: list[dict[str, Any]] = []
     for language in REQUIRED_PACK_FILES:
@@ -220,9 +286,16 @@ def generate(
             "tsukiApi": tsuki_api,
         },
         "upstreams": upstreams,
+        "compatibilitySnapshotId": snapshot_id,
+        "compatibilitySnapshot": {
+            "schemaVersion": 1,
+            "algorithm": "sha256",
+            "contractSha256": contract_sha256,
+            "farmCommit": farm_commit,
+        },
         "packs": packs,
     }
-    validate(manifest, contract)
+    validate(manifest, contract, expected_contract_sha256=contract_sha256)
     return manifest
 
 
@@ -242,6 +315,7 @@ def main() -> int:
     p_generate.add_argument("--uma-commit", required=True)
     p_generate.add_argument("--gekkoushi-commit", required=True)
     p_generate.add_argument("--keiyoushi-commit", required=True)
+    p_generate.add_argument("--farm-commit", required=True)
     p_generate.add_argument("--output", type=Path, required=True)
 
     p_validate = sub.add_parser("validate")
@@ -266,13 +340,20 @@ def main() -> int:
                     "gekkoushi": args.gekkoushi_commit.lower(),
                     "keiyoushi": args.keiyoushi_commit.lower(),
                 },
+                farm_commit=args.farm_commit.lower(),
+                contract_sha256=sha256(args.contract),
                 contract=contract,
             )
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         else:
             manifest = load_json(args.manifest)
-            validate(manifest, contract, expected_tag=args.tag)
+            validate(
+                manifest,
+                contract,
+                expected_tag=args.tag,
+                expected_contract_sha256=sha256(args.contract),
+            )
     except (OSError, KeyError, ManifestError) as exc:
         print(f"error: {exc}")
         return 1
