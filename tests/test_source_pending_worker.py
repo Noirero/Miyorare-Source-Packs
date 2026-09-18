@@ -51,6 +51,30 @@ def profiled() -> dict:
 
 
 class PendingWorkerTest(unittest.TestCase):
+    def test_legacy_v1_state_is_requeued_for_real_parser_v2(self) -> None:
+        legacy = {
+            "schemaVersion": 1,
+            "sources": {
+                "old-ready": {"state": worker.READY, "attempts": 1},
+                "old-held": {"state": worker.HELD, "attempts": 3},
+            },
+        }
+        migrated = worker.normalize_state(legacy)
+        self.assertEqual(migrated["schemaVersion"], 2)
+        self.assertEqual(migrated["sources"], {})
+
+        registry = {
+            "sources": [
+                source("old-ready", "id"),
+                source("old-held", "en"),
+            ]
+        }
+        plan = worker.build_plan(registry, migrated, 8)
+        self.assertEqual(
+            {item["canonicalId"] for item in plan["items"]},
+            {"old-ready", "old-held"},
+        )
+
     def test_plan_balances_languages_and_skips_active(self) -> None:
         registry = {"sources": [source("id-a", "id"), source("id-b", "id"), source("en-a", "en"), source("active", "en", state="ACTIVE")]}
         plan = worker.build_plan(registry, worker.normalize_state({}), 2)
