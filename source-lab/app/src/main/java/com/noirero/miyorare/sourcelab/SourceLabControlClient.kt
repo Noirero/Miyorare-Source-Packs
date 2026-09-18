@@ -232,7 +232,7 @@ internal object SourceLabControlClient {
             SourceLabControlAction.ADD_TO_FARM -> throw SourceLabControlException("SOURCE_DETAIL_REQUIRED")
             SourceLabControlAction.APPROVE_READY_SOURCES -> ControlRequest(
                 workflow = "source-lab-approve-ready-sources.yml",
-                title = "Source Lab approve ready sources",
+                title = "Source Lab Approve Ready Sources",
                 inputs = emptyMap(),
             )
         }
