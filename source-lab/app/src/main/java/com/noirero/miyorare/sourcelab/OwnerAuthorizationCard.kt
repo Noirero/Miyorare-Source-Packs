@@ -6,18 +6,15 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -83,16 +80,11 @@ internal fun OwnerAuthorizationCard(
         state = OwnerAuthorizationUiState.RestoringOwner
         val clientId = GitHubOwnerAuthentication.resolveClientId()
         val identity = GitHubOwnerAuthentication.restoreOwnerLogin(clientId, credential)
-        // A refresh rotates the refresh token, so always persist the newest pair
-        // before requesting a fresh short-lived backend proof.
         GitHubOwnerCredentialVault.save(context, identity.credential)
         verifiedIdentity = identity
         authorizeBackend(identity)
     }
 
-    // Clean the obsolete manual Client ID recovery value and silently restore a
-    // previously verified owner credential. The GitHub identity/install/repo
-    // checks still run before a fresh backend authorization proof is accepted.
     LaunchedEffect(Unit) {
         context.getSharedPreferences("source_lab_public_config", Context.MODE_PRIVATE)
             .edit()
@@ -119,41 +111,67 @@ internal fun OwnerAuthorizationCard(
         }
     }
 
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
+    SourceLabCard(tone = SourceLabTone.ACCENT) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(11.dp),
         ) {
-            Text(
-                text = stringResource(R.string.owner_access_title),
-                fontWeight = FontWeight.Bold,
-            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(9.dp),
+                ) {
+                    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                        SourceLabIcon(SourceLabIconKind.USER, Modifier.size(22.dp), SourceLabPrimarySoft)
+                    }
+                    Column {
+                        Text(
+                            text = stringResource(R.string.owner_access_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = "GitHub + backend capability",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                SourceLabStatusBadge(
+                    when (state) {
+                        is OwnerAuthorizationUiState.Authorized -> "OWNER"
+                        is OwnerAuthorizationUiState.Failed -> "LOCKED"
+                        OwnerAuthorizationUiState.RestoringOwner,
+                        OwnerAuthorizationUiState.AuthorizingBackend,
+                        is OwnerAuthorizationUiState.WaitingForGitHub -> "VERIFYING"
+                        OwnerAuthorizationUiState.Idle -> "SECURE"
+                    },
+                    when (state) {
+                        is OwnerAuthorizationUiState.Authorized -> SourceLabTone.GOOD
+                        is OwnerAuthorizationUiState.Failed -> SourceLabTone.ERROR
+                        OwnerAuthorizationUiState.RestoringOwner,
+                        OwnerAuthorizationUiState.AuthorizingBackend,
+                        is OwnerAuthorizationUiState.WaitingForGitHub -> SourceLabTone.ACCENT
+                        OwnerAuthorizationUiState.Idle -> SourceLabTone.NEUTRAL
+                    },
+                )
+            }
+
             Text(
                 text = stringResource(R.string.owner_access_supporting),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            Text(
-                text = stringResource(
-                    if (embeddedClientIdAvailable) {
-                        R.string.github_client_id_embedded_ready
-                    } else {
-                        R.string.github_client_id_build_missing
-                    },
-                ),
-                color = if (embeddedClientIdAvailable) {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                } else {
-                    MaterialTheme.colorScheme.error
-                },
                 style = MaterialTheme.typography.bodySmall,
             )
 
             when (val current = state) {
                 OwnerAuthorizationUiState.Idle -> {
-                    Button(
+                    SourceLabPrimaryButton(
+                        text = stringResource(R.string.connect_github_owner),
                         onClick = {
                             operationScope.launch {
                                 onSessionChanged(null)
@@ -165,9 +183,6 @@ internal fun OwnerAuthorizationCard(
                                     state = OwnerAuthorizationUiState.WaitingForGitHub(code)
                                     openVerificationPage(context, code.verificationUri)
                                     val identity = GitHubOwnerAuthentication.completeOwnerLogin(resolvedClientId, code)
-                                    // Save immediately after GitHub identity validation. If backend
-                                    // authorization has a transient failure, the user does not have
-                                    // to repeat Device Flow.
                                     GitHubOwnerCredentialVault.save(context, identity.credential)
                                     verifiedIdentity = identity
                                     authorizeBackend(identity)
@@ -188,8 +203,14 @@ internal fun OwnerAuthorizationCard(
                         },
                         enabled = embeddedClientIdAvailable && !busy,
                         modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.connect_github_owner))
+                        icon = SourceLabIconKind.LOCK,
+                    )
+                    if (!embeddedClientIdAvailable) {
+                        Text(
+                            text = stringResource(R.string.github_client_id_build_missing),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                 }
 
@@ -203,44 +224,43 @@ internal fun OwnerAuthorizationCard(
                 }
 
                 is OwnerAuthorizationUiState.WaitingForGitHub -> {
-                    Text(stringResource(R.string.github_device_code_copied))
-                    Text(
-                        text = current.code.userCode,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                    )
-                    Text(
-                        stringResource(R.string.github_paste_friendly_code),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    SourceLabCard(
+                        tone = SourceLabTone.ACCENT,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(13.dp),
                     ) {
-                        CircularProgressIndicator()
-                        Text(
-                            stringResource(R.string.github_waiting_authorization),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f),
-                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = stringResource(R.string.github_device_code_copied),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                text = current.code.userCode,
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                color = SourceLabPrimarySoft,
+                            )
+                            Text(
+                                stringResource(R.string.github_waiting_authorization),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
-                    Button(
+                    SourceLabPrimaryButton(
+                        text = stringResource(R.string.copy_github_code),
                         onClick = { copyUserCodeForPaste(context, current.code.userCode) },
                         modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.copy_github_code))
-                    }
-                    OutlinedButton(
+                    )
+                    SourceLabSecondaryButton(
+                        text = stringResource(R.string.open_github_again),
                         onClick = {
                             copyUserCodeForPaste(context, current.code.userCode)
                             openVerificationPage(context, current.code.verificationUri)
                         },
                         modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.open_github_again))
-                    }
+                    )
                 }
 
                 OwnerAuthorizationUiState.AuthorizingBackend -> {
@@ -248,16 +268,27 @@ internal fun OwnerAuthorizationCard(
                 }
 
                 is OwnerAuthorizationUiState.Authorized -> {
-                    Text(
-                        text = stringResource(R.string.backend_authorized),
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.tertiary,
-                    )
-                    Text(
-                        text = stringResource(R.string.backend_authorized_supporting),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    OutlinedButton(
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(9.dp),
+                    ) {
+                        SourceLabIcon(SourceLabIconKind.CHECK, Modifier.size(20.dp), SourceLabGood)
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.backend_authorized),
+                                fontWeight = FontWeight.Bold,
+                                color = SourceLabGood,
+                            )
+                            Text(
+                                text = stringResource(R.string.backend_authorized_supporting),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                    SourceLabSecondaryButton(
+                        text = stringResource(R.string.forget_owner_device),
                         onClick = {
                             GitHubOwnerCredentialVault.clear(context)
                             verifiedIdentity = null
@@ -265,31 +296,38 @@ internal fun OwnerAuthorizationCard(
                             state = OwnerAuthorizationUiState.Idle
                         },
                         modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.forget_owner_device))
-                    }
+                    )
                 }
 
                 is OwnerAuthorizationUiState.Failed -> {
-                    Text(
-                        text = stringResource(R.string.owner_authorization_failed),
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                    Text(
-                        text = ownerAuthorizationErrorMessage(current.reason),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = current.reason,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontFamily = FontFamily.Monospace,
-                    )
+                    SourceLabCard(
+                        tone = SourceLabTone.ERROR,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(13.dp),
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(
+                                text = stringResource(R.string.owner_authorization_failed),
+                                fontWeight = FontWeight.Bold,
+                                color = SourceLabError,
+                            )
+                            Text(
+                                text = ownerAuthorizationErrorMessage(current.reason),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Text(
+                                text = current.reason,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                        }
+                    }
 
                     val identity = verifiedIdentity
                     if (identity != null && current.reason.startsWith("BACKEND_")) {
-                        Button(
+                        SourceLabPrimaryButton(
+                            text = stringResource(R.string.retry_backend_authorization),
                             onClick = {
                                 operationScope.launch {
                                     try {
@@ -305,37 +343,33 @@ internal fun OwnerAuthorizationCard(
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(stringResource(R.string.retry_backend_authorization))
-                        }
-                        OutlinedButton(
+                        )
+                        SourceLabSecondaryButton(
+                            text = stringResource(R.string.restart_github_sign_in),
                             onClick = {
                                 GitHubOwnerCredentialVault.clear(context)
                                 verifiedIdentity = null
                                 state = OwnerAuthorizationUiState.Idle
                             },
                             modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(stringResource(R.string.restart_github_sign_in))
-                        }
+                        )
                     } else {
-                        Button(
+                        SourceLabPrimaryButton(
+                            text = stringResource(R.string.retry),
                             onClick = {
                                 verifiedIdentity = null
                                 state = OwnerAuthorizationUiState.Idle
                             },
                             modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(stringResource(R.string.retry))
-                        }
+                        )
                     }
                 }
             }
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(1.dp))
             Text(
                 text = stringResource(R.string.owner_token_secure_storage),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -376,15 +410,12 @@ private fun AuthorizationProgress(label: String) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        CircularProgressIndicator()
-        Text(label)
+        CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = SourceLabPrimary)
+        Text(label, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
 private fun copyUserCodeForPaste(context: Context, userCode: String) {
-    // GitHub displays the code as XXXX-XXXX, while its mobile entry UI uses
-    // eight character slots. Copying only the eight characters is friendlier
-    // to paste/autofill behavior on mobile keyboards and browsers.
     val pasteFriendlyCode = userCode.filter(Char::isLetterOrDigit).uppercase()
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     clipboard.setPrimaryClip(ClipData.newPlainText("GitHub device code", pasteFriendlyCode))

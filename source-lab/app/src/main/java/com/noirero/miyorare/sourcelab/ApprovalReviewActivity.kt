@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -37,6 +38,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -208,24 +210,18 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item(key = "header") {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = onClose) { Text("← Dashboard") }
-                OutlinedButton(
-                    enabled = !ui.loading && !ui.actionRunning,
-                    onClick = { scope.launch { loadReview() } },
-                ) {
-                    if (ui.loading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                    else Text("Refresh")
-                }
-            }
-            Text("Candidate Review", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text(
-                "Review real provider refs, compatibility state and diff summary before Owner approval.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            SourceLabTopBar(
+                title = "Test Result",
+                subtitle = "Candidate review · current vs candidate evidence",
+                onBack = onClose,
+                trailing = {
+                    SourceLabIconButton(
+                        icon = SourceLabIconKind.REFRESH,
+                        contentDescription = "Refresh candidate review",
+                        onClick = { scope.launch { loadReview() } },
+                        enabled = !ui.loading && !ui.actionRunning,
+                    )
+                },
             )
         }
 
@@ -295,6 +291,20 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
                 CandidateSummaryCard(candidate, approval)
             }
 
+            item(key = "review-tabs") {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SourceLabStatusBadge("SUMMARY", SourceLabTone.ACCENT)
+                    SourceLabStatusBadge(
+                        if (ui.comparisons.isNotEmpty()) "DIFF READY" else "DIFF LOADING",
+                        if (ui.comparisons.isNotEmpty()) SourceLabTone.GOOD else SourceLabTone.NEUTRAL,
+                    )
+                    SourceLabStatusBadge("EVIDENCE", SourceLabTone.ACCENT)
+                }
+            }
+
             item(key = "versions-title") {
                 Row(
                     Modifier.fillMaxWidth(),
@@ -349,8 +359,8 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
             }
 
             item(key = "approval-action") {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SourceLabCard(tone = if (approval?.available == true && ui.error == null) SourceLabTone.GOOD else SourceLabTone.NEUTRAL) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("Owner Approval", fontWeight = FontWeight.Bold)
                         val available = approval?.available == true && ui.error == null
                         SourceLabStatusBadge(
@@ -366,19 +376,13 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall,
                         )
-                        Button(
+                        SourceLabPrimaryButton(
+                            text = if (ui.actionRunning) "Publishing pipeline…" else "Approve & Auto Publish",
                             enabled = available && !ui.actionRunning,
                             onClick = { confirmApprove = true },
                             modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            if (ui.actionRunning) {
-                                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                                Spacer(Modifier.size(8.dp))
-                                Text("Publishing pipeline")
-                            } else {
-                                Text("Approve & Auto Publish")
-                            }
-                        }
+                            icon = SourceLabIconKind.CHECK,
+                        )
                     }
                 }
             }
@@ -392,39 +396,57 @@ private fun CandidateSummaryCard(
     approval: SourceLabActionAvailability?,
 ) {
     val waiting = candidate.state == "WAITING_FOR_APPROVAL"
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+    SourceLabCard(tone = if (waiting) SourceLabTone.GOOD else SourceLabTone.WARNING) {
+        Column(
+            Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                color = if (waiting) Color(0xFF123B30) else Color(0xFF3A2E16),
             ) {
-                Column(Modifier.weight(1f)) {
-                    Text("Compatibility Gate", fontWeight = FontWeight.Bold)
-                    Text(
-                        if (waiting) "Candidate passed the Farm gate and is waiting for Owner review." else candidate.state.replace('_', ' '),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall,
+                Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
+                    SourceLabIcon(
+                        if (waiting) SourceLabIconKind.CHECK else SourceLabIconKind.WARNING,
+                        Modifier.size(30.dp),
+                        if (waiting) SourceLabGood else SourceLabWarning,
                     )
                 }
-                SourceLabStatusBadge(
-                    if (waiting) "READY FOR REVIEW" else candidate.state.replace('_', ' '),
-                    if (waiting) SourceLabTone.GOOD else SourceLabTone.WARNING,
-                )
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                if (waiting) "Compatibility validated" else candidate.state.replace('_', ' '),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            SourceLabStatusBadge(
+                if (waiting && approval?.available == true) "READY FOR APPROVAL"
+                else if (waiting) "READY FOR REVIEW"
+                else candidate.state.replace('_', ' '),
+                if (waiting) SourceLabTone.GOOD else SourceLabTone.WARNING,
+            )
+            Text(
+                if (waiting) {
+                    "A real candidate passed the Farm gate. Approval remains locked until the live Owner capability is available."
+                } else {
+                    "The backend candidate state is shown exactly as returned."
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 CandidateMetric("Providers", candidate.providers.size.toString(), Modifier.weight(1f))
                 CandidateMetric("Repair evidence", candidate.evidenceBinding.repairEvidenceCount.toString(), Modifier.weight(1f))
             }
             Text(
                 "Candidate · ${shortCandidateId(candidate.candidateSetId)}",
                 fontFamily = FontFamily.Monospace,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (approval != null && !approval.available) {
                 Text(
-                    "Approval action locked · ${approval.reason}",
+                    "Approval locked · ${approval.reason}",
                     color = SourceLabWarning,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -451,8 +473,8 @@ private fun ProviderComparisonCard(
     comparing: Boolean,
     onOpenDiff: (String) -> Unit,
 ) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+    SourceLabCard {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -521,7 +543,7 @@ private fun CompactMetric(label: String, value: String, modifier: Modifier = Mod
 
 @Composable
 private fun CandidateEvidenceCard(candidate: LiveApprovalCandidate) {
-    Card(colors = CardDefaults.cardColors(containerColor = SourceLabSurface)) {
+    SourceLabCard(tone = SourceLabTone.ACCENT) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(
                 Modifier.fillMaxWidth(),

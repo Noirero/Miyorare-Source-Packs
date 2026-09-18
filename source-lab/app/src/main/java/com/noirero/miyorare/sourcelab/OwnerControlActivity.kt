@@ -218,23 +218,11 @@ private fun OwnerControlScreen() {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item(key = "header") {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text("Miyorare Source Lab", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Compatibility Farm Control Panel",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                TextButton(
-                    onClick = { context.startActivity(Intent(context, SettingsActivity::class.java)) },
-                ) { Text("Settings") }
-            }
+            SourceLabTopBar(
+                title = "Advanced Recovery",
+                subtitle = "Promote · Sign · Publish recovery controls",
+                trailing = { SourceLabStatusBadge("RECOVERY", SourceLabTone.WARNING) },
+            )
         }
 
         item(key = "owner") {
@@ -247,7 +235,7 @@ private fun OwnerControlScreen() {
 
         operationMessage?.let { message ->
             item(key = "operation") {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                SourceLabCard {
                     Text(message, Modifier.fillMaxWidth().padding(14.dp), fontWeight = FontWeight.SemiBold)
                 }
             }
@@ -330,7 +318,7 @@ private fun OwnerStatusCard(
         else -> MaterialTheme.colorScheme.surfaceVariant
     }
     Card(colors = CardDefaults.cardColors(containerColor = container)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -388,8 +376,8 @@ private fun FarmStatusCard(
         snapshot.lastPromotion != null && snapshot.lastPublish?.candidateSetId != snapshot.lastPromotion.candidateSetId -> "Promotion pending"
         else -> "Ready for Farm"
     }
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    SourceLabCard(tone = if (availability.available) SourceLabTone.ACCENT else SourceLabTone.NEUTRAL) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Farm Status", fontWeight = FontWeight.Bold)
             Row(
                 Modifier.fillMaxWidth(),
@@ -409,19 +397,13 @@ private fun FarmStatusCard(
                     if (availability.available) SourceLabTone.GOOD else SourceLabTone.NEUTRAL,
                 )
             }
-            Button(
+            SourceLabSecondaryButton(
+                text = if (running) "Recovery Farm running…" else "Open Manual Farm Recovery",
                 onClick = onRun,
                 enabled = availability.available && !running,
                 modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (running) {
-                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.size(8.dp))
-                    Text("Running Farm")
-                } else {
-                    Text("Run Compatibility Farm")
-                }
-            }
+                icon = SourceLabIconKind.TEST,
+            )
             if (!availability.available) {
                 Text(
                     availability.reason,
@@ -441,8 +423,8 @@ private fun SourceOverviewCard(
 ) {
     val sourceInventory = inventory.snapshot
     val summary = sourceInventory?.summary(snapshot.sources.map { it.canonicalId }.toSet())
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    SourceLabCard {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -464,7 +446,12 @@ private fun SourceOverviewCard(
             inventory.error?.let {
                 Text("Inventory refresh unavailable; cached data is retained.", color = SourceLabWarning, style = MaterialTheme.typography.bodySmall)
             }
-            Button(onClick = onOpenSources, modifier = Modifier.fillMaxWidth()) { Text("Open Sources") }
+            SourceLabSecondaryButton(
+                text = "Open Sources",
+                onClick = onOpenSources,
+                modifier = Modifier.fillMaxWidth(),
+                icon = SourceLabIconKind.SOURCES,
+            )
         }
     }
 }
@@ -482,8 +469,8 @@ private fun OverviewMetric(label: String, value: String, modifier: Modifier = Mo
 @Composable
 private fun RecentActivityCard(runs: List<LiveFarmRun>) {
     val context = LocalContext.current
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    SourceLabCard {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Recent Activity", fontWeight = FontWeight.Bold)
             if (runs.isEmpty()) {
                 Text("No recent Farm runs available.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -532,8 +519,8 @@ private fun PendingApprovalCard(
 ) {
     val candidate = snapshot.approvalCandidate
     val waiting = candidate?.state == "WAITING_FOR_APPROVAL"
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    SourceLabCard {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -579,7 +566,7 @@ private fun RecoveryActionCard(
     running: Boolean,
     onClick: () -> Unit,
 ) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+    SourceLabCard {
         Row(
             Modifier.fillMaxWidth().padding(14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,

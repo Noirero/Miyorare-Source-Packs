@@ -6,9 +6,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -390,13 +392,13 @@ private fun FarmRunScreen(onClose: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item(key = "header") {
-            TextButton(onClick = onClose) { Text("← Dashboard") }
-            Text("Compatibility Farm Recovery", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text(
-                "Manual Farm execution is recovery-only. Opening this screen never dispatches a workflow automatically.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
+            SourceLabTopBar(
+                title = "Running Tests",
+                subtitle = "Compatibility Farm · manual recovery execution",
+                onBack = onClose,
             )
+            Spacer(Modifier.size(6.dp))
+            SourceLabStatusBadge("RECOVERY ONLY", SourceLabTone.WARNING)
         }
 
         item(key = "status") {
@@ -412,11 +414,13 @@ private fun FarmRunScreen(onClose: () -> Unit) {
 
         if (ui.phase == FarmRunPhase.READY) {
             item(key = "manual-start") {
-                Button(
+                SourceLabPrimaryButton(
+                    text = "Start Manual Recovery Farm",
                     onClick = { confirmStart = true },
                     enabled = ui.canStart && !dispatchLocked,
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text("Start Manual Recovery Farm") }
+                    icon = SourceLabIconKind.TEST,
+                )
                 if (!ui.canStart || dispatchLocked) {
                     Text(
                         "Manual run unavailable · ${ui.availabilityReason}",
@@ -439,7 +443,7 @@ private fun FarmRunScreen(onClose: () -> Unit) {
         if (repairSteps.isNotEmpty()) {
             item(key = "repair") {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Repair / retest evidence", fontWeight = FontWeight.Bold)
                         repairSteps.forEach { (jobName, step) ->
                             val status = stepStatus(step)
@@ -531,8 +535,12 @@ private fun FarmRunStatusCard(
         FarmRunPhase.SUCCESS -> "Passed" to SourceLabTone.GOOD
         FarmRunPhase.FAILED -> "Failed" to SourceLabTone.ERROR
     }
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    SourceLabCard(tone = status.second) {
+        Column(
+            Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -543,9 +551,9 @@ private fun FarmRunStatusCard(
                         when (ui.phase) {
                             FarmRunPhase.READY -> if (ui.canStart) "Manual recovery Farm is idle" else "Manual recovery Farm is unavailable"
                             FarmRunPhase.PREPARING -> "Preparing secure Owner run"
-                            FarmRunPhase.RUNNING -> "Compatibility Farm is running"
+                            FarmRunPhase.RUNNING -> "Testing compatibility"
                             FarmRunPhase.SUCCESS -> "Compatibility Farm completed"
-                            FarmRunPhase.FAILED -> "Compatibility Farm stopped with an error"
+                            FarmRunPhase.FAILED -> "Compatibility Farm stopped safely"
                         },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
@@ -565,26 +573,39 @@ private fun FarmRunStatusCard(
             }
 
             if (ui.phase == FarmRunPhase.PREPARING || ui.phase == FarmRunPhase.RUNNING) {
-                if (totalJobs > 0) {
-                    LinearProgressIndicator(
-                        progress = { progressFraction.coerceIn(0f, 1f) },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Text(
-                        "$completedJobs / $totalJobs workflow jobs completed",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                    Text(
-                        "Waiting for GitHub Actions to expose the workflow jobs…",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                Box(Modifier.size(118.dp), contentAlignment = Alignment.Center) {
+                    if (totalJobs > 0) {
+                        CircularProgressIndicator(
+                            progress = { progressFraction.coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxSize(),
+                            strokeWidth = 8.dp,
+                            color = SourceLabPrimary,
+                            trackColor = SourceLabSurfaceBright,
+                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "$completedJobs/$totalJobs",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text("jobs", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(72.dp),
+                            strokeWidth = 7.dp,
+                            color = SourceLabPrimary,
+                            trackColor = SourceLabSurfaceBright,
+                        )
+                    }
                 }
+                Text(
+                    if (totalJobs > 0) "Testing workflow jobs…" else "Waiting for GitHub Actions to expose workflow jobs…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 currentJob?.let {
-                    Text("Current test: ${it.name}", fontWeight = FontWeight.SemiBold)
+                    SourceLabStatusBadge("CURRENT · ${it.name}", SourceLabTone.ACCENT)
                 }
             }
         }
@@ -594,8 +615,8 @@ private fun FarmRunStatusCard(
 @Composable
 private fun FarmJobRow(job: MonitoredFarmJob) {
     val status = jobStatus(job)
-    Card(colors = CardDefaults.cardColors(containerColor = SourceLabSurface)) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    SourceLabCard(contentPadding = PaddingValues(13.dp)) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -636,8 +657,8 @@ private fun FarmSuccessResult(
     val candidate = snapshot?.approvalCandidate
     val passPercent = compatibilityPassPercent(jobs)
 
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+    SourceLabCard(tone = SourceLabTone.GOOD) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -687,7 +708,7 @@ private fun FarmSuccessResult(
 
 @Composable
 private fun FarmFailureResult(ui: FarmRunUiState, failedJobs: List<MonitoredFarmJob>) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+    SourceLabCard(tone = SourceLabTone.ERROR) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 Modifier.fillMaxWidth(),

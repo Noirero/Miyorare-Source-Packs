@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -86,112 +87,112 @@ private fun ReportsScreen(onClose: () -> Unit) {
     LaunchedEffect(Unit) { refresh() }
 
     val snapshot = ui.snapshot
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        item(key = "header") {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = onClose) { Text("← Dashboard") }
-                OutlinedButton(
-                    enabled = !ui.initialLoading && !ui.refreshing,
-                    onClick = { scope.launch { refresh() } },
-                ) {
-                    if (ui.refreshing) {
-                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.size(6.dp))
-                        Text("Refreshing")
-                    } else Text("Refresh")
-                }
-            }
-            Text("Reports", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text(
-                "Compatibility Farm history and live release state. Logs are opened on demand instead of preloaded.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        if (ui.initialLoading && snapshot == null) {
-            item(key = "loading") {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(18.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
-                        Column {
-                            Text("Loading Farm report", fontWeight = FontWeight.Bold)
-                            Text(
-                                "Reading the current Compatibility Farm state and recent workflow runs.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        ui.error?.let { error ->
-            item(key = "error") {
-                Card(colors = CardDefaults.cardColors(containerColor = SourceLabSurface)) {
-                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        SourceLabStatusBadge("REFRESH FAILED", SourceLabTone.WARNING)
-                        Text(error, style = MaterialTheme.typography.bodySmall)
-                        if (snapshot != null) {
-                            Text(
-                                "Previously loaded report data is retained.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        if (snapshot != null) {
-            item(key = "summary") { FarmReportSummary(snapshot) }
-            item(key = "providers") { ProviderHealthReport(snapshot.providers) }
-
-            item(key = "runs-title") {
-                Text("Recent Farm Runs", fontWeight = FontWeight.Bold)
-                Text(
-                    "Tap a run to open the full GitHub Actions report.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(11.dp),
+        ) {
+            item(key = "header") {
+                SourceLabTopBar(
+                    title = "Reports",
+                    subtitle = "Compatibility Farm history and release state.",
+                    trailing = {
+                        SourceLabIconButton(
+                            icon = SourceLabIconKind.REFRESH,
+                            contentDescription = "Refresh reports",
+                            onClick = { scope.launch { refresh() } },
+                            enabled = !ui.initialLoading && !ui.refreshing,
+                        )
+                    },
                 )
             }
 
-            if (snapshot.recentRuns.isEmpty()) {
-                item(key = "runs-empty") {
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                        Text(
-                            "No recent Compatibility Farm runs were returned by the backend.",
-                            Modifier.fillMaxWidth().padding(16.dp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            } else {
-                items(snapshot.recentRuns, key = { it.id }) { run ->
-                    FarmRunReportRow(run) {
-                        if (run.htmlUrl.isNotBlank()) {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(run.htmlUrl)))
+            if (ui.initialLoading && snapshot == null) {
+                item(key = "loading") {
+                    SourceLabCard(tone = SourceLabTone.ACCENT) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = SourceLabPrimary)
+                            Column(Modifier.weight(1f)) {
+                                Text("Loading Farm report", fontWeight = FontWeight.Bold)
+                                Text(
+                                    "Reading current Farm state and recent workflow runs.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            item(key = "release") { ReleaseStateReport(snapshot) }
+            ui.error?.let { error ->
+                item(key = "error") {
+                    SourceLabCard(tone = SourceLabTone.WARNING) {
+                        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            SourceLabStatusBadge("REFRESH FAILED", SourceLabTone.WARNING)
+                            Text(error, style = MaterialTheme.typography.bodySmall)
+                            if (snapshot != null) {
+                                Text(
+                                    "Previously loaded report data is retained.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (snapshot != null) {
+                item(key = "summary") { FarmReportSummary(snapshot) }
+                item(key = "providers") { ProviderHealthReport(snapshot.providers) }
+
+                item(key = "runs-title") {
+                    Text("Recent Farm Runs", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Logs stay load-on-demand; open a run only when you need the full GitHub Actions report.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                if (snapshot.recentRuns.isEmpty()) {
+                    item(key = "runs-empty") {
+                        SourceLabCard {
+                            Text(
+                                "No recent Compatibility Farm runs were returned by the backend.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                } else {
+                    items(snapshot.recentRuns, key = { it.id }, contentType = { "farm-run" }) { run ->
+                        FarmRunReportRow(run) {
+                            if (run.htmlUrl.isNotBlank()) {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(run.htmlUrl)))
+                            }
+                        }
+                    }
+                }
+
+                item(key = "release") { ReleaseStateReport(snapshot) }
+            }
         }
+
+        SourceLabBottomBar(
+            selected = SourceLabDestination.REPORTS,
+            onSelect = { destination -> openSourceLabDestination(context, destination) },
+            modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 14.dp, vertical = 10.dp),
+        )
     }
+
+
 }
 
 @Composable
@@ -199,8 +200,8 @@ private fun FarmReportSummary(snapshot: LiveFarmSnapshot) {
     val latest = snapshot.recentRuns.firstOrNull()
     val latestStatus = latest?.let { reportRunLabel(it) } ?: "No runs"
     val latestTone = latest?.let { reportRunTone(it) } ?: SourceLabTone.NEUTRAL
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+    SourceLabCard {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(11.dp)) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -239,8 +240,8 @@ private fun ReportMetric(label: String, value: String, modifier: Modifier = Modi
 
 @Composable
 private fun ProviderHealthReport(providers: List<LiveProviderState>) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+    SourceLabCard {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Text("Provider Health", fontWeight = FontWeight.Bold)
             if (providers.isEmpty()) {
                 Text("No provider state available.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -278,8 +279,8 @@ private fun ProviderHealthReport(providers: List<LiveProviderState>) {
 
 @Composable
 private fun FarmRunReportRow(run: LiveFarmRun, onOpen: () -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    SourceLabCard {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -308,8 +309,8 @@ private fun FarmRunReportRow(run: LiveFarmRun, onOpen: () -> Unit) {
 
 @Composable
 private fun ReleaseStateReport(snapshot: LiveFarmSnapshot) {
-    Card(colors = CardDefaults.cardColors(containerColor = SourceLabSurface)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+    SourceLabCard {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text("Release State", fontWeight = FontWeight.Bold)
             snapshot.lastPromotion?.let { promotion ->
                 Text("Last promotion", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)

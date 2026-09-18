@@ -5,12 +5,14 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -60,143 +62,169 @@ private fun SettingsScreen(onClose: () -> Unit) {
 
     LaunchedEffect(Unit) { readCache() }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        item(key = "header") {
-            TextButton(onClick = onClose) { Text("← Dashboard") }
-            Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text(
-                "Source Lab preferences and operational information. Sensitive diagnostics and recovery controls stay separated from the normal approval workflow.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        item(key = "account") {
-            SettingsSection("Account / Owner") {
-                SettingsValue(
-                    label = "Mode",
-                    value = if (ownerDecision.canControl) "Owner" else "Public / unverified",
-                    tone = if (ownerDecision.canControl) SourceLabTone.GOOD else SourceLabTone.NEUTRAL,
-                )
-                Text(
-                    if (ownerDecision.canControl) {
-                        "Owner session is available. Identity, repository permission and backend capability are still revalidated before control actions."
-                    } else {
-                        "No active verified Owner control session is available in this process."
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(11.dp),
+        ) {
+            item(key = "header") {
+                SourceLabTopBar(
+                    title = "Settings",
+                    subtitle = "Account, cache, network, and advanced controls.",
                 )
             }
-        }
 
-        item(key = "appearance") {
-            SettingsSection("Appearance") {
-                SettingsValue("Theme", "Dark operational", SourceLabTone.ACCENT)
-                Text(
-                    "Source Lab currently uses the shared dark navy / indigo operational theme. A theme switch is not exposed because this build has no persisted appearance preference backend.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            item(key = "account") {
+                SettingsSection("Account") {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                if (ownerDecision.canControl) "Owner mode" else "Viewer mode",
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                if (ownerDecision.canControl) {
+                                    "Verified session is available for read context; mutations still revalidate capabilities."
+                                } else {
+                                    "Public read-only access. Privileged controls remain unavailable."
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        SourceLabStatusBadge(
+                            if (ownerDecision.canControl) "OWNER" else "VIEWER",
+                            if (ownerDecision.canControl) SourceLabTone.GOOD else SourceLabTone.NEUTRAL,
+                        )
+                    }
+                }
             }
-        }
 
-        item(key = "cache") {
-            SettingsSection("Cache & Storage") {
-                val cache = cachedInventory
-                SettingsValue(
-                    label = "Source inventory cache",
-                    value = if (cache == null) "Not available" else "${cache.sources.size} sources",
-                    tone = if (cache == null) SourceLabTone.NEUTRAL else SourceLabTone.GOOD,
-                )
-                if (cache != null) {
-                    val ageMinutes = cache.cacheAgeMillis / 60_000L
+            item(key = "appearance") {
+                SettingsSection("Appearance") {
+                    SettingsValue("Theme", "Dark premium", SourceLabTone.ACCENT)
                     Text(
-                        "Last cached inventory age · ${ageMinutes}m",
+                        "Miyorare Source Lab uses the shared dark navy interface with purple-blue operational accents.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Text(
-                    "Inventory is read from disk first and refreshed in the background. Normal navigation does not require a blocking inventory fetch.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                OutlinedButton(
-                    onClick = { scope.launch { readCache() } },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Refresh cache metadata") }
+            }
+
+            item(key = "cache") {
+                SettingsSection("Data & Cache") {
+                    val cache = cachedInventory
+                    SettingsValue(
+                        label = "Source inventory",
+                        value = if (cache == null) "No cache" else "${cache.sources.size} sources",
+                        tone = if (cache == null) SourceLabTone.NEUTRAL else SourceLabTone.GOOD,
+                    )
+                    if (cache != null) {
+                        Text(
+                            "Cache age · ${cache.cacheAgeMillis / 60_000L}m",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Text(
+                        "Inventory remains cache-first and refreshes in the background. Search and filtering stay local once data is available.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    SourceLabSecondaryButton(
+                        text = "Refresh cache metadata",
+                        onClick = { scope.launch { readCache() } },
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = SourceLabIconKind.REFRESH,
+                    )
+                }
+            }
+
+            item(key = "network") {
+                SettingsSection("Network") {
+                    SettingsValue("Inventory", "Cached-first", SourceLabTone.GOOD)
+                    SettingsValue("Farm state", "Live on demand", SourceLabTone.ACCENT)
+                    SettingsValue("Logs", "Load on demand", SourceLabTone.NEUTRAL)
+                }
+            }
+
+            item(key = "advanced") {
+                SettingsSection("Advanced") {
+                    SourceLabStatusBadge("ADVANCED · RECOVERY", SourceLabTone.WARNING)
+                    Text(
+                        "Diagnostics and recovery are separated from the routine approval path. Every recovery action keeps the same fail-closed Owner/backend checks.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    SourceLabSecondaryButton(
+                        text = "Diagnostics",
+                        onClick = { context.startActivity(Intent(context, SourceLabDiagnosticsActivity::class.java)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = SourceLabIconKind.DOCUMENT,
+                    )
+                    SourceLabSecondaryButton(
+                        text = "Manual Farm · Recovery",
+                        onClick = { context.startActivity(Intent(context, FarmRunActivity::class.java)) },
+                        enabled = ownerDecision.canControl,
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = SourceLabIconKind.TEST,
+                    )
+                    SourceLabSecondaryButton(
+                        text = "Promote / Sign / Publish Recovery",
+                        onClick = { context.startActivity(Intent(context, OwnerControlActivity::class.java)) },
+                        enabled = ownerDecision.canControl,
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = SourceLabIconKind.WARNING,
+                    )
+                }
+            }
+
+            item(key = "about") {
+                SettingsSection("About") {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        SourceLabLogo(Modifier.size(52.dp), glow = false)
+                        Column(Modifier.weight(1f)) {
+                            Text("Miyorare Source Lab", fontWeight = FontWeight.Bold)
+                            Text(
+                                "Version ${BuildConfig.VERSION_NAME}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                "Test · Verify · Adapt · Approve",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = SourceLabPrimarySoft,
+                            )
+                        }
+                    }
+                }
             }
         }
 
-        item(key = "network") {
-            SettingsSection("Network") {
-                SettingsValue("Inventory", "Cached-first + background refresh", SourceLabTone.GOOD)
-                SettingsValue("Farm state", "Live on demand", SourceLabTone.ACCENT)
-                Text(
-                    "Search and filtering are local once inventory is available. Large logs and provider diffs are loaded only when explicitly opened.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        item(key = "diagnostics") {
-            SettingsSection("Diagnostics & Recovery") {
-                Text(
-                    "Routine upstream changes are detected and tested automatically. Manual Farm execution and stage recovery are retained only for exceptions; normal Owner work should stop at Review / Approve & Auto Publish.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                OutlinedButton(
-                    onClick = {
-                        context.startActivity(Intent(context, SourceLabDiagnosticsActivity::class.java))
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Open Diagnostics") }
-                OutlinedButton(
-                    onClick = {
-                        context.startActivity(Intent(context, FarmRunActivity::class.java))
-                    },
-                    enabled = ownerDecision.canControl,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Manual Run Farm · Recovery") }
-                OutlinedButton(
-                    onClick = {
-                        context.startActivity(Intent(context, OwnerControlActivity::class.java))
-                    },
-                    enabled = ownerDecision.canControl,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Advanced Promote / Sign / Publish Recovery") }
-                Text(
-                    "Recovery screens still use the same fail-closed Owner/backend capability checks. They are not part of the routine autonomous path.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        item(key = "about") {
-            SettingsSection("About") {
-                SettingsValue("Miyorare Source Lab", BuildConfig.VERSION_NAME, SourceLabTone.NEUTRAL)
-                Text(
-                    "Compatibility Farm control plane / reader. Stable release signing and repository mutations remain outside the APK and are handled by authorized GitHub Actions workflows.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+        SourceLabBottomBar(
+            selected = SourceLabDestination.SETTINGS,
+            onSelect = { destination -> openSourceLabDestination(context, destination) },
+            modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 14.dp, vertical = 10.dp),
+        )
     }
+
+
 }
 
 @Composable
 private fun SettingsSection(title: String, content: @Composable () -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+    SourceLabCard {
         Column(
-            Modifier.fillMaxWidth().padding(16.dp),
+            Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(title, fontWeight = FontWeight.Bold)

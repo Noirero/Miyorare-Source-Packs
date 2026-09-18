@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -267,166 +268,232 @@ private fun AutonomousOwnerDashboard() {
         )
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        item(key = "header") {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text("Miyorare Source Lab", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Autonomous Compatibility Farm",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                TextButton(
-                    onClick = { context.startActivity(Intent(context, SettingsActivity::class.java)) },
-                ) { Text("Settings") }
-            }
-        }
-
-        if (state.initialLoading && snapshot == null) {
-            item(key = "loading") {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(18.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
-                        Column {
-                            Text("Checking Farm state", fontWeight = FontWeight.Bold)
-                            Text(
-                                "Reading live automation state and revalidating Owner capability.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        if (snapshot != null) {
-            item(key = "routine-state") {
-                RoutineStateCard(
-                    state = routineState ?: RoutineFarmState.INFRASTRUCTURE_FAILURE,
-                    snapshot = snapshot,
-                    approvalAvailability = approvalAvailability,
-                    approving = approving,
-                    onReview = { context.startActivity(Intent(context, ApprovalReviewActivity::class.java)) },
-                    onApprove = { confirmApproval = true },
-                    onExceptions = { context.startActivity(Intent(context, ReportsActivity::class.java)) },
-                    onDiagnostics = { context.startActivity(Intent(context, SourceLabDiagnosticsActivity::class.java)) },
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(11.dp),
+        ) {
+            item(key = "header") {
+                SourceLabTopBar(
+                    title = "Miyorare Source Lab",
+                    subtitle = "Compatibility Farm",
+                    trailing = {
+                        SourceLabStatusBadge(
+                            when {
+                                control != null -> "OWNER"
+                                snapshot != null && state.refreshing -> "VERIFYING"
+                                snapshot != null -> "LIVE"
+                                else -> "READING"
+                            },
+                            when {
+                                control != null -> SourceLabTone.GOOD
+                                snapshot != null && state.refreshing -> SourceLabTone.ACCENT
+                                snapshot != null -> SourceLabTone.NEUTRAL
+                                else -> SourceLabTone.ACCENT
+                            },
+                        )
+                    },
                 )
             }
-            snapshot.pendingWorker?.let { pending ->
-                item(key = "pending-source-approval") {
-                    PendingSourceApprovalCard(
-                        pending = pending,
-                        availability = readySourcesApprovalAvailability,
-                        approving = approvingReadySources,
-                        onApprove = { confirmReadySourcesApproval = true },
-                    )
-                }
-            }
-        }
 
-        operation?.let { message ->
-            item(key = "operation") {
-                Card(colors = CardDefaults.cardColors(containerColor = SourceLabSurface)) {
-                    Text(message, Modifier.fillMaxWidth().padding(14.dp), fontWeight = FontWeight.SemiBold)
-                }
-            }
-        }
-
-        state.error?.let { error ->
-            item(key = "control-error") {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SourceLabStatusBadge("INFRASTRUCTURE FAILURE", SourceLabTone.ERROR)
-                        Text("Owner control verification failed. No mutation is available.", fontWeight = FontWeight.Bold)
-                        Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-        }
-
-        item(key = "navigation") {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Text("Explore", fontWeight = FontWeight.Bold)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = { context.startActivity(Intent(context, SourceInventoryActivity::class.java)) },
-                            modifier = Modifier.weight(1f),
-                        ) { Text("Sources") }
-                        OutlinedButton(
-                            onClick = { context.startActivity(Intent(context, ReportsActivity::class.java)) },
-                            modifier = Modifier.weight(1f),
-                        ) { Text("Reports") }
-                    }
-                }
-            }
-        }
-
-        if (snapshot != null && control != null) {
-            val recoveryActions = listOf(
-                SourceLabControlAction.PROMOTE,
-                SourceLabControlAction.SIGN,
-                SourceLabControlAction.PUBLISH,
-            ).filter { control.actions.getValue(it).available }
-            if (recoveryActions.isNotEmpty()) {
-                item(key = "recovery") {
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SourceLabStatusBadge("RECOVERY", SourceLabTone.ERROR)
-                            Text("Approval pipeline requires recovery", fontWeight = FontWeight.Bold)
-                            Text(
-                                "Routine automation is paused. Open the advanced recovery dashboard for the exact fail-closed recovery action.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            OutlinedButton(
-                                onClick = { context.startActivity(Intent(context, OwnerControlActivity::class.java)) },
-                                modifier = Modifier.fillMaxWidth(),
-                            ) { Text("Open Recovery Dashboard") }
+            if (state.initialLoading && snapshot == null) {
+                item(key = "loading") {
+                    SourceLabCard(tone = SourceLabTone.ACCENT) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = SourceLabPrimary)
+                            Column(Modifier.weight(1f)) {
+                                Text("Reading Compatibility Farm", fontWeight = FontWeight.Bold)
+                                Text(
+                                    "Live read-only state appears first; Owner capability resolves separately.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
 
-        item(key = "refresh") {
-            OutlinedButton(
-                onClick = { scope.launch { refresh() } },
-                enabled = !state.initialLoading && !state.refreshing && !approving && !approvingReadySources,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (state.refreshing) {
-                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.size(8.dp))
-                    Text("Refreshing")
-                } else {
-                    Text("Refresh state")
+            if (snapshot != null) {
+                item(key = "routine-state") {
+                    RoutineStateCard(
+                        state = routineState ?: RoutineFarmState.INFRASTRUCTURE_FAILURE,
+                        snapshot = snapshot,
+                        approvalAvailability = approvalAvailability,
+                        approving = approving,
+                        onReview = { context.startActivity(Intent(context, ApprovalReviewActivity::class.java)) },
+                        onApprove = { confirmApproval = true },
+                        onExceptions = { context.startActivity(Intent(context, ReportsActivity::class.java)) },
+                        onDiagnostics = { context.startActivity(Intent(context, SourceLabDiagnosticsActivity::class.java)) },
+                    )
                 }
+
+                item(key = "metrics") {
+                    val pending = snapshot.pendingWorker
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SourceLabMetricCard("In Farm", snapshot.sources.size.toString(), Modifier.weight(1f), SourceLabTone.ACCENT)
+                            SourceLabMetricCard("Ready", (pending?.readyCount ?: 0).toString(), Modifier.weight(1f), if ((pending?.readyCount ?: 0) > 0) SourceLabTone.WARNING else SourceLabTone.NEUTRAL)
+                            SourceLabMetricCard("Held", (pending?.needsAttentionCount ?: 0).toString(), Modifier.weight(1f), if ((pending?.needsAttentionCount ?: 0) > 0) SourceLabTone.ERROR else SourceLabTone.NEUTRAL)
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SourceLabMetricCard("Retry", (pending?.retryCount ?: 0).toString(), Modifier.weight(1f))
+                            SourceLabMetricCard("Approved", (pending?.approvedCount ?: 0).toString(), Modifier.weight(1f), SourceLabTone.GOOD)
+                            SourceLabMetricCard("Candidate", if (snapshot.approvalCandidate != null) "1" else "0", Modifier.weight(1f), if (snapshot.approvalCandidate != null) SourceLabTone.WARNING else SourceLabTone.NEUTRAL)
+                        }
+                    }
+                }
+
+                snapshot.pendingWorker?.let { pending ->
+                    item(key = "pending-source-approval") {
+                        PendingSourceApprovalCard(
+                            pending = pending,
+                            availability = readySourcesApprovalAvailability,
+                            approving = approvingReadySources,
+                            onApprove = { confirmReadySourcesApproval = true },
+                        )
+                    }
+                }
+
+                item(key = "recent-activity") {
+                    SourceLabCard {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("Recent Activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                TextButton(onClick = { context.startActivity(Intent(context, ReportsActivity::class.java)) }) {
+                                    Text("Full report")
+                                }
+                            }
+                            if (snapshot.recentRuns.isEmpty()) {
+                                Text(
+                                    "No recent Compatibility Farm runs were returned.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            } else {
+                                snapshot.recentRuns.take(4).forEach { run ->
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(9.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) {
+                                            SourceLabIcon(SourceLabIconKind.TEST, Modifier.size(18.dp), SourceLabPrimarySoft)
+                                        }
+                                        Column(Modifier.weight(1f)) {
+                                            Text(
+                                                run.title,
+                                                fontWeight = FontWeight.SemiBold,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                maxLines = 1,
+                                            )
+                                            Text(
+                                                "Run #${run.runNumber}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                        SourceLabStatusBadge(
+                                            (run.conclusion?.takeIf { it.isNotBlank() } ?: run.status).uppercase().replace('_', ' '),
+                                            when ((run.conclusion?.takeIf { it.isNotBlank() } ?: run.status).lowercase()) {
+                                                "success" -> SourceLabTone.GOOD
+                                                "failure", "cancelled", "timed_out" -> SourceLabTone.ERROR
+                                                "in_progress", "queued", "waiting", "pending" -> SourceLabTone.ACCENT
+                                                else -> SourceLabTone.NEUTRAL
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            operation?.let { message ->
+                item(key = "operation") {
+                    SourceLabCard(tone = if ("success" in message.lowercase() || "approved" in message.lowercase()) SourceLabTone.GOOD else SourceLabTone.NEUTRAL) {
+                        Text(message, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+
+            state.error?.let { error ->
+                item(key = "control-error") {
+                    SourceLabCard(tone = SourceLabTone.ERROR) {
+                        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            SourceLabStatusBadge("CONTROL LOCKED", SourceLabTone.ERROR)
+                            Text("Owner control verification failed. Read-only state remains usable.", fontWeight = FontWeight.Bold)
+                            Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+
+            if (snapshot != null && control != null) {
+                val recoveryActions = listOf(
+                    SourceLabControlAction.PROMOTE,
+                    SourceLabControlAction.SIGN,
+                    SourceLabControlAction.PUBLISH,
+                ).filter { control.actions.getValue(it).available }
+                if (recoveryActions.isNotEmpty()) {
+                    item(key = "recovery") {
+                        SourceLabCard(tone = SourceLabTone.ERROR) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SourceLabStatusBadge("ADVANCED · RECOVERY", SourceLabTone.ERROR)
+                                Text("Approval pipeline requires recovery", fontWeight = FontWeight.Bold)
+                                Text(
+                                    "Routine automation is paused. Only the exact fail-closed recovery action exposed by the backend is available.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                SourceLabSecondaryButton(
+                                    text = "Open Recovery Dashboard",
+                                    onClick = { context.startActivity(Intent(context, OwnerControlActivity::class.java)) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    icon = SourceLabIconKind.WARNING,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            item(key = "refresh") {
+                SourceLabSecondaryButton(
+                    text = if (state.refreshing) "Refreshing state…" else "Refresh state",
+                    onClick = { scope.launch { refresh() } },
+                    enabled = !state.initialLoading && !state.refreshing && !approving && !approvingReadySources,
+                    modifier = Modifier.fillMaxWidth(),
+                    icon = SourceLabIconKind.REFRESH,
+                )
+            }
+
+            item(key = "boundary") {
+                Text(
+                    "Discovery, real-parser validation, pack sync, build, and release are automatic. Failed or HELD sources never advance. Human approval remains the routine mutation boundary.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 
-        item(key = "boundary") {
-            Text(
-                "Discovery, PENDING onboarding, real-parser validation, pack sync, build, and release are automatic. Failed or HELD sources never advance. Human approval remains the only routine mutation boundary.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        SourceLabBottomBar(
+            selected = SourceLabDestination.FARM,
+            onSelect = { destination -> openSourceLabDestination(context, destination) },
+            modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 14.dp, vertical = 10.dp),
+        )
     }
+
 }
 
 @Composable
@@ -438,8 +505,8 @@ private fun PendingSourceApprovalCard(
 ) {
     val ready = pending.readyCount
     val available = ready > 0 && availability?.available == true
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    SourceLabCard {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -528,7 +595,7 @@ private fun RoutineStateCard(
         RoutineFarmState.INFRASTRUCTURE_FAILURE -> Triple("Infrastructure failure", "Automation needs attention. Last-known-good remains the safe active baseline.", SourceLabTone.ERROR)
     }
 
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+    SourceLabCard(tone = presentation.third) {
         Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
                 Modifier.fillMaxWidth(),

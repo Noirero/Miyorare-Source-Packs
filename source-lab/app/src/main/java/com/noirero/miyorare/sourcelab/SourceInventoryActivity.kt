@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -308,6 +309,7 @@ private fun SourcesList(
     onOpen: (InventorySource) -> Unit,
     onClose: () -> Unit,
 ) {
+    val context = LocalContext.current
     val farmMap = remember(farm) { farm?.sources?.associateBy { it.canonicalId }.orEmpty() }
     val farmResolved = farm != null && farmError == null
     val search = query.trim()
@@ -340,89 +342,117 @@ private fun SourcesList(
         }
     }
 
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        item(key = "header") {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onClose) { Text("Home") }
-                OutlinedButton(onClick = onRefresh, enabled = !refreshing) {
-                    if (refreshing) {
-                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.width(7.dp))
-                        Text("Refreshing")
-                    } else Text("Refresh")
-                }
-            }
-            Text("Sources", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("${inventory.sources.size} discovered sources", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (inventory.fromCache) {
-                val ageMinutes = inventory.cacheAgeMillis / 60_000L
-                Text(
-                    if (inventory.staleCacheFallback) "Offline cache · ${ageMinutes}m old" else "Cached data · ${ageMinutes}m old",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (inventory.staleCacheFallback) SourceLabWarning else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        operation?.let { message -> item(key = "operation") { MessageCard(message) } }
-        if (inventoryError != null || farmError != null) {
-            item(key = "warning") {
-                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF302616))) {
-                    Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                        Text("Using available data", color = SourceLabWarning, fontWeight = FontWeight.Bold)
-                        inventoryError?.let { Text("Inventory refresh: $it", style = MaterialTheme.typography.bodySmall) }
-                        farmError?.let { Text("Farm membership: $it", style = MaterialTheme.typography.bodySmall) }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 94.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+            item(key = "header") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SourceLabTopBar(
+                        title = "Sources",
+                        subtitle = "Manage and inspect source compatibility.",
+                        trailing = {
+                            SourceLabIconButton(
+                                icon = SourceLabIconKind.REFRESH,
+                                contentDescription = "Refresh sources",
+                                onClick = onRefresh,
+                                enabled = !refreshing,
+                            )
+                        },
+                    )
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        item { SourceLabStatusBadge("${inventory.sources.size} SOURCES", SourceLabTone.ACCENT) }
+                        if (inventory.fromCache) {
+                            item {
+                                val ageMinutes = inventory.cacheAgeMillis / 60_000L
+                                SourceLabStatusBadge(
+                                    if (inventory.staleCacheFallback) "OFFLINE ${ageMinutes}m" else "CACHED ${ageMinutes}m",
+                                    if (inventory.staleCacheFallback) SourceLabTone.WARNING else SourceLabTone.NEUTRAL,
+                                )
+                            }
+                        }
+                        if (refreshing) {
+                            item { SourceLabStatusBadge("REFRESHING", SourceLabTone.ACCENT) }
+                        }
                     }
                 }
             }
-        }
-        item(key = "controls") {
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQuery,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Search sources") },
-                placeholder = { Text("Name or canonical ID") },
-            )
-            Spacer(Modifier.height(8.dp))
-            FilterRow(listOf("ALL", "KEIYOUSHI", "UMA", "GEKKOUSHI"), provider, onProvider)
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                item {
-                    FilterChip(
-                        selected = quick == "IN FARM",
-                        onClick = { onQuick(if (quick == "IN FARM") "ALL" else "IN FARM") },
-                        label = { Text("In Farm") },
-                    )
+            operation?.let { message -> item(key = "operation") { MessageCard(message) } }
+            if (inventoryError != null || farmError != null) {
+                item(key = "warning") {
+                    SourceLabCard(tone = SourceLabTone.WARNING) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Using available data", color = SourceLabWarning, fontWeight = FontWeight.Bold)
+                            inventoryError?.let { Text("Inventory refresh · $it", style = MaterialTheme.typography.bodySmall) }
+                            farmError?.let { Text("Farm membership · $it", style = MaterialTheme.typography.bodySmall) }
+                        }
+                    }
                 }
-                item {
-                    FilterChip(
-                        selected = quick == "ISSUES",
-                        onClick = { onQuick(if (quick == "ISSUES") "ALL" else "ISSUES") },
-                        label = { Text("Issues") },
-                    )
-                }
-                item { OutlinedButton(onClick = onMoreFilters) { Text("More") } }
             }
-            Text("${visible.size} matching sources", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            item(key = "search") {
+                SourceLabSearchField(
+                    value = query,
+                    onValueChange = onQuery,
+                    placeholder = "Search source or canonical ID…",
+                )
+            }
+            item(key = "provider-filters") {
+                FilterRow(listOf("ALL", "KEIYOUSHI", "UMA", "GEKKOUSHI"), provider, onProvider)
+            }
+            item(key = "quick-filters") {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    item {
+                        SourceLabFilterChip(
+                            text = "In Farm",
+                            selected = quick == "IN FARM",
+                            onClick = { onQuick(if (quick == "IN FARM") "ALL" else "IN FARM") },
+                        )
+                    }
+                    item {
+                        SourceLabFilterChip(
+                            text = "Issues",
+                            selected = quick == "ISSUES",
+                            onClick = { onQuick(if (quick == "ISSUES") "ALL" else "ISSUES") },
+                        )
+                    }
+                    item {
+                        SourceLabFilterChip(
+                            text = "More",
+                            selected = language != "ALL" || enrollment != "ALL" || health != "ALL",
+                            onClick = onMoreFilters,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    "${visible.size} matching sources",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            items(visible, key = { it.canonicalId }, contentType = { "source-card" }) { source ->
+                SourceRow(source, farmMap[source.canonicalId], farmResolved) { onOpen(source) }
+            }
         }
-        items(visible, key = { it.canonicalId }, contentType = { "source" }) { source ->
-            SourceRow(source, farmMap[source.canonicalId], farmResolved) { onOpen(source) }
-        }
+
+        SourceLabBottomBar(
+            selected = SourceLabDestination.SOURCES,
+            onSelect = { destination -> openSourceLabDestination(context, destination) },
+            modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 14.dp, vertical = 10.dp),
+        )
     }
 }
 
 @Composable
 private fun MessageCard(message: String) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Text(message, Modifier.fillMaxWidth().padding(14.dp), fontWeight = FontWeight.SemiBold)
+    SourceLabCard(contentPadding = PaddingValues(13.dp)) {
+        Text(message, Modifier.fillMaxWidth(), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -430,27 +460,43 @@ private fun MessageCard(message: String) {
 private fun SourceRow(source: InventorySource, farm: FarmInventorySourceState?, farmResolved: Boolean, open: () -> Unit) {
     val issue = source.needsAttention || farm?.runtimeHealth in setOf("BROKEN", "DEGRADED") || farm?.ownerActionRequired == true
     val status = when {
-        issue -> "Needs review" to SourceLabTone.WARNING
+        issue -> "Needs Review" to SourceLabTone.WARNING
         farm?.runtimeHealth == "HEALTHY" -> "Healthy" to SourceLabTone.GOOD
         farm?.runtimeHealth == "BROKEN" -> "Broken" to SourceLabTone.ERROR
-        farm != null -> farm.runtimeHealth to SourceLabTone.NEUTRAL
-        farmResolved -> "Not enrolled" to SourceLabTone.NEUTRAL
+        farm != null -> farm.runtimeHealth.replace('_', ' ') to SourceLabTone.NEUTRAL
+        farmResolved -> "Not Enrolled" to SourceLabTone.NEUTRAL
         else -> "Unknown" to SourceLabTone.NEUTRAL
     }
     val version = source.providers.values.mapNotNull { it.extensionVersionCode }.maxOrNull()
-    Card(
+    SourceLabCard(
         modifier = Modifier.fillMaxWidth().clickable(onClick = open),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        contentPadding = PaddingValues(horizontal = 11.dp, vertical = 10.dp),
+        tone = if (issue) SourceLabTone.WARNING else SourceLabTone.NEUTRAL,
     ) {
-        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             Surface(shape = RoundedCornerShape(12.dp), color = SourceLabPrimaryStrong) {
-                Text(source.displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?", Modifier.padding(horizontal = 14.dp, vertical = 10.dp), fontWeight = FontWeight.Bold)
+                Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        source.displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                    )
+                }
             }
-            Column(Modifier.weight(1f)) {
-                Text(source.displayName, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    source.displayName,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 Text(
                     "${source.language} · ${source.providers.keys.joinToString(" / ") { providerName(it) }}",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -459,10 +505,12 @@ private fun SourceRow(source: InventorySource, farm: FarmInventorySourceState?, 
                     when {
                         farm != null -> "In Farm${version?.let { " · build $it" }.orEmpty()}"
                         farmResolved -> "Not enrolled${version?.let { " · build $it" }.orEmpty()}"
-                        else -> version?.let { "build $it" } ?: "Membership unavailable"
+                        else -> version?.let { "Build $it · membership unresolved" } ?: "Membership unresolved"
                     },
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             SourceLabStatusBadge(status.first, status.second)
@@ -474,10 +522,10 @@ private fun SourceRow(source: InventorySource, farm: FarmInventorySourceState?, 
 private fun FilterRow(values: List<String>, selected: String, select: (String) -> Unit) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items(values.distinct(), key = { it }) { value ->
-            FilterChip(
+            SourceLabFilterChip(
+                text = filterLabel(value),
                 selected = selected == value,
                 onClick = { select(value) },
-                label = { Text(filterLabel(value)) },
             )
         }
     }
@@ -532,42 +580,54 @@ private fun SourceDetail(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item(key = "head") {
-            TextButton(onClick = onBack) { Text("← Sources") }
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+            SourceLabTopBar(
+                title = source.displayName,
+                subtitle = source.canonicalId,
+                onBack = onBack,
+            )
+            Spacer(Modifier.height(10.dp))
+            SourceLabCard(
+                tone = when {
+                    source.needsAttention -> SourceLabTone.WARNING
+                    farm?.runtimeHealth == "HEALTHY" -> SourceLabTone.GOOD
+                    farm?.runtimeHealth in setOf("BROKEN", "DEGRADED") -> SourceLabTone.ERROR
+                    else -> SourceLabTone.NEUTRAL
+                },
+            ) {
                 Row(
-                    Modifier.fillMaxWidth().padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Surface(shape = RoundedCornerShape(14.dp), color = SourceLabPrimaryStrong) {
-                        Text(
-                            source.displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-                            Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        Box(Modifier.size(54.dp), contentAlignment = Alignment.Center) {
+                            Text(
+                                source.displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                            )
+                        }
                     }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(source.displayName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            SourceLabStatusBadge(source.language, SourceLabTone.NEUTRAL)
+                            source.providers.keys.take(1).forEach {
+                                SourceLabStatusBadge(providerName(it), SourceLabTone.ACCENT)
+                            }
+                        }
                         Text(
-                            "${source.language} · ${source.providers.keys.joinToString(" / ") { providerName(it) }}",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            source.canonicalId,
-                            fontFamily = FontFamily.Monospace,
+                            "Identity ${source.identityConfidence}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                     SourceLabStatusBadge(
                         when {
-                            source.needsAttention -> "Review"
+                            source.needsAttention -> "Needs Review"
                             farm?.runtimeHealth == "HEALTHY" -> "Healthy"
                             farm != null -> farm.runtimeHealth.replace('_', ' ')
-                            farmResolved -> "Not enrolled"
+                            farmResolved -> "Not Enrolled"
                             else -> "Unknown"
                         },
                         when {
@@ -585,10 +645,72 @@ private fun SourceDetail(
 
         if (source.needsAttention) {
             item(key = "attention") {
-                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF302616))) {
-                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                SourceLabCard(tone = SourceLabTone.WARNING, contentPadding = PaddingValues(13.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Needs attention", color = SourceLabWarning, fontWeight = FontWeight.Bold)
-                        source.attentionReasons.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                        source.attentionReasons.forEach {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
+
+        item(key = "current-candidate") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                SourceLabCard(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(12.dp),
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("Current / Stable", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                        if (farm?.currentVersion?.isNotEmpty() == true) {
+                            farm.currentVersion.entries.take(2).forEach { (providerId, ref) ->
+                                Text(
+                                    "${providerName(providerId)} · ${shortRef(ref)}",
+                                    fontFamily = FontFamily.Monospace,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        } else if (versionBuild != null) {
+                            Text("Build $versionBuild", style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            Text("No version exposed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+                SourceLabCard(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(12.dp),
+                    tone = if (farm?.ownerActionRequired == true) SourceLabTone.WARNING else SourceLabTone.ACCENT,
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("Candidate / Update", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                        if (farm != null) {
+                            Text(
+                                farm.updateState.replace('_', ' '),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (farm.ownerActionRequired) SourceLabWarning else SourceLabPrimarySoft,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                farm.approvalState.replace('_', ' '),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        } else {
+                            Text(
+                                if (farmResolved) "Not enrolled" else "Unresolved",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }
@@ -624,9 +746,13 @@ private fun SourceDetail(
             }
             if (farmResolved && farm == null) {
                 Spacer(Modifier.height(10.dp))
-                Button(onClick = onAdd, enabled = canAdd && !enrolling, modifier = Modifier.fillMaxWidth()) {
-                    if (enrolling) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else Text("Add to Farm")
-                }
+                SourceLabPrimaryButton(
+                    text = if (enrolling) "Adding to Farm…" else "Add to Farm",
+                    onClick = onAdd,
+                    enabled = canAdd && !enrolling,
+                    modifier = Modifier.fillMaxWidth(),
+                    icon = SourceLabIconKind.FARM,
+                )
                 if (!canAdd) {
                     val reason = when {
                         source.needsAttention -> "Resolve source identity attention before enrollment."
@@ -678,8 +804,8 @@ private fun SourceDetail(
             }
 
             item(key = "test-action-boundary") {
-                Card(colors = CardDefaults.cardColors(containerColor = SourceLabSurface)) {
-                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                SourceLabCard(tone = SourceLabTone.ACCENT, contentPadding = PaddingValues(13.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -711,8 +837,8 @@ private fun SourceDetail(
 
         item(key = "providers-title") { Text("Provider mappings", fontWeight = FontWeight.Bold) }
         items(source.providers.entries.toList(), key = { it.key }) { entry ->
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            SourceLabCard(contentPadding = PaddingValues(13.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -738,8 +864,8 @@ private fun SourceDetail(
 
 @Composable
 private fun DetailCard(title: String, content: @Composable () -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    SourceLabCard {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, fontWeight = FontWeight.Bold)
             content()
         }
@@ -795,7 +921,12 @@ private fun PolicyLine(label: String, enabled: Boolean) {
 private fun Detail(label: String, value: String) {
     Column {
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodySmall)
+        Text(
+            value,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
