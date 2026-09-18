@@ -112,6 +112,49 @@ class PendingWorkerTest(unittest.TestCase):
         self.assertIn("retry-en", ids)
         self.assertTrue(any(item["canonicalId"].startswith("fresh-") for item in plan["items"]))
 
+    def test_stale_ready_is_requeued_when_provider_version_changes(self) -> None:
+        ready_source = source("ready", "id")
+        stale_state = worker.normalize_state({
+            "schemaVersion": 2,
+            "sources": {
+                "ready": {
+                    "state": worker.READY,
+                    "attempts": 1,
+                    "testedVersions": {"uma": "b" * 40},
+                    "lastCheckedAt": "2026-09-18T03:00:00Z",
+                },
+            },
+        })
+        plan = worker.build_plan({"sources": [ready_source]}, stale_state, 8)
+        self.assertEqual(plan["batchSize"], 1)
+        self.assertEqual(plan["retrySlots"], 1)
+        self.assertEqual(plan["items"][0]["canonicalId"], "ready")
+
+    def test_exact_ready_binding_remains_waiting_for_owner(self) -> None:
+        ready_source = source("ready", "id")
+        exact_state = worker.normalize_state({
+            "schemaVersion": 2,
+            "sources": {
+                "ready": {
+                    "state": worker.READY,
+                    "attempts": 1,
+                    "testedVersions": {"uma": "a" * 40},
+                },
+            },
+        })
+        plan = worker.build_plan({"sources": [ready_source]}, exact_state, 8)
+        self.assertEqual(plan["batchSize"], 0)
+
+    def test_ready_without_version_binding_is_revalidated_fail_closed(self) -> None:
+        ready_source = source("ready", "id")
+        state = worker.normalize_state({
+            "schemaVersion": 2,
+            "sources": {"ready": {"state": worker.READY, "attempts": 1}},
+        })
+        plan = worker.build_plan({"sources": [ready_source]}, state, 8)
+        self.assertEqual([item["canonicalId"] for item in plan["items"]], ["ready"])
+        self.assertEqual(plan["retrySlots"], 1)
+
     def test_infer_host_understands_domain_config_and_parser_constructor(self) -> None:
         self.assertEqual(
             worker.infer_host('private val baseUrl = "https://$domain"\noverride val configKeyDomain = ConfigKey.Domain("alawale.net")'),
@@ -263,9 +306,15 @@ class PendingWorkerTest(unittest.TestCase):
         self.assertFalse(state["sources"]["alpha"]["ownerActionRequired"])
         self.assertEqual(summary["states"][worker.READY], 1)
 
-    def test_ready_and_held_are_not_requeued(self) -> None:
+    def test_exact_ready_and_held_are_not_requeued(self) -> None:
         registry = {"sources": [source("ready", "id"), source("held", "en"), source("pending", "en")]}
-        state = worker.normalize_state({"schemaVersion": 2, "sources": {"ready": {"state": worker.READY}, "held": {"state": worker.HELD}}})
+        state = worker.normalize_state({
+            "schemaVersion": 2,
+            "sources": {
+                "ready": {"state": worker.READY, "testedVersions": {"uma": "a" * 40}},
+                "held": {"state": worker.HELD},
+            },
+        })
         plan = worker.build_plan(registry, state, 8)
         self.assertEqual([item["canonicalId"] for item in plan["items"]], ["pending"])
 
