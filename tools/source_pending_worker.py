@@ -17,7 +17,11 @@ READY = "READY_FOR_APPROVAL"
 RETRY = "RETRY"
 HELD = "NEEDS_ATTENTION"
 URL_RE = re.compile(r'https?://([A-Za-z0-9.-]+\.[A-Za-z]{2,})(?::\d+)?')
-BASE_URL_RE = re.compile(r'\b(?:baseUrl|baseURL|BASE_URL)\s*(?:=|:)\s*["\']https?://([^"\'/]+)', re.I)
+BASE_URL_RE = re.compile(r'\b(?:baseUrl|baseURL|BASE_URL)\s*(?:=|:)\s*["\']https?://([A-Za-z0-9.-]+\.[A-Za-z]{2,})(?::\d+)?', re.I)
+DOMAIN_CONFIG_RE = re.compile(r'\b(?:ConfigKey\.)?Domain\s*\(\s*["\']([A-Za-z0-9.-]+\.[A-Za-z]{2,})["\']\s*\)', re.I)
+PARSER_HOST_RE = re.compile(r'\b(?!MangaSourceParser\b)[A-Za-z_][A-Za-z0-9_]*Parser\s*\([^)]*?["\']([A-Za-z0-9.-]+\.[A-Za-z]{2,})["\']', re.S)
+QUOTED_HOST_RE = re.compile(r'["\']([A-Za-z0-9](?:[A-Za-z0-9.-]*\.)[A-Za-z]{2,})["\']')
+BROKEN_RE = re.compile(r'@Broken(?:\s*\(\s*["\']([^"\']*)["\']\s*\))?', re.I)
 
 FAMILY_RULES = (
     ("madara", ("Madara", "MadaraFactory", "MadaraLegacy")),
@@ -135,11 +139,20 @@ def infer_auth(text: str) -> str:
 
 
 def infer_host(text: str) -> str | None:
-    match = BASE_URL_RE.search(text)
-    if match:
-        return match.group(1).lower().rstrip(".")
-    match = URL_RE.search(text)
-    return match.group(1).lower().rstrip(".") if match else None
+    for pattern in (BASE_URL_RE, URL_RE, DOMAIN_CONFIG_RE, PARSER_HOST_RE):
+        match = pattern.search(text)
+        if match:
+            return match.group(1).lower().rstrip(".")
+    quoted = QUOTED_HOST_RE.findall(text)
+    return quoted[-1].lower().rstrip(".") if quoted else None
+
+
+def infer_broken_reason(text: str) -> str | None:
+    match = BROKEN_RE.search(text)
+    if not match:
+        return None
+    reason = (match.group(1) or "").strip()
+    return reason or "upstream-declared-broken"
 
 
 def http_probe(host: str, timeout: float) -> dict[str, Any]:
@@ -174,19 +187,44 @@ def assess_plan(plan: dict[str, Any], roots: dict[str, Path], compile_results: d
             family = infer_family(text, provider) if exists else None
             auth_type = infer_auth(text) if exists else "UNSUPPORTED"
             host = infer_host(text) if exists else None
+            broken_reason = infer_broken_reason(text) if exists else None
             provider_compile = compile_results.get(provider, {})
             compile_ok = bool(provider_compile.get(locator, provider_compile.get("*", False)))
-            probe = {"reachable": False, "detail": "no-probe-host"} if not host else http_probe(host, timeout)
-            passed = exists and compile_ok and probe.get("reachable") is True
+            probe = (
+                {"reachable": False, "detail": "upstream-declared-broken"}
+                if broken_reason
+                else ({"reachable": False, "detail": "no-probe-host"} if not host else http_probe(host, timeout))
+            )
+            passed = exists and compile_ok and broken_reason is None and probe.get("reachable") is True
             if not passed:
-                failures.append({"provider": provider, "locator": locator, "exists": exists, "compile": compile_ok, "probe": probe})
-            memberships.append({"provider": provider, "locator": locator, "exists": exists, "compile": compile_ok, "family": family, "authType": auth_type, "probeHost": host, "probe": probe, "profilePass": passed})
+                failures.append({
+                    "provider": provider,
+                    "locator": locator,
+                    "exists": exists,
+                    "compile": compile_ok,
+                    "probe": probe,
+                    "hardFailure": broken_reason is not None,
+                    "reason": broken_reason,
+                })
+            memberships.append({
+                "provider": provider,
+                "locator": locator,
+                "exists": exists,
+                "compile": compile_ok,
+                "family": family,
+                "authType": auth_type,
+                "probeHost": host,
+                "probe": probe,
+                "upstreamBrokenReason": broken_reason,
+                "profilePass": passed,
+            })
             if family:
                 families.append(family)
             if auth_type != "UNSUPPORTED":
                 auth_types.append(auth_type)
         attempts = int(item.get("attempts", 0) or 0) + 1
-        outcome = PROFILE if not failures else (HELD if attempts >= fail_threshold else RETRY)
+        hard_failure = any(failure.get("hardFailure") is True for failure in failures)
+        outcome = PROFILE if not failures else (HELD if hard_failure or attempts >= fail_threshold else RETRY)
         family = families[0] if families and all(value == families[0] for value in families) else ("multi-provider" if families else "unclassified")
         auth_type = "FORM" if "FORM" in auth_types else "TOKEN" if "TOKEN" in auth_types else "COOKIE" if "COOKIE" in auth_types else "NO_AUTH"
         evidence = {"profile": {"memberships": memberships, "gate": "PASS" if outcome == PROFILE else "FAIL"}, "attempts": attempts}

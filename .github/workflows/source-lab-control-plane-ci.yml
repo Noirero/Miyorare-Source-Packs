@@ -139,6 +139,9 @@ jobs:
               'publishEligible',
               'compatibilityEnrollment',
               'PENDING',
+              'DOMAIN_CONFIG_RE',
+              'PARSER_HOST_RE',
+              'upstream-declared-broken',
           ):
               if marker not in worker:
                   raise SystemExit(f'source_pending_worker.py missing state contract marker: {marker}')
@@ -169,6 +172,11 @@ jobs:
               'chapterListRequest',
               'pageListRequest',
               'AUTH_REQUIRED',
+              'keiyoushi.source.KeiSource',
+              'createSources',
+              'actual.getPopularManga(1)',
+              'actual.fetchMangaUpdate',
+              'actual.getPageList',
           ):
               if marker not in harness:
                   raise SystemExit(f'source_live_parser_harness.py missing real-parser marker: {marker}')

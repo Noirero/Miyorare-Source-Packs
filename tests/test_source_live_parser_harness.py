@@ -42,6 +42,16 @@ class LiveParserHarnessTest(unittest.TestCase):
             self.assertTrue((root / f"src/test/kotlin/compatibilityfarm/{test_class}.kt").is_file())
             self.assertTrue((root / "src/test/kotlin/compatibilityfarm/LiveMangaLoaderContext.kt").is_file())
 
+    def test_keiyoushi_harness_supports_modern_keisource_and_factories(self) -> None:
+        source = harness.keiyoushi_test_source("AutoLive_keiyoushi_test")
+        self.assertIn("import keiyoushi.source.KeiSource", source)
+        self.assertIn("createSources", source)
+        self.assertIn("actual is KeiSource", source)
+        self.assertIn("actual.getPopularManga(1)", source)
+        self.assertIn("actual.fetchMangaUpdate(", source)
+        self.assertIn("actual.getPageList(", source)
+        self.assertIn("popularMangaRequest", source)
+
     def test_auth_source_is_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
