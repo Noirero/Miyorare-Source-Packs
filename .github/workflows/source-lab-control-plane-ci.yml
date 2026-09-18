@@ -104,6 +104,9 @@ jobs:
                   'buildJar --no-daemon',
                   'compileDebugKotlin',
                   'testDebugUnitTest',
+                  'libs.tachiyomi.lib.v14',
+                  'libs.tachiyomi.lib.v16',
+                  'compatibility-farm-test-resources',
                   'live-parser-results.json',
                   'finalize',
                   '--fail-threshold 3',
@@ -142,6 +145,8 @@ jobs:
               'DOMAIN_CONFIG_RE',
               'PARSER_HOST_RE',
               'upstream-declared-broken',
+              'retrySlots',
+              'retry_budget',
           ):
               if marker not in worker:
                   raise SystemExit(f'source_pending_worker.py missing state contract marker: {marker}')
@@ -177,6 +182,8 @@ jobs:
               'actual.getPopularManga(1)',
               'actual.fetchMangaUpdate',
               'actual.getPageList',
+              'failureType',
+              'failureMessage',
           ):
               if marker not in harness:
                   raise SystemExit(f'source_live_parser_harness.py missing real-parser marker: {marker}')

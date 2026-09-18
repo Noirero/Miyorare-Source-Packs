@@ -87,21 +87,60 @@ def build_plan(registry: dict[str, Any], state: dict[str, Any], batch_size: int)
         if not eligible(source, state):
             continue
         worker_state = state_entry(state, source["canonicalId"])
-        rows.append((int(worker_state.get("attempts", 0) or 0), str(worker_state.get("lastCheckedAt", "")), str(source.get("language", "")), str(source.get("canonicalId", "")), source))
+        rows.append((
+            int(worker_state.get("attempts", 0) or 0),
+            str(worker_state.get("lastCheckedAt", "")),
+            str(source.get("language", "")),
+            str(source.get("canonicalId", "")),
+            source,
+        ))
     rows.sort(key=lambda item: item[:4])
+
+    retry_rows = [
+        row for row in rows
+        if state_entry(state, row[-1]["canonicalId"]).get("state") == RETRY
+    ]
+    fresh_rows = [
+        row for row in rows
+        if state_entry(state, row[-1]["canonicalId"]).get("state") != RETRY
+    ]
+
+    limit = max(1, batch_size)
+    retry_budget = min(len(retry_rows), max(1, limit // 4))
     selected: list[dict[str, Any]] = []
     language_counts = {"id": 0, "en": 0}
-    remaining = [row[-1] for row in rows]
-    while remaining and len(selected) < max(1, batch_size):
-        preferred = "id" if language_counts["id"] <= language_counts["en"] else "en"
-        index = next((i for i, source in enumerate(remaining) if source.get("language") == preferred), 0)
-        source = remaining.pop(index)
-        worker_state = state_entry(state, source["canonicalId"])
-        selected.append({"canonicalId": source["canonicalId"], "language": source["language"], "providers": source["providers"], "upstreamIdentities": source["upstreamIdentities"], "attempts": int(worker_state.get("attempts", 0) or 0)})
-        language = source.get("language")
-        if language in language_counts:
-            language_counts[language] += 1
-    return {"schemaVersion": 2, "batchSize": len(selected), "items": selected}
+
+    def take_balanced(pool: list[tuple[int, str, str, str, dict[str, Any]]], count: int) -> None:
+        remaining = list(pool)
+        while remaining and len(selected) < count:
+            preferred = "id" if language_counts["id"] <= language_counts["en"] else "en"
+            index = next((i for i, row in enumerate(remaining) if row[-1].get("language") == preferred), 0)
+            source = remaining.pop(index)[-1]
+            worker_state = state_entry(state, source["canonicalId"])
+            selected.append({
+                "canonicalId": source["canonicalId"],
+                "language": source["language"],
+                "providers": source["providers"],
+                "upstreamIdentities": source["upstreamIdentities"],
+                "attempts": int(worker_state.get("attempts", 0) or 0),
+            })
+            language = source.get("language")
+            if language in language_counts:
+                language_counts[language] += 1
+
+    take_balanced(retry_rows, retry_budget)
+    take_balanced(fresh_rows, limit)
+    if len(selected) < limit:
+        selected_ids = {item["canonicalId"] for item in selected}
+        remaining_retries = [row for row in retry_rows if row[-1]["canonicalId"] not in selected_ids]
+        take_balanced(remaining_retries, limit)
+
+    return {
+        "schemaVersion": 2,
+        "batchSize": len(selected),
+        "retrySlots": sum(1 for item in selected if state_entry(state, item["canonicalId"]).get("state") == RETRY),
+        "items": selected,
+    }
 
 
 def read_provider_text(provider: str, identity: dict[str, Any], root: Path) -> tuple[bool, str, str]:

@@ -84,6 +84,34 @@ class PendingWorkerTest(unittest.TestCase):
         self.assertEqual({item["language"] for item in plan["items"]}, {"id", "en"})
         self.assertNotIn("active", {item["canonicalId"] for item in plan["items"]})
 
+    def test_plan_reserves_retry_capacity_without_starving_fresh_sources(self) -> None:
+        sources = [
+            source("retry-id", "id"),
+            source("retry-en", "en"),
+            source("fresh-id-a", "id"),
+            source("fresh-en-a", "en"),
+            source("fresh-id-b", "id"),
+            source("fresh-en-b", "en"),
+            source("fresh-id-c", "id"),
+            source("fresh-en-c", "en"),
+            source("fresh-id-d", "id"),
+            source("fresh-en-d", "en"),
+        ]
+        state = worker.normalize_state({
+            "schemaVersion": 2,
+            "sources": {
+                "retry-id": {"state": worker.RETRY, "attempts": 1, "lastCheckedAt": "2026-09-18T00:00:00Z"},
+                "retry-en": {"state": worker.RETRY, "attempts": 1, "lastCheckedAt": "2026-09-18T00:01:00Z"},
+            },
+        })
+        plan = worker.build_plan({"sources": sources}, state, 8)
+        ids = {item["canonicalId"] for item in plan["items"]}
+        self.assertEqual(plan["batchSize"], 8)
+        self.assertEqual(plan["retrySlots"], 2)
+        self.assertIn("retry-id", ids)
+        self.assertIn("retry-en", ids)
+        self.assertTrue(any(item["canonicalId"].startswith("fresh-") for item in plan["items"]))
+
     def test_infer_host_understands_domain_config_and_parser_constructor(self) -> None:
         self.assertEqual(
             worker.infer_host('private val baseUrl = "https://$domain"\noverride val configKeyDomain = ConfigKey.Domain("alawale.net")'),

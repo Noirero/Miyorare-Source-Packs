@@ -376,18 +376,33 @@ def generate(
     return {"schemaVersion": 1, "provider": provider, "tests": tests, "blocked": blocked}
 
 
-def junit_suite(results_dir: Path, test_class: str) -> dict[str, int] | None:
+def junit_suite(results_dir: Path, test_class: str) -> dict[str, Any] | None:
     if not results_dir.is_dir():
         return None
     for path in sorted(results_dir.glob("TEST-*.xml")):
         root = ET.parse(path).getroot()
         if root.attrib.get("name") != test_class:
             continue
+        failure_type: str | None = None
+        failure_message: str | None = None
+        for testcase in root.findall("testcase"):
+            failure = testcase.find("failure")
+            if failure is None:
+                failure = testcase.find("error")
+            if failure is None:
+                continue
+            failure_type = failure.attrib.get("type") or None
+            failure_message = failure.attrib.get("message") or (failure.text or "").strip() or None
+            if failure_message:
+                failure_message = " ".join(failure_message.split())[:1000]
+            break
         return {
             "tests": int(root.attrib.get("tests", "0")),
             "failures": int(root.attrib.get("failures", "0")),
             "errors": int(root.attrib.get("errors", "0")),
             "skipped": int(root.attrib.get("skipped", "0")),
+            "failureType": failure_type,
+            "failureMessage": failure_message,
         }
     return None
 

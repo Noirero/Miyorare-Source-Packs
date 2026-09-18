@@ -69,6 +69,35 @@ class LiveParserHarnessTest(unittest.TestCase):
             self.assertEqual(manifest["tests"], [])
             self.assertEqual(manifest["blocked"][0]["reason"], "AUTH_REQUIRED:TOKEN")
 
+    def test_collect_persists_junit_failure_diagnosis(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            results = root / "results"
+            results.mkdir()
+            (results / "TEST-compatibilityfarm.AutoLive_test.xml").write_text(
+                """<testsuite name="compatibilityfarm.AutoLive_test" tests="1" failures="1" errors="0" skipped="0">
+                <testcase name="smoke">
+                  <failure type="java.lang.NoClassDefFoundError" message="eu/kanade/tachiyomi/source/SourceFactory">stack trace</failure>
+                </testcase>
+                </testsuite>""",
+                encoding="utf-8",
+            )
+            manifest = {
+                "provider": "keiyoushi",
+                "tests": [{
+                    "canonicalId": "alpha",
+                    "provider": "keiyoushi",
+                    "testClass": "compatibilityfarm.AutoLive_test",
+                    "resultsDir": str(results),
+                }],
+                "blocked": [],
+            }
+            report = harness.collect([manifest])
+        row = report["results"][0]
+        self.assertEqual(row["status"], "FAIL")
+        self.assertEqual(row["failureType"], "java.lang.NoClassDefFoundError")
+        self.assertEqual(row["failureMessage"], "eu/kanade/tachiyomi/source/SourceFactory")
+
     def test_collect_missing_junit_is_failure(self) -> None:
         manifest = {
             "provider": "uma",
