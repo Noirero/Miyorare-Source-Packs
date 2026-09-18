@@ -126,6 +126,13 @@ jobs:
           manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
           if manifest.get('tag') != os.environ['TAG']:
               raise SystemExit('release manifest tag does not match GitHub release tag')
+          snapshot_id = manifest.get('compatibilitySnapshotId')
+          if (
+              not isinstance(snapshot_id, str)
+              or len(snapshot_id) != 64
+              or any(c not in '0123456789abcdef' for c in snapshot_id)
+          ):
+              raise SystemExit('release manifest compatibilitySnapshotId is invalid')
 
           expected_jars = {}
           for pack in manifest.get('packs', []):
@@ -175,6 +182,7 @@ jobs:
                   'sha256': hashlib.sha256(contract_bytes).hexdigest(),
               },
               'releaseManifestSha256': hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+              'compatibilitySnapshotId': snapshot_id,
               'assets': assets,
               'signatureMode': 'GITHUB_ARTIFACT_ATTESTATION',
               'signatureIssuer': 'https://token.actions.githubusercontent.com',
@@ -240,6 +248,11 @@ jobs:
       - name: Summary
         shell: bash
         run: |
+          snapshot_id="$(python3 - <<'PY'
+          import json
+          print(json.load(open('seal/miyorare-release-lock.json', encoding='utf-8'))['compatibilitySnapshotId'])
+          PY
+          )"
           {
             echo '# Source Pack draft seal'
             echo

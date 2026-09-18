@@ -25,6 +25,7 @@ jobs:
       runtime_version_code: ${{ steps.runtime.outputs.version_code }}
       tsuki_api: ${{ steps.runtime.outputs.tsuki_api }}
       compatibility_epoch: ${{ steps.runtime.outputs.compatibility_epoch }}
+      farm_commit: ${{ steps.farm.outputs.commit }}
       uma_commit: ${{ steps.registry.outputs.uma_commit }}
       gekkoushi_commit: ${{ steps.registry.outputs.gekkoushi_commit }}
       keiyoushi_commit: ${{ steps.registry.outputs.keiyoushi_commit }}
@@ -38,12 +39,21 @@ jobs:
         with:
           path: source-packs
 
-      - name: Checkout authoritative Compatibility Farm
+      - name: Checkout authoritative Compatibility Farm head
         uses: actions/checkout@v5
         with:
           ref: compatibility-farm-foundation
           path: farm
           fetch-depth: 1
+
+      - name: Pin authoritative Compatibility Farm snapshot
+        id: farm
+        shell: bash
+        run: |
+          set -euo pipefail
+          commit="$(git -C farm rev-parse HEAD)"
+          [[ "$commit" =~ ^[0-9a-f]{40}$ ]]
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
       - name: Validate version release and tag immutability
         shell: bash
@@ -213,10 +223,10 @@ jobs:
         with:
           path: source-packs
 
-      - name: Checkout authoritative Compatibility Farm
+      - name: Checkout exact Compatibility Farm snapshot
         uses: actions/checkout@v5
         with:
-          ref: compatibility-farm-foundation
+          ref: ${{ needs.resolve-source.outputs.farm_commit }}
           path: farm
           fetch-depth: 1
 
@@ -377,10 +387,10 @@ jobs:
         with:
           path: source-packs
 
-      - name: Checkout authoritative Compatibility Farm
+      - name: Checkout exact Compatibility Farm snapshot
         uses: actions/checkout@v5
         with:
-          ref: compatibility-farm-foundation
+          ref: ${{ needs.resolve-source.outputs.farm_commit }}
           path: farm
           fetch-depth: 1
 
@@ -492,6 +502,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.draft.outputs.tag }}
+      compatibility_snapshot_id: ${{ steps.manifest.outputs.compatibility_snapshot_id }}
     env:
       GH_TOKEN: ${{ github.token }}
       SOURCE_VERSION: ${{ inputs.version }}
@@ -500,6 +511,7 @@ jobs:
       RUNTIME_VERSION_CODE: ${{ needs.resolve-source.outputs.runtime_version_code }}
       TSUKI_API: ${{ needs.resolve-source.outputs.tsuki_api }}
       COMPATIBILITY_EPOCH: ${{ needs.resolve-source.outputs.compatibility_epoch }}
+      FARM_COMMIT: ${{ needs.resolve-source.outputs.farm_commit }}
       UMA_COMMIT: ${{ needs.resolve-source.outputs.uma_commit }}
       GEKKOUSHI_COMMIT: ${{ needs.resolve-source.outputs.gekkoushi_commit }}
       KEIYOUSHI_COMMIT: ${{ needs.resolve-source.outputs.keiyoushi_commit }}
@@ -525,6 +537,7 @@ jobs:
           test -n "$RUNTIME_VERSION_CODE"
           test -n "$TSUKI_API"
           test -n "$COMPATIBILITY_EPOCH"
+          test -n "$FARM_COMMIT"
           test -n "$UMA_COMMIT"
           test -n "$GEKKOUSHI_COMMIT"
           test -n "$KEIYOUSHI_COMMIT"
@@ -547,6 +560,7 @@ jobs:
           fi
 
       - name: Generate and validate release manifest v3
+        id: manifest
         shell: bash
         run: |
           set -euo pipefail
@@ -562,11 +576,21 @@ jobs:
             --uma-commit "$UMA_COMMIT" \
             --gekkoushi-commit "$GEKKOUSHI_COMMIT" \
             --keiyoushi-commit "$KEIYOUSHI_COMMIT" \
+            --farm-commit "$FARM_COMMIT" \
             --output dist/miyorare-source-packs.json
           python3 tools/source_pack_manifest.py validate \
             --manifest dist/miyorare-source-packs.json \
             --contract compatibility/miyorare-source-pack-contract.v1.json \
-            --tag "miyorare-sources-v${SOURCE_VERSION}"
+            --tag "miyorare-sources-v${SOURCE_VERSION}" \
+            --require-compatibility-snapshot
+
+          snapshot_id="$(python3 - <<'PY'
+          import json
+          print(json.load(open('dist/miyorare-source-packs.json', encoding='utf-8'))['compatibilitySnapshotId'])
+          PY
+          )"
+          [[ "$snapshot_id" =~ ^[0-9a-f]{64}$ ]]
+          echo "compatibility_snapshot_id=$snapshot_id" >> "$GITHUB_OUTPUT"
 
       - name: Create draft GitHub release with complete payload
         id: draft
@@ -593,7 +617,7 @@ jobs:
             --latest=false \
             --target "$GITHUB_SHA" \
             --title "Miyorare Source Packs v${SOURCE_VERSION}" \
-            --notes "Official Miyorare-ID, Miyorare-EN, and Miyorare-Global packs. Built from pinned Miyorare builder ${SOURCE_COMMIT} (beta lineage); stable runtime compatibility baseline Miyorare main ${RUNTIME_COMMIT} (versionCode ${RUNTIME_VERSION_CODE}, Tsuki ${TSUKI_API}); validated upstreams: UMA ${UMA_COMMIT}, Gekkoushi ${GEKKOUSHI_COMMIT}, Keiyoushi ${KEIYOUSHI_COMMIT}."
+            --notes "Official Miyorare-ID, Miyorare-EN, and Miyorare-Global packs. Compatibility snapshot ${{ steps.manifest.outputs.compatibility_snapshot_id }}; Farm ${FARM_COMMIT}; pinned Miyorare builder ${SOURCE_COMMIT} (beta lineage); stable runtime compatibility baseline Miyorare main ${RUNTIME_COMMIT} (versionCode ${RUNTIME_VERSION_CODE}, Tsuki ${TSUKI_API}); validated upstreams: UMA ${UMA_COMMIT}, Gekkoushi ${GEKKOUSHI_COMMIT}, Keiyoushi ${KEIYOUSHI_COMMIT}."
           gh release view "$TAG" --json isDraft,isPrerelease --jq 'select(.isDraft == true and .isPrerelease == false)' >/dev/null
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
@@ -656,7 +680,8 @@ jobs:
           python3 tools/source_pack_manifest.py validate \
             --manifest audit/miyorare-source-packs.json \
             --contract compatibility/miyorare-source-pack-contract.v1.json \
-            --tag "$TAG"
+            --tag "$TAG" \
+            --require-compatibility-snapshot
           MANIFEST_RUNTIME_COMMIT="$(python3 - <<'PY'
           import json
           print(json.load(open('audit/miyorare-source-packs.json', encoding='utf-8'))['runtimeCompatibility']['commit'])
@@ -693,6 +718,8 @@ jobs:
             echo
             echo "Tag: \`$TAG\`"
             echo "Pinned builder: \`${{ needs.resolve-source.outputs.source_commit }}\`"
+            echo "Farm snapshot: \`${{ needs.resolve-source.outputs.farm_commit }}\`"
+            echo "Compatibility snapshot ID: \`${{ needs.stage-draft.outputs.compatibility_snapshot_id }}\`"
             echo 'The release remained draft through payload upload, manifest validation, release-lock generation, OIDC attestation, and remote re-download audit.'
             echo 'Stable publication occurred only after seal-before-publish verification succeeded.'
           } >> "$GITHUB_STEP_SUMMARY"

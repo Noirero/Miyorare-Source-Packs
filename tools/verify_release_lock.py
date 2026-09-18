@@ -98,15 +98,40 @@ def verify(
             raise ReleaseLockError(f"release asset SHA-256 changed: {name}")
 
     manifest = directory / "miyorare-source-packs.json"
+    compatibility_snapshot_id = lock.get("compatibilitySnapshotId")
+
     if manifest.is_file():
         manifest_digest = lock.get("releaseManifestSha256")
         if not isinstance(manifest_digest, str) or sha256(manifest) != manifest_digest.lower():
             raise ReleaseLockError("release manifest no longer matches release lock")
+        manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
+        manifest_snapshot_id = manifest_data.get("compatibilitySnapshotId")
+        if manifest_snapshot_id is None and compatibility_snapshot_id is None:
+            compatibility_snapshot_id = None
+        else:
+            if (
+                not isinstance(compatibility_snapshot_id, str)
+                or len(compatibility_snapshot_id) != 64
+                or any(c not in "0123456789abcdef" for c in compatibility_snapshot_id.lower())
+            ):
+                raise ReleaseLockError("release lock compatibilitySnapshotId is invalid")
+            compatibility_snapshot_id = compatibility_snapshot_id.lower()
+            if manifest_snapshot_id != compatibility_snapshot_id:
+                raise ReleaseLockError("release lock compatibility snapshot does not match manifest")
+    elif compatibility_snapshot_id is not None:
+        if (
+            not isinstance(compatibility_snapshot_id, str)
+            or len(compatibility_snapshot_id) != 64
+            or any(c not in "0123456789abcdef" for c in compatibility_snapshot_id.lower())
+        ):
+            raise ReleaseLockError("release lock compatibilitySnapshotId is invalid")
+        compatibility_snapshot_id = compatibility_snapshot_id.lower()
 
     return {
         "tag": lock.get("tag"),
         "assetCount": len(expected),
         "releaseManifestSha256": lock.get("releaseManifestSha256"),
+        "compatibilitySnapshotId": compatibility_snapshot_id,
         "sealedBeforePublish": lock.get("sealedBeforePublish") is True,
     }
 
