@@ -581,7 +581,8 @@ jobs:
           python3 tools/source_pack_manifest.py validate \
             --manifest dist/miyorare-source-packs.json \
             --contract compatibility/miyorare-source-pack-contract.v1.json \
-            --tag "miyorare-sources-v${SOURCE_VERSION}"
+            --tag "miyorare-sources-v${SOURCE_VERSION}" \
+            --require-compatibility-snapshot
 
           snapshot_id="$(python3 - <<'PY'
           import json
@@ -679,7 +680,8 @@ jobs:
           python3 tools/source_pack_manifest.py validate \
             --manifest audit/miyorare-source-packs.json \
             --contract compatibility/miyorare-source-pack-contract.v1.json \
-            --tag "$TAG"
+            --tag "$TAG" \
+            --require-compatibility-snapshot
           MANIFEST_RUNTIME_COMMIT="$(python3 - <<'PY'
           import json
           print(json.load(open('audit/miyorare-source-packs.json', encoding='utf-8'))['runtimeCompatibility']['commit'])
