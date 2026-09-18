@@ -1,0 +1,252 @@
+name: Source Lab Stable Release
+
+on:
+  push:
+    branches:
+      - source-lab-owner-access-temp
+    paths:
+      - 'source-lab/**'
+      - '.github/workflows/source-lab-stable-release.yml'
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: Optional official Source Lab version (for example 0.1.5). Leave blank to auto-increment the latest Source Lab patch version.
+        required: false
+        default: ''
+        type: string
+      github_client_id:
+        description: Optional public GitHub App Client ID override. Leave blank to use the official Source Lab Client ID embedded in source.
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: source-lab-stable-release
+  cancel-in-progress: false
+
+env:
+  SOURCE_LAB_RELEASE_REF: source-lab-owner-access-temp
+  SOURCE_LAB_OFFICIAL_GITHUB_CLIENT_ID: Iv23lijwK22xASXNEBkP
+
+jobs:
+  stable-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout trusted Source Lab branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_LAB_RELEASE_REF }}
+          fetch-depth: 1
+
+      - name: Record trusted source commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_SHA="$(git rev-parse HEAD)"
+          echo "SOURCE_LAB_RELEASE_SHA=$SOURCE_SHA" >> "$GITHUB_ENV"
+          test -f source-lab/app/build.gradle.kts
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install required Android SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "ANDROID_HOME=${ANDROID_HOME:-}"
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | head -n 1 || true)"
+          fi
+          if [ -z "$SDKMANAGER" ] || [ ! -x "$SDKMANAGER" ]; then
+            echo "sdkmanager not found under $SDK_ROOT" >&2
+            find "$SDK_ROOT" -maxdepth 4 -type f -name sdkmanager -print 2>/dev/null || true
+            exit 1
+          fi
+          echo "Using sdkmanager: $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Resolve and validate official GitHub App Client ID
+        shell: bash
+        env:
+          INPUT_CLIENT_ID: ${{ inputs.github_client_id }}
+        run: |
+          set -euo pipefail
+          CLIENT_ID="${INPUT_CLIENT_ID:-}"
+          if [ -z "$CLIENT_ID" ]; then
+            CLIENT_ID="$SOURCE_LAB_OFFICIAL_GITHUB_CLIENT_ID"
+          fi
+          CLIENT_ID="$(printf '%s' "$CLIENT_ID" | xargs)"
+
+          if [ -z "$CLIENT_ID" ]; then
+            echo "::error::Official Source Lab release has no GitHub App Client ID configured."
+            exit 1
+          elif [[ "$CLIENT_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::GitHub App Client ID must not be numeric. Do not use App ID or Installation ID."
+            exit 1
+          elif [[ ! "$CLIENT_ID" =~ ^[A-Za-z0-9._-]{10,128}$ ]]; then
+            echo "::error::GitHub App Client ID has an invalid format."
+            exit 1
+          fi
+
+          if [ "$CLIENT_ID" != "$SOURCE_LAB_OFFICIAL_GITHUB_CLIENT_ID" ]; then
+            echo "::warning::Building with an explicit Client ID override instead of the Source Lab official Client ID."
+          fi
+          echo "SOURCE_LAB_GITHUB_CLIENT_ID=$CLIENT_ID" >> "$GITHUB_ENV"
+          echo "Official Source Lab GitHub App Client ID is configured for this build."
+
+      - name: Run internal CI parity checks
+        run: gradle -p source-lab :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --stacktrace
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        env:
+          DISPATCH_VERSION: ${{ inputs.version_name }}
+        run: |
+          set -euo pipefail
+          VERSION_NAME="${DISPATCH_VERSION:-}"
+
+          if [ -z "$VERSION_NAME" ]; then
+            LATEST_VERSION="$(
+              git ls-remote --tags origin 'refs/tags/source-lab-v*' \
+                | awk '{print $2}' \
+                | grep -v '\^{}$' \
+                | sed -n 's#refs/tags/source-lab-v##p' \
+                | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+                | sort -V \
+                | tail -n 1 \
+                || true
+            )"
+            if [ -z "$LATEST_VERSION" ]; then
+              VERSION_NAME="0.1.0"
+            else
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST_VERSION"
+              VERSION_NAME="${MAJOR}.${MINOR}.$((PATCH + 1))"
+            fi
+            echo "Auto-selected Source Lab version $VERSION_NAME"
+          fi
+
+          if [[ ! "$VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9._-]+)?$ ]]; then
+            echo "::error::Invalid Source Lab version: $VERSION_NAME"
+            exit 1
+          fi
+
+          VERSION_CODE=$(( $(date -u +%s) / 10 ))
+          TAG="source-lab-v${VERSION_NAME}"
+          echo "SOURCE_LAB_VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "SOURCE_LAB_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "SOURCE_LAB_RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+
+      - name: Validate stable signing configuration
+        shell: bash
+        env:
+          SOURCE_LAB_KEYSTORE_BASE64: ${{ secrets.SOURCE_LAB_KEYSTORE_BASE64 }}
+          SOURCE_LAB_STORE_PASSWORD: ${{ secrets.SOURCE_LAB_STORE_PASSWORD }}
+          SOURCE_LAB_KEY_ALIAS: ${{ secrets.SOURCE_LAB_KEY_ALIAS }}
+          SOURCE_LAB_KEY_PASSWORD: ${{ secrets.SOURCE_LAB_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in SOURCE_LAB_KEYSTORE_BASE64 SOURCE_LAB_STORE_PASSWORD SOURCE_LAB_KEY_ALIAS SOURCE_LAB_KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is required for an updateable official Source Lab APK."
+              exit 1
+            fi
+          done
+          printf '%s' "$SOURCE_LAB_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/source-lab-release.jks"
+          chmod 600 "$RUNNER_TEMP/source-lab-release.jks"
+
+      - name: Build official stable signed APK
+        env:
+          SOURCE_LAB_KEYSTORE_PATH: ${{ runner.temp }}/source-lab-release.jks
+          SOURCE_LAB_STORE_PASSWORD: ${{ secrets.SOURCE_LAB_STORE_PASSWORD }}
+          SOURCE_LAB_KEY_ALIAS: ${{ secrets.SOURCE_LAB_KEY_ALIAS }}
+          SOURCE_LAB_KEY_PASSWORD: ${{ secrets.SOURCE_LAB_KEY_PASSWORD }}
+        run: gradle -p source-lab :app:lintRelease :app:assembleRelease --stacktrace
+
+      - name: Verify official APK signature and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="source-lab/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          APKSIGNER="${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          OUT="miyorare-source-lab-official-v${SOURCE_LAB_VERSION_NAME}.apk"
+          cp "$APK" "$OUT"
+          sha256sum "$OUT" > "$OUT.sha256"
+          echo "SOURCE_LAB_RELEASE_APK=$OUT" >> "$GITHUB_ENV"
+
+      - name: Upload official stable APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: miyorare-source-lab-official-v${{ steps.version.outputs.version_name }}
+          path: |
+            miyorare-source-lab-official-v${{ steps.version.outputs.version_name }}.apk
+            miyorare-source-lab-official-v${{ steps.version.outputs.version_name }}.apk.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish or refresh official Source Lab release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          NOTES="Official stable-signed Miyorare Source Lab APK from trusted branch ${SOURCE_LAB_RELEASE_REF} at ${SOURCE_LAB_RELEASE_SHA}. This APK passed unit tests, debug lint/assembly, release lint, stable signing, package verification, and APK signature verification. The official GitHub App Client ID was embedded at build time; no manual Client ID entry is supported in the app. Future Source Lab versions signed with the same repository keystore and a higher versionCode can update this installation in place."
+
+          TAG_SHA="$(git ls-remote origin "refs/tags/${SOURCE_LAB_RELEASE_TAG}^{}" | awk 'NR==1 {print $1}')"
+          if [ -z "$TAG_SHA" ]; then
+            TAG_SHA="$(git ls-remote origin "refs/tags/${SOURCE_LAB_RELEASE_TAG}" | awk 'NR==1 {print $1}')"
+          fi
+
+          if [ -n "$TAG_SHA" ] && [ "$TAG_SHA" != "$SOURCE_LAB_RELEASE_SHA" ]; then
+            echo "::error::Tag $SOURCE_LAB_RELEASE_TAG already points to $TAG_SHA, not $SOURCE_LAB_RELEASE_SHA. Use a newer version instead of replacing an official released version with different source code."
+            exit 1
+          fi
+
+          if gh release view "$SOURCE_LAB_RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Refreshing existing official release $SOURCE_LAB_RELEASE_TAG from the same trusted source commit."
+            gh release upload "$SOURCE_LAB_RELEASE_TAG" \
+              "$SOURCE_LAB_RELEASE_APK" \
+              "$SOURCE_LAB_RELEASE_APK.sha256" \
+              --clobber
+            gh release edit "$SOURCE_LAB_RELEASE_TAG" \
+              --title "Miyorare Source Lab Official v${SOURCE_LAB_VERSION_NAME}" \
+              --notes "$NOTES" \
+              --prerelease=false \
+              --latest=false
+          elif [ -n "$TAG_SHA" ]; then
+            gh release create "$SOURCE_LAB_RELEASE_TAG" \
+              "$SOURCE_LAB_RELEASE_APK" \
+              "$SOURCE_LAB_RELEASE_APK.sha256" \
+              --verify-tag \
+              --title "Miyorare Source Lab Official v${SOURCE_LAB_VERSION_NAME}" \
+              --notes "$NOTES" \
+              --latest=false
+          else
+            gh release create "$SOURCE_LAB_RELEASE_TAG" \
+              "$SOURCE_LAB_RELEASE_APK" \
+              "$SOURCE_LAB_RELEASE_APK.sha256" \
+              --target "$SOURCE_LAB_RELEASE_SHA" \
+              --title "Miyorare Source Lab Official v${SOURCE_LAB_VERSION_NAME}" \
+              --notes "$NOTES" \
+              --latest=false
+          fi
