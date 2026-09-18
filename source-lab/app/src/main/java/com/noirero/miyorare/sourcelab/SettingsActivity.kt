@@ -217,6 +217,8 @@ private fun SettingsScreen(onClose: () -> Unit) {
     }
 
 
+}
+
 @Composable
 private fun SettingsSection(title: String, content: @Composable () -> Unit) {
     SourceLabCard {
