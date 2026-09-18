@@ -308,6 +308,9 @@ jobs:
             target="_upstream/keiyoushi/$module"
             mkdir -p "$target/compatibility-farm-test"
             cp -R farm/compatibility/harness/keiyoushi/runtime/. "$target/compatibility-farm-test/"
+            python3 control/tools/source_live_parser_harness.py prepare-keiyoushi-runtime \
+              --provider-root _upstream/keiyoushi \
+              --module "$module"
             cat >> "$target/build.gradle.kts" <<'EOF'
 
           // Compatibility Farm generated real-parser test wiring. Disposable pinned checkout only.
