@@ -309,8 +309,9 @@ jobs:
           for module in "${modules[@]}"; do
             [[ -n "$module" ]] || continue
             target="_upstream/keiyoushi/$module"
-            mkdir -p "$target/compatibility-farm-test"
-            cp -R farm/compatibility/harness/keiyoushi/runtime/. "$target/compatibility-farm-test/"
+            python3 control/tools/keiyoushi_live_runtime.py \
+              --runtime farm/compatibility/harness/keiyoushi/runtime \
+              --target "$target/compatibility-farm-test"
 
             lib_version="$(sed -n 's/.*libVersion[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$target/build.gradle.kts" | head -n 1)"
             case "$lib_version" in
