@@ -116,13 +116,16 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
 
         // Candidate evidence is public/read-only. Render it immediately instead
         // of hiding the whole review behind Owner authorization.
+        val previousCandidateId = ui.snapshot?.approvalCandidate?.candidateSetId
         val candidate = snapshot.approvalCandidate
         ui = ui.copy(
             snapshot = snapshot,
             loading = false,
             error = null,
             operation = if (keepOperation) ui.operation else null,
-            comparisons = if (candidate == null) emptyMap() else ui.comparisons,
+            comparisons = if (
+                candidate == null || candidate.candidateSetId != previousCandidateId
+            ) emptyMap() else ui.comparisons,
             comparing = candidate != null,
             comparisonError = null,
         )
