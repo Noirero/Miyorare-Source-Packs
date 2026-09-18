@@ -308,28 +308,10 @@ jobs:
             target="_upstream/keiyoushi/$module"
             mkdir -p "$target/compatibility-farm-test"
             cp -R farm/compatibility/harness/keiyoushi/runtime/. "$target/compatibility-farm-test/"
-
-            lib_version="$(sed -n 's/.*libVersion[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$target/build.gradle.kts" | head -n 1)"
-            case "$lib_version" in
-              1.4) tachiyomi_test_dep='testImplementation(libs.tachiyomi.lib.v14)' ;;
-              1.6) tachiyomi_test_dep='testImplementation(libs.tachiyomi.lib.v16)' ;;
-              *)
-                echo "Unsupported Keiyoushi libVersion for $module: $lib_version" >&2
-                exit 1
-                ;;
-            esac
-
-            resources="$target/compatibility-farm-test-resources/assets"
-            mkdir -p "$resources"
-            theme="$(sed -n 's/.*theme[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$target/build.gradle.kts" | head -n 1)"
-            if [[ -n "$theme" && -d "_upstream/keiyoushi/lib-multisrc/$theme/assets" ]]; then
-              cp -R "_upstream/keiyoushi/lib-multisrc/$theme/assets/." "$resources/"
-            fi
-            if [[ -d "$target/assets" ]]; then
-              cp -R "$target/assets/." "$resources/"
-            fi
-
-            cat >> "$target/build.gradle.kts" <<EOF
+            python3 control/tools/source_live_parser_harness.py prepare-keiyoushi-runtime \
+              --provider-root _upstream/keiyoushi \
+              --module "$module"
+            cat >> "$target/build.gradle.kts" <<'EOF'
 
           // Compatibility Farm generated real-parser test wiring. Disposable pinned checkout only.
           android {
@@ -337,7 +319,6 @@ jobs:
                   named("test") {
                       java.directories.add("compatibility-farm-test")
                       kotlin.directories.add("compatibility-farm-test")
-                      resources.srcDir("compatibility-farm-test-resources")
                   }
               }
               testOptions { unitTests.isReturnDefaultValues = true }
@@ -345,7 +326,6 @@ jobs:
           dependencies {
               testImplementation(libs.junit)
               testImplementation(libs.bundles.common)
-              $tachiyomi_test_dep
           }
           tasks.matching { it.name == "kspDebugUnitTestKotlin" }.configureEach { enabled = false }
           EOF
