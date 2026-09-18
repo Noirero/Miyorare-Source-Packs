@@ -66,18 +66,7 @@ internal fun OwnerAuthorizationCard(
             return
         }
 
-        val capabilities = try {
-            SourceLabBackendCapabilityReader.read(identity.accessToken, proof)
-        } catch (error: Throwable) {
-            onSessionChanged(null)
-            state = OwnerAuthorizationUiState.Failed(
-                error.message ?: "BACKEND_CAPABILITY_PROOF_INVALID",
-            )
-            return
-        }
-        val authorizedSession = proof.applyTo(identity.session).copy(
-            backendCapabilities = capabilities,
-        )
+        val authorizedSession = proof.applyTo(identity.session)
         val decision = SourceLabAccessPolicy.evaluate(authorizedSession)
         if (!decision.canControl) {
             onSessionChanged(null)
