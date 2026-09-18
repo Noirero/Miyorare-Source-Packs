@@ -104,7 +104,6 @@ private fun SourceInventoryScreen(onClose: () -> Unit) {
             refreshing = hasInventory,
             inventoryError = null,
             farmError = null,
-            ownerError = null,
         )
         coroutineScope {
             val inventoryJob = async {
@@ -115,22 +114,38 @@ private fun SourceInventoryScreen(onClose: () -> Unit) {
                     )
                 }
             }
-            val farmJob = async { runCatching { SourceInventoryRepository.loadFarmMembership() } }
-            val ownerJob = async { runCatching { SourceLabControlClient.resolveOwnerSession(context) } }
+            val farmJob = async {
+                runCatching { SourceInventoryRepository.loadFarmMembership() }
+            }
+
+            // Source browsing is read-only and must never wait for Owner
+            // authorization. Publish the inventory as soon as it is available.
             val inventoryResult = inventoryJob.await()
-            val farmResult = farmJob.await()
-            val ownerResult = ownerJob.await()
             ui = ui.copy(
                 inventory = inventoryResult.getOrNull() ?: ui.inventory,
-                farm = farmResult.getOrNull(),
-                ownerSession = ownerResult.getOrNull(),
                 initialLoading = false,
-                refreshing = false,
                 inventoryError = inventoryResult.exceptionOrNull()?.readableMessage(),
+            )
+
+            val farmResult = farmJob.await()
+            ui = ui.copy(
+                farm = farmResult.getOrNull() ?: ui.farm,
+                refreshing = false,
                 farmError = farmResult.exceptionOrNull()?.readableMessage(),
-                ownerError = ownerResult.exceptionOrNull()?.readableMessage(),
             )
         }
+    }
+
+    suspend fun refreshOwnerCapability() {
+        SourceLabOwnerSessionStore.get()?.let { cachedSession ->
+            ui = ui.copy(ownerSession = cachedSession, ownerError = null)
+            return
+        }
+        val ownerResult = runCatching { SourceLabControlClient.resolveOwnerSession(context) }
+        ui = ui.copy(
+            ownerSession = ownerResult.getOrNull(),
+            ownerError = ownerResult.exceptionOrNull()?.readableMessage(),
+        )
     }
 
     LaunchedEffect(Unit) {
@@ -138,10 +153,15 @@ private fun SourceInventoryScreen(onClose: () -> Unit) {
         if (cached != null) {
             ui = ui.copy(inventory = cached, initialLoading = false, refreshing = true)
         }
-        refresh(
-            initial = cached == null,
-            forceRefresh = false,
-        )
+        coroutineScope {
+            launch {
+                refresh(
+                    initial = cached == null,
+                    forceRefresh = false,
+                )
+            }
+            launch { refreshOwnerCapability() }
+        }
     }
 
     val inventory = ui.inventory
