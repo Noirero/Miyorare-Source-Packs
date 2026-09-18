@@ -52,6 +52,31 @@ class LiveParserHarnessTest(unittest.TestCase):
         self.assertIn("actual.getPageList(", source)
         self.assertIn("popularMangaRequest", source)
 
+    def test_prepare_keiyoushi_runtime_adds_source_factory_and_theme_assets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            module = root / "src/id/example"
+            module.mkdir(parents=True)
+            (module / "build.gradle.kts").write_text(
+                'keiyoushi { theme = "mangathemesia" }',
+                encoding="utf-8",
+            )
+            theme_assets = root / "lib-multisrc/mangathemesia/assets/i18n"
+            theme_assets.mkdir(parents=True)
+            (theme_assets / "messages_en.properties").write_text("key=value\n", encoding="utf-8")
+            module_assets = module / "assets"
+            module_assets.mkdir()
+            (module_assets / "module.txt").write_text("module", encoding="utf-8")
+
+            result = harness.prepare_keiyoushi_runtime(root, "src/id/example")
+
+            shim = module / "compatibility-farm-test/eu/kanade/tachiyomi/source/SourceFactory.kt"
+            self.assertTrue(shim.is_file())
+            self.assertIn("interface SourceFactory", shim.read_text(encoding="utf-8"))
+            self.assertTrue((module / "src/test/resources/assets/i18n/messages_en.properties").is_file())
+            self.assertTrue((module / "src/test/resources/assets/module.txt").is_file())
+            self.assertEqual(result["resourceSources"], ["theme:mangathemesia", "module"])
+
     def test_auth_source_is_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
