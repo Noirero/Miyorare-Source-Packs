@@ -108,3 +108,7 @@ jobs:
           grep -Fq "release-source-packs.yml" "$auto"
           grep -Fq "gh pr merge" "$auto"
           grep -Fq "gh run watch" "$auto"
+          grep -Fq "stale_before" "$auto"
+          grep -Fq "gh run cancel" "$auto"
+          grep -Fq "fromdateiso8601" "$auto"
+          grep -Fq "fresh Source Pack release" "$auto"
