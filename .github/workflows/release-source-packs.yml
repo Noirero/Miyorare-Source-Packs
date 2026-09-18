@@ -63,6 +63,14 @@ jobs:
       - name: Validate upstream registry
         run: python3 source-packs/tools/upstream_sync.py validate --registry source-packs/upstream/registry.json
 
+      - name: Validate explicit Compatibility Farm release eligibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 farm/tools/release_eligibility.py validate \
+            --status farm/upstream/status.json \
+            --source-registry farm/compatibility/source-registry.json
+
       - name: Resolve approved Compatibility Farm provider baselines
         id: registry
         shell: bash
@@ -94,6 +102,11 @@ jobs:
               item = provider_status.get(provider)
               if not isinstance(item, dict):
                   raise SystemExit(f'provider status missing for {provider}')
+              if item.get('releaseEligibility') != 'ELIGIBLE':
+                  reason = item.get('releaseEligibilityReason', 'MISSING_REASON')
+                  raise SystemExit(f'{provider} is not release eligible: {reason}')
+              if not isinstance(item.get('releaseEligibilityReason'), str) or not item['releaseEligibilityReason']:
+                  raise SystemExit(f'{provider} release eligibility reason missing')
               if item.get('activeCommit') != commit or item.get('lastKnownGood') != commit:
                   raise SystemExit(f'{provider} Farm baseline is not active/LKG')
               registry_item = farm_providers.get(provider)

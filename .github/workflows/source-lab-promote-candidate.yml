@@ -298,6 +298,17 @@ jobs:
               )
           PY
 
+      - name: Reconcile explicit provider release eligibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 farm/tools/release_eligibility.py reconcile \
+            --status farm/upstream/status.json \
+            --source-registry farm/compatibility/source-registry.json
+          python3 farm/tools/release_eligibility.py validate \
+            --status farm/upstream/status.json \
+            --source-registry farm/compatibility/source-registry.json
+
       - name: Refuse promotion if foundation moved after validation
         env:
           BASE_SHA: ${{ steps.base.outputs.sha }}
