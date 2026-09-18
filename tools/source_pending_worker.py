@@ -137,9 +137,15 @@ def infer_auth(text: str) -> str:
 def infer_host(text: str) -> str | None:
     match = BASE_URL_RE.search(text)
     if match:
-        return match.group(1).lower().rstrip(".")
+        candidate = match.group(1).lower().rstrip(".")
+        if "$" not in candidate && "{" not in candidate && "}" not in candidate:
+            return candidate
     match = URL_RE.search(text)
-    return match.group(1).lower().rstrip(".") if match else None
+    if match:
+        candidate = match.group(1).lower().rstrip(".")
+        if "$" not in candidate && "{" not in candidate && "}" not in candidate:
+            return candidate
+    return None
 
 
 def http_probe(host: str, timeout: float) -> dict[str, Any]:
@@ -176,8 +182,12 @@ def assess_plan(plan: dict[str, Any], roots: dict[str, Path], compile_results: d
             host = infer_host(text) if exists else None
             provider_compile = compile_results.get(provider, {})
             compile_ok = bool(provider_compile.get(locator, provider_compile.get("*", False)))
-            probe = {"reachable": False, "detail": "no-probe-host"} if not host else http_probe(host, timeout)
-            passed = exists and compile_ok and probe.get("reachable") is True
+            probe = {"reachable": None, "advisory": True, "detail": "no-reliable-static-host"} if not host else {**http_probe(host, timeout), "advisory": True}
+            # Reachability is useful diagnosis evidence, but it is not an onboarding gate.
+            # Sources may build URLs dynamically, require source-owned interceptors/cookies,
+            # or reject a generic root request while their real parser remains healthy.
+            # Only source existence + compile evidence can block entry into the real-parser gate.
+            passed = exists and compile_ok
             if not passed:
                 failures.append({"provider": provider, "locator": locator, "exists": exists, "compile": compile_ok, "probe": probe})
             memberships.append({"provider": provider, "locator": locator, "exists": exists, "compile": compile_ok, "family": family, "authType": auth_type, "probeHost": host, "probe": probe, "profilePass": passed})
