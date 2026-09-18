@@ -2,6 +2,8 @@ package com.noirero.miyorare.sourcelab
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -47,6 +49,14 @@ internal object SourceLabControlClient {
     private const val mainRef = "main"
     private const val pollIntervalMs = 5_000L
     private const val maxPolls = 1_500
+    private const val ownerContextExpirySkewSeconds = 60L
+
+    @Volatile
+    private var cachedOwnerContext: OwnerContext? = null
+
+    internal fun clearCachedOwnerContext() {
+        cachedOwnerContext = null
+    }
 
     suspend fun resolveOwnerSession(context: Context): OwnerAccessSession = withContext(Dispatchers.IO) {
         refreshOwnerContext(context).session
@@ -60,29 +70,41 @@ internal object SourceLabControlClient {
         val candidateId = snapshot.approvalCandidate?.candidateSetId
         val promotionId = snapshot.lastPromotion?.candidateSetId
 
-        val approvalRunId = candidateId?.let {
-            findSuccessfulRun(owner.token, "source-lab-approve-candidate.yml", "Source Lab approve $it")
-        }
-        val signingRunId = promotionId?.let {
-            findSuccessfulRun(owner.token, "source-lab-sign-candidate.yml", "Source Lab sign $it")
-        }
-        val publishRunId = promotionId?.let {
-            findSuccessfulRun(owner.token, "source-lab-publish-candidate.yml", "Source Lab publish $it")
-        }
+        coroutineScope {
+            val approvalRunJob = async {
+                candidateId?.let {
+                    findSuccessfulRun(owner.token, "source-lab-approve-candidate.yml", "Source Lab approve $it")
+                }
+            }
+            val signingRunJob = async {
+                promotionId?.let {
+                    findSuccessfulRun(owner.token, "source-lab-sign-candidate.yml", "Source Lab sign $it")
+                }
+            }
+            val publishRunJob = async {
+                promotionId?.let {
+                    findSuccessfulRun(owner.token, "source-lab-publish-candidate.yml", "Source Lab publish $it")
+                }
+            }
 
-        SourceLabResolvedControlState(
-            session = owner.session,
-            approvalRunId = approvalRunId,
-            signingRunId = signingRunId,
-            publishRunId = publishRunId,
-            actions = buildAvailability(
+            val approvalRunId = approvalRunJob.await()
+            val signingRunId = signingRunJob.await()
+            val publishRunId = publishRunJob.await()
+
+            SourceLabResolvedControlState(
                 session = owner.session,
-                snapshot = snapshot,
                 approvalRunId = approvalRunId,
                 signingRunId = signingRunId,
                 publishRunId = publishRunId,
-            ),
-        )
+                actions = buildAvailability(
+                    session = owner.session,
+                    snapshot = snapshot,
+                    approvalRunId = approvalRunId,
+                    signingRunId = signingRunId,
+                    publishRunId = publishRunId,
+                ),
+            )
+        }
     }
 
     suspend fun approveAndPublish(
@@ -110,7 +132,7 @@ internal object SourceLabControlClient {
         inventory: SourceInventorySnapshot,
         farm: FarmInventorySnapshot,
     ): SourceLabActionResult = withContext(Dispatchers.IO) {
-        val owner = refreshOwnerContext(context)
+        val owner = refreshOwnerContext(context, forceRefresh = true)
         if (!SourceLabAccessPolicy.canPerform(SourceLabControlAction.ADD_TO_FARM, owner.session)) {
             throw SourceLabControlException("BACKEND_CAPABILITY_ADD_TO_FARM_UNAVAILABLE")
         }
@@ -144,7 +166,9 @@ internal object SourceLabControlClient {
         if (action == SourceLabControlAction.ADD_TO_FARM) {
             throw SourceLabControlException("SOURCE_DETAIL_REQUIRED")
         }
-        val owner = refreshOwnerContext(context)
+        // Mutating actions keep the existing fail-closed guarantee: they never
+        // use the read cache and always revalidate identity/backend capability.
+        val owner = refreshOwnerContext(context, forceRefresh = true)
         val candidateId = snapshot.approvalCandidate?.candidateSetId
         val promotionId = snapshot.lastPromotion?.candidateSetId
         val approvalRunId = candidateId?.let {
@@ -340,7 +364,25 @@ internal object SourceLabControlClient {
         prerequisiteRunId = prerequisiteRunId,
     )
 
-    private suspend fun refreshOwnerContext(context: Context): OwnerContext {
+    private suspend fun refreshOwnerContext(
+        context: Context,
+        forceRefresh: Boolean = false,
+    ): OwnerContext {
+        if (!forceRefresh) {
+            val cached = cachedOwnerContext
+            if (cached != null) {
+                val now = System.currentTimeMillis() / 1000L
+                val expiresAt = cached.session.backendAuthorizationExpiresAtEpochSeconds ?: 0L
+                if (
+                    expiresAt > now + ownerContextExpirySkewSeconds &&
+                    SourceLabAccessPolicy.evaluate(cached.session, now).canControl
+                ) {
+                    return cached
+                }
+                cachedOwnerContext = null
+            }
+        }
+
         val stored = GitHubOwnerCredentialVault.load(context)
             ?: throw SourceLabControlException("OWNER_CREDENTIAL_REQUIRED")
         val identity = try {
@@ -365,7 +407,9 @@ internal object SourceLabControlClient {
         val decision = SourceLabAccessPolicy.evaluate(session)
         if (!decision.canControl) throw SourceLabControlException(decision.reason)
         SourceLabOwnerSessionStore.set(session)
-        return OwnerContext(identity.accessToken, session)
+        return OwnerContext(identity.accessToken, session).also {
+            cachedOwnerContext = it
+        }
     }
 
     private fun dispatchAndWait(
