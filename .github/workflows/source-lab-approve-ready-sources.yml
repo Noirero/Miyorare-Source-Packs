@@ -134,6 +134,34 @@ jobs:
           git -C farm push origin HEAD:compatibility-farm-foundation
           echo "farm_commit=$(git -C farm rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
+      - name: Dispatch exact ACTIVE membership snapshot to Miyorare
+        if: steps.plan.outputs.count != '0'
+        id: miyorare_dispatch
+        shell: bash
+        env:
+          MIYORARE_DISPATCH_TOKEN: ${{ secrets.MIYORARE_DISPATCH_TOKEN }}
+          FARM_SHA: ${{ steps.commit.outputs.farm_commit }}
+          MIYORARE_REPOSITORY: Noirero/Miyorare
+        run: |
+          set -euo pipefail
+          [[ "$FARM_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+          if [[ -z "$MIYORARE_DISPATCH_TOKEN" ]]; then
+            echo "::notice::MIYORARE_DISPATCH_TOKEN is not configured; the existing Miyorare cron sync remains the recovery path."
+            echo "dispatched=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          GH_TOKEN="$MIYORARE_DISPATCH_TOKEN" gh workflow run \
+            miyorare-farm-pack-membership-sync.yml \
+            --repo "$MIYORARE_REPOSITORY" \
+            --ref main \
+            -f farm_sha="$FARM_SHA" \
+            -f source_run_id="$GITHUB_RUN_ID"
+
+          echo "dispatched=true" >> "$GITHUB_OUTPUT"
+          echo "Event-driven Miyorare sync dispatched for exact Farm commit $FARM_SHA."
+
       - name: Upload immutable approval evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -155,4 +183,5 @@ jobs:
             echo "No schema-v2 real-parser READY sources were waiting for approval." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Activated on Farm commit: ${{ steps.commit.outputs.farm_commit }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "Miyorare event dispatch: ${{ steps.miyorare_dispatch.outputs.dispatched }}" >> "$GITHUB_STEP_SUMMARY"
           fi
