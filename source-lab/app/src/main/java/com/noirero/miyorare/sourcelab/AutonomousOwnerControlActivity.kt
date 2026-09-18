@@ -77,6 +77,8 @@ private fun AutonomousOwnerDashboard() {
     var state by remember { mutableStateOf(AutonomousDashboardState()) }
     var approving by remember { mutableStateOf(false) }
     var confirmApproval by remember { mutableStateOf(false) }
+    var approvingReadySources by remember { mutableStateOf(false) }
+    var confirmReadySourcesApproval by remember { mutableStateOf(false) }
     var operation by remember { mutableStateOf<String?>(null) }
 
     suspend fun refresh() {
@@ -126,11 +128,35 @@ private fun AutonomousOwnerDashboard() {
         }
     }
 
+    fun approveReadySources(snapshot: LiveFarmSnapshot) {
+        scope.launch {
+            approvingReadySources = true
+            operation = null
+            try {
+                val count = snapshot.pendingWorker?.readyCount ?: 0
+                val result = SourceLabControlClient.execute(
+                    context,
+                    snapshot,
+                    SourceLabControlAction.APPROVE_READY_SOURCES,
+                )
+                operation = "Approved $count ready source${if (count == 1) "" else "s"} · run ${result.runId}. Pack sync and release continue automatically."
+            } catch (error: SourceLabControlException) {
+                operation = "Source approval stopped safely · ${error.reason}"
+            } catch (error: Throwable) {
+                operation = "Source approval stopped safely · ${error.message ?: error.javaClass.simpleName}"
+            } finally {
+                approvingReadySources = false
+                refresh()
+            }
+        }
+    }
+
     LaunchedEffect(Unit) { refresh() }
 
     val snapshot = state.snapshot
     val control = state.control
     val approvalAvailability = control?.actions?.get(SourceLabControlAction.APPROVE)
+    val readySourcesApprovalAvailability = control?.actions?.get(SourceLabControlAction.APPROVE_READY_SOURCES)
     val routineState = snapshot?.let(::resolveRoutineFarmState)
 
     if (confirmApproval && snapshot?.approvalCandidate != null && approvalAvailability != null) {
@@ -164,6 +190,58 @@ private fun AutonomousOwnerDashboard() {
             },
             dismissButton = {
                 TextButton(onClick = { confirmApproval = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    if (
+        confirmReadySourcesApproval &&
+        snapshot?.pendingWorker?.readyCount?.let { it > 0 } == true &&
+        readySourcesApprovalAvailability != null
+    ) {
+        val pending = snapshot.pendingWorker
+        AlertDialog(
+            onDismissRequest = {
+                if (!approvingReadySources) confirmReadySourcesApproval = false
+            },
+            title = { Text("Approve Ready Sources", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "${pending.readyCount} source${if (pending.readyCount == 1) "" else "s"} passed schema-v2 real-parser evidence and are waiting for your approval.",
+                    )
+                    Text(
+                        "The backend will revalidate evidence digests and exact provider SHAs before activating anything. Pack sync, build, and release continue automatically afterward.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    pending.readyCanonicalIds.take(5).forEach { canonicalId ->
+                        Text(
+                            canonicalId,
+                            fontFamily = FontFamily.Monospace,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    if (pending.readyCanonicalIds.size > 5) {
+                        Text(
+                            "+ ${pending.readyCanonicalIds.size - 5} more",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = readySourcesApprovalAvailability.available && !approvingReadySources,
+                    onClick = {
+                        confirmReadySourcesApproval = false
+                        approveReadySources(snapshot)
+                    },
+                ) { Text("Approve ${pending.readyCount}") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmReadySourcesApproval = false }) { Text("Cancel") }
             },
         )
     }
@@ -226,6 +304,16 @@ private fun AutonomousOwnerDashboard() {
                     onExceptions = { context.startActivity(Intent(context, ReportsActivity::class.java)) },
                     onDiagnostics = { context.startActivity(Intent(context, SourceLabDiagnosticsActivity::class.java)) },
                 )
+            }
+            snapshot.pendingWorker?.let { pending ->
+                item(key = "pending-source-approval") {
+                    PendingSourceApprovalCard(
+                        pending = pending,
+                        availability = readySourcesApprovalAvailability,
+                        approving = approvingReadySources,
+                        onApprove = { confirmReadySourcesApproval = true },
+                    )
+                }
             }
         }
 
@@ -297,7 +385,7 @@ private fun AutonomousOwnerDashboard() {
         item(key = "refresh") {
             OutlinedButton(
                 onClick = { scope.launch { refresh() } },
-                enabled = !state.initialLoading && !state.refreshing && !approving,
+                enabled = !state.initialLoading && !state.refreshing && !approving && !approvingReadySources,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 if (state.refreshing) {
@@ -312,10 +400,89 @@ private fun AutonomousOwnerDashboard() {
 
         item(key = "boundary") {
             Text(
-                "Upstream detection and Candidate Farm execution are automatic. Failed or HELD candidates never advance last-known-good. Human approval remains the only routine mutation boundary.",
+                "Discovery, PENDING onboarding, real-parser validation, pack sync, build, and release are automatic. Failed or HELD sources never advance. Human approval remains the only routine mutation boundary.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+@Composable
+private fun PendingSourceApprovalCard(
+    pending: LivePendingWorkerState,
+    availability: SourceLabActionAvailability?,
+    approving: Boolean,
+    onApprove: () -> Unit,
+) {
+    val ready = pending.readyCount
+    val available = ready > 0 && availability?.available == true
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Source Onboarding", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (ready > 0) {
+                            "$ready real-parser validated source${if (ready == 1) "" else "s"} waiting for your approval."
+                        } else {
+                            "The bot is processing PENDING sources automatically."
+                        },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                SourceLabStatusBadge(
+                    if (ready > 0) "$ready READY" else "AUTOMATIC",
+                    if (ready > 0) SourceLabTone.WARNING else SourceLabTone.GOOD,
+                )
+            }
+
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SourceOnboardingMetric("Retry", pending.retryCount, Modifier.weight(1f))
+                SourceOnboardingMetric("Held", pending.needsAttentionCount, Modifier.weight(1f))
+                SourceOnboardingMetric("Approved", pending.approvedCount, Modifier.weight(1f))
+            }
+
+            if (ready > 0) {
+                Button(
+                    onClick = onApprove,
+                    enabled = available && !approving,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (approving) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.size(8.dp))
+                        Text("Approving")
+                    } else {
+                        Text("Approve Ready Sources")
+                    }
+                }
+                if (!available) {
+                    Text(
+                        "Approval is locked until the owner capability and live worker evidence are revalidated${availability?.reason?.let { " · $it" }.orEmpty()}.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SourceOnboardingMetric(
+    label: String,
+    value: Int,
+    modifier: Modifier = Modifier,
+) {
+    Surface(modifier = modifier, shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp), color = SourceLabSurface) {
+        Column(Modifier.padding(9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(value.toString(), fontWeight = FontWeight.Bold)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

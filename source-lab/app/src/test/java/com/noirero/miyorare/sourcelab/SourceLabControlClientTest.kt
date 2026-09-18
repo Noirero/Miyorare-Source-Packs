@@ -29,6 +29,82 @@ class SourceLabControlClientTest {
     }
 
     @Test
+    fun readyPendingSourcesExposeOneClickApproval() {
+        val actions = SourceLabControlClient.buildAvailability(
+            session = sessionWithAllCapabilities(),
+            snapshot = snapshot(
+                pendingWorker = LivePendingWorkerState(
+                    schemaVersion = 2,
+                    readyCount = 3,
+                    retryCount = 2,
+                    needsAttentionCount = 1,
+                    approvedCount = 4,
+                    readyCanonicalIds = listOf("a", "b", "c"),
+                    updatedAt = "2026-09-18T02:00:00Z",
+                ),
+            ),
+            approvalRunId = null,
+            signingRunId = null,
+            publishRunId = null,
+        )
+        assertTrue(actions.getValue(SourceLabControlAction.APPROVE_READY_SOURCES).available)
+    }
+
+    @Test
+    fun noReadySourceOrMissingWorkerStateFailsClosed() {
+        val noWorker = SourceLabControlClient.buildAvailability(
+            session = sessionWithAllCapabilities(),
+            snapshot = snapshot(),
+            approvalRunId = null,
+            signingRunId = null,
+            publishRunId = null,
+        )
+        assertFalse(noWorker.getValue(SourceLabControlAction.APPROVE_READY_SOURCES).available)
+
+        val emptyWorker = SourceLabControlClient.buildAvailability(
+            session = sessionWithAllCapabilities(),
+            snapshot = snapshot(
+                pendingWorker = LivePendingWorkerState(
+                    schemaVersion = 2,
+                    readyCount = 0,
+                    retryCount = 3,
+                    needsAttentionCount = 0,
+                    approvedCount = 0,
+                    readyCanonicalIds = emptyList(),
+                    updatedAt = null,
+                ),
+            ),
+            approvalRunId = null,
+            signingRunId = null,
+            publishRunId = null,
+        )
+        assertFalse(emptyWorker.getValue(SourceLabControlAction.APPROVE_READY_SOURCES).available)
+    }
+
+    @Test
+    fun providerApprovalPipelineLocksSourceOnboardingApproval() {
+        val actions = SourceLabControlClient.buildAvailability(
+            session = sessionWithAllCapabilities(),
+            snapshot = snapshot(
+                candidate = candidate(),
+                pendingWorker = LivePendingWorkerState(
+                    schemaVersion = 2,
+                    readyCount = 2,
+                    retryCount = 0,
+                    needsAttentionCount = 0,
+                    approvedCount = 0,
+                    readyCanonicalIds = listOf("a", "b"),
+                    updatedAt = null,
+                ),
+            ),
+            approvalRunId = null,
+            signingRunId = null,
+            publishRunId = null,
+        )
+        assertFalse(actions.getValue(SourceLabControlAction.APPROVE_READY_SOURCES).available)
+    }
+
+    @Test
     fun stagedCandidateAllowsApproveButNotPromoteWithoutReceipt() {
         val actions = SourceLabControlClient.buildAvailability(
             session = sessionWithAllCapabilities(),
@@ -148,6 +224,7 @@ class SourceLabControlClientTest {
         candidate: LiveApprovalCandidate? = null,
         promotion: LivePromotionState? = null,
         published: LivePublishState? = null,
+        pendingWorker: LivePendingWorkerState? = null,
     ) = LiveFarmSnapshot(
         sources = emptyList(),
         providers = emptyList(),
@@ -159,6 +236,7 @@ class SourceLabControlClientTest {
         targetSize = 12,
         branch = SourceLabRepository.farmBranch,
         retrievedAtEpochMs = 0L,
+        pendingWorker = pendingWorker,
     )
 
     private fun sessionWithAllCapabilities() = OwnerAccessSession(

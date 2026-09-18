@@ -12,6 +12,7 @@ internal enum class SourceLabControlAction {
     SIGN,
     PUBLISH,
     ADD_TO_FARM,
+    APPROVE_READY_SOURCES,
 }
 
 internal data class OwnerAccessSession(

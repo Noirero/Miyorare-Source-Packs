@@ -91,6 +91,16 @@ internal data class LiveFarmRun(
     val htmlUrl: String,
 )
 
+internal data class LivePendingWorkerState(
+    val schemaVersion: Int,
+    val readyCount: Int,
+    val retryCount: Int,
+    val needsAttentionCount: Int,
+    val approvedCount: Int,
+    val readyCanonicalIds: List<String>,
+    val updatedAt: String?,
+)
+
 internal data class LiveFarmSnapshot(
     val sources: List<LiveSourceState>,
     val providers: List<LiveProviderState>,
@@ -103,6 +113,7 @@ internal data class LiveFarmSnapshot(
     val branch: String,
     val retrievedAtEpochMs: Long,
     val automation: LiveAutomationState? = null,
+    val pendingWorker: LivePendingWorkerState? = null,
 )
 
 internal object SourceLabRepository {
@@ -160,6 +171,7 @@ internal object SourceLabRepository {
         }.sortedBy { it.id }.toList()
 
         val recentRuns = runCatching { loadRecentFarmRuns() }.getOrDefault(emptyList())
+        val pendingWorker = runCatching { loadPendingWorkerState() }.getOrNull()
 
         return LiveFarmSnapshot(
             sources = sources,
@@ -173,6 +185,7 @@ internal object SourceLabRepository {
             branch = farmBranch,
             retrievedAtEpochMs = System.currentTimeMillis(),
             automation = status.optJSONObject("automation")?.toAutomationState(),
+            pendingWorker = pendingWorker,
         )
     }
 
@@ -254,6 +267,43 @@ internal object SourceLabRepository {
         repairEvidenceSha256 = getString("repairEvidenceSha256"),
         repairEvidenceCount = optInt("repairEvidenceCount", 0),
     )
+
+    internal fun parsePendingWorkerState(root: JSONObject): LivePendingWorkerState {
+        val schemaVersion = root.optInt("schemaVersion", -1)
+        require(schemaVersion == 2) { "PENDING_WORKER_SCHEMA_UNSUPPORTED" }
+        val sources = root.optJSONObject("sources") ?: JSONObject()
+        var ready = 0
+        var retry = 0
+        var needsAttention = 0
+        var approved = 0
+        val readyIds = mutableListOf<String>()
+        val keys = sources.keys()
+        while (keys.hasNext()) {
+            val canonicalId = keys.next()
+            val state = sources.optJSONObject(canonicalId)?.optString("state").orEmpty()
+            when (state) {
+                "READY_FOR_APPROVAL" -> {
+                    ready += 1
+                    readyIds += canonicalId
+                }
+                "RETRY", "PARSER_PENDING" -> retry += 1
+                "NEEDS_ATTENTION" -> needsAttention += 1
+                "APPROVED" -> approved += 1
+            }
+        }
+        return LivePendingWorkerState(
+            schemaVersion = schemaVersion,
+            readyCount = ready,
+            retryCount = retry,
+            needsAttentionCount = needsAttention,
+            approvedCount = approved,
+            readyCanonicalIds = readyIds.sorted(),
+            updatedAt = root.optString("updatedAt").takeIf { it.isNotBlank() },
+        )
+    }
+
+    private fun loadPendingWorkerState(): LivePendingWorkerState =
+        parsePendingWorkerState(JSONObject(fetchText("$rawBase/automation/pending-worker-state.json")))
 
     private fun loadRecentFarmRuns(): List<LiveFarmRun> {
         val url = "$apiBase/actions/workflows/source-lab-auto-farm.yml/runs?branch=main&per_page=5"

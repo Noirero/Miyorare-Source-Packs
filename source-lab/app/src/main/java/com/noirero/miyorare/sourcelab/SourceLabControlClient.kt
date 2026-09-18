@@ -230,6 +230,11 @@ internal object SourceLabControlClient {
                 )
             }
             SourceLabControlAction.ADD_TO_FARM -> throw SourceLabControlException("SOURCE_DETAIL_REQUIRED")
+            SourceLabControlAction.APPROVE_READY_SOURCES -> ControlRequest(
+                workflow = "source-lab-approve-ready-sources.yml",
+                title = "Source Lab Approve Ready Sources",
+                inputs = emptyMap(),
+            )
         }
         dispatchAndWait(owner.token, action, request)
     }
@@ -286,6 +291,14 @@ internal object SourceLabControlClient {
                 else -> "AVAILABLE"
             }
         val addToFarmReason = capability(SourceLabControlAction.ADD_TO_FARM) ?: "SOURCE_DETAIL_REQUIRED"
+        val approveReadySourcesReason = capability(SourceLabControlAction.APPROVE_READY_SOURCES)
+            ?: when {
+                candidate != null -> "PROVIDER_APPROVAL_PIPELINE_BUSY"
+                promotion != null && !publishedCurrentPromotion -> "PROVIDER_PUBLISH_PIPELINE_BUSY"
+                snapshot.pendingWorker == null -> "PENDING_WORKER_STATE_UNAVAILABLE"
+                snapshot.pendingWorker.readyCount < 1 -> "NO_READY_SOURCE_ONBOARDING"
+                else -> "AVAILABLE"
+            }
 
         return mapOf(
             SourceLabControlAction.RUN_FARM to availability(SourceLabControlAction.RUN_FARM, runFarmReason),
@@ -308,6 +321,10 @@ internal object SourceLabControlClient {
             SourceLabControlAction.ADD_TO_FARM to availability(
                 SourceLabControlAction.ADD_TO_FARM,
                 addToFarmReason,
+            ),
+            SourceLabControlAction.APPROVE_READY_SOURCES to availability(
+                SourceLabControlAction.APPROVE_READY_SOURCES,
+                approveReadySourcesReason,
             ),
         )
     }
