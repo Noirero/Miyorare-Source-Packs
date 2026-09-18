@@ -31,7 +31,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
 
 class OwnerGateActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -90,7 +89,6 @@ private fun OwnerGateScreen(
     LaunchedEffect(authorizedSession) {
         val session = authorizedSession ?: return@LaunchedEffect
         onAuthorized(session)
-        delay(650L)
         onOpenOwnerDashboard()
     }
 
