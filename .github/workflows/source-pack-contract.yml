@@ -11,6 +11,7 @@ on:
       - 'upstream/status.json'
       - 'upstream/outcome.json'
       - '.github/workflows/release-source-packs.yml'
+      - '.github/workflows/source-lab-promote-candidate.yml'
       - '.github/workflows/source-pack-contract.yml'
       - '.github/workflows/source-pack-release-seal.yml'
       - '.github/workflows/source-pack-release-audit.yml'
@@ -25,6 +26,7 @@ on:
       - 'upstream/status.json'
       - 'upstream/outcome.json'
       - '.github/workflows/release-source-packs.yml'
+      - '.github/workflows/source-lab-promote-candidate.yml'
       - '.github/workflows/source-pack-contract.yml'
       - '.github/workflows/source-pack-release-seal.yml'
       - '.github/workflows/source-pack-release-audit.yml'
@@ -249,6 +251,7 @@ jobs:
           from pathlib import Path
 
           release = Path('.github/workflows/release-source-packs.yml').read_text(encoding='utf-8')
+          promotion = Path('.github/workflows/source-lab-promote-candidate.yml').read_text(encoding='utf-8')
           seal = Path('.github/workflows/source-pack-release-seal.yml').read_text(encoding='utf-8')
           audit = Path('.github/workflows/source-pack-release-audit.yml').read_text(encoding='utf-8')
 
@@ -276,6 +279,9 @@ jobs:
           seal=.github/workflows/source-pack-release-seal.yml
           audit=.github/workflows/source-pack-release-audit.yml
           grep -Fq 'stable Miyorare compatibility baseline' "$release"
+          grep -Fq 'release_eligibility.py validate' "$release"
+          grep -Fq "releaseEligibility" "$release"
+          grep -Fq 'release_eligibility.py reconcile' .github/workflows/source-lab-promote-candidate.yml
           grep -Fq 'tools/source_pack_manifest.py generate' "$release"
           grep -Fq 'tools/source_pack_manifest.py validate' "$release"
           grep -Fq 'actions/attest-build-provenance@v2' "$seal"
