@@ -148,6 +148,10 @@ jobs:
               'upstream-declared-broken',
               'retrySlots',
               'retry_budget',
+              'AUTOMATION_INFRASTRUCTURE',
+              'attemptConsumed',
+              'failureType',
+              'failureMessage',
           ):
               if marker not in worker:
                   raise SystemExit(f'source_pending_worker.py missing state contract marker: {marker}')
