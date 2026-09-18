@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import re
+import shutil
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,14 @@ CLASS_RE = re.compile(
     r"(?:internal\s+|public\s+|private\s+|protected\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*MangaLoaderContext",
     re.S,
 )
+THEME_RE = re.compile(r'\btheme\s*=\s*["\']([A-Za-z0-9_-]+)["\']')
+SOURCE_FACTORY_SHIM = """package eu.kanade.tachiyomi.source
+
+@Suppress("unused")
+interface SourceFactory {
+    fun createSources(): List<*>
+}
+"""
 
 
 def load(path: str | Path) -> dict[str, Any]:
@@ -53,6 +62,41 @@ def detect_tsuki_class(path: Path) -> str:
     if package is None or klass is None:
         raise ValueError(f"could not resolve MangaLoaderContext parser class from {path}")
     return f"{package.group(1)}.{klass.group(1)}"
+
+
+def prepare_keiyoushi_runtime(provider_root: Path, module_locator: str) -> dict[str, Any]:
+    module = (provider_root / module_locator).resolve()
+    if not module.is_dir():
+        raise ValueError(f"Keiyoushi module not found: {module_locator}")
+
+    shim = module / "compatibility-farm-test/eu/kanade/tachiyomi/source/SourceFactory.kt"
+    shim.parent.mkdir(parents=True, exist_ok=True)
+    shim.write_text(SOURCE_FACTORY_SHIM, encoding="utf-8")
+
+    resources_root = module / "src/test/resources/assets"
+    copied: list[str] = []
+    build_file = module / "build.gradle.kts"
+    build_text = build_file.read_text(encoding="utf-8", errors="ignore") if build_file.is_file() else ""
+    theme_match = THEME_RE.search(build_text)
+    candidates: list[tuple[str, Path]] = []
+    if theme_match:
+        theme = theme_match.group(1)
+        candidates.append((f"theme:{theme}", provider_root / "lib-multisrc" / theme / "assets"))
+    candidates.append(("module", module / "assets"))
+
+    for label, source in candidates:
+        if not source.is_dir():
+            continue
+        resources_root.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(source, resources_root, dirs_exist_ok=True)
+        copied.append(label)
+
+    return {
+        "module": module_locator,
+        "sourceFactoryShim": str(shim),
+        "resourceSources": copied,
+        "resourcesRoot": str(resources_root),
+    }
 
 
 def live_context_source() -> str:
@@ -376,33 +420,18 @@ def generate(
     return {"schemaVersion": 1, "provider": provider, "tests": tests, "blocked": blocked}
 
 
-def junit_suite(results_dir: Path, test_class: str) -> dict[str, Any] | None:
+def junit_suite(results_dir: Path, test_class: str) -> dict[str, int] | None:
     if not results_dir.is_dir():
         return None
     for path in sorted(results_dir.glob("TEST-*.xml")):
         root = ET.parse(path).getroot()
         if root.attrib.get("name") != test_class:
             continue
-        failure_type: str | None = None
-        failure_message: str | None = None
-        for testcase in root.findall("testcase"):
-            failure = testcase.find("failure")
-            if failure is None:
-                failure = testcase.find("error")
-            if failure is None:
-                continue
-            failure_type = failure.attrib.get("type") or None
-            failure_message = failure.attrib.get("message") or (failure.text or "").strip() or None
-            if failure_message:
-                failure_message = " ".join(failure_message.split())[:1000]
-            break
         return {
             "tests": int(root.attrib.get("tests", "0")),
             "failures": int(root.attrib.get("failures", "0")),
             "errors": int(root.attrib.get("errors", "0")),
             "skipped": int(root.attrib.get("skipped", "0")),
-            "failureType": failure_type,
-            "failureMessage": failure_message,
         }
     return None
 
@@ -465,6 +494,11 @@ def main() -> int:
     collect_parser.add_argument("--manifest", action="append", required=True)
     collect_parser.add_argument("--output", required=True)
 
+    prepare_parser = sub.add_parser("prepare-keiyoushi-runtime")
+    prepare_parser.add_argument("--provider-root", required=True)
+    prepare_parser.add_argument("--module", required=True)
+    prepare_parser.add_argument("--output")
+
     args = parser.parse_args()
     if args.command == "generate":
         save(
@@ -476,8 +510,14 @@ def main() -> int:
                 Path(args.provider_root).resolve(),
             ),
         )
-    else:
+    elif args.command == "collect":
         save(args.output, collect([load(path) for path in args.manifest]))
+    else:
+        result = prepare_keiyoushi_runtime(Path(args.provider_root).resolve(), args.module)
+        if args.output:
+            save(args.output, result)
+        else:
+            print(json.dumps(result, sort_keys=True))
     return 0
 
 
