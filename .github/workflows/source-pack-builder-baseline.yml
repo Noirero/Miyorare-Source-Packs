@@ -8,6 +8,7 @@ on:
       - 'tools/validate_builder_baseline.py'
       - '.github/workflows/release-source-packs.yml'
       - '.github/workflows/source-pack-builder-baseline.yml'
+      - '.github/workflows/source-pack-autonomous-release.yml'
   push:
     branches: [main]
     paths:
@@ -87,5 +88,23 @@ jobs:
           fi
           grep -Fq 'compatibility/miyorare-builder-baseline.json' "$release"
           grep -Fq 'tools/validate_builder_baseline.py' "$release"
+          grep -Fq 'compatibility-farm-foundation' "$release"
+          grep -Fq 'farm/compatibility/source-registry.json' "$release"
+          grep -Fq 'farm/upstream/registry.json' "$release"
           grep -Fq 'refs/tags/$TAG' "$release"
           grep -Fq 'Release or tag $TAG already exists' "$release"
+
+      - name: Validate autonomous release control contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          auto=.github/workflows/source-pack-autonomous-release.yml
+          test -f "$auto"
+          grep -Fq "schedule:" "$auto"
+          grep -Fq "workflow_dispatch:" "$auto"
+          grep -Fq "compatibility-farm-foundation" "$auto"
+          grep -Fq "sync_approved_farm_sources.py" "$auto"
+          grep -Fq "source-pack-builder-baseline.yml" "$auto"
+          grep -Fq "release-source-packs.yml" "$auto"
+          grep -Fq "gh pr merge" "$auto"
+          grep -Fq "gh run watch" "$auto"
