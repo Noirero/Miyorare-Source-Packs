@@ -65,6 +65,7 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
     var state by remember { mutableStateOf(DiagnosticsState()) }
 
     LaunchedEffect(refreshKey) {
+        val previous = state
         state = state.copy(loading = true, error = null, inventoryError = null)
         coroutineScope {
             val liveJob = async {
@@ -80,9 +81,9 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
             val inventory = inventoryJob.await()
             state = DiagnosticsState(
                 loading = false,
-                snapshot = live.getOrNull()?.first,
-                control = live.getOrNull()?.second,
-                inventory = inventory.getOrNull(),
+                snapshot = live.getOrNull()?.first ?: previous.snapshot,
+                control = live.getOrNull()?.second ?: previous.control,
+                inventory = inventory.getOrNull() ?: previous.inventory,
                 error = live.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName },
                 inventoryError = inventory.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName },
             )
@@ -95,29 +96,40 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item(key = "header") {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column {
-                    Text("Diagnostics", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                    Text("Technical state and authorization proof", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                TextButton(onClick = onClose) { Text("Back") }
-            }
+            SourceLabTopBar(
+                title = "Diagnostics",
+                subtitle = "Runtime, capability proof, Farm state, and inventory metadata.",
+                onBack = onClose,
+                trailing = {
+                    SourceLabIconButton(
+                        icon = SourceLabIconKind.REFRESH,
+                        contentDescription = "Refresh diagnostics",
+                        onClick = { refreshKey++ },
+                        enabled = !state.loading,
+                    )
+                },
+            )
         }
 
         if (state.loading) {
             item(key = "loading") {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                SourceLabCard(tone = SourceLabTone.ACCENT, contentPadding = PaddingValues(12.dp)) {
                     Row(
-                        Modifier.fillMaxWidth().padding(16.dp),
+                        Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        CircularProgressIndicator()
-                        Text("Refreshing diagnostic state…")
+                        CircularProgressIndicator(Modifier.padding(2.dp), strokeWidth = 2.dp, color = SourceLabPrimary)
+                        Column(Modifier.weight(1f)) {
+                            Text("Refreshing diagnostic state…", fontWeight = FontWeight.SemiBold)
+                            if (state.snapshot != null || state.inventory != null) {
+                                Text(
+                                    "Previously loaded values remain visible while refreshing.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -125,7 +137,7 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
 
         state.error?.let { error ->
             item(key = "error") {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                SourceLabCard {
                     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Live control diagnostics unavailable", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                         Text(error)
@@ -213,7 +225,7 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
 
         state.inventoryError?.let { error ->
             item(key = "inventory-error") {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                SourceLabCard {
                     Text(
                         "Inventory diagnostics unavailable · $error",
                         Modifier.fillMaxWidth().padding(16.dp),
@@ -235,7 +247,7 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
 
 @Composable
 private fun DiagnosticCard(title: String, content: @Composable () -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+    SourceLabCard {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, fontWeight = FontWeight.Bold)
             content()
