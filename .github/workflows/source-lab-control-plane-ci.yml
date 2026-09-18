@@ -15,6 +15,7 @@ on:
       - 'tools/source_inventory_bulk_enroll.py'
       - 'tools/source_pending_worker.py'
       - 'tools/source_live_parser_harness.py'
+      - 'tools/source_pending_approval.py'
       - 'tests/**'
   push:
     branches:
@@ -22,14 +23,17 @@ on:
       - 'source-lab-auto-enroll-*'
       - 'source-lab-autonomous-pending-*'
       - 'source-lab-real-parser-*'
+      - 'source-lab-one-click-*'
     paths:
       - '.github/workflows/source-lab-*.yml'
       - 'tools/source_inventory_bulk_enroll.py'
       - 'tools/source_pending_worker.py'
       - 'tools/source_live_parser_harness.py'
+      - 'tools/source_pending_approval.py'
       - 'tests/test_source_inventory_bulk_enroll.py'
       - 'tests/test_source_pending_worker.py'
       - 'tests/test_source_live_parser_harness.py'
+      - 'tests/test_source_pending_approval.py'
 
 permissions:
   contents: read
@@ -105,6 +109,16 @@ jobs:
                   '--fail-threshold 3',
                   'discarding stale batch state',
               ],
+              'source-lab-approve-ready-sources.yml': [
+                  '149634319',
+                  'source_pending_approval.py',
+                  'pending-worker-state.json',
+                  'compatibility/source-registry.json',
+                  'compatibility-farm-foundation',
+                  'source-onboarding-approval-plan.json',
+                  'last-source-onboarding-approval.json',
+                  'refusing stale write',
+              ],
           }
           root = Path('.github/workflows')
           for name, needles in required.items():
@@ -129,6 +143,20 @@ jobs:
               if marker not in worker:
                   raise SystemExit(f'source_pending_worker.py missing state contract marker: {marker}')
 
+          approval = Path('tools/source_pending_approval.py').read_text(encoding='utf-8')
+          for marker in (
+              'READY_FOR_APPROVAL',
+              'REAL_PARSER_PASS',
+              'testedVersions',
+              '"state": "ACTIVE"',
+              '"state": APPROVED',
+              'parserCoverageRequired',
+              'evidence digest mismatch',
+              'provider baseline moved after test',
+          ):
+              if marker not in approval:
+                  raise SystemExit(f'source_pending_approval.py missing approval contract marker: {marker}')
+
           harness = Path('tools/source_live_parser_harness.py').read_text(encoding='utf-8')
           for marker in (
               'real-live-parser',
@@ -151,6 +179,8 @@ jobs:
                   raise SystemExit(f'backend authorization missing capability {capability}')
           if 'optionalCapabilities' not in auth:
               raise SystemExit('new capabilities must remain backward-compatible through optionalCapabilities')
+          if 'APPROVE_READY_SOURCES' not in auth:
+              raise SystemExit('backend authorization must advertise APPROVE_READY_SOURCES')
 
           forbidden = ('SOURCE_LAB_KEYSTORE_BASE64', 'SOURCE_LAB_STORE_PASSWORD', 'SOURCE_LAB_KEY_PASSWORD')
           action_text = '\n'.join((root / name).read_text(encoding='utf-8') for name in required)
@@ -201,3 +231,10 @@ jobs:
           python3 -m py_compile tools/source_pending_worker.py tools/source_live_parser_harness.py
           python3 tests/test_source_pending_worker.py
           python3 tests/test_source_live_parser_harness.py
+
+      - name: Test one-click source onboarding approval
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/source_pending_approval.py
+          python3 tests/test_source_pending_approval.py

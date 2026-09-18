@@ -86,6 +86,7 @@ jobs:
               ],
               "optionalCapabilities": [
                   "ADD_TO_FARM",
+                  "APPROVE_READY_SOURCES",
               ],
           }
           Path("build/source-lab-authz/metadata.json").write_text(
@@ -128,7 +129,7 @@ jobs:
           if metadata["runId"] != os.environ["GITHUB_RUN_ID"]:
               raise SystemExit("metadata run id mismatch")
           legacy = {"RUN_FARM", "APPROVE", "PROMOTE", "SIGN", "PUBLISH"}
-          optional = {"ADD_TO_FARM"}
+          optional = {"ADD_TO_FARM", "APPROVE_READY_SOURCES"}
           if set(metadata.get("capabilities", [])) != legacy:
               raise SystemExit("legacy metadata capability set mismatch")
           if set(metadata.get("optionalCapabilities", [])) != optional:
@@ -213,7 +214,7 @@ jobs:
               if metadata.get("runId") != os.environ["GITHUB_RUN_ID"]:
                   raise SystemExit("artifact run id mismatch")
               legacy = {"RUN_FARM", "APPROVE", "PROMOTE", "SIGN", "PUBLISH"}
-              optional = {"ADD_TO_FARM"}
+              optional = {"ADD_TO_FARM", "APPROVE_READY_SOURCES"}
               if set(metadata.get("capabilities", [])) != legacy:
                   raise SystemExit("artifact legacy capability set mismatch")
               if set(metadata.get("optionalCapabilities", [])) != optional:
