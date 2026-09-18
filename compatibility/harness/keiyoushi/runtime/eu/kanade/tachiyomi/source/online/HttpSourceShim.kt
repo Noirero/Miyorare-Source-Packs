@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.source.online
 
 import eu.kanade.tachiyomi.network.NetworkHelper
+import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
@@ -16,15 +17,15 @@ import okhttp3.OkHttpClient
  * minimal host behavior required to execute the pinned source parser without modifying it.
  */
 @Suppress("unused")
-abstract class HttpSource {
+abstract class HttpSource : Source {
     protected val network: NetworkHelper = NetworkHelper()
 
-    abstract val name: String
-    abstract val lang: String
+    abstract override val name: String
+    abstract override val lang: String
     abstract val baseUrl: String
 
     open val versionId: Int = 1
-    open val id: Long = 0L
+    override val id: Long = 0L
 
     // KeiSource replaces this delegate reflectively during initialization, matching the host app.
     val headers: Headers by lazy { headersBuilder().build() }
