@@ -121,21 +121,28 @@ private fun FarmRunScreen(onClose: () -> Unit) {
 
     suspend fun loadReadyState() {
         try {
+            ui = ui.copy(
+                phase = FarmRunPhase.READY,
+                canStart = false,
+                error = null,
+                availabilityReason = "CHECKING_FARM_SNAPSHOT",
+            )
             val snapshot = withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
-            val control = SourceLabControlClient.resolveState(context, snapshot)
-            val availability = control.actions.getValue(SourceLabControlAction.RUN_FARM)
+            ui = ui.copy(
+                snapshot = snapshot,
+                availabilityReason = "CHECKING_OWNER_AND_BACKEND",
+            )
 
-            val activeRun = runCatching {
-                val stored = GitHubOwnerCredentialVault.load(context) ?: return@runCatching null
-                val identity = GitHubOwnerAuthentication.restoreOwnerLogin(
-                    GitHubOwnerAuthentication.resolveClientId(),
-                    stored,
-                )
-                GitHubOwnerCredentialVault.save(context, identity.credential)
-                withContext(Dispatchers.IO) {
-                    FarmRunMonitor.latestOwnerRun(identity.accessToken)
-                }
-            }.getOrNull()
+            // RUN_FARM does not depend on approve/sign/publish receipt history.
+            // Use the dedicated fast path instead of resolveState(), which would
+            // issue three unnecessary GitHub Actions history requests.
+            val availability = SourceLabControlClient.resolveRunFarmAvailability(context, snapshot)
+
+            ui = ui.copy(availabilityReason = "CHECKING_RECOVERY_RUN")
+            val monitorToken = SourceLabControlClient.resolveValidatedOwnerAccessToken(context)
+            val activeRun = withContext(Dispatchers.IO) {
+                FarmRunMonitor.latestOwnerRun(monitorToken)
+            }
 
             if (activeRun != null && activeRun.status != "completed") {
                 dispatchLocked = true
@@ -150,11 +157,12 @@ private fun FarmRunScreen(onClose: () -> Unit) {
                 return
             }
 
+            dispatchLocked = false
             ui = FarmRunUiState(
                 phase = FarmRunPhase.READY,
                 snapshot = snapshot,
-                canStart = availability.available && !dispatchLocked,
-                availabilityReason = if (dispatchLocked) "RECOVERY_DISPATCH_ALREADY_REQUESTED" else availability.reason,
+                canStart = availability.available,
+                availabilityReason = availability.reason,
             )
         } catch (error: SourceLabControlException) {
             ui = FarmRunUiState(
@@ -193,17 +201,11 @@ private fun FarmRunScreen(onClose: () -> Unit) {
         )
 
         val monitorCredential = runCatching {
-            val stored = GitHubOwnerCredentialVault.load(context)
-                ?: throw SourceLabControlException("OWNER_CREDENTIAL_REQUIRED")
-            val identity = GitHubOwnerAuthentication.restoreOwnerLogin(
-                GitHubOwnerAuthentication.resolveClientId(),
-                stored,
-            )
-            GitHubOwnerCredentialVault.save(context, identity.credential)
+            val accessToken = SourceLabControlClient.resolveValidatedOwnerAccessToken(context)
             val baselineRunId = withContext(Dispatchers.IO) {
-                FarmRunMonitor.latestOwnerRunId(identity.accessToken) ?: 0L
+                FarmRunMonitor.latestOwnerRunId(accessToken) ?: 0L
             }
-            identity.accessToken to baselineRunId
+            accessToken to baselineRunId
         }.getOrNull()
         val monitorToken = monitorCredential?.first
         val baselineRunId = monitorCredential?.second ?: 0L
@@ -211,8 +213,7 @@ private fun FarmRunScreen(onClose: () -> Unit) {
         var monitorJob: Job? = null
         var clockJob: Job? = null
         try {
-            val control = SourceLabControlClient.resolveState(context, snapshot)
-            val availability = control.actions.getValue(SourceLabControlAction.RUN_FARM)
+            val availability = SourceLabControlClient.resolveRunFarmAvailability(context, snapshot)
             if (!availability.available) throw SourceLabControlException(availability.reason)
 
             clockJob = scope.launch {
@@ -314,13 +315,7 @@ private fun FarmRunScreen(onClose: () -> Unit) {
         val existing = ui.progress
         if (ui.phase == FarmRunPhase.RUNNING && existing != null) {
             val monitorToken = runCatching {
-                val stored = GitHubOwnerCredentialVault.load(context) ?: return@runCatching null
-                val identity = GitHubOwnerAuthentication.restoreOwnerLogin(
-                    GitHubOwnerAuthentication.resolveClientId(),
-                    stored,
-                )
-                GitHubOwnerCredentialVault.save(context, identity.credential)
-                identity.accessToken
+                SourceLabControlClient.resolveValidatedOwnerAccessToken(context)
             }.getOrNull()
             if (monitorToken != null) {
                 while (ui.phase == FarmRunPhase.RUNNING) {
