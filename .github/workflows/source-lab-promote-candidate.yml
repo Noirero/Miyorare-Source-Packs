@@ -14,7 +14,7 @@ on:
         type: number
 
 permissions:
-  actions: read
+  actions: write
   contents: write
 
 concurrency:
@@ -177,8 +177,16 @@ jobs:
           approval = json.loads(Path("build/approval-proof.json").read_text(encoding="utf-8"))
           registry_path = Path("farm/compatibility/source-registry.json")
           status_path = Path("farm/upstream/status.json")
+          worker_state_path = Path("farm/automation/pending-worker-state.json")
           registry = json.loads(registry_path.read_text(encoding="utf-8"))
           status = json.loads(status_path.read_text(encoding="utf-8"))
+          worker_state = (
+              json.loads(worker_state_path.read_text(encoding="utf-8"))
+              if worker_state_path.is_file()
+              else None
+          )
+          if worker_state is not None and worker_state.get("schemaVersion") != 2:
+              raise SystemExit("pending worker state schema must remain 2")
 
           if status.get("schema") != 3:
               raise SystemExit("upstream status schema must remain 3")
@@ -225,6 +233,42 @@ jobs:
               provider_status["reason"] = "owner-approved-exact-promotion"
               provider_status.pop("candidate", None)
 
+          if worker_state is not None:
+              source_by_id = {
+                  source.get("canonicalId"): source
+                  for source in registry.get("sources", [])
+                  if isinstance(source, dict)
+              }
+              invalidated = []
+              for canonical_id, entry in worker_state.get("sources", {}).items():
+                  if not isinstance(entry, dict) or entry.get("state") != "READY_FOR_APPROVAL":
+                      continue
+                  source = source_by_id.get(canonical_id)
+                  if not isinstance(source, dict):
+                      continue
+                  if source.get("compatibilityEnrollment", {}).get("state") != "PENDING":
+                      continue
+                  current = source.get("currentVersion", {})
+                  providers = source.get("providers", [])
+                  expected = {
+                      provider: current.get(provider)
+                      for provider in providers
+                  }
+                  if entry.get("testedVersions") == expected:
+                      continue
+                  entry["state"] = "RETRY"
+                  entry["approvalState"] = "NOT_READY"
+                  entry["ownerActionRequired"] = False
+                  entry["publishEligible"] = False
+                  entry["revalidationReason"] = "PROVIDER_BASELINE_CHANGED"
+                  entry["invalidatedByPromotionRunId"] = int(os.environ["GITHUB_RUN_ID"])
+                  invalidated.append(canonical_id)
+              worker_state["lastPromotionInvalidation"] = {
+                  "promotionRunId": int(os.environ["GITHUB_RUN_ID"]),
+                  "candidateSetId": pending["candidateSetId"],
+                  "sources": sorted(invalidated),
+              }
+
           status.pop("approvalCandidate", None)
           status["lastPromotion"] = {
               "schemaVersion": 1,
@@ -247,6 +291,11 @@ jobs:
           status_path.write_text(
               json.dumps(status, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
           )
+          if worker_state is not None:
+              worker_state_path.write_text(
+                  json.dumps(worker_state, indent=2, ensure_ascii=False) + "\n",
+                  encoding="utf-8",
+              )
           PY
 
       - name: Refuse promotion if foundation moved after validation
@@ -265,7 +314,7 @@ jobs:
           set -euo pipefail
           git -C farm config user.name github-actions[bot]
           git -C farm config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git -C farm add upstream/registry.json upstream/status.json compatibility/source-registry.json
+          git -C farm add upstream/registry.json upstream/status.json compatibility/source-registry.json automation/pending-worker-state.json
           git -C farm diff --cached --quiet && {
             echo "Promotion produced no state change; replay rejected." >&2
             exit 1
@@ -315,3 +364,11 @@ jobs:
             build/promotion-receipts/*.json
           if-no-files-found: error
           retention-days: 30
+
+      - name: Revalidate PENDING sources against promoted provider baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run source-lab-pending-worker.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main
