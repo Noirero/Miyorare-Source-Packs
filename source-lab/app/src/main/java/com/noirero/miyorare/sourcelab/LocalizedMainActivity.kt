@@ -143,7 +143,7 @@ private fun LocalizedSourceLabApp() {
             }
         }
     }
-
+}
 
 @Composable
 private fun RowScope.LocalizedNavItem(
