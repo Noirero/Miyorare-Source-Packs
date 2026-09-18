@@ -716,6 +716,8 @@ jobs:
             echo
             echo "Tag: \`$TAG\`"
             echo "Pinned builder: \`${{ needs.resolve-source.outputs.source_commit }}\`"
+            echo "Farm snapshot: \`${{ needs.resolve-source.outputs.farm_commit }}\`"
+            echo "Compatibility snapshot ID: \`${{ needs.stage-draft.outputs.compatibility_snapshot_id }}\`"
             echo 'The release remained draft through payload upload, manifest validation, release-lock generation, OIDC attestation, and remote re-download audit.'
             echo 'Stable publication occurred only after seal-before-publish verification succeeded.'
           } >> "$GITHUB_STEP_SUMMARY"
