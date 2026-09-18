@@ -337,12 +337,16 @@ def finalize_results(profile_results: dict[str, Any], parser_results: dict[str, 
             item["category"] == "AUTOMATION_INFRASTRUCTURE"
             for item in diagnoses
         )
+        hard_parser_failure = any(
+            item["category"] == "AUTH_REQUIRED"
+            for item in diagnoses
+        )
         if infrastructure_only:
             attempts = max(0, attempts - 1)
             row["attempts"] = attempts
         outcome = READY if all_pass else (
             RETRY if infrastructure_only
-            else (HELD if attempts >= fail_threshold else RETRY)
+            else (HELD if hard_parser_failure or attempts >= fail_threshold else RETRY)
         )
         evidence = dict(row.get("evidence", {}))
         evidence["parser"] = {"executionMode": parser_results.get("executionMode", "real-live-parser"), "memberships": parser_evidence, "gate": "PASS" if all_pass else "FAIL"}
