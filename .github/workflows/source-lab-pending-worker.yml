@@ -245,7 +245,7 @@ jobs:
           for module in "${modules[@]}"; do
             [[ -n "$module" ]] || continue
             task=":${module//\//:}:compileDebugKotlin"
-            if (cd _upstream/keiyoushi && chmod +x gradlew && ./gradlew "$task" --no-daemon); then ok=true; else ok=false; fi
+            if (cd _upstream/keiyoushi && chmod +x gradlew && ./gradlew "$task"); then ok=true; else ok=false; fi
             MODULE="$module" OK="$ok" python3 - <<'PY'
           import json, os
           from pathlib import Path
@@ -408,7 +408,7 @@ jobs:
           while IFS=$'\t' read -r module test; do
             [[ -n "$module" && -n "$test" ]] || continue
             task=":${module//\//:}:testDebugUnitTest"
-            (cd _upstream/keiyoushi && chmod +x gradlew && ./gradlew "$task" --tests "$test" --no-daemon) || true
+            (cd _upstream/keiyoushi && chmod +x gradlew && ./gradlew "$task" --tests "$test") || true
           done < farm/build/keiyoushi-tests.tsv
 
       - name: Collect real parser evidence
