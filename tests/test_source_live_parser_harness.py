@@ -46,6 +46,7 @@ class LiveParserHarnessTest(unittest.TestCase):
         source = harness.keiyoushi_test_source("AutoLive_keiyoushi_test")
         self.assertIn("import keiyoushi.source.KeiSource", source)
         self.assertIn("createSources", source)
+        self.assertIn("target.javaClass.getMethod(name, *parameterTypes)", source)
         self.assertIn("actual is KeiSource", source)
         self.assertIn("actual.getPopularManga(1)", source)
         self.assertIn("actual.fetchMangaUpdate(", source)
