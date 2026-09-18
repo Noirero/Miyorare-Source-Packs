@@ -193,6 +193,8 @@ private fun ReportsScreen(onClose: () -> Unit) {
     }
 
 
+}
+
 @Composable
 private fun FarmReportSummary(snapshot: LiveFarmSnapshot) {
     val latest = snapshot.recentRuns.firstOrNull()
