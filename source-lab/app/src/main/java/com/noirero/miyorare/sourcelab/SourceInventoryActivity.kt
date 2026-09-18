@@ -38,6 +38,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,14 +57,26 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 class SourceInventoryActivity : ComponentActivity() {
+    private val resumeGeneration = mutableIntStateOf(0)
+    private var hasResumedOnce = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             SourceLabPhase1Theme {
                 SourceLabAppSurface {
-                    SourceInventoryScreen { finish() }
+                    SourceInventoryScreen(resumeGeneration.intValue) { finish() }
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (hasResumedOnce) {
+            resumeGeneration.intValue += 1
+        } else {
+            hasResumedOnce = true
         }
     }
 }
@@ -80,7 +93,7 @@ private data class InventoryUiState(
 )
 
 @Composable
-private fun SourceInventoryScreen(onClose: () -> Unit) {
+private fun SourceInventoryScreen(resumeGeneration: Int, onClose: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var ui by remember { mutableStateOf(InventoryUiState()) }
@@ -152,7 +165,7 @@ private fun SourceInventoryScreen(onClose: () -> Unit) {
         )
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(resumeGeneration) {
         val cached = SourceInventoryCacheReader.load(context)
         if (cached != null) {
             ui = ui.copy(inventory = cached, initialLoading = false, refreshing = true)
