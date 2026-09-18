@@ -489,13 +489,7 @@ internal object SourceLabControlClient {
 
         val proof = SourceLabBackendAuthorization.authorize(identity.accessToken)
         if (!proof.authorized) throw SourceLabControlException(proof.reason)
-        val baseSession = proof.applyTo(identity.session)
-        val capabilities = try {
-            SourceLabBackendCapabilityReader.read(identity.accessToken, proof)
-        } catch (error: Throwable) {
-            throw SourceLabControlException(error.message ?: "BACKEND_CAPABILITY_PROOF_INVALID")
-        }
-        val session = baseSession.copy(backendCapabilities = capabilities)
+        val session = proof.applyTo(identity.session)
         val decision = SourceLabAccessPolicy.evaluate(session)
         if (!decision.canControl) throw SourceLabControlException(decision.reason)
         SourceLabOwnerSessionStore.set(session)
