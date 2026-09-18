@@ -65,6 +65,7 @@ class OwnerGateActivity : ComponentActivity() {
         val target = if (ownerAuthorized) AutonomousOwnerControlActivity::class.java else LocalizedMainActivity::class.java
         startActivity(
             Intent(this, target).apply {
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 putExtra("source_lab_backend_authorized", ownerAuthorized)
                 val session = SourceLabOwnerSessionStore.get()
                 putExtra(
