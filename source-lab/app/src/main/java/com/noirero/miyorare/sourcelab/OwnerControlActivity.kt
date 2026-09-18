@@ -85,21 +85,44 @@ private fun OwnerControlScreen() {
     var operationMessage by remember { mutableStateOf<String?>(null) }
 
     suspend fun refreshDashboard() {
-        val hadData = dashboard.snapshot != null && dashboard.control != null
+        val hadSnapshot = dashboard.snapshot != null
         dashboard = dashboard.copy(
             control = null,
-            initialLoading = !hadData,
-            refreshing = hadData,
+            initialLoading = !hadSnapshot,
+            refreshing = hadSnapshot,
             error = null,
         )
+
+        val snapshot = try {
+            withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
+        } catch (error: Throwable) {
+            dashboard = dashboard.copy(
+                control = null,
+                initialLoading = false,
+                refreshing = false,
+                error = error.message ?: error.javaClass.simpleName,
+            )
+            return
+        }
+
+        // Advanced Recovery is primarily a diagnostic/recovery surface. Show
+        // fresh read-only state immediately; privileged capability validation
+        // can finish afterwards without blanking the whole screen.
+        dashboard = dashboard.copy(
+            snapshot = snapshot,
+            control = null,
+            initialLoading = false,
+            refreshing = true,
+            error = null,
+        )
+
         dashboard = try {
-            val snapshot = withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
             val control = SourceLabControlClient.resolveState(context, snapshot)
-            OwnerDashboardUiState(
-                snapshot = snapshot,
+            dashboard.copy(
                 control = control,
                 initialLoading = false,
                 refreshing = false,
+                error = null,
             )
         } catch (error: SourceLabControlException) {
             dashboard.copy(
@@ -241,11 +264,11 @@ private fun OwnerControlScreen() {
             }
         }
 
-        if (snapshot != null && control != null && dashboard.error == null) {
+        if (snapshot != null) {
             item(key = "farm-status") {
                 FarmStatusCard(
                     snapshot = snapshot,
-                    availability = control.actions.getValue(SourceLabControlAction.RUN_FARM),
+                    availability = control?.actions?.get(SourceLabControlAction.RUN_FARM),
                     running = runningAction == SourceLabControlAction.RUN_FARM,
                     onRun = { context.startActivity(Intent(context, FarmRunActivity::class.java)) },
                 )
@@ -264,33 +287,35 @@ private fun OwnerControlScreen() {
             item(key = "approval") {
                 PendingApprovalCard(
                     snapshot = snapshot,
-                    availability = control.actions.getValue(SourceLabControlAction.APPROVE),
+                    availability = control?.actions?.get(SourceLabControlAction.APPROVE),
                     onReview = { context.startActivity(Intent(context, ApprovalReviewActivity::class.java)) },
                 )
             }
 
-            val recoveryActions = listOf(
-                SourceLabControlAction.PROMOTE,
-                SourceLabControlAction.SIGN,
-                SourceLabControlAction.PUBLISH,
-            ).filter { control.actions.getValue(it).available }
-            if (recoveryActions.isNotEmpty()) {
-                item(key = "recovery-title") {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("Recovery actions", fontWeight = FontWeight.Bold)
-                        Text(
-                            "Only shown when the backend exposes a valid recovery capability.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            if (control != null && dashboard.error == null) {
+                val recoveryActions = listOf(
+                    SourceLabControlAction.PROMOTE,
+                    SourceLabControlAction.SIGN,
+                    SourceLabControlAction.PUBLISH,
+                ).filter { control.actions.getValue(it).available }
+                if (recoveryActions.isNotEmpty()) {
+                    item(key = "recovery-title") {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Recovery actions", fontWeight = FontWeight.Bold)
+                            Text(
+                                "Only shown when the backend exposes a valid recovery capability.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    items(recoveryActions, key = { "recovery-${it.name}" }) { action ->
+                        RecoveryActionCard(
+                            availability = control.actions.getValue(action),
+                            running = runningAction == action,
+                            onClick = { confirmation = action },
                         )
                     }
-                }
-                items(recoveryActions, key = { "recovery-${it.name}" }) { action ->
-                    RecoveryActionCard(
-                        availability = control.actions.getValue(action),
-                        running = runningAction == action,
-                        onClick = { confirmation = action },
-                    )
                 }
             }
         }
@@ -367,7 +392,7 @@ private fun OwnerStatusCard(
 @Composable
 private fun FarmStatusCard(
     snapshot: LiveFarmSnapshot,
-    availability: SourceLabActionAvailability,
+    availability: SourceLabActionAvailability?,
     running: Boolean,
     onRun: () -> Unit,
 ) {
@@ -376,7 +401,8 @@ private fun FarmStatusCard(
         snapshot.lastPromotion != null && snapshot.lastPublish?.candidateSetId != snapshot.lastPromotion.candidateSetId -> "Promotion pending"
         else -> "Ready for Farm"
     }
-    SourceLabCard(tone = if (availability.available) SourceLabTone.ACCENT else SourceLabTone.NEUTRAL) {
+    val available = availability?.available == true
+    SourceLabCard(tone = if (available) SourceLabTone.ACCENT else SourceLabTone.NEUTRAL) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Farm Status", fontWeight = FontWeight.Bold)
             Row(
@@ -393,20 +419,28 @@ private fun FarmStatusCard(
                     )
                 }
                 SourceLabStatusBadge(
-                    if (availability.available) "Available" else "Locked",
-                    if (availability.available) SourceLabTone.GOOD else SourceLabTone.NEUTRAL,
+                    when {
+                        available -> "Available"
+                        availability == null -> "Verifying"
+                        else -> "Locked"
+                    },
+                    when {
+                        available -> SourceLabTone.GOOD
+                        availability == null -> SourceLabTone.ACCENT
+                        else -> SourceLabTone.NEUTRAL
+                    },
                 )
             }
             SourceLabSecondaryButton(
                 text = if (running) "Recovery Farm running…" else "Open Manual Farm Recovery",
                 onClick = onRun,
-                enabled = availability.available && !running,
+                enabled = available && !running,
                 modifier = Modifier.fillMaxWidth(),
                 icon = SourceLabIconKind.TEST,
             )
-            if (!availability.available) {
+            if (!available) {
                 Text(
-                    availability.reason,
+                    availability?.reason ?: "Owner/backend capability is still being verified.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -514,7 +548,7 @@ private fun RecentActivityCard(runs: List<LiveFarmRun>) {
 @Composable
 private fun PendingApprovalCard(
     snapshot: LiveFarmSnapshot,
-    availability: SourceLabActionAvailability,
+    availability: SourceLabActionAvailability?,
     onReview: () -> Unit,
 ) {
     val candidate = snapshot.approvalCandidate
@@ -548,9 +582,13 @@ private fun PendingApprovalCard(
                     onClick = onReview,
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Review Candidate") }
-                if (!availability.available) {
+                if (availability?.available != true) {
                     Text(
-                        "Approval currently locked · ${availability.reason}",
+                        if (availability == null) {
+                            "Approval capability is still being verified. Candidate review remains available."
+                        } else {
+                            "Approval currently locked · ${availability.reason}"
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
