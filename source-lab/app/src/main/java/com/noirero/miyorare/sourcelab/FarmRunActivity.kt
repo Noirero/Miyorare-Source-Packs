@@ -57,7 +57,7 @@ class FarmRunActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             SourceLabPhase1Theme {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                SourceLabAppSurface {
                     FarmRunScreen(onClose = { finish() })
                 }
             }

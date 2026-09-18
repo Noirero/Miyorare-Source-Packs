@@ -51,10 +51,7 @@ class OwnerControlActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             SourceLabPhase1Theme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background,
-                ) {
+                SourceLabAppSurface {
                     OwnerControlScreen()
                 }
             }

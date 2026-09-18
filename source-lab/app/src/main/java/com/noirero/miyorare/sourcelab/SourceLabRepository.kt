@@ -1,5 +1,8 @@
 package com.noirero.miyorare.sourcelab
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -124,9 +127,25 @@ internal object SourceLabRepository {
         "https://raw.githubusercontent.com/$repository/$farmBranch"
     private const val apiBase = "https://api.github.com/repos/$repository"
 
-    fun loadSnapshot(): LiveFarmSnapshot {
-        val registry = JSONObject(fetchText("$rawBase/compatibility/source-registry.json"))
-        val status = JSONObject(fetchText("$rawBase/upstream/status.json"))
+    suspend fun loadSnapshot(): LiveFarmSnapshot = coroutineScope {
+        // These resources are independent. Fetching them in parallel keeps the
+        // dashboard bounded by the slowest GitHub request instead of the sum of
+        // four network round-trips.
+        val registryJob = async(Dispatchers.IO) {
+            JSONObject(fetchText("$rawBase/compatibility/source-registry.json"))
+        }
+        val statusJob = async(Dispatchers.IO) {
+            JSONObject(fetchText("$rawBase/upstream/status.json"))
+        }
+        val recentRunsJob = async(Dispatchers.IO) {
+            runCatching { loadRecentFarmRuns() }.getOrDefault(emptyList())
+        }
+        val pendingWorkerJob = async(Dispatchers.IO) {
+            runCatching { loadPendingWorkerState() }.getOrNull()
+        }
+
+        val registry = registryJob.await()
+        val status = statusJob.await()
 
         val scope = registry.getJSONObject("scope")
         val sourceArray = registry.getJSONArray("sources")
@@ -170,13 +189,10 @@ internal object SourceLabRepository {
             )
         }.sortedBy { it.id }.toList()
 
-        val recentRuns = runCatching { loadRecentFarmRuns() }.getOrDefault(emptyList())
-        val pendingWorker = runCatching { loadPendingWorkerState() }.getOrNull()
-
-        return LiveFarmSnapshot(
+        LiveFarmSnapshot(
             sources = sources,
             providers = providers,
-            recentRuns = recentRuns,
+            recentRuns = recentRunsJob.await(),
             approvalCandidate = status.optJSONObject("approvalCandidate")?.toApprovalCandidate(),
             lastPromotion = status.optJSONObject("lastPromotion")?.toPromotionState(),
             lastPublish = status.optJSONObject("lastPublish")?.toPublishState(),
@@ -185,7 +201,7 @@ internal object SourceLabRepository {
             branch = farmBranch,
             retrievedAtEpochMs = System.currentTimeMillis(),
             automation = status.optJSONObject("automation")?.toAutomationState(),
-            pendingWorker = pendingWorker,
+            pendingWorker = pendingWorkerJob.await(),
         )
     }
 

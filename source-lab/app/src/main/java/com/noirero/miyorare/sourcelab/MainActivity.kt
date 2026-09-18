@@ -23,8 +23,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            SourceLabTheme {
-                SourceLabApp()
+            SourceLabPhase1Theme {
+                SourceLabAppSurface { SourceLabApp() }
             }
         }
     }
