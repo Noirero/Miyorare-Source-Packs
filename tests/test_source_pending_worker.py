@@ -177,7 +177,7 @@ class PendingWorkerTest(unittest.TestCase):
 
     def test_ready_and_held_are_not_requeued(self) -> None:
         registry = {"sources": [source("ready", "id"), source("held", "en"), source("pending", "en")]}
-        state = worker.normalize_state({"sources": {"ready": {"state": worker.READY}, "held": {"state": worker.HELD}}})
+        state = worker.normalize_state({"schemaVersion": 2, "sources": {"ready": {"state": worker.READY}, "held": {"state": worker.HELD}}})
         plan = worker.build_plan(registry, state, 8)
         self.assertEqual([item["canonicalId"] for item in plan["items"]], ["pending"])
 
