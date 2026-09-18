@@ -53,6 +53,11 @@ def canonical_sources(registry: dict[str, Any]) -> list[dict[str, Any]]:
 def normalize_state(raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raw = {}
+    # Worker schema v1 only proved compile + reachability. Those READY/HELD
+    # decisions are not valid evidence for schema v2 real-parser onboarding,
+    # so migrate fail-closed by re-queuing every legacy entry from scratch.
+    if raw.get("schemaVersion") != 2:
+        return {"schemaVersion": 2, "sources": {}}
     sources = raw.get("sources")
     if not isinstance(sources, dict):
         sources = {}
