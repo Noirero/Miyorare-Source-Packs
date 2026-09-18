@@ -8,6 +8,7 @@ import eu.kanade.tachiyomi.source.model.SManga
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
+import okhttp3.Request
 
 /**
  * Test-only host shim for Keiyoushi extension bytecode.
@@ -43,11 +44,23 @@ abstract class HttpSource : Source {
         this.url = withoutDomain(url)
     }
 
-    open fun getMangaUrl(manga: SManga): String = baseUrl + manga.url
+    open fun getMangaUrl(manga: SManga): String = absoluteUrl(manga.url)
 
-    open fun getChapterUrl(chapter: SChapter): String = baseUrl + chapter.url
+    open fun getChapterUrl(chapter: SChapter): String = absoluteUrl(chapter.url)
+
+    open fun mangaDetailsRequest(manga: SManga): Request =
+        Request.Builder().url(getMangaUrl(manga)).headers(headers).get().build()
+
+    open fun chapterListRequest(manga: SManga): Request =
+        Request.Builder().url(getMangaUrl(manga)).headers(headers).get().build()
+
+    open fun pageListRequest(chapter: SChapter): Request =
+        Request.Builder().url(getChapterUrl(chapter)).headers(headers).get().build()
 
     open fun getFilterList(): FilterList = FilterList()
+
+    private fun absoluteUrl(value: String): String =
+        if (value.startsWith("http://") || value.startsWith("https://")) value else baseUrl + value
 
     private fun withoutDomain(value: String): String {
         val parsed = value.toHttpUrlOrNull() ?: return value
