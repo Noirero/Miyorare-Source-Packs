@@ -15,7 +15,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 
-/** Deterministic test-only network hook used by real Keiyoushi parser harnesses. */
+/** Optional deterministic fixture hook. Real-parser tests use live network when no fixture is installed. */
 object DeterministicNetwork {
     data class FixtureResponse(
         val body: String,
@@ -35,8 +35,8 @@ object DeterministicNetwork {
         responder = null
     }
 
-    internal fun respond(request: Request): FixtureResponse =
-        responder?.invoke(request) ?: error("Unexpected live-network attempt: ${request.method} ${request.url}")
+    internal fun respondOrNull(request: Request): FixtureResponse? =
+        responder?.invoke(request)
 }
 
 private class UncaughtExceptionInterceptor : Interceptor {
@@ -51,10 +51,10 @@ private class CloudflareInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response = chain.proceed(chain.request())
 }
 
-private class DeterministicFixtureInterceptor : Interceptor {
+private class FixtureOrLiveInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
-        val fixture = DeterministicNetwork.respond(request)
+        val fixture = DeterministicNetwork.respondOrNull(request) ?: return chain.proceed(request)
         return Response.Builder()
             .request(request)
             .protocol(Protocol.HTTP_1_1)
@@ -70,7 +70,7 @@ class NetworkHelper {
         .addInterceptor(UncaughtExceptionInterceptor())
         .addInterceptor(UserAgentInterceptor())
         .addInterceptor(CloudflareInterceptor())
-        .addInterceptor(DeterministicFixtureInterceptor())
+        .addInterceptor(FixtureOrLiveInterceptor())
         .build()
 }
 
