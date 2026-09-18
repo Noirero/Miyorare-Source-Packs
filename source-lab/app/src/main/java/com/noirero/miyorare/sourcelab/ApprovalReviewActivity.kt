@@ -103,20 +103,53 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
 
     suspend fun loadReview(keepOperation: Boolean = true) {
         ui = ui.copy(loading = ui.snapshot == null, error = null)
-        try {
-            val snapshot = withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
-            val control = SourceLabControlClient.resolveState(context, snapshot)
+        val snapshot = try {
+            withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
+        } catch (error: Throwable) {
             ui = ui.copy(
-                snapshot = snapshot,
-                control = control,
                 loading = false,
-                error = null,
-                operation = if (keepOperation) ui.operation else null,
+                error = error.message ?: error.javaClass.simpleName,
+                control = null,
             )
+            return
+        }
 
-            val candidate = snapshot.approvalCandidate
-            if (candidate != null) {
-                ui = ui.copy(comparing = true, comparisonError = null)
+        // Candidate evidence is public/read-only. Render it immediately instead
+        // of hiding the whole review behind Owner authorization.
+        val candidate = snapshot.approvalCandidate
+        ui = ui.copy(
+            snapshot = snapshot,
+            loading = false,
+            error = null,
+            operation = if (keepOperation) ui.operation else null,
+            comparisons = if (candidate == null) emptyMap() else ui.comparisons,
+            comparing = candidate != null,
+            comparisonError = null,
+        )
+
+        coroutineScope {
+            launch {
+                val controlResult = runCatching {
+                    SourceLabControlClient.resolveState(context, snapshot)
+                }
+                ui = ui.copy(
+                    control = controlResult.getOrNull(),
+                    error = controlResult.exceptionOrNull()?.let {
+                        if (it is SourceLabControlException) it.reason
+                        else it.message ?: it.javaClass.simpleName
+                    },
+                )
+            }
+
+            launch {
+                if (candidate == null) {
+                    ui = ui.copy(
+                        comparisons = emptyMap(),
+                        comparing = false,
+                        comparisonError = null,
+                    )
+                    return@launch
+                }
                 val comparisonResult = runCatching {
                     ProviderComparisonRepository.load(candidate)
                 }
@@ -127,21 +160,7 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
                         it.message ?: it.javaClass.simpleName
                     },
                 )
-            } else {
-                ui = ui.copy(comparisons = emptyMap(), comparing = false, comparisonError = null)
             }
-        } catch (error: SourceLabControlException) {
-            ui = ui.copy(
-                loading = false,
-                error = error.reason,
-                control = null,
-            )
-        } catch (error: Throwable) {
-            ui = ui.copy(
-                loading = false,
-                error = error.message ?: error.javaClass.simpleName,
-                control = null,
-            )
         }
     }
 
