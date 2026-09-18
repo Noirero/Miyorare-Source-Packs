@@ -17,6 +17,8 @@ SHA1 = "1" * 40
 SHA2 = "2" * 40
 SHA3 = "3" * 40
 SHA4 = "4" * 40
+FARM_SHA = "5" * 40
+CONTRACT_SHA = "f" * 64
 
 
 def contract():
@@ -61,6 +63,19 @@ def manifest():
             "uma": SHA2,
             "gekkoushi": SHA3,
             "keiyoushi": SHA4,
+        },
+        "compatibilitySnapshotId": MODULE.compatibility_snapshot_id(
+            CONTRACT_SHA,
+            SHA2,
+            SHA1,
+            FARM_SHA,
+            {"uma": SHA2, "gekkoushi": SHA3, "keiyoushi": SHA4},
+        ),
+        "compatibilitySnapshot": {
+            "schemaVersion": 1,
+            "algorithm": "sha256",
+            "contractSha256": CONTRACT_SHA,
+            "farmCommit": FARM_SHA,
         },
         "packs": [
             {
@@ -144,6 +159,23 @@ class SourcePackManifestTests(unittest.TestCase):
         with self.assertRaises(MODULE.ManifestError):
             MODULE.validate(data, contract())
 
+    def test_compatibility_snapshot_is_deterministic_and_fail_closed(self):
+        data = manifest()
+        expected = data["compatibilitySnapshotId"]
+        self.assertEqual(
+            expected,
+            MODULE.compatibility_snapshot_id(
+                CONTRACT_SHA,
+                SHA2,
+                SHA1,
+                FARM_SHA,
+                {"uma": SHA2, "gekkoushi": SHA3, "keiyoushi": SHA4},
+            ),
+        )
+        data["compatibilitySnapshot"]["farmCommit"] = "6" * 40
+        with self.assertRaises(MODULE.ManifestError):
+            MODULE.validate(data, contract())
+
     def test_generate_binds_real_shard_bytes(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -186,11 +218,16 @@ class SourcePackManifestTests(unittest.TestCase):
                 tsuki_api="1.0.5",
                 compatibility_epoch=1,
                 upstreams={"uma": SHA2, "gekkoushi": SHA3, "keiyoushi": SHA4},
+                farm_commit=FARM_SHA,
+                contract_sha256=CONTRACT_SHA,
                 contract=contract(),
             )
             self.assertEqual(3, result["schema"])
             self.assertEqual(SHA2, result["runtimeCompatibility"]["commit"])
             self.assertEqual(75, result["compatibility"]["minMiyorareVersionCode"])
+            self.assertEqual(FARM_SHA, result["compatibilitySnapshot"]["farmCommit"])
+            self.assertEqual(CONTRACT_SHA, result["compatibilitySnapshot"]["contractSha256"])
+            self.assertEqual(64, len(result["compatibilitySnapshotId"]))
             for pack in result["packs"]:
                 for shard in pack["shards"]:
                     self.assertEqual(64, len(shard["sha256"]))
