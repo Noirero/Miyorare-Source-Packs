@@ -218,21 +218,27 @@ internal fun SourceLabPhase1Theme(content: @Composable () -> Unit) {
  */
 @Composable
 internal fun SourceLabAppSurface(content: @Composable () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color(0xFF080B14),
-                        SourceLabBackground,
-                        Color(0xFF060910),
-                    ),
-                ),
-            )
-            .safeDrawingPadding(),
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = SourceLabBackground,
+        contentColor = MaterialTheme.colorScheme.onBackground,
     ) {
-        content()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF080B14),
+                            SourceLabBackground,
+                            Color(0xFF060910),
+                        ),
+                    ),
+                )
+                .safeDrawingPadding(),
+        ) {
+            content()
+        }
     }
 }
 
