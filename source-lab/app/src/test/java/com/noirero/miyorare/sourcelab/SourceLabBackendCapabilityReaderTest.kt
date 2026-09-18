@@ -23,11 +23,12 @@ class SourceLabBackendCapabilityReaderTest {
                     ),
                 ),
             )
-            .put("optionalCapabilities", JSONArray(listOf("ADD_TO_FARM")))
+            .put("optionalCapabilities", JSONArray(listOf("ADD_TO_FARM", "APPROVE_READY_SOURCES")))
 
         val capabilities = SourceLabBackendCapabilityReader.parseCapabilityMetadata(metadata)
         assertEquals(SourceLabControlAction.entries.toSet(), capabilities)
         assertTrue(SourceLabControlAction.ADD_TO_FARM in capabilities)
+        assertTrue(SourceLabControlAction.APPROVE_READY_SOURCES in capabilities)
     }
 
     @Test
@@ -39,6 +40,7 @@ class SourceLabBackendCapabilityReaderTest {
         val capabilities = SourceLabBackendCapabilityReader.parseCapabilityMetadata(metadata)
         assertEquals(setOf(SourceLabControlAction.RUN_FARM), capabilities)
         assertFalse(SourceLabControlAction.ADD_TO_FARM in capabilities)
+        assertFalse(SourceLabControlAction.APPROVE_READY_SOURCES in capabilities)
     }
 
     @Test(expected = IllegalStateException::class)
