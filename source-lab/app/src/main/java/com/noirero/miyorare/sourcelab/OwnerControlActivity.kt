@@ -376,7 +376,7 @@ private fun FarmStatusCard(
         snapshot.lastPromotion != null && snapshot.lastPublish?.candidateSetId != snapshot.lastPromotion.candidateSetId -> "Promotion pending"
         else -> "Ready for Farm"
     }
-    SourceLabCard(tone = when { ready -> SourceLabTone.GOOD; locked -> SourceLabTone.ERROR; else -> SourceLabTone.ACCENT }) {
+    SourceLabCard(tone = if (availability.available) SourceLabTone.ACCENT else SourceLabTone.NEUTRAL) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Farm Status", fontWeight = FontWeight.Bold)
             Row(
