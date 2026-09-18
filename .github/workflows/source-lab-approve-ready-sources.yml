@@ -1,0 +1,141 @@
+name: Source Lab Approve Ready Sources
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: source-lab-approve-ready-sources
+  cancel-in-progress: false
+
+jobs:
+  approve:
+    name: Approve exact real-parser READY sources
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPECTED_OWNER_ID: '149634319'
+    steps:
+      - name: Validate owner-only approval
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+
+      - name: Checkout control plane
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout authoritative Compatibility Farm
+        uses: actions/checkout@v5
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 0
+
+      - name: Pin authoritative Farm head
+        id: base
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(git -C farm rev-parse HEAD)"
+          remote="$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')"
+          [[ "$sha" == "$remote" ]]
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Build exact approval plan from READY v2 evidence
+        id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f farm/automation/pending-worker-state.json
+          mkdir -p farm/build farm/automation
+          python3 control/tools/source_pending_approval.py plan \
+            --registry farm/compatibility/source-registry.json \
+            --state farm/automation/pending-worker-state.json \
+            --output farm/build/source-onboarding-approval-plan.json
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          data = json.loads(Path("farm/build/source-onboarding-approval-plan.json").read_text(encoding="utf-8"))
+          print(f"count={data['count']}")
+          PY
+
+      - name: Apply owner approval atomically
+        if: steps.plan.outputs.count != '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          approved_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          python3 control/tools/source_pending_approval.py apply \
+            --registry farm/compatibility/source-registry.json \
+            --state farm/automation/pending-worker-state.json \
+            --plan farm/build/source-onboarding-approval-plan.json \
+            --approved-by "$GITHUB_ACTOR:$GITHUB_ACTOR_ID" \
+            --approved-at "$approved_at" \
+            --approval-run-id "$GITHUB_RUN_ID" \
+            --receipt farm/automation/last-source-onboarding-approval.json
+
+      - name: Refuse stale approval commit
+        if: steps.plan.outputs.count != '0'
+        env:
+          EXPECTED_FARM_SHA: ${{ steps.base.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote="$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')"
+          [[ "$remote" == "$EXPECTED_FARM_SHA" ]] || {
+            echo "Compatibility Farm changed during approval; refusing stale write." >&2
+            exit 1
+          }
+
+      - name: Commit approved source activation
+        if: steps.plan.outputs.count != '0'
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C farm config user.name 'github-actions[bot]'
+          git -C farm config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C farm add \
+            compatibility/source-registry.json \
+            automation/pending-worker-state.json \
+            automation/last-source-onboarding-approval.json
+          git -C farm diff --cached --quiet && {
+            echo "Approval produced no authoritative state change." >&2
+            exit 1
+          }
+          git -C farm commit -m "farm: approve real-parser ready sources"
+          git -C farm push origin HEAD:compatibility-farm-foundation
+          echo "farm_commit=$(git -C farm rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload immutable approval evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-onboarding-approval-${{ github.run_id }}
+          path: |
+            farm/build/source-onboarding-approval-plan.json
+            farm/automation/last-source-onboarding-approval.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          echo '## Source onboarding approval' >> "$GITHUB_STEP_SUMMARY"
+          echo "READY sources approved: ${{ steps.plan.outputs.count }}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "${{ steps.plan.outputs.count }}" == "0" ]]; then
+            echo "No schema-v2 real-parser READY sources were waiting for approval." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Activated on Farm commit: ${{ steps.commit.outputs.farm_commit }}" >> "$GITHUB_STEP_SUMMARY"
+          fi
