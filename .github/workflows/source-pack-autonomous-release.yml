@@ -320,7 +320,13 @@ jobs:
               "sourceCommit": current.get("sourceCommit"),
               "upstreams": current.get("upstreams"),
           }
-          print("needed=" + ("false" if actual == desired else "true"))
+          snapshot_id = current.get("compatibilitySnapshotId")
+          has_snapshot = (
+              isinstance(snapshot_id, str)
+              and len(snapshot_id) == 64
+              and all(c in "0123456789abcdef" for c in snapshot_id.lower())
+          )
+          print("needed=" + ("false" if actual == desired and has_snapshot else "true"))
           PY
 
       - name: Clean stale queued releases and refuse duplicate active release
