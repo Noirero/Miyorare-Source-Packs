@@ -73,12 +73,35 @@ def state_entry(state: dict[str, Any], canonical_id: str) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def current_version_binding(source: dict[str, Any]) -> dict[str, Any]:
+    providers = source.get("providers")
+    current = source.get("currentVersion")
+    if not isinstance(providers, list) or not isinstance(current, dict):
+        return {}
+    return {provider: current.get(provider) for provider in providers}
+
+
+def ready_evidence_is_stale(source: dict[str, Any], worker_state: dict[str, Any]) -> bool:
+    if worker_state.get("state") != READY:
+        return False
+    tested = worker_state.get("testedVersions")
+    current = current_version_binding(source)
+    if not isinstance(tested, dict) or not current:
+        return True
+    return tested != current
+
+
 def eligible(source: dict[str, Any], state: dict[str, Any]) -> bool:
     enrollment = source.get("compatibilityEnrollment")
     if not isinstance(enrollment, dict) or enrollment.get("state") != "PENDING":
         return False
     worker_state = state_entry(state, source.get("canonicalId", ""))
-    return worker_state.get("state") not in {READY, HELD, "APPROVED"}
+    status = worker_state.get("state")
+    if status in {HELD, "APPROVED"}:
+        return False
+    if status == READY:
+        return ready_evidence_is_stale(source, worker_state)
+    return True
 
 
 def build_plan(registry: dict[str, Any], state: dict[str, Any], batch_size: int) -> dict[str, Any]:
@@ -98,11 +121,17 @@ def build_plan(registry: dict[str, Any], state: dict[str, Any], batch_size: int)
 
     retry_rows = [
         row for row in rows
-        if state_entry(state, row[-1]["canonicalId"]).get("state") == RETRY
+        if (
+            state_entry(state, row[-1]["canonicalId"]).get("state") == RETRY
+            or ready_evidence_is_stale(
+                row[-1],
+                state_entry(state, row[-1]["canonicalId"]),
+            )
+        )
     ]
     fresh_rows = [
         row for row in rows
-        if state_entry(state, row[-1]["canonicalId"]).get("state") != RETRY
+        if row not in retry_rows
     ]
 
     limit = max(1, batch_size)
@@ -138,7 +167,17 @@ def build_plan(registry: dict[str, Any], state: dict[str, Any], batch_size: int)
     return {
         "schemaVersion": 2,
         "batchSize": len(selected),
-        "retrySlots": sum(1 for item in selected if state_entry(state, item["canonicalId"]).get("state") == RETRY),
+        "retrySlots": sum(
+            1
+            for item in selected
+            if (
+                state_entry(state, item["canonicalId"]).get("state") == RETRY
+                or ready_evidence_is_stale(
+                    next(source for source in canonical_sources(registry) if source["canonicalId"] == item["canonicalId"]),
+                    state_entry(state, item["canonicalId"]),
+                )
+            )
+        ),
         "items": selected,
     }
 
