@@ -296,6 +296,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test -f farm/compatibility/harness/keiyoushi/runtime/eu/kanade/tachiyomi/source/SourceFactoryShim.kt
           mapfile -t modules < <(python3 - <<'PY'
           import json
           from pathlib import Path
