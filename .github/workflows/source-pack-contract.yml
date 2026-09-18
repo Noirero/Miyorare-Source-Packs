@@ -285,6 +285,7 @@ jobs:
           grep -Fq 'release_eligibility.py reconcile' .github/workflows/source-lab-promote-candidate.yml
           grep -Fq 'tools/source_pack_manifest.py generate' "$release"
           grep -Fq -- '--farm-commit "$FARM_COMMIT"' "$release"
+          grep -Fq -- '--require-compatibility-snapshot' "$release"
           grep -Fq 'needs.resolve-source.outputs.farm_commit' "$release"
           grep -Fq 'compatibilitySnapshotId' tools/source_pack_manifest.py
           grep -Fq "'compatibilitySnapshotId': snapshot_id" "$seal"
