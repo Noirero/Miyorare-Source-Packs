@@ -38,6 +38,13 @@ jobs:
         with:
           path: source-packs
 
+      - name: Checkout authoritative Compatibility Farm
+        uses: actions/checkout@v5
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 1
+
       - name: Validate version release and tag immutability
         shell: bash
         run: |
@@ -56,19 +63,43 @@ jobs:
       - name: Validate upstream registry
         run: python3 source-packs/tools/upstream_sync.py validate --registry source-packs/upstream/registry.json
 
-      - name: Resolve last-known-good upstream pins
+      - name: Resolve approved Compatibility Farm provider baselines
         id: registry
         shell: bash
         run: |
+          set -euo pipefail
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           from pathlib import Path
 
-          registry = json.loads(Path('source-packs/upstream/registry.json').read_text(encoding='utf-8'))
-          providers = registry['providers']
-          print(f"uma_commit={providers['uma']['lastKnownGood']}")
-          print(f"gekkoushi_commit={providers['gekkoushi']['lastKnownGood']}")
-          print(f"keiyoushi_commit={providers['keiyoushi']['lastKnownGood']}")
+          source_registry = json.loads(Path('farm/compatibility/source-registry.json').read_text(encoding='utf-8'))
+          status = json.loads(Path('farm/upstream/status.json').read_text(encoding='utf-8'))
+          farm_registry = json.loads(Path('farm/upstream/registry.json').read_text(encoding='utf-8'))
+          if status.get('schema') != 3:
+              raise SystemExit('authoritative Farm status schema must be 3')
+          baselines = source_registry.get('providerBaselines')
+          if not isinstance(baselines, dict):
+              raise SystemExit('authoritative Farm providerBaselines missing')
+          provider_status = status.get('providers')
+          if not isinstance(provider_status, dict):
+              raise SystemExit('authoritative Farm provider status missing')
+          farm_providers = farm_registry.get('providers')
+          if not isinstance(farm_providers, dict):
+              raise SystemExit('authoritative Farm upstream registry providers missing')
+
+          for provider in ('uma', 'gekkoushi', 'keiyoushi'):
+              commit = baselines.get(provider)
+              if not isinstance(commit, str) or len(commit) != 40:
+                  raise SystemExit(f'invalid approved baseline for {provider}')
+              item = provider_status.get(provider)
+              if not isinstance(item, dict):
+                  raise SystemExit(f'provider status missing for {provider}')
+              if item.get('activeCommit') != commit or item.get('lastKnownGood') != commit:
+                  raise SystemExit(f'{provider} Farm baseline is not active/LKG')
+              registry_item = farm_providers.get(provider)
+              if not isinstance(registry_item, dict) or registry_item.get('lastKnownGood') != commit:
+                  raise SystemExit(f'{provider} Farm upstream registry disagrees with approved baseline')
+              print(f"{provider}_commit={commit}")
           PY
 
       - name: Resolve pinned Miyorare builder baseline
@@ -204,7 +235,7 @@ jobs:
       - name: Materialize validated upstream pins
         run: |
           python3 source-packs/tools/upstream_sync.py materialize \
-            --registry source-packs/upstream/registry.json \
+            --registry farm/upstream/registry.json \
             --miyorare-root miyorare
 
       - name: Verify canonical multi-upstream aliases
@@ -345,7 +376,7 @@ jobs:
       - name: Materialize validated upstream pins
         run: |
           python3 source-packs/tools/upstream_sync.py materialize \
-            --registry source-packs/upstream/registry.json \
+            --registry farm/upstream/registry.json \
             --miyorare-root miyorare
 
       - name: Apply Miyorare Global parser overlays
