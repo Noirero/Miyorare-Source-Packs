@@ -271,6 +271,45 @@ def assess_plan(plan: dict[str, Any], roots: dict[str, Path], compile_results: d
     return {"schemaVersion": 2, "results": results}
 
 
+def classify_parser_failure(result: dict[str, Any]) -> str:
+    if result.get("status") == "PASS":
+        return "PASS"
+    reason = str(result.get("reason") or "")
+    failure_type = str(result.get("failureType") or "")
+    failure_message = str(result.get("failureMessage") or "")
+    combined = " ".join((reason, failure_type, failure_message))
+
+    if reason.startswith("AUTH_REQUIRED:"):
+        return "AUTH_REQUIRED"
+    if (
+        reason.startswith("HARNESS_GENERATION:")
+        or reason.startswith("JUNIT_PARSE:")
+        or reason == "JUNIT_SUITE_MISSING"
+        or reason == "PARSER_EVIDENCE_MISSING"
+        or "Unexpected live-network attempt:" in combined
+        or (
+            "Method " in failure_message
+            and " not found on keiyoushi.source.Generated" in failure_message
+        )
+        or any(token in combined for token in (
+            "NoClassDefFoundError",
+            "ClassNotFoundException",
+            "LinkageError",
+            "NoSuchMethodError",
+        ))
+    ):
+        return "AUTOMATION_INFRASTRUCTURE"
+    if "live browse returned no manga" in failure_message:
+        if "HttpStatusException" in failure_message:
+            return "HTTP_BLOCKED_OR_UPSTREAM_FAILURE"
+        return "EMPTY_BROWSE"
+    if "details returned no chapters" in failure_message:
+        return "EMPTY_CHAPTERS"
+    if "first chapter returned no pages" in failure_message:
+        return "EMPTY_PAGES"
+    return "PARSER_FAILURE"
+
+
 def finalize_results(profile_results: dict[str, Any], parser_results: dict[str, Any], fail_threshold: int) -> dict[str, Any]:
     parser_map = {(row.get("canonicalId"), row.get("provider")): row for row in parser_results.get("results", []) if isinstance(row, dict)}
     finalized: list[dict[str, Any]] = []
@@ -291,14 +330,36 @@ def finalize_results(profile_results: dict[str, Any], parser_results: dict[str, 
             passed = result.get("status") == "PASS" and result.get("parserExecution") is True and result.get("detailsTraversal") is True and result.get("chapterTraversal") is True and result.get("pageExtraction") is True
             all_pass = all_pass and passed
         attempts = int(row.get("attempts", 0) or 0)
-        hard_parser_failure = any(
-            str(item.get("reason", "")).startswith("AUTH_REQUIRED:")
-            for item in parser_evidence
-            if isinstance(item, dict)
+        diagnoses = [
+            {
+                "provider": result.get("provider"),
+                "category": classify_parser_failure(result),
+            }
+            for result in parser_evidence
+            if result.get("status") != "PASS"
+        ]
+        infrastructure_only = bool(diagnoses) and all(
+            item["category"] == "AUTOMATION_INFRASTRUCTURE"
+            for item in diagnoses
         )
-        outcome = READY if all_pass else (HELD if hard_parser_failure or attempts >= fail_threshold else RETRY)
+        hard_parser_failure = any(
+            item["category"] == "AUTH_REQUIRED"
+            for item in diagnoses
+        )
+        if infrastructure_only:
+            attempts = max(0, attempts - 1)
+            row["attempts"] = attempts
+        outcome = READY if all_pass else (
+            RETRY if infrastructure_only
+            else (HELD if hard_parser_failure or attempts >= fail_threshold else RETRY)
+        )
         evidence = dict(row.get("evidence", {}))
         evidence["parser"] = {"executionMode": parser_results.get("executionMode", "real-live-parser"), "memberships": parser_evidence, "gate": "PASS" if all_pass else "FAIL"}
+        evidence["diagnosis"] = {
+            "categories": diagnoses,
+            "automationInfrastructureOnly": infrastructure_only,
+            "attemptConsumed": not infrastructure_only and not all_pass,
+        }
         evidence["gate"] = "REAL_PARSER_PASS" if all_pass else "REAL_PARSER_BLOCKED"
         row["state"] = outcome
         row["evidence"] = evidence
