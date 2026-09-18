@@ -196,6 +196,53 @@ class PendingWorkerTest(unittest.TestCase):
         self.assertEqual(missing["state"], worker.RETRY)
         self.assertEqual(missing["evidence"]["gate"], "REAL_PARSER_BLOCKED")
 
+    def test_infrastructure_parser_failure_does_not_consume_source_retry(self) -> None:
+        row = profiled()
+        row["attempts"] = 3
+        row["evidence"]["attempts"] = 3
+        parser_fail = {
+            "results": [{
+                "canonicalId": "alpha",
+                "provider": "uma",
+                "status": "FAIL",
+                "parserExecution": True,
+                "detailsTraversal": False,
+                "chapterTraversal": False,
+                "pageExtraction": False,
+                "failureType": "java.lang.NoClassDefFoundError",
+                "failureMessage": "missing runtime class",
+            }]
+        }
+        final = worker.finalize_results({"results": [row]}, parser_fail, 3)["results"][0]
+        self.assertEqual(final["state"], worker.RETRY)
+        self.assertEqual(final["attempts"], 2)
+        self.assertTrue(final["evidence"]["diagnosis"]["automationInfrastructureOnly"])
+        self.assertFalse(final["evidence"]["diagnosis"]["attemptConsumed"])
+
+    def test_real_source_failure_still_consumes_retry(self) -> None:
+        row = profiled()
+        row["attempts"] = 3
+        row["evidence"]["attempts"] = 3
+        parser_fail = {
+            "results": [{
+                "canonicalId": "alpha",
+                "provider": "uma",
+                "status": "FAIL",
+                "parserExecution": True,
+                "detailsTraversal": False,
+                "chapterTraversal": False,
+                "pageExtraction": False,
+                "failureType": "org.opentest4j.AssertionFailedError",
+                "failureMessage": "live browse returned no manga; lastFailure=HttpStatusException",
+            }]
+        }
+        final = worker.finalize_results({"results": [row]}, parser_fail, 3)["results"][0]
+        self.assertEqual(final["state"], worker.HELD)
+        self.assertEqual(
+            final["evidence"]["diagnosis"]["categories"][0]["category"],
+            "HTTP_BLOCKED_OR_UPSTREAM_FAILURE",
+        )
+
     def test_auth_required_parser_failure_holds_immediately(self) -> None:
         row = profiled()
         row["authType"] = "FORM"
