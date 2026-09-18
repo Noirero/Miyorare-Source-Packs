@@ -16,7 +16,9 @@ permissions:
 
 concurrency:
   group: source-lab-pending-worker
-  cancel-in-progress: false
+  # Control-plane pushes invalidate the running worker's pinned Farm snapshot,
+  # so cancel stale push-triggered work. Scheduled/manual runs still finish.
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
   worker:
