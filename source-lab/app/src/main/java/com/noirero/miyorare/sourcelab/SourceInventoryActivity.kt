@@ -308,6 +308,7 @@ private fun SourcesList(
     onOpen: (InventorySource) -> Unit,
     onClose: () -> Unit,
 ) {
+    val context = LocalContext.current
     val farmMap = remember(farm) { farm?.sources?.associateBy { it.canonicalId }.orEmpty() }
     val farmResolved = farm != null && farmError == null
     val search = query.trim()
@@ -340,82 +341,106 @@ private fun SourcesList(
         }
     }
 
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        item(key = "header") {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onClose) { Text("Home") }
-                OutlinedButton(onClick = onRefresh, enabled = !refreshing) {
-                    if (refreshing) {
-                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.width(7.dp))
-                        Text("Refreshing")
-                    } else Text("Refresh")
-                }
-            }
-            Text("Sources", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("${inventory.sources.size} discovered sources", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (inventory.fromCache) {
-                val ageMinutes = inventory.cacheAgeMillis / 60_000L
-                Text(
-                    if (inventory.staleCacheFallback) "Offline cache · ${ageMinutes}m old" else "Cached data · ${ageMinutes}m old",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (inventory.staleCacheFallback) SourceLabWarning else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        operation?.let { message -> item(key = "operation") { MessageCard(message) } }
-        if (inventoryError != null || farmError != null) {
-            item(key = "warning") {
-                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF302616))) {
-                    Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                        Text("Using available data", color = SourceLabWarning, fontWeight = FontWeight.Bold)
-                        inventoryError?.let { Text("Inventory refresh: $it", style = MaterialTheme.typography.bodySmall) }
-                        farmError?.let { Text("Farm membership: $it", style = MaterialTheme.typography.bodySmall) }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 94.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+            item(key = "header") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SourceLabTopBar(
+                        title = "Sources",
+                        subtitle = "Manage and inspect source compatibility.",
+                        trailing = {
+                            SourceLabIconButton(
+                                icon = SourceLabIconKind.REFRESH,
+                                contentDescription = "Refresh sources",
+                                onClick = onRefresh,
+                                enabled = !refreshing,
+                            )
+                        },
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        SourceLabStatusBadge("${inventory.sources.size} SOURCES", SourceLabTone.ACCENT)
+                        if (inventory.fromCache) {
+                            val ageMinutes = inventory.cacheAgeMillis / 60_000L
+                            SourceLabStatusBadge(
+                                if (inventory.staleCacheFallback) "OFFLINE ${ageMinutes}m" else "CACHED ${ageMinutes}m",
+                                if (inventory.staleCacheFallback) SourceLabTone.WARNING else SourceLabTone.NEUTRAL,
+                            )
+                        }
+                        if (refreshing) SourceLabStatusBadge("REFRESHING", SourceLabTone.ACCENT)
                     }
                 }
             }
-        }
-        item(key = "controls") {
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQuery,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Search sources") },
-                placeholder = { Text("Name or canonical ID") },
-            )
-            Spacer(Modifier.height(8.dp))
-            FilterRow(listOf("ALL", "KEIYOUSHI", "UMA", "GEKKOUSHI"), provider, onProvider)
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                item {
-                    FilterChip(
-                        selected = quick == "IN FARM",
-                        onClick = { onQuick(if (quick == "IN FARM") "ALL" else "IN FARM") },
-                        label = { Text("In Farm") },
-                    )
+            operation?.let { message -> item(key = "operation") { MessageCard(message) } }
+            if (inventoryError != null || farmError != null) {
+                item(key = "warning") {
+                    SourceLabCard(tone = SourceLabTone.WARNING) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Using available data", color = SourceLabWarning, fontWeight = FontWeight.Bold)
+                            inventoryError?.let { Text("Inventory refresh · $it", style = MaterialTheme.typography.bodySmall) }
+                            farmError?.let { Text("Farm membership · $it", style = MaterialTheme.typography.bodySmall) }
+                        }
+                    }
                 }
-                item {
-                    FilterChip(
-                        selected = quick == "ISSUES",
-                        onClick = { onQuick(if (quick == "ISSUES") "ALL" else "ISSUES") },
-                        label = { Text("Issues") },
-                    )
-                }
-                item { OutlinedButton(onClick = onMoreFilters) { Text("More") } }
             }
-            Text("${visible.size} matching sources", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            item(key = "search") {
+                SourceLabSearchField(
+                    value = query,
+                    onValueChange = onQuery,
+                    placeholder = "Search source or canonical ID…",
+                )
+            }
+            item(key = "provider-filters") {
+                FilterRow(listOf("ALL", "KEIYOUSHI", "UMA", "GEKKOUSHI"), provider, onProvider)
+            }
+            item(key = "quick-filters") {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    item {
+                        SourceLabFilterChip(
+                            text = "In Farm",
+                            selected = quick == "IN FARM",
+                            onClick = { onQuick(if (quick == "IN FARM") "ALL" else "IN FARM") },
+                        )
+                    }
+                    item {
+                        SourceLabFilterChip(
+                            text = "Issues",
+                            selected = quick == "ISSUES",
+                            onClick = { onQuick(if (quick == "ISSUES") "ALL" else "ISSUES") },
+                        )
+                    }
+                    item {
+                        SourceLabFilterChip(
+                            text = "More",
+                            selected = language != "ALL" || enrollment != "ALL" || health != "ALL",
+                            onClick = onMoreFilters,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    "${visible.size} matching sources",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            items(visible, key = { it.canonicalId }, contentType = { "source-card" }) { source ->
+                SourceRow(source, farmMap[source.canonicalId], farmResolved) { onOpen(source) }
+            }
         }
-        items(visible, key = { it.canonicalId }, contentType = { "source" }) { source ->
-            SourceRow(source, farmMap[source.canonicalId], farmResolved) { onOpen(source) }
-        }
+
+        SourceLabBottomBar(
+            selected = SourceLabDestination.SOURCES,
+            onSelect = { destination -> openSourceLabDestination(context, destination) },
+            modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 14.dp, vertical = 10.dp),
+        )
     }
 }
 
@@ -430,27 +455,43 @@ private fun MessageCard(message: String) {
 private fun SourceRow(source: InventorySource, farm: FarmInventorySourceState?, farmResolved: Boolean, open: () -> Unit) {
     val issue = source.needsAttention || farm?.runtimeHealth in setOf("BROKEN", "DEGRADED") || farm?.ownerActionRequired == true
     val status = when {
-        issue -> "Needs review" to SourceLabTone.WARNING
+        issue -> "Needs Review" to SourceLabTone.WARNING
         farm?.runtimeHealth == "HEALTHY" -> "Healthy" to SourceLabTone.GOOD
         farm?.runtimeHealth == "BROKEN" -> "Broken" to SourceLabTone.ERROR
-        farm != null -> farm.runtimeHealth to SourceLabTone.NEUTRAL
-        farmResolved -> "Not enrolled" to SourceLabTone.NEUTRAL
+        farm != null -> farm.runtimeHealth.replace('_', ' ') to SourceLabTone.NEUTRAL
+        farmResolved -> "Not Enrolled" to SourceLabTone.NEUTRAL
         else -> "Unknown" to SourceLabTone.NEUTRAL
     }
     val version = source.providers.values.mapNotNull { it.extensionVersionCode }.maxOrNull()
-    Card(
+    SourceLabCard(
         modifier = Modifier.fillMaxWidth().clickable(onClick = open),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        contentPadding = PaddingValues(horizontal = 11.dp, vertical = 10.dp),
+        tone = if (issue) SourceLabTone.WARNING else SourceLabTone.NEUTRAL,
     ) {
-        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             Surface(shape = RoundedCornerShape(12.dp), color = SourceLabPrimaryStrong) {
-                Text(source.displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?", Modifier.padding(horizontal = 14.dp, vertical = 10.dp), fontWeight = FontWeight.Bold)
+                Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        source.displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                    )
+                }
             }
-            Column(Modifier.weight(1f)) {
-                Text(source.displayName, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    source.displayName,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 Text(
                     "${source.language} · ${source.providers.keys.joinToString(" / ") { providerName(it) }}",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -459,10 +500,12 @@ private fun SourceRow(source: InventorySource, farm: FarmInventorySourceState?, 
                     when {
                         farm != null -> "In Farm${version?.let { " · build $it" }.orEmpty()}"
                         farmResolved -> "Not enrolled${version?.let { " · build $it" }.orEmpty()}"
-                        else -> version?.let { "build $it" } ?: "Membership unavailable"
+                        else -> version?.let { "Build $it · membership unresolved" } ?: "Membership unresolved"
                     },
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             SourceLabStatusBadge(status.first, status.second)
@@ -474,10 +517,10 @@ private fun SourceRow(source: InventorySource, farm: FarmInventorySourceState?, 
 private fun FilterRow(values: List<String>, selected: String, select: (String) -> Unit) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items(values.distinct(), key = { it }) { value ->
-            FilterChip(
+            SourceLabFilterChip(
+                text = filterLabel(value),
                 selected = selected == value,
                 onClick = { select(value) },
-                label = { Text(filterLabel(value)) },
             )
         }
     }
