@@ -1,6 +1,6 @@
 {
-  "lastWorkflowRunId": "35281027458",
-  "schemaVersion": 1,
+  "lastWorkflowRunId": "35293172456",
+  "schemaVersion": 2,
   "sources": {
     "miyorare:inventory-en:18PORNCOMIC": {
       "adapterFamily": "multi-provider",
@@ -9,80 +9,114 @@
       "authType": "NO_AUTH",
       "evidence": {
         "attempts": 1,
-        "gate": "FAIL",
-        "memberships": [
-          {
-            "authType": "NO_AUTH",
-            "compile": true,
-            "exists": true,
-            "family": "gekkoushi-native",
-            "locator": "src/main/kotlin/tsuki/site/manga18/en/PornComic18.kt",
-            "pass": false,
-            "probe": {
-              "detail": "no-probe-host",
-              "reachable": false
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "gekkoushi-native",
+              "locator": "src/main/kotlin/tsuki/site/manga18/en/PornComic18.kt",
+              "probe": {
+                "detail": "no-probe-host",
+                "reachable": false
+              },
+              "probeHost": null,
+              "profilePass": false,
+              "provider": "gekkoushi"
             },
-            "probeHost": null,
-            "provider": "gekkoushi"
-          },
-          {
-            "authType": "NO_AUTH",
-            "compile": true,
-            "exists": true,
-            "family": "keiyoushi-native",
-            "locator": "src/en/eighteenporncomic",
-            "pass": true,
-            "probe": {
-              "httpStatus": 200,
-              "reachable": true,
-              "url": "https://18porncomic.com/"
-            },
-            "probeHost": "18porncomic.com",
-            "provider": "keiyoushi"
-          }
-        ]
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "keiyoushi-native",
+              "locator": "src/en/eighteenporncomic",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://18porncomic.com/"
+              },
+              "probeHost": "18porncomic.com",
+              "profilePass": true,
+              "provider": "keiyoushi"
+            }
+          ]
+        }
       },
-      "evidenceSha256": "c41de1af827205f6b2ae741e219a25b3c4a76dc3db39d6457f7d64c8075e9db8",
-      "lastCheckedAt": "2026-09-17T22:22:44Z",
+      "evidenceSha256": "e4c8471f601fc3b4abed54970734f849a12bbc937f8b1603d55e463f158813f4",
+      "lastCheckedAt": "2026-09-18T01:00:14Z",
       "ownerActionRequired": false,
       "publishEligible": false,
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "state": "RETRY",
-      "workflowRunId": "35281027458"
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35293172456"
     },
     "miyorare:inventory-en:1MANGACO": {
       "adapterFamily": "keiyoushi-native",
-      "approvalState": "WAITING_FOR_APPROVAL",
+      "approvalState": "NOT_READY",
       "attempts": 1,
       "authType": "NO_AUTH",
       "evidence": {
         "attempts": 1,
-        "gate": "PASS",
-        "memberships": [
-          {
-            "authType": "NO_AUTH",
-            "compile": true,
-            "exists": true,
-            "family": "keiyoushi-native",
-            "locator": "src/en/onemangaco",
-            "pass": true,
-            "probe": {
-              "httpStatus": 200,
-              "reachable": true,
-              "url": "https://1manga.co/"
-            },
-            "probeHost": "1manga.co",
-            "provider": "keiyoushi"
-          }
-        ]
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:1MANGACO",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failures": 1,
+              "locator": "src/en/onemangaco",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/onemangaco/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_cfc4bdfae9c9",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "keiyoushi-native",
+              "locator": "src/en/onemangaco",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://1manga.co/"
+              },
+              "probeHost": "1manga.co",
+              "profilePass": true,
+              "provider": "keiyoushi"
+            }
+          ]
+        }
       },
-      "evidenceSha256": "03473653965447da3b2bd834facd058eb3849420e398fed1b675350af0fdbf41",
-      "lastCheckedAt": "2026-09-17T22:22:44Z",
+      "evidenceSha256": "9910b5654126f05050c8c73fcba7fd4bef9305f3c0c7e28ca6f83cd41b21327c",
+      "lastCheckedAt": "2026-09-18T01:00:14Z",
       "ownerActionRequired": false,
       "publishEligible": false,
-      "schemaVersion": 1,
-      "state": "READY_FOR_APPROVAL",
-      "workflowRunId": "35281027458"
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35293172456"
     },
     "miyorare:inventory-en:1STKISSMANGACOM": {
       "adapterFamily": "madara",
@@ -91,31 +125,36 @@
       "authType": "NO_AUTH",
       "evidence": {
         "attempts": 1,
-        "gate": "FAIL",
-        "memberships": [
-          {
-            "authType": "NO_AUTH",
-            "compile": true,
-            "exists": true,
-            "family": "madara",
-            "locator": "src/main/kotlin/tsuki/site/madara/en/StkissMangaCom.kt",
-            "pass": false,
-            "probe": {
-              "detail": "no-probe-host",
-              "reachable": false
-            },
-            "probeHost": null,
-            "provider": "gekkoushi"
-          }
-        ]
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/StkissMangaCom.kt",
+              "probe": {
+                "detail": "no-probe-host",
+                "reachable": false
+              },
+              "probeHost": null,
+              "profilePass": false,
+              "provider": "gekkoushi"
+            }
+          ]
+        }
       },
-      "evidenceSha256": "7cd9a5401c4e7783affed24b1386bbd540b405abafedac228cd90d7d05210798",
-      "lastCheckedAt": "2026-09-17T22:22:44Z",
+      "evidenceSha256": "695adff8ae4fe3c16f68dbae46fec246e30b551af73eb49da87af52cab186025",
+      "lastCheckedAt": "2026-09-18T01:00:14Z",
       "ownerActionRequired": false,
       "publishEligible": false,
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "state": "RETRY",
-      "workflowRunId": "35281027458"
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "35293172456"
     },
     "miyorare:inventory-en:1STKISSMANGANET": {
       "adapterFamily": "madara",
@@ -124,66 +163,98 @@
       "authType": "NO_AUTH",
       "evidence": {
         "attempts": 1,
-        "gate": "FAIL",
-        "memberships": [
-          {
-            "authType": "NO_AUTH",
-            "compile": true,
-            "exists": true,
-            "family": "madara",
-            "locator": "src/main/kotlin/tsuki/site/madara/en/StkissMangaBlog.kt",
-            "pass": false,
-            "probe": {
-              "detail": "no-probe-host",
-              "reachable": false
-            },
-            "probeHost": null,
-            "provider": "gekkoushi"
-          }
-        ]
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/StkissMangaBlog.kt",
+              "probe": {
+                "detail": "no-probe-host",
+                "reachable": false
+              },
+              "probeHost": null,
+              "profilePass": false,
+              "provider": "gekkoushi"
+            }
+          ]
+        }
       },
-      "evidenceSha256": "08e5417bf43cc7c27481f4fb96eee2df257f31da9a96b2a8d0dc6ec16c5b4f1d",
-      "lastCheckedAt": "2026-09-17T22:22:44Z",
+      "evidenceSha256": "b128450356e7124900ea1d59d371b0a17de092432f4e470babebabea1614a8a9",
+      "lastCheckedAt": "2026-09-18T01:00:14Z",
       "ownerActionRequired": false,
       "publishEligible": false,
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "state": "RETRY",
-      "workflowRunId": "35281027458"
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "35293172456"
     },
     "miyorare:inventory-id:AARLAS": {
       "adapterFamily": "keiyoushi-native",
-      "approvalState": "WAITING_FOR_APPROVAL",
+      "approvalState": "NOT_READY",
       "attempts": 1,
       "authType": "NO_AUTH",
       "evidence": {
         "attempts": 1,
-        "gate": "PASS",
-        "memberships": [
-          {
-            "authType": "NO_AUTH",
-            "compile": true,
-            "exists": true,
-            "family": "keiyoushi-native",
-            "locator": "src/id/aarlas",
-            "pass": true,
-            "probe": {
-              "detail": "http-429",
-              "httpStatus": 429,
-              "reachable": true,
-              "url": "https://www.arlas.online/"
-            },
-            "probeHost": "www.arlas.online",
-            "provider": "keiyoushi"
-          }
-        ]
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-id:AARLAS",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failures": 1,
+              "locator": "src/id/aarlas",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/aarlas/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_b94e7a4f9e0e",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "keiyoushi-native",
+              "locator": "src/id/aarlas",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://www.arlas.online/"
+              },
+              "probeHost": "www.arlas.online",
+              "profilePass": true,
+              "provider": "keiyoushi"
+            }
+          ]
+        }
       },
-      "evidenceSha256": "8acc132f066a94ed681f42b4058e1c1129fb32655e2dcd332d0eb29aa1c0d2f9",
-      "lastCheckedAt": "2026-09-17T22:22:44Z",
+      "evidenceSha256": "49c9a2e8af53455167f8390947845c82a19afec3232dcb6ff773193d242da877",
+      "lastCheckedAt": "2026-09-18T01:00:14Z",
       "ownerActionRequired": false,
       "publishEligible": false,
-      "schemaVersion": 1,
-      "state": "READY_FOR_APPROVAL",
-      "workflowRunId": "35281027458"
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35293172456"
     },
     "miyorare:inventory-id:AINZSCANS": {
       "adapterFamily": "multi-provider",
@@ -192,81 +263,115 @@
       "authType": "NO_AUTH",
       "evidence": {
         "attempts": 1,
-        "gate": "FAIL",
-        "memberships": [
-          {
-            "authType": "NO_AUTH",
-            "compile": true,
-            "exists": true,
-            "family": "manga-reader-plus-api",
-            "locator": "src/main/kotlin/tsuki/site/mangareader/id/AinzScans.kt",
-            "pass": false,
-            "probe": {
-              "detail": "no-probe-host",
-              "reachable": false
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "manga-reader-plus-api",
+              "locator": "src/main/kotlin/tsuki/site/mangareader/id/AinzScans.kt",
+              "probe": {
+                "detail": "no-probe-host",
+                "reachable": false
+              },
+              "probeHost": null,
+              "profilePass": false,
+              "provider": "gekkoushi"
             },
-            "probeHost": null,
-            "provider": "gekkoushi"
-          },
-          {
-            "authType": "NO_AUTH",
-            "compile": true,
-            "exists": true,
-            "family": "custom-rest-json",
-            "locator": "src/main/kotlin/tsuki/site/id/AinzScans.kt",
-            "pass": true,
-            "probe": {
-              "detail": "http-404",
-              "httpStatus": 404,
-              "reachable": true,
-              "url": "https://api.ainzscans01.com/"
-            },
-            "probeHost": "api.ainzscans01.com",
-            "provider": "uma"
-          }
-        ]
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-rest-json",
+              "locator": "src/main/kotlin/tsuki/site/id/AinzScans.kt",
+              "probe": {
+                "detail": "http-404",
+                "httpStatus": 404,
+                "reachable": true,
+                "url": "https://api.ainzscans01.com/"
+              },
+              "probeHost": "api.ainzscans01.com",
+              "profilePass": true,
+              "provider": "uma"
+            }
+          ]
+        }
       },
-      "evidenceSha256": "39b20d1cde68c31268936a5fbe394a108a9428c0d97904f4896b282d56a9bdfd",
-      "lastCheckedAt": "2026-09-17T22:22:44Z",
+      "evidenceSha256": "fcff7976f7826a4b9e527ada70762c2ca18d4ecba10713aadb0f64991c5d6209",
+      "lastCheckedAt": "2026-09-18T01:00:14Z",
       "ownerActionRequired": false,
       "publishEligible": false,
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "state": "RETRY",
-      "workflowRunId": "35281027458"
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
+      },
+      "workflowRunId": "35293172456"
     },
     "miyorare:inventory-id:AINZSCANSID": {
       "adapterFamily": "custom-rest-json",
-      "approvalState": "WAITING_FOR_APPROVAL",
+      "approvalState": "NOT_READY",
       "attempts": 1,
       "authType": "NO_AUTH",
       "evidence": {
         "attempts": 1,
-        "gate": "PASS",
-        "memberships": [
-          {
-            "authType": "NO_AUTH",
-            "compile": true,
-            "exists": true,
-            "family": "custom-rest-json",
-            "locator": "src/id/ainzscansid",
-            "pass": true,
-            "probe": {
-              "httpStatus": 200,
-              "reachable": true,
-              "url": "https://v3.ainzscans01.com/"
-            },
-            "probeHost": "v3.ainzscans01.com",
-            "provider": "keiyoushi"
-          }
-        ]
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-id:AINZSCANSID",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failures": 1,
+              "locator": "src/id/ainzscansid",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/ainzscansid/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_f2eb271961dc",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-rest-json",
+              "locator": "src/id/ainzscansid",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://v3.ainzscans01.com/"
+              },
+              "probeHost": "v3.ainzscans01.com",
+              "profilePass": true,
+              "provider": "keiyoushi"
+            }
+          ]
+        }
       },
-      "evidenceSha256": "9c385a8b07944d40d656cd4f88f12a708cb7e8cddd794300dcb27be32be86b41",
-      "lastCheckedAt": "2026-09-17T22:22:44Z",
+      "evidenceSha256": "280d8f7ca9c8ac9e11a7e569311463c7a88eb55a6835d0c30235a1840dcc91b6",
+      "lastCheckedAt": "2026-09-18T01:00:14Z",
       "ownerActionRequired": false,
       "publishEligible": false,
-      "schemaVersion": 1,
-      "state": "READY_FOR_APPROVAL",
-      "workflowRunId": "35281027458"
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35293172456"
     },
     "miyorare:inventory-id:ALAWALE": {
       "adapterFamily": "custom-rest-json",
@@ -275,33 +380,38 @@
       "authType": "NO_AUTH",
       "evidence": {
         "attempts": 1,
-        "gate": "FAIL",
-        "memberships": [
-          {
-            "authType": "NO_AUTH",
-            "compile": true,
-            "exists": true,
-            "family": "custom-rest-json",
-            "locator": "src/main/kotlin/tsuki/site/id/Alawale.kt",
-            "pass": false,
-            "probe": {
-              "detail": "URLError",
-              "reachable": false,
-              "url": "https://$domain/"
-            },
-            "probeHost": "$domain",
-            "provider": "uma"
-          }
-        ]
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-rest-json",
+              "locator": "src/main/kotlin/tsuki/site/id/Alawale.kt",
+              "probe": {
+                "detail": "URLError",
+                "reachable": false,
+                "url": "https://$domain/"
+              },
+              "probeHost": "$domain",
+              "profilePass": false,
+              "provider": "uma"
+            }
+          ]
+        }
       },
-      "evidenceSha256": "5c380401020f51e1932ce5aa6a25639fc7d503bd75db34117ec5838b6073427b",
-      "lastCheckedAt": "2026-09-17T22:22:44Z",
+      "evidenceSha256": "3c0b49ae24dcf29a0852de8013922bdefde1dc1df3dd6741d6860ae168ac17bc",
+      "lastCheckedAt": "2026-09-18T01:00:14Z",
       "ownerActionRequired": false,
       "publishEligible": false,
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "state": "RETRY",
-      "workflowRunId": "35281027458"
+      "testedVersions": {
+        "uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
+      },
+      "workflowRunId": "35293172456"
     }
   },
-  "updatedAt": "2026-09-17T22:22:44Z"
+  "updatedAt": "2026-09-18T01:00:14Z"
 }
