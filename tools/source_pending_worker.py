@@ -19,7 +19,7 @@ HELD = "NEEDS_ATTENTION"
 URL_RE = re.compile(r'https?://([A-Za-z0-9.-]+\.[A-Za-z]{2,})(?::\d+)?')
 BASE_URL_RE = re.compile(r'\b(?:baseUrl|baseURL|BASE_URL)\s*(?:=|:)\s*["\']https?://([A-Za-z0-9.-]+\.[A-Za-z]{2,})(?::\d+)?', re.I)
 DOMAIN_CONFIG_RE = re.compile(r'\b(?:ConfigKey\.)?Domain\s*\(\s*["\']([A-Za-z0-9.-]+\.[A-Za-z]{2,})["\']\s*\)', re.I)
-PARSER_HOST_RE = re.compile(r'\b[A-Za-z_][A-Za-z0-9_]*Parser\s*\([^)]*?["\']([A-Za-z0-9.-]+\.[A-Za-z]{2,})["\']', re.S)
+PARSER_HOST_RE = re.compile(r'\b(?!MangaSourceParser\b)[A-Za-z_][A-Za-z0-9_]*Parser\s*\([^)]*?["\']([A-Za-z0-9.-]+\.[A-Za-z]{2,})["\']', re.S)
 QUOTED_HOST_RE = re.compile(r'["\']([A-Za-z0-9](?:[A-Za-z0-9.-]*\.)[A-Za-z]{2,})["\']')
 BROKEN_RE = re.compile(r'@Broken(?:\s*\(\s*["\']([^"\']*)["\']\s*\))?', re.I)
 
