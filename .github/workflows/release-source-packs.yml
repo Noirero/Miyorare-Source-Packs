@@ -200,6 +200,13 @@ jobs:
         with:
           path: source-packs
 
+      - name: Checkout authoritative Compatibility Farm
+        uses: actions/checkout@v5
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 1
+
       - name: Checkout exact pinned Miyorare builder
         uses: actions/checkout@v5
         with:
@@ -356,6 +363,13 @@ jobs:
         uses: actions/checkout@v5
         with:
           path: source-packs
+
+      - name: Checkout authoritative Compatibility Farm
+        uses: actions/checkout@v5
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 1
 
       - name: Checkout exact pinned Miyorare builder
         uses: actions/checkout@v5
