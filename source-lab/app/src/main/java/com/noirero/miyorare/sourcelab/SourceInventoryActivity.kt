@@ -363,16 +363,20 @@ private fun SourcesList(
                             )
                         },
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        SourceLabStatusBadge("${inventory.sources.size} SOURCES", SourceLabTone.ACCENT)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        item { SourceLabStatusBadge("${inventory.sources.size} SOURCES", SourceLabTone.ACCENT) }
                         if (inventory.fromCache) {
-                            val ageMinutes = inventory.cacheAgeMillis / 60_000L
-                            SourceLabStatusBadge(
-                                if (inventory.staleCacheFallback) "OFFLINE ${ageMinutes}m" else "CACHED ${ageMinutes}m",
-                                if (inventory.staleCacheFallback) SourceLabTone.WARNING else SourceLabTone.NEUTRAL,
-                            )
+                            item {
+                                val ageMinutes = inventory.cacheAgeMillis / 60_000L
+                                SourceLabStatusBadge(
+                                    if (inventory.staleCacheFallback) "OFFLINE ${ageMinutes}m" else "CACHED ${ageMinutes}m",
+                                    if (inventory.staleCacheFallback) SourceLabTone.WARNING else SourceLabTone.NEUTRAL,
+                                )
+                            }
                         }
-                        if (refreshing) SourceLabStatusBadge("REFRESHING", SourceLabTone.ACCENT)
+                        if (refreshing) {
+                            item { SourceLabStatusBadge("REFRESHING", SourceLabTone.ACCENT) }
+                        }
                     }
                 }
             }
@@ -447,8 +451,8 @@ private fun SourcesList(
 
 @Composable
 private fun MessageCard(message: String) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Text(message, Modifier.fillMaxWidth().padding(14.dp), fontWeight = FontWeight.SemiBold)
+    SourceLabCard(contentPadding = PaddingValues(13.dp)) {
+        Text(message, Modifier.fillMaxWidth(), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -641,10 +645,12 @@ private fun SourceDetail(
 
         if (source.needsAttention) {
             item(key = "attention") {
-                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF302616))) {
-                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                SourceLabCard(tone = SourceLabTone.WARNING, contentPadding = PaddingValues(13.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Needs attention", color = SourceLabWarning, fontWeight = FontWeight.Bold)
-                        source.attentionReasons.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                        source.attentionReasons.forEach {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }
@@ -798,8 +804,8 @@ private fun SourceDetail(
             }
 
             item(key = "test-action-boundary") {
-                Card(colors = CardDefaults.cardColors(containerColor = SourceLabSurface)) {
-                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                SourceLabCard(tone = SourceLabTone.ACCENT, contentPadding = PaddingValues(13.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -831,8 +837,8 @@ private fun SourceDetail(
 
         item(key = "providers-title") { Text("Provider mappings", fontWeight = FontWeight.Bold) }
         items(source.providers.entries.toList(), key = { it.key }) { entry ->
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            SourceLabCard(contentPadding = PaddingValues(13.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -915,7 +921,12 @@ private fun PolicyLine(label: String, enabled: Boolean) {
 private fun Detail(label: String, value: String) {
     Column {
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodySmall)
+        Text(
+            value,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
