@@ -30,6 +30,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -47,14 +48,26 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class OwnerControlActivity : ComponentActivity() {
+    private val resumeGeneration = mutableIntStateOf(0)
+    private var hasResumedOnce = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             SourceLabPhase1Theme {
                 SourceLabAppSurface {
-                    OwnerControlScreen()
+                    OwnerControlScreen(resumeGeneration.intValue)
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (hasResumedOnce) {
+            resumeGeneration.intValue += 1
+        } else {
+            hasResumedOnce = true
         }
     }
 }
@@ -75,7 +88,7 @@ private data class OwnerInventoryUiState(
 )
 
 @Composable
-private fun OwnerControlScreen() {
+private fun OwnerControlScreen(resumeGeneration: Int) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var dashboard by remember { mutableStateOf(OwnerDashboardUiState()) }
@@ -155,7 +168,7 @@ private fun OwnerControlScreen() {
         )
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(resumeGeneration) {
         val cached = SourceInventoryCacheReader.load(context)
         if (cached != null) {
             inventory = OwnerInventoryUiState(snapshot = cached, loading = false, refreshing = true)
