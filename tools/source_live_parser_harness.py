@@ -267,6 +267,13 @@ class {test_class} {{
             ?: error("Method $name not found on ${{source.javaClass.name}}")
 
     private fun findMethodOrNull(target: Any, name: String, parameterTypes: Array<Class<*>>): Method? {{
+        // Public inherited/interface methods (notably Generated SourceFactory#createSources)
+        // are visible through getMethod() but not necessarily getDeclaredMethod().
+        try {{
+            return target.javaClass.getMethod(name, *parameterTypes)
+        }} catch (_: NoSuchMethodException) {{
+            // Fall through to protected/private source methods on the class hierarchy.
+        }}
         var type: Class<*>? = target.javaClass
         while (type != null) {{
             try {{
