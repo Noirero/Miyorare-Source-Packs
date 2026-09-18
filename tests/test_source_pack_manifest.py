@@ -159,7 +159,7 @@ class SourcePackManifestTests(unittest.TestCase):
         with self.assertRaises(MODULE.ManifestError):
             MODULE.validate(data, contract())
 
-    def test_legacy_schema3_without_snapshot_remains_auditable_but_not_new-release-valid(self):
+    def test_legacy_schema3_without_snapshot_remains_auditable_but_not_new_release_valid(self):
         data = manifest()
         data.pop("compatibilitySnapshotId")
         data.pop("compatibilitySnapshot")
