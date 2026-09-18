@@ -23,7 +23,7 @@ import kotlinx.coroutines.withContext
 class LocalizedMainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { LocalizedSourceLabTheme { LocalizedSourceLabApp() } }
+        setContent { SourceLabPhase1Theme { SourceLabAppSurface { LocalizedSourceLabApp() } } }
     }
 }
 
