@@ -594,8 +594,9 @@ private fun SourceDetail(
     onBack: () -> Unit,
     onAdd: () -> Unit,
 ) {
-    val canAdd = farmResolved && farm == null && !source.needsAttention &&
-        SourceLabAccessPolicy.canPerform(SourceLabControlAction.ADD_TO_FARM, ownerSession)
+    val context = LocalContext.current
+    val ownerCanAdd = SourceLabAccessPolicy.canPerform(SourceLabControlAction.ADD_TO_FARM, ownerSession)
+    val canAdd = farmResolved && farm == null && !source.needsAttention && ownerCanAdd
     val versionBuild = source.providers.values.mapNotNull { it.extensionVersionCode }.maxOrNull()
 
     LazyColumn(
@@ -770,18 +771,41 @@ private fun SourceDetail(
             }
             if (farmResolved && farm == null) {
                 Spacer(Modifier.height(10.dp))
-                SourceLabPrimaryButton(
-                    text = if (enrolling) "Adding to Farm…" else "Add to Farm",
-                    onClick = onAdd,
-                    enabled = canAdd && !enrolling,
-                    modifier = Modifier.fillMaxWidth(),
-                    icon = SourceLabIconKind.FARM,
-                )
+                if (canAdd) {
+                    SourceLabPrimaryButton(
+                        text = if (enrolling) "Adding to Farm…" else "Add to Farm",
+                        onClick = onAdd,
+                        enabled = !enrolling,
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = SourceLabIconKind.FARM,
+                    )
+                } else if (!source.needsAttention && !ownerCanAdd) {
+                    SourceLabSecondaryButton(
+                        text = "Connect Owner to Add to Farm",
+                        onClick = {
+                            context.startActivity(
+                                Intent(context, OwnerGateActivity::class.java).addFlags(
+                                    Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP,
+                                ),
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = SourceLabIconKind.LOCK,
+                    )
+                } else {
+                    SourceLabPrimaryButton(
+                        text = "Add to Farm",
+                        onClick = onAdd,
+                        enabled = false,
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = SourceLabIconKind.FARM,
+                    )
+                }
                 if (!canAdd) {
                     val reason = when {
                         source.needsAttention -> "Resolve source identity attention before enrollment."
                         ownerError != null -> "Owner capability unavailable: $ownerError"
-                        !SourceLabAccessPolicy.canPerform(SourceLabControlAction.ADD_TO_FARM, ownerSession) -> "Backend Add to Farm capability is required."
+                        !ownerCanAdd -> "Owner/backend Add to Farm capability is required."
                         else -> "Farm state is not safe for enrollment."
                     }
                     Text(reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
