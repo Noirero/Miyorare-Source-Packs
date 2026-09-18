@@ -3,7 +3,7 @@ name: Source Pack Autonomous Release Control
 on:
   workflow_dispatch:
   schedule:
-    - cron: '43 * * * *'
+    - cron: '13,43 * * * *'
   push:
     branches:
       - main
