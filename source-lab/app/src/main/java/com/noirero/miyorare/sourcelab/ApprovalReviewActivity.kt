@@ -57,7 +57,7 @@ class ApprovalReviewActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             SourceLabPhase1Theme {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                SourceLabAppSurface {
                     ApprovalReviewScreen(onClose = { finish() })
                 }
             }
