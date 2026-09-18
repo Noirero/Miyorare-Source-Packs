@@ -62,6 +62,39 @@ internal object SourceLabControlClient {
         refreshOwnerContext(context).session
     }
 
+    /**
+     * Fast read path for the manual recovery screen.
+     *
+     * RUN_FARM availability depends only on the live Farm snapshot plus the
+     * validated Owner/backend capability. It does not depend on historical
+     * approve/sign/publish workflow receipts, so avoid fetching those three
+     * GitHub Actions histories just to decide whether the recovery button can
+     * be enabled.
+     */
+    suspend fun resolveRunFarmAvailability(
+        context: Context,
+        snapshot: LiveFarmSnapshot,
+    ): SourceLabActionAvailability = withContext(Dispatchers.IO) {
+        val owner = refreshOwnerContext(context)
+        buildAvailability(
+            session = owner.session,
+            snapshot = snapshot,
+            approvalRunId = null,
+            signingRunId = null,
+            publishRunId = null,
+        ).getValue(SourceLabControlAction.RUN_FARM)
+    }
+
+    /**
+     * Returns the token from the already validated Owner context. Callers use
+     * this only for read-only workflow monitoring; mutations still force a
+     * fresh backend/capability validation in execute().
+     */
+    suspend fun resolveValidatedOwnerAccessToken(context: Context): String =
+        withContext(Dispatchers.IO) {
+            refreshOwnerContext(context).token
+        }
+
     suspend fun resolveState(
         context: Context,
         snapshot: LiveFarmSnapshot,
