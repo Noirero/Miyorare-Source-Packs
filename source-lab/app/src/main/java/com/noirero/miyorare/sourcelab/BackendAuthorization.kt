@@ -23,16 +23,14 @@ internal data class BackendAuthorizationProof(
     val challenge: String? = null,
     val runId: Long? = null,
     val expiresAtEpochSeconds: Long? = null,
+    val backendCapabilities: Set<SourceLabControlAction> = emptySet(),
 ) {
     fun applyTo(session: OwnerAccessSession): OwnerAccessSession {
         if (!authorized || expiresAtEpochSeconds == null) return session
         return session.copy(
             backendAuthorized = true,
             backendAuthorizationExpiresAtEpochSeconds = expiresAtEpochSeconds,
-            // P0 backend authorization proves the owner session only. Individual
-            // write capabilities remain fail-closed until their own control paths
-            // are wired and bound to exact candidate evidence.
-            backendCapabilities = emptySet(),
+            backendCapabilities = backendCapabilities,
         )
     }
 }
@@ -133,12 +131,24 @@ internal object SourceLabBackendAuthorization {
                     )
                 }
 
+                val capabilities = try {
+                    SourceLabBackendCapabilityReader.parseCapabilityMetadata(metadata)
+                } catch (error: Throwable) {
+                    return@withContext BackendAuthorizationProof(
+                        authorized = false,
+                        reason = error.message ?: "BACKEND_CAPABILITY_PROOF_INVALID",
+                        challenge = challenge,
+                        runId = run.id,
+                    )
+                }
+
                 BackendAuthorizationProof(
                     authorized = true,
                     reason = "BACKEND_AUTHORIZED",
                     challenge = challenge,
                     runId = run.id,
                     expiresAtEpochSeconds = verified.expiresAtEpochSeconds,
+                    backendCapabilities = capabilities,
                 )
             } catch (error: BackendAuthorizationHttpException) {
                 BackendAuthorizationProof(
