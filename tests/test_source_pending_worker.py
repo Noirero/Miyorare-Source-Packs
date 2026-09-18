@@ -196,6 +196,26 @@ class PendingWorkerTest(unittest.TestCase):
         self.assertEqual(missing["state"], worker.RETRY)
         self.assertEqual(missing["evidence"]["gate"], "REAL_PARSER_BLOCKED")
 
+    def test_auth_required_parser_failure_still_holds_immediately(self) -> None:
+        row = profiled()
+        row["authType"] = "FORM"
+        parser_fail = {
+            "results": [{
+                "canonicalId": "alpha",
+                "provider": "uma",
+                "status": "FAIL",
+                "parserExecution": False,
+                "reason": "AUTH_REQUIRED:FORM",
+            }]
+        }
+        final = worker.finalize_results({"results": [row]}, parser_fail, 3)["results"][0]
+        self.assertEqual(final["state"], worker.HELD)
+        self.assertEqual(final["attempts"], 1)
+        self.assertEqual(
+            final["evidence"]["diagnosis"]["categories"][0]["category"],
+            "AUTH_REQUIRED",
+        )
+
     def test_infrastructure_parser_failure_does_not_consume_source_retry(self) -> None:
         row = profiled()
         row["attempts"] = 3
