@@ -45,7 +45,7 @@ class OwnerGateActivity : ComponentActivity() {
                     OwnerGateScreen(
                         operationScope = lifecycleScope,
                         onViewer = {
-                            SourceLabOwnerSessionStore.clear()
+                            SourceLabOwnerSessionStore.enterViewerMode()
                             SourceLabControlClient.clearCachedOwnerContext()
                             openDashboard(ownerAuthorized = false)
                         },
