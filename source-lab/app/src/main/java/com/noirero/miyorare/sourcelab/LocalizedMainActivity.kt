@@ -180,79 +180,221 @@ private fun LocalizedFarmScreen(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(11.dp),
     ) {
-        item {
-            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.dashboard_subtitle), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        item { LocalizedLiveCard(sync, onRefresh) }
-        item {
-            LocalizedStatusCard(
-                stringResource(R.string.checkpoint_title),
-                "WAITING_FOR_APPROVAL",
-                stringResource(R.string.checkpoint_supporting),
+        item(key = "viewer-header") {
+            SourceLabTopBar(
+                title = stringResource(R.string.app_name),
+                subtitle = "Compatibility Farm · public read-only",
+                trailing = {
+                    SourceLabStatusBadge("VIEWER", SourceLabTone.NEUTRAL)
+                },
             )
         }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                LocalizedStatCard("$sourceCount/12", stringResource(R.string.registry_sources), Modifier.weight(1f))
-                LocalizedStatCard("21/21", stringResource(R.string.seed_memberships), Modifier.weight(1f))
-            }
+
+        item(key = "viewer-live") {
+            LocalizedLiveCard(sync, onRefresh)
         }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                LocalizedStatCard("0", stringResource(R.string.seed_failures), Modifier.weight(1f))
-                LocalizedStatCard("2/2", stringResource(R.string.auto_repair), Modifier.weight(1f))
-            }
-        }
-        item { Text(stringResource(R.string.provider_runtime_vs_seed), fontWeight = FontWeight.Bold) }
-        if (snapshot != null) {
-            items(snapshot.providers, key = { it.id }) { provider ->
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+
+        item(key = "viewer-checkpoint") {
+            SourceLabCard(tone = SourceLabTone.WARNING) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Column(Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.checkpoint_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                stringResource(R.string.checkpoint_supporting),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        SourceLabStatusBadge("WAITING FOR APPROVAL", SourceLabTone.WARNING)
+                    }
+                    Text(
+                        "Embedded checkpoint evidence is shown separately from live runtime state.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
+        item(key = "viewer-metrics") {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SourceLabMetricCard(
+                        label = stringResource(R.string.registry_sources),
+                        value = sourceCount.toString(),
+                        modifier = Modifier.weight(1f),
+                        tone = SourceLabTone.ACCENT,
+                    )
+                    SourceLabMetricCard(
+                        label = stringResource(R.string.seed_memberships),
+                        value = "21/21",
+                        modifier = Modifier.weight(1f),
+                        tone = SourceLabTone.GOOD,
+                        supporting = "verified checkpoint",
+                    )
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SourceLabMetricCard(
+                        label = stringResource(R.string.seed_failures),
+                        value = "0",
+                        modifier = Modifier.weight(1f),
+                        tone = SourceLabTone.GOOD,
+                        supporting = "checkpoint",
+                    )
+                    SourceLabMetricCard(
+                        label = stringResource(R.string.auto_repair),
+                        value = "2/2",
+                        modifier = Modifier.weight(1f),
+                        tone = SourceLabTone.ACCENT,
+                        supporting = "verified retest",
+                    )
+                }
+            }
+        }
+
+        if (snapshot != null) {
+            item(key = "viewer-provider-title") {
+                Text(
+                    stringResource(R.string.provider_runtime_vs_seed),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            items(snapshot.providers, key = { it.id }, contentType = { "viewer-provider" }) { provider ->
+                val health = provider.runtimeHealth.uppercase()
+                val tone = when (health) {
+                    "HEALTHY", "PASS", "READY" -> SourceLabTone.GOOD
+                    "BROKEN", "FAILED", "FAIL" -> SourceLabTone.ERROR
+                    "DEGRADED", "HELD", "REVIEW" -> SourceLabTone.WARNING
+                    else -> SourceLabTone.NEUTRAL
+                }
+                SourceLabCard(contentPadding = PaddingValues(horizontal = 13.dp, vertical = 11.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+                            SourceLabIcon(SourceLabIconKind.FARM, Modifier.size(20.dp), SourceLabPrimarySoft)
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(provider.id.prettyProviderNameLocalized(), fontWeight = FontWeight.Bold)
                             val count = snapshot.sources.count { provider.id in it.providers }
                             Text(
                                 stringResource(R.string.registered_memberships_state, count, provider.updateState),
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(provider.runtimeHealth, fontWeight = FontWeight.Bold)
-                            Text(stringResource(R.string.active_baseline), style = MaterialTheme.typography.labelSmall)
-                        }
+                        SourceLabStatusBadge(health.replace('_', ' '), tone)
                     }
                 }
             }
         }
-        item { LocalizedSafetyCard() }
+
+        item(key = "viewer-safety") {
+            LocalizedSafetyCard()
+        }
     }
 }
 
 @Composable
 private fun LocalizedLiveCard(sync: LocalizedSyncState, onRefresh: () -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            when (sync) {
-                LocalizedSyncState.Loading -> {
-                    Text(stringResource(R.string.repository_sync), fontWeight = FontWeight.Bold)
-                    LinearProgressIndicator(Modifier.fillMaxWidth())
-                    Text(stringResource(R.string.reading_farm_state))
+    val tone = when (sync) {
+        LocalizedSyncState.Loading -> SourceLabTone.ACCENT
+        is LocalizedSyncState.Ready -> SourceLabTone.GOOD
+        is LocalizedSyncState.Failed -> SourceLabTone.WARNING
+    }
+    SourceLabCard(tone = tone) {
+        when (sync) {
+            LocalizedSyncState.Loading -> {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(11.dp),
+                ) {
+                    CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = SourceLabPrimary)
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.repository_sync), fontWeight = FontWeight.Bold)
+                        Text(
+                            stringResource(R.string.reading_farm_state),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
-                is LocalizedSyncState.Ready -> {
-                    Text(stringResource(R.string.live_read_only), fontWeight = FontWeight.Bold, color = Color(0xFF75E8B0))
-                    Text(stringResource(R.string.live_sources_summary, sync.snapshot.cohort, sync.snapshot.sources.size, sync.snapshot.targetSize))
-                    Text(stringResource(R.string.branch_label, sync.snapshot.branch))
-                    OutlinedButton(onClick = onRefresh) { Text(stringResource(R.string.refresh)) }
+            }
+            is LocalizedSyncState.Ready -> {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Live Farm State", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(
+                                stringResource(
+                                    R.string.live_sources_summary,
+                                    sync.snapshot.cohort,
+                                    sync.snapshot.sources.size,
+                                    sync.snapshot.targetSize,
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        SourceLabStatusBadge("LIVE · READ ONLY", SourceLabTone.GOOD)
+                    }
+                    Text(
+                        stringResource(R.string.branch_label, sync.snapshot.branch),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    SourceLabSecondaryButton(
+                        text = stringResource(R.string.refresh),
+                        onClick = onRefresh,
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = SourceLabIconKind.REFRESH,
+                    )
                 }
-                is LocalizedSyncState.Failed -> {
-                    Text(stringResource(R.string.live_sync_unavailable), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
-                    Text(stringResource(R.string.fallback_checkpoint_message))
-                    Text(sync.message, style = MaterialTheme.typography.bodySmall)
-                    OutlinedButton(onClick = onRefresh) { Text(stringResource(R.string.retry)) }
+            }
+            is LocalizedSyncState.Failed -> {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SourceLabStatusBadge("LIVE SYNC UNAVAILABLE", SourceLabTone.WARNING)
+                    Text(
+                        stringResource(R.string.fallback_checkpoint_message),
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        sync.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    SourceLabSecondaryButton(
+                        text = stringResource(R.string.retry),
+                        onClick = onRefresh,
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = SourceLabIconKind.REFRESH,
+                    )
                 }
             }
         }
@@ -473,28 +615,57 @@ private fun LocalizedSourceDetail(source: LocalizedSource, onBack: () -> Unit) {
 
 @Composable
 private fun LocalizedSafetyCard() {
-    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF171C2C))) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text(stringResource(R.string.safety_boundary), fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.safety_read_only))
-            Text(stringResource(R.string.safety_pass_not_promote))
-            Text(stringResource(R.string.safety_lkg_exact_approval))
-            Text(stringResource(R.string.safety_stale_fail_closed))
-            Text(stringResource(R.string.safety_no_write_token))
-            Text(stringResource(R.string.safety_no_release_publish))
+    SourceLabCard {
+        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SourceLabIcon(SourceLabIconKind.LOCK, Modifier.size(18.dp), SourceLabPrimarySoft)
+                    Text(stringResource(R.string.safety_boundary), fontWeight = FontWeight.Bold)
+                }
+                SourceLabStatusBadge("READ ONLY", SourceLabTone.NEUTRAL)
+            }
+            Text(stringResource(R.string.safety_read_only), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.safety_pass_not_promote), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.safety_lkg_exact_approval), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.safety_stale_fail_closed), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.safety_no_write_token), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.safety_no_release_publish), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
 
 @Composable
 private fun LocalizedStatusCard(title: String, status: String, supporting: String) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, fontWeight = FontWeight.Bold)
-            Surface(shape = RoundedCornerShape(999.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)) {
-                Text(status, Modifier.padding(horizontal = 10.dp, vertical = 5.dp), color = MaterialTheme.colorScheme.primary)
+    val normalized = status.uppercase()
+    val tone = when {
+        normalized in setOf("PASS", "READY", "HEALTHY") -> SourceLabTone.GOOD
+        "WAITING" in normalized || "REVIEW" in normalized -> SourceLabTone.WARNING
+        normalized in setOf("FAIL", "FAILED", "BROKEN") -> SourceLabTone.ERROR
+        else -> SourceLabTone.NEUTRAL
+    }
+    SourceLabCard(tone = tone) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(title, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                SourceLabStatusBadge(status.replace('_', ' '), tone)
             }
-            Text(supporting)
+            Text(
+                supporting,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
