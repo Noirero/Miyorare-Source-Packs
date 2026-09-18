@@ -460,6 +460,10 @@ internal object SourceLabControlClient {
         context: Context,
         forceRefresh: Boolean = false,
     ): OwnerContext {
+        if (SourceLabOwnerSessionStore.isViewerModeRequested()) {
+            cachedOwnerContext = null
+            throw SourceLabControlException("VIEWER_MODE_READ_ONLY")
+        }
         if (!forceRefresh) {
             val cached = cachedOwnerContext
             if (cached != null) {
