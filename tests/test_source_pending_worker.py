@@ -196,6 +196,60 @@ class PendingWorkerTest(unittest.TestCase):
         self.assertEqual(missing["state"], worker.RETRY)
         self.assertEqual(missing["evidence"]["gate"], "REAL_PARSER_BLOCKED")
 
+    def test_infrastructure_parser_failure_does_not_consume_source_retry(self) -> None:
+        row = profiled()
+        row["attempts"] = 3
+        row["evidence"]["attempts"] = 3
+        parser_fail = {
+            "results": [{
+                "canonicalId": "alpha",
+                "provider": "uma",
+                "status": "FAIL",
+                "parserExecution": True,
+                "detailsTraversal": False,
+                "chapterTraversal": False,
+                "pageExtraction": False,
+                "failureType": "java.lang.NoClassDefFoundError",
+                "failureMessage": "missing runtime class",
+            }]
+        }
+        final = worker.finalize_results({"results": [row]}, parser_fail, 3)["results"][0]
+        self.assertEqual(final["state"], worker.RETRY)
+        self.assertEqual(final["attempts"], 2)
+        diagnosis = final["evidence"]["diagnosis"]
+        self.assertTrue(diagnosis["automationInfrastructureOnly"])
+        self.assertFalse(diagnosis["attemptConsumed"])
+        self.assertEqual(
+            diagnosis["categories"][0]["category"],
+            "AUTOMATION_INFRASTRUCTURE",
+        )
+
+    def test_real_source_failure_still_consumes_retry(self) -> None:
+        row = profiled()
+        row["attempts"] = 3
+        row["evidence"]["attempts"] = 3
+        parser_fail = {
+            "results": [{
+                "canonicalId": "alpha",
+                "provider": "uma",
+                "status": "FAIL",
+                "parserExecution": True,
+                "detailsTraversal": False,
+                "chapterTraversal": False,
+                "pageExtraction": False,
+                "failureType": "org.opentest4j.AssertionFailedError",
+                "failureMessage": "live browse returned no manga; lastFailure=HttpStatusException",
+            }]
+        }
+        final = worker.finalize_results({"results": [row]}, parser_fail, 3)["results"][0]
+        self.assertEqual(final["state"], worker.HELD)
+        self.assertEqual(final["attempts"], 3)
+        self.assertFalse(final["evidence"]["diagnosis"]["automationInfrastructureOnly"])
+        self.assertEqual(
+            final["evidence"]["diagnosis"]["categories"][0]["category"],
+            "HTTP_BLOCKED_OR_UPSTREAM_FAILURE",
+        )
+
     def test_real_parser_failure_holds_at_threshold(self) -> None:
         row = profiled()
         row["attempts"] = 3
