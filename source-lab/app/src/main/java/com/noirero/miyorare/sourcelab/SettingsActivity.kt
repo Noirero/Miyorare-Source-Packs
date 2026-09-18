@@ -102,6 +102,18 @@ private fun SettingsScreen(onClose: () -> Unit) {
                             if (ownerDecision.canControl) SourceLabTone.GOOD else SourceLabTone.NEUTRAL,
                         )
                     }
+                    SourceLabSecondaryButton(
+                        text = if (ownerDecision.canControl) "Revalidate Owner" else "Connect Owner",
+                        onClick = {
+                            context.startActivity(
+                                Intent(context, OwnerGateActivity::class.java).addFlags(
+                                    Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP,
+                                ),
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = SourceLabIconKind.LOCK,
+                    )
                 }
             }
 
