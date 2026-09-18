@@ -59,7 +59,7 @@ class SourceInventoryActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             SourceLabPhase1Theme {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                SourceLabAppSurface {
                     SourceInventoryScreen { finish() }
                 }
             }
