@@ -129,6 +129,10 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
 
         coroutineScope {
             launch {
+                if (SourceLabOwnerSessionStore.isViewerModeRequested()) {
+                    ui = ui.copy(control = null, error = null)
+                    return@launch
+                }
                 val controlResult = runCatching {
                     SourceLabControlClient.resolveState(context, snapshot)
                 }
