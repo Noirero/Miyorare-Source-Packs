@@ -43,7 +43,7 @@ class OwnerGateActivity : ComponentActivity() {
 
         setContent {
             SourceLabPhase1Theme {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                SourceLabAppSurface {
                     OwnerGateScreen(
                         operationScope = lifecycleScope,
                         onViewer = {
