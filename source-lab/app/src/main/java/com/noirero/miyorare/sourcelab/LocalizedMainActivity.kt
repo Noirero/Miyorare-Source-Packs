@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -87,6 +88,7 @@ private fun LocalizedSourceLabTheme(content: @Composable () -> Unit) {
 
 @Composable
 private fun LocalizedSourceLabApp() {
+    val context = LocalContext.current
     var screen by remember { mutableStateOf(LocalizedScreen.Farm) }
     var selected by remember { mutableStateOf<LocalizedSource?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
@@ -112,14 +114,21 @@ private fun LocalizedSourceLabApp() {
     } ?: LocalizedSeed.sources
 
     Scaffold(
+        containerColor = Color.Transparent,
         bottomBar = {
             if (selected == null) {
-                NavigationBar {
-                    LocalizedNavItem(LocalizedScreen.Farm, screen, "F", R.string.nav_farm) { screen = it }
-                    LocalizedNavItem(LocalizedScreen.Sources, screen, "S", R.string.nav_sources) { screen = it }
-                    LocalizedNavItem(LocalizedScreen.Tests, screen, "T", R.string.nav_tests) { screen = it }
-                    LocalizedNavItem(LocalizedScreen.Report, screen, "R", R.string.nav_report) { screen = it }
-                }
+                SourceLabBottomBar(
+                    selected = SourceLabDestination.FARM,
+                    onSelect = { destination ->
+                        when (destination) {
+                            SourceLabDestination.FARM -> screen = LocalizedScreen.Farm
+                            SourceLabDestination.SOURCES -> context.startActivity(android.content.Intent(context, SourceInventoryActivity::class.java))
+                            SourceLabDestination.REPORTS -> context.startActivity(android.content.Intent(context, ReportsActivity::class.java))
+                            SourceLabDestination.SETTINGS -> context.startActivity(android.content.Intent(context, SettingsActivity::class.java))
+                        }
+                    },
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                )
             }
         },
     ) { padding ->
@@ -134,7 +143,7 @@ private fun LocalizedSourceLabApp() {
             }
         }
     }
-}
+
 
 @Composable
 private fun RowScope.LocalizedNavItem(
@@ -147,7 +156,17 @@ private fun RowScope.LocalizedNavItem(
     NavigationBarItem(
         selected = target == current,
         onClick = { onClick(target) },
-        icon = { Text(glyph, fontWeight = FontWeight.Bold) },
+        icon = {
+            SourceLabIcon(
+                when (target) {
+                    LocalizedScreen.Farm, LocalizedScreen.Tests -> SourceLabIconKind.FARM
+                    LocalizedScreen.Sources -> SourceLabIconKind.SOURCES
+                    LocalizedScreen.Report -> SourceLabIconKind.REPORTS
+                },
+                Modifier.size(20.dp),
+                if (target == current) SourceLabPrimarySoft else SourceLabMuted,
+            )
+        },
         label = { Text(stringResource(labelRes)) },
     )
 }
