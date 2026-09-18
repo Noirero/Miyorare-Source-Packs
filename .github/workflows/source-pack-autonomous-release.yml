@@ -323,21 +323,42 @@ jobs:
           print("needed=" + ("false" if actual == desired else "true"))
           PY
 
-      - name: Refuse duplicate release dispatch while another release is active
+      - name: Clean stale queued releases and refuse duplicate active release
         if: steps.release_need.outputs.needed == 'true'
         id: active_release
         shell: bash
         run: |
           set -euo pipefail
+          now_epoch="$(date -u +%s)"
+          stale_before="$((now_epoch - 21600))"
+
+          mapfile -t stale_queued < <(
+            gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow release-source-packs.yml \
+              --limit 100 \
+              --json status,databaseId,createdAt \
+              --jq ".[] | select(.status == \"queued\") | select((.createdAt | fromdateiso8601) < $stale_before) | .databaseId"
+          )
+          for run_id in "${stale_queued[@]}"; do
+            echo "Cancelling stale queued Source Pack release run $run_id"
+            gh run cancel "$run_id" --repo "$GITHUB_REPOSITORY" || true
+          done
+
           active="$(gh run list \
             --repo "$GITHUB_REPOSITORY" \
             --workflow release-source-packs.yml \
-            --limit 30 \
-            --json status,databaseId \
-            --jq '[.[] | select(.status == "queued" or .status == "in_progress")] | length')"
+            --limit 100 \
+            --json status,databaseId,createdAt \
+            --jq "[.[] |
+              select(
+                .status == \"in_progress\" or
+                (.status == \"queued\" and ((.createdAt | fromdateiso8601) >= $stale_before))
+              )
+            ] | length")"
           echo "count=$active" >> "$GITHUB_OUTPUT"
           [[ "$active" == "0" ]] || {
-            echo "A Source Pack release is already queued/running; next schedule will re-evaluate." >&2
+            echo "A fresh Source Pack release is already queued/running; next control run will re-evaluate." >&2
             exit 0
           }
 
