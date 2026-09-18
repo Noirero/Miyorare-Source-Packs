@@ -9,6 +9,7 @@ on:
     paths:
       - '.github/workflows/source-lab-pending-worker.yml'
       - 'tools/source_pending_worker.py'
+      - 'tools/source_live_parser_harness.py'
 
 permissions:
   contents: write
@@ -21,7 +22,7 @@ jobs:
   worker:
     name: Process Compatibility Farm PENDING queue
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     env:
       EXPECTED_OWNER_ID: '149634319'
       BATCH_SIZE: '8'
@@ -224,11 +225,7 @@ jobs:
           import json
           from pathlib import Path
           plan = json.loads(Path('farm/build/pending-worker-plan.json').read_text())
-          modules = sorted({
-              item['upstreamIdentities']['keiyoushi']['module']
-              for item in plan['items']
-              if 'keiyoushi' in item['providers']
-          })
+          modules = sorted({item['upstreamIdentities']['keiyoushi']['module'] for item in plan['items'] if 'keiyoushi' in item['providers']})
           print('\n'.join(modules))
           PY
           )
@@ -246,7 +243,7 @@ jobs:
           PY
           done
 
-      - name: Assess source shape, compile evidence, and runtime reachability
+      - name: Profile source shape, compile evidence, and reachability
         if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
         shell: bash
         run: |
@@ -258,6 +255,144 @@ jobs:
             --gekkoushi-root _upstream/gekkoushi \
             --compile-results farm/build/compile-results.json \
             --timeout 8 \
+            --fail-threshold 3 \
+            --output farm/build/pending-worker-profile-results.json
+
+      - name: Isolate upstream Gekkoushi tests
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        shell: bash
+        run: |
+          if [[ -d _upstream/gekkoushi/src/test ]]; then
+            mv _upstream/gekkoushi/src/test _upstream/gekkoushi/_compatibility-upstream-tests
+          fi
+
+      - name: Generate real parser smoke harnesses
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for provider in uma gekkoushi keiyoushi; do
+            python3 control/tools/source_live_parser_harness.py generate \
+              --plan farm/build/pending-worker-plan.json \
+              --profile-results farm/build/pending-worker-profile-results.json \
+              --provider "$provider" \
+              --provider-root "_upstream/$provider" \
+              --output "farm/build/live-parser-$provider-manifest.json"
+          done
+
+      - name: Install Keiyoushi generic test runtime
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t modules < <(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('farm/build/live-parser-keiyoushi-manifest.json').read_text())
+          print('\n'.join(sorted({item['locator'] for item in data['tests']})))
+          PY
+          )
+          for module in "${modules[@]}"; do
+            [[ -n "$module" ]] || continue
+            target="_upstream/keiyoushi/$module"
+            mkdir -p "$target/compatibility-farm-test"
+            cp -R farm/compatibility/harness/keiyoushi/runtime/. "$target/compatibility-farm-test/"
+            cat >> "$target/build.gradle.kts" <<'EOF'
+
+          // Compatibility Farm generated real-parser test wiring. Disposable pinned checkout only.
+          android {
+              sourceSets {
+                  named("test") {
+                      java.directories.add("compatibility-farm-test")
+                      kotlin.directories.add("compatibility-farm-test")
+                  }
+              }
+              testOptions { unitTests.isReturnDefaultValues = true }
+          }
+          dependencies {
+              testImplementation(libs.junit)
+              testImplementation(libs.bundles.common)
+          }
+          tasks.matching { it.name == "kspDebugUnitTestKotlin" }.configureEach { enabled = false }
+          EOF
+          done
+
+      - name: Execute UMA generated real parser tests
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -u
+          mapfile -t tests < <(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('farm/build/live-parser-uma-manifest.json').read_text())
+          print('\n'.join(item['testClass'] for item in data['tests']))
+          PY
+          )
+          if [[ ${#tests[@]} -gt 0 ]]; then
+            args=()
+            for test in "${tests[@]}"; do args+=(--tests "$test"); done
+            (cd _upstream/uma && chmod +x gradlew && ./gradlew test "${args[@]}" --no-daemon)
+          fi
+
+      - name: Execute Gekkoushi generated real parser tests
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -u
+          mapfile -t tests < <(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('farm/build/live-parser-gekkoushi-manifest.json').read_text())
+          print('\n'.join(item['testClass'] for item in data['tests']))
+          PY
+          )
+          if [[ ${#tests[@]} -gt 0 ]]; then
+            args=()
+            for test in "${tests[@]}"; do args+=(--tests "$test"); done
+            (cd _upstream/gekkoushi && chmod +x gradlew && ./gradlew test "${args[@]}" --no-daemon)
+          fi
+
+      - name: Execute Keiyoushi generated real parser tests
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -u
+          python3 - <<'PY' > farm/build/keiyoushi-tests.tsv
+          import json
+          from pathlib import Path
+          data = json.loads(Path('farm/build/live-parser-keiyoushi-manifest.json').read_text())
+          for item in data['tests']:
+              print(item['locator'], item['testClass'], sep='\t')
+          PY
+          while IFS=$'\t' read -r module test; do
+            [[ -n "$module" && -n "$test" ]] || continue
+            task=":${module//\//:}:testDebugUnitTest"
+            (cd _upstream/keiyoushi && chmod +x gradlew && ./gradlew "$task" --tests "$test" --no-daemon) || true
+          done < farm/build/keiyoushi-tests.tsv
+
+      - name: Collect real parser evidence
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_live_parser_harness.py collect \
+            --manifest farm/build/live-parser-uma-manifest.json \
+            --manifest farm/build/live-parser-gekkoushi-manifest.json \
+            --manifest farm/build/live-parser-keiyoushi-manifest.json \
+            --output farm/build/live-parser-results.json
+
+      - name: Enforce real parser gate
+        if: steps.plan.outputs.count != '' && steps.plan.outputs.count != '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_pending_worker.py finalize \
+            --profile-results farm/build/pending-worker-profile-results.json \
+            --parser-results farm/build/live-parser-results.json \
             --fail-threshold 3 \
             --output farm/build/pending-worker-results.json
 
@@ -287,13 +422,11 @@ jobs:
             exit 0
           fi
           cd farm
-          if [[ -z "$(git status --porcelain -- automation/pending-worker-state.json)" ]]; then
-            exit 0
-          fi
+          if [[ -z "$(git status --porcelain -- automation/pending-worker-state.json)" ]]; then exit 0; fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add automation/pending-worker-state.json
-          git commit -m 'farm: advance autonomous pending queue'
+          git commit -m 'farm: advance autonomous pending queue with real parser evidence'
           git push origin HEAD:compatibility-farm-foundation
 
       - name: Upload worker evidence
@@ -304,8 +437,14 @@ jobs:
           path: |
             farm/build/pending-worker-plan.json
             farm/build/compile-results.json
+            farm/build/pending-worker-profile-results.json
+            farm/build/live-parser-*-manifest.json
+            farm/build/live-parser-results.json
             farm/build/pending-worker-results.json
             farm/build/pending-worker-summary.json
+            _upstream/uma/build/test-results/test/*.xml
+            _upstream/gekkoushi/build/test-results/test/*.xml
+            _upstream/keiyoushi/**/build/test-results/testDebugUnitTest/*.xml
           if-no-files-found: warn
           retention-days: 14
 
@@ -313,7 +452,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          echo '## Autonomous PENDING worker' >> "$GITHUB_STEP_SUMMARY"
+          echo '## Autonomous PENDING worker — real parser gated' >> "$GITHUB_STEP_SUMMARY"
           echo "Lifecycle safe: ${{ steps.guard.outputs.safe }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Planned sources: ${{ steps.plan.outputs.count }}" >> "$GITHUB_STEP_SUMMARY"
           if [[ -f farm/build/pending-worker-summary.json ]]; then
