@@ -226,16 +226,28 @@ def finalize_results(profile_results: dict[str, Any], parser_results: dict[str, 
 
 
 def apply_results(registry: dict[str, Any], worker_state: dict[str, Any], results: dict[str, Any], workflow_run_id: str, checked_at: str) -> tuple[dict[str, Any], dict[str, Any]]:
-    valid_ids = {source["canonicalId"] for source in canonical_sources(registry) if source.get("compatibilityEnrollment", {}).get("state") == "PENDING"}
+    pending_sources = {
+        source["canonicalId"]: source
+        for source in canonical_sources(registry)
+        if source.get("compatibilityEnrollment", {}).get("state") == "PENDING"
+    }
+    valid_ids = set(pending_sources)
     state = normalize_state(worker_state)
     summary = {READY: 0, RETRY: 0, HELD: 0, PROFILE: 0}
     for result in results.get("results", []):
         canonical_id = result.get("canonicalId")
         if canonical_id not in valid_ids:
             raise ValueError(f"{canonical_id} is not a current PENDING registry member")
+        source = pending_sources[canonical_id]
         outcome = result["state"]
         summary[outcome] = summary.get(outcome, 0) + 1
-        state["sources"][canonical_id] = {"schemaVersion": 2, "state": outcome, "attempts": result["attempts"], "lastCheckedAt": checked_at, "workflowRunId": str(workflow_run_id), "evidenceSha256": result["evidenceSha256"], "adapterFamily": result["adapterFamily"], "authType": result["authType"], "approvalState": "WAITING_FOR_APPROVAL" if outcome == READY else "NOT_READY", "ownerActionRequired": False, "publishEligible": False, "evidence": result["evidence"]}
+        tested_versions = {
+            provider: source.get("currentVersion", {}).get(provider)
+            for provider in source.get("providers", [])
+        }
+        if any(not isinstance(value, str) or len(value) != 40 for value in tested_versions.values()):
+            raise ValueError(f"{canonical_id} has invalid provider version binding")
+        state["sources"][canonical_id] = {"schemaVersion": 2, "state": outcome, "attempts": result["attempts"], "lastCheckedAt": checked_at, "workflowRunId": str(workflow_run_id), "evidenceSha256": result["evidenceSha256"], "testedVersions": tested_versions, "adapterFamily": result["adapterFamily"], "authType": result["authType"], "approvalState": "WAITING_FOR_APPROVAL" if outcome == READY else "NOT_READY", "ownerActionRequired": False, "publishEligible": False, "evidence": result["evidence"]}
     state["updatedAt"] = checked_at
     state["lastWorkflowRunId"] = str(workflow_run_id)
     return state, {"schemaVersion": 2, "processed": sum(summary.values()), "states": summary, "remainingPending": sum(1 for source in canonical_sources(registry) if source.get("compatibilityEnrollment", {}).get("state") == "PENDING" and eligible(source, state))}
