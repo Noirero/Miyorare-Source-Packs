@@ -164,7 +164,7 @@ jobs:
           set -euo pipefail
           tmp="$(mktemp -d)"
           printf 'payload\n' > "$tmp/a.jar"
-          printf '{"schema":3}\n' > "$tmp/miyorare-source-packs.json"
+          printf '{"schema":3,"compatibilitySnapshotId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}\n' > "$tmp/miyorare-source-packs.json"
           python3 - "$tmp" <<'PY'
           import hashlib, json, sys
           from pathlib import Path
@@ -178,6 +178,7 @@ jobs:
               'sealedBeforePublish': True,
               'tag': 'miyorare-sources-v9.9.9',
               'releaseManifestSha256': hashlib.sha256(manifest.read_bytes()).hexdigest(),
+              'compatibilitySnapshotId': 'a' * 64,
               'assets': [{
                   'name': asset.name,
                   'size': asset.stat().st_size,
@@ -283,6 +284,10 @@ jobs:
           grep -Fq "releaseEligibility" "$release"
           grep -Fq 'release_eligibility.py reconcile' .github/workflows/source-lab-promote-candidate.yml
           grep -Fq 'tools/source_pack_manifest.py generate' "$release"
+          grep -Fq -- '--farm-commit "$FARM_COMMIT"' "$release"
+          grep -Fq 'needs.resolve-source.outputs.farm_commit' "$release"
+          grep -Fq 'compatibilitySnapshotId' tools/source_pack_manifest.py
+          grep -Fq "'compatibilitySnapshotId': snapshot_id" "$seal"
           grep -Fq 'tools/source_pack_manifest.py validate' "$release"
           grep -Fq 'actions/attest-build-provenance@v2' "$seal"
           grep -Fq 'gh attestation verify' "$seal"
