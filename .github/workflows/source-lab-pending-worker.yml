@@ -299,6 +299,10 @@ jobs:
         run: |
           set -euo pipefail
           test -f farm/compatibility/harness/keiyoushi/runtime/eu/kanade/tachiyomi/source/SourceFactoryShim.kt
+          grep -q 'FixtureOrLiveInterceptor' farm/compatibility/harness/keiyoushi/runtime/eu/kanade/tachiyomi/network/NetworkShim.kt
+          grep -q 'mangaDetailsRequest' farm/compatibility/harness/keiyoushi/runtime/eu/kanade/tachiyomi/source/online/HttpSourceShim.kt
+          grep -q 'chapterListRequest' farm/compatibility/harness/keiyoushi/runtime/eu/kanade/tachiyomi/source/online/HttpSourceShim.kt
+          grep -q 'pageListRequest' farm/compatibility/harness/keiyoushi/runtime/eu/kanade/tachiyomi/source/online/HttpSourceShim.kt
           mapfile -t modules < <(python3 - <<'PY'
           import json
           from pathlib import Path
