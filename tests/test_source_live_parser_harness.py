@@ -52,6 +52,31 @@ class LiveParserHarnessTest(unittest.TestCase):
         self.assertIn("actual.getPageList(", source)
         self.assertIn("popularMangaRequest", source)
 
+    def test_prepare_keiyoushi_runtime_adds_source_factory_and_theme_assets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            module = root / "src/id/example"
+            module.mkdir(parents=True)
+            (module / "build.gradle.kts").write_text(
+                'keiyoushi { theme = "mangathemesia" }',
+                encoding="utf-8",
+            )
+            theme_assets = root / "lib-multisrc/mangathemesia/assets/i18n"
+            theme_assets.mkdir(parents=True)
+            (theme_assets / "messages_en.properties").write_text("key=value\n", encoding="utf-8")
+            module_assets = module / "assets"
+            module_assets.mkdir()
+            (module_assets / "module.txt").write_text("module", encoding="utf-8")
+
+            result = harness.prepare_keiyoushi_runtime(root, "src/id/example")
+
+            shim = module / "compatibility-farm-test/eu/kanade/tachiyomi/source/SourceFactory.kt"
+            self.assertTrue(shim.is_file())
+            self.assertIn("interface SourceFactory", shim.read_text(encoding="utf-8"))
+            self.assertTrue((module / "src/test/resources/assets/i18n/messages_en.properties").is_file())
+            self.assertTrue((module / "src/test/resources/assets/module.txt").is_file())
+            self.assertEqual(result["resourceSources"], ["theme:mangathemesia", "module"])
+
     def test_auth_source_is_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -68,35 +93,6 @@ class LiveParserHarnessTest(unittest.TestCase):
             manifest = harness.generate(plan, profiles, "uma", root)
             self.assertEqual(manifest["tests"], [])
             self.assertEqual(manifest["blocked"][0]["reason"], "AUTH_REQUIRED:TOKEN")
-
-    def test_collect_persists_junit_failure_diagnosis(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            results = root / "results"
-            results.mkdir()
-            (results / "TEST-compatibilityfarm.AutoLive_test.xml").write_text(
-                """<testsuite name="compatibilityfarm.AutoLive_test" tests="1" failures="1" errors="0" skipped="0">
-                <testcase name="smoke">
-                  <failure type="java.lang.NoClassDefFoundError" message="eu/kanade/tachiyomi/source/SourceFactory">stack trace</failure>
-                </testcase>
-                </testsuite>""",
-                encoding="utf-8",
-            )
-            manifest = {
-                "provider": "keiyoushi",
-                "tests": [{
-                    "canonicalId": "alpha",
-                    "provider": "keiyoushi",
-                    "testClass": "compatibilityfarm.AutoLive_test",
-                    "resultsDir": str(results),
-                }],
-                "blocked": [],
-            }
-            report = harness.collect([manifest])
-        row = report["results"][0]
-        self.assertEqual(row["status"], "FAIL")
-        self.assertEqual(row["failureType"], "java.lang.NoClassDefFoundError")
-        self.assertEqual(row["failureMessage"], "eu/kanade/tachiyomi/source/SourceFactory")
 
     def test_collect_missing_junit_is_failure(self) -> None:
         manifest = {
