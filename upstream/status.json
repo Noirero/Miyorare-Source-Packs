@@ -21,30 +21,16 @@
       "reason": "per-source-runtime-probe"
     },
     "uma": {
-      "updateState": "CANDIDATE",
+      "updateState": "PROMOTED",
       "runtimeHealth": "DEGRADED",
-      "activeCommit": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
-      "lastKnownGood": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
+      "activeCommit": "52185ec4faada143f57dcfb41c6fa49aa346b4db",
+      "lastKnownGood": "52185ec4faada143f57dcfb41c6fa49aa346b4db",
       "healthyHistory": [
-        "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
+        "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
+        "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       ],
       "recoveryState": "IDLE",
-      "reason": "waiting-for-exact-approval",
-      "candidate": {
-        "commit": "52185ec4faada143f57dcfb41c6fa49aa346b4db",
-        "expectedLastKnownGood": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
-        "candidateSetId": "f48a54557e3a986166daa78dd4ff4ba38cd89bfa2ab7c05f90ac6fcfe6bb618c",
-        "gateFingerprint": "42b12aa9fc7051a7658360b9a243ee9f695ee0ff1ece779fa5730eb6c2c20e21",
-        "evidenceBinding": {
-          "farmEvidenceSha256": "02e1301e02aad9055d98449ef329935c3d47a3dd518535e5013e0599708f211a",
-          "gateSha256": "a38dda798d75cf8f592d1799c3f89d7664b6d2964e1c26865b926f0bb4bbfb6d",
-          "repairEvidenceCount": 2,
-          "repairEvidenceSha256": "73ded7ad0e3d103d1800c77277a82da1e4b1880954b50e959ab2e3f1070d9132",
-          "schemaVersion": 1
-        },
-        "approvalState": "WAITING_FOR_APPROVAL",
-        "publishEligible": false
-      }
+      "reason": "owner-approved-exact-promotion"
     },
     "gekkoushi": {
       "updateState": "PROMOTED",
@@ -103,8 +89,15 @@
     "workflowRunId": 35287390025,
     "updatedAt": "2026-09-17T23:42:52.747907Z"
   },
-  "approvalCandidate": {
+  "lastPromotion": {
+    "schemaVersion": 1,
+    "state": "PROMOTED",
     "candidateSetId": "f48a54557e3a986166daa78dd4ff4ba38cd89bfa2ab7c05f90ac6fcfe6bb618c",
+    "approvalRunId": 35302113403,
+    "promotionRunId": 35302153624,
+    "providers": {
+      "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+    },
     "evidenceBinding": {
       "farmEvidenceSha256": "02e1301e02aad9055d98449ef329935c3d47a3dd518535e5013e0599708f211a",
       "gateSha256": "a38dda798d75cf8f592d1799c3f89d7664b6d2964e1c26865b926f0bb4bbfb6d",
@@ -112,18 +105,7 @@
       "repairEvidenceSha256": "73ded7ad0e3d103d1800c77277a82da1e4b1880954b50e959ab2e3f1070d9132",
       "schemaVersion": 1
     },
-    "gateFingerprint": "42b12aa9fc7051a7658360b9a243ee9f695ee0ff1ece779fa5730eb6c2c20e21",
-    "maintenanceMode": "APPROVE_ONLY",
-    "ownerActionRequired": false,
-    "providers": {
-      "uma": {
-        "candidate": "52185ec4faada143f57dcfb41c6fa49aa346b4db",
-        "current": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785",
-        "state": "WAITING_FOR_APPROVAL"
-      }
-    },
-    "publishEligible": false,
-    "schemaVersion": 1,
-    "state": "WAITING_FOR_APPROVAL"
+    "approvedBy": "Noirero:149634319",
+    "publishEligible": false
   }
 }

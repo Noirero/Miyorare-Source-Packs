@@ -385,7 +385,7 @@
               "probeHost": "agrcomics.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Site is online but parser is broken \u2014 layout/API changed, needs rewrite"
+              "upstreamBrokenReason": "Site is online but parser is broken — layout/API changed, needs rewrite"
             }
           ]
         }
@@ -1151,7 +1151,7 @@
               "probeHost": "alceacomic.my.id",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
+              "upstreamBrokenReason": "Domain has no DNS records — site is gone"
             }
           ]
         }
@@ -1468,7 +1468,7 @@
               "probeHost": "www.asupankomik.my.id",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
+              "upstreamBrokenReason": "Domain has no DNS records — site is gone"
             }
           ]
         }
@@ -1551,7 +1551,7 @@
     },
     "miyorare:inventory-id:BACAKOMIKPICS": {
       "adapterFamily": "custom-rest-json",
-      "approvalState": "WAITING_FOR_APPROVAL",
+      "approvalState": "NOT_READY",
       "attempts": 1,
       "authType": "NO_AUTH",
       "evidence": {
@@ -1609,11 +1609,13 @@
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
-      "state": "READY_FOR_APPROVAL",
+      "state": "RETRY",
       "testedVersions": {
         "uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
       },
-      "workflowRunId": "35301259521"
+      "workflowRunId": "35301259521",
+      "revalidationReason": "PROVIDER_BASELINE_CHANGED",
+      "invalidatedByPromotionRunId": 35302153624
     },
     "miyorare:inventory-id:BIRDTOON": {
       "adapterFamily": "madara",
@@ -1657,7 +1659,7 @@
     },
     "miyorare:inventory-id:CGBUM": {
       "adapterFamily": "custom-paged-html",
-      "approvalState": "WAITING_FOR_APPROVAL",
+      "approvalState": "NOT_READY",
       "attempts": 1,
       "authType": "NO_AUTH",
       "evidence": {
@@ -1715,12 +1717,22 @@
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
-      "state": "READY_FOR_APPROVAL",
+      "state": "RETRY",
       "testedVersions": {
         "uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
       },
-      "workflowRunId": "35301259521"
+      "workflowRunId": "35301259521",
+      "revalidationReason": "PROVIDER_BASELINE_CHANGED",
+      "invalidatedByPromotionRunId": 35302153624
     }
   },
-  "updatedAt": "2026-09-18T03:01:25Z"
+  "updatedAt": "2026-09-18T03:01:25Z",
+  "lastPromotionInvalidation": {
+    "promotionRunId": 35302153624,
+    "candidateSetId": "f48a54557e3a986166daa78dd4ff4ba38cd89bfa2ab7c05f90ac6fcfe6bb618c",
+    "sources": [
+      "miyorare:inventory-id:BACAKOMIKPICS",
+      "miyorare:inventory-id:CGBUM"
+    ]
+  }
 }
