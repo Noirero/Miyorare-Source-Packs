@@ -8,9 +8,9 @@ import okhttp3.Response
 /**
  * Test-only host ABI shim for Keiyoushi's suspend OkHttp helpers.
  *
- * Real network traffic is still blocked by DeterministicNetwork's interceptor.
- * These functions only reproduce the host method signatures expected by pinned
- * Keiyoushi bytecode so real source parser code can execute in JVM CI.
+ * Deterministic fixtures remain available when explicitly installed, while
+ * real-parser onboarding uses live network traffic by default. These functions
+ * reproduce the host method signatures expected by pinned Keiyoushi bytecode.
  */
 suspend fun Call.await(): Response = execute()
 
