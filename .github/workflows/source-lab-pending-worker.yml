@@ -67,11 +67,22 @@ jobs:
           import json
           from pathlib import Path
           status = json.loads(Path('farm/upstream/status.json').read_text(encoding='utf-8'))
-          safe = status.get('schema') == 3 and status.get('approvalCandidate') is None
-          promotion = status.get('lastPromotion')
-          published = status.get('lastPublish')
-          if isinstance(promotion, dict):
-              safe = safe and isinstance(published, dict) and published.get('candidateSetId') == promotion.get('candidateSetId')
+          registry = json.loads(Path('farm/compatibility/source-registry.json').read_text(encoding='utf-8'))
+          baselines = registry.get('providerBaselines', {})
+          providers = status.get('providers', {})
+          safe = status.get('schema') == 3 and isinstance(baselines, dict) and isinstance(providers, dict)
+          for provider, baseline in baselines.items():
+              provider_status = providers.get(provider)
+              safe = (
+                  safe
+                  and isinstance(provider_status, dict)
+                  and provider_status.get('activeCommit') == baseline
+                  and provider_status.get('lastKnownGood') == baseline
+              )
+          staged = status.get('approvalCandidate')
+          if isinstance(staged, dict):
+              for provider, item in staged.get('providers', {}).items():
+                  safe = safe and isinstance(item, dict) and item.get('current') == baselines.get(provider)
           print(f"safe={'true' if safe else 'false'}")
           PY
 

@@ -51,6 +51,22 @@ jobs:
           [[ "$sha" == "$remote" ]]
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
+      - name: Keep source activation isolated from staged provider promotion
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          status = json.loads(Path("farm/upstream/status.json").read_text(encoding="utf-8"))
+          if status.get("schema") != 3:
+              raise SystemExit("unexpected upstream status schema")
+          if status.get("approvalCandidate") is not None:
+              raise SystemExit(
+                  "provider candidate is waiting for approval; resolve provider lifecycle before activating new sources"
+              )
+          PY
+
       - name: Build exact approval plan from READY v2 evidence
         id: plan
         shell: bash
