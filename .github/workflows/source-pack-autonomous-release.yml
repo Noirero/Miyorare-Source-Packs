@@ -1,0 +1,438 @@
+name: Source Pack Autonomous Release Control
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '43 * * * *'
+  push:
+    branches:
+      - main
+    paths:
+      - 'compatibility/miyorare-builder-baseline.json'
+      - '.github/workflows/source-pack-autonomous-release.yml'
+      - '.github/workflows/release-source-packs.yml'
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: source-pack-autonomous-release-control
+  cancel-in-progress: false
+
+jobs:
+  control:
+    name: Promote validated builder and release changed packs
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MIYORARE_REPOSITORY: Noirero/Miyorare
+      FARM_BRANCH: compatibility-farm-foundation
+    steps:
+      - name: Checkout Source Packs control plane
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          path: control
+          fetch-depth: 0
+
+      - name: Checkout authoritative Compatibility Farm
+        uses: actions/checkout@v5
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 1
+
+      - name: Checkout Miyorare beta lineage
+        uses: actions/checkout@v5
+        with:
+          repository: Noirero/Miyorare
+          ref: beta
+          path: miyorare-beta
+          fetch-depth: 0
+
+      - name: Resolve approved provider fingerprint
+        id: providers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+
+          registry = json.loads(Path("farm/compatibility/source-registry.json").read_text(encoding="utf-8"))
+          status = json.loads(Path("farm/upstream/status.json").read_text(encoding="utf-8"))
+          farm_registry = json.loads(Path("farm/upstream/registry.json").read_text(encoding="utf-8"))
+          baselines = registry.get("providerBaselines", {})
+          providers = status.get("providers", {})
+          registry_providers = farm_registry.get("providers", {})
+          if status.get("schema") != 3:
+              raise SystemExit("Farm status schema must be 3")
+          for provider in ("uma", "gekkoushi", "keiyoushi"):
+              commit = baselines.get(provider)
+              state = providers.get(provider)
+              reg = registry_providers.get(provider)
+              if not isinstance(commit, str) or len(commit) != 40:
+                  raise SystemExit(f"invalid Farm baseline for {provider}")
+              if not isinstance(state, dict) or state.get("activeCommit") != commit or state.get("lastKnownGood") != commit:
+                  raise SystemExit(f"{provider} approved baseline is not active/LKG")
+              if not isinstance(reg, dict) or reg.get("lastKnownGood") != commit:
+                  raise SystemExit(f"{provider} Farm upstream registry mismatch")
+              print(f"{provider}={commit}")
+          PY
+
+      - name: Resolve last manifest-changing beta commit
+        id: builder
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate="$(git -C miyorare-beta log -1 --format=%H -- extensions/miyorare-sources/packs.json)"
+          [[ "$candidate" =~ ^[0-9a-f]{40}$ ]]
+          echo "candidate=$candidate" >> "$GITHUB_OUTPUT"
+
+          baseline="$(python3 control/tools/validate_builder_baseline.py \
+            --baseline control/compatibility/miyorare-builder-baseline.json \
+            --contract control/compatibility/miyorare-source-pack-contract.v1.json \
+            --print-commit)"
+          [[ "$baseline" =~ ^[0-9a-f]{40}$ ]]
+          echo "baseline=$baseline" >> "$GITHUB_OUTPUT"
+
+          mkdir -p build
+          git -C miyorare-beta show "$candidate:extensions/miyorare-sources/packs.json" > build/candidate-packs.json
+          if ! git -C miyorare-beta cat-file -e "$baseline^{commit}" 2>/dev/null; then
+            git -C miyorare-beta fetch origin "$baseline"
+          fi
+          git -C miyorare-beta show "$baseline:extensions/miyorare-sources/packs.json" > build/baseline-packs.json
+
+          if cmp --silent build/candidate-packs.json build/baseline-packs.json; then
+            echo "manifest_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "manifest_changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Require candidate manifest to be fully synchronized with Farm
+        id: sync
+        if: steps.builder.outputs.manifest_changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp build/candidate-packs.json build/verified-candidate-packs.json
+          test -f miyorare-beta/extensions/miyorare-sources/tools/sync_approved_farm_sources.py
+          python3 miyorare-beta/extensions/miyorare-sources/tools/sync_approved_farm_sources.py \
+            --registry farm/compatibility/source-registry.json \
+            --packs build/verified-candidate-packs.json \
+            --report build/candidate-farm-sync-report.json
+          cmp --silent build/candidate-packs.json build/verified-candidate-packs.json || {
+            echo "Miyorare beta packs.json is not caught up with authoritative ACTIVE Farm membership." >&2
+            exit 1
+          }
+
+      - name: Require successful Miyorare pack checks on candidate commit
+        if: steps.builder.outputs.manifest_changed == 'true'
+        env:
+          CANDIDATE_SHA: ${{ steps.builder.outputs.candidate }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/$MIYORARE_REPOSITORY/commits/$CANDIDATE_SHA/check-runs?per_page=100" \
+            -o build/miyorare-candidate-checks.json
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          data = json.loads(Path("build/miyorare-candidate-checks.json").read_text(encoding="utf-8"))
+          required = {
+              "verify-identity",
+              "Build Miyorare-id",
+              "Build Miyorare-en",
+              "Build Miyorare-Global",
+          }
+          conclusions = {}
+          for run in data.get("check_runs", []):
+              name = run.get("name")
+              if name in required:
+                  conclusions[name] = run.get("conclusion")
+          missing = sorted(required - set(conclusions))
+          failed = {name: value for name, value in conclusions.items() if value != "success"}
+          if missing or failed:
+              raise SystemExit(f"candidate checks not ready: missing={missing}, non_success={failed}")
+          PY
+
+      - name: Promote exact manifest commit into pinned builder baseline
+        if: steps.builder.outputs.manifest_changed == 'true'
+        id: promote
+        env:
+          CANDIDATE_SHA: ${{ steps.builder.outputs.candidate }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tsuki_api="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path("build/candidate-packs.json").read_text(encoding="utf-8"))["tsukiApi"])
+          PY
+          )"
+          python3 - "$CANDIDATE_SHA" "$tsuki_api" <<'PY'
+          import json, sys
+          from pathlib import Path
+          path = Path("control/compatibility/miyorare-builder-baseline.json")
+          data = json.loads(path.read_text(encoding="utf-8"))
+          contract = json.loads(Path("control/compatibility/miyorare-source-pack-contract.v1.json").read_text(encoding="utf-8"))
+          candidate, tsuki_api = sys.argv[1:3]
+          expected_api = contract["compatibility"]["tsukiApi"]
+          expected_epoch = contract["compatibility"]["compatibilityEpoch"]
+          if tsuki_api != expected_api:
+              raise SystemExit("candidate Tsuki API differs from stable compatibility contract")
+          data["builderCommit"] = candidate
+          data["tsukiApi"] = expected_api
+          data["compatibilityEpoch"] = expected_epoch
+          path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+          PY
+
+          branch="automation/builder-baseline-${CANDIDATE_SHA:0:12}-$GITHUB_RUN_ID"
+          git -C control switch -c "$branch"
+          git -C control config user.name 'github-actions[bot]'
+          git -C control config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C control add compatibility/miyorare-builder-baseline.json
+          git -C control diff --cached --quiet && {
+            echo "Builder baseline promotion produced no diff." >&2
+            exit 1
+          }
+          git -C control commit -m "Promote validated Miyorare pack builder baseline"
+          git -C control push origin "HEAD:$branch"
+          head_sha="$(git -C control rev-parse HEAD)"
+          url="$(gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head "$branch" \
+            --title "Promote validated Miyorare pack builder baseline" \
+            --body "Automated promotion of exact Miyorare beta manifest commit `$CANDIDATE_SHA` after Farm synchronization and ID/EN/Global pack checks passed.")"
+          number="$(gh pr view "$url" --repo "$GITHUB_REPOSITORY" --json number --jq '.number')"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$number" >> "$GITHUB_OUTPUT"
+          echo "pr_url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Validate promoted builder baseline on exact PR head
+        if: steps.builder.outputs.manifest_changed == 'true'
+        id: baseline_ci
+        env:
+          BRANCH: ${{ steps.promote.outputs.branch }}
+          HEAD_SHA: ${{ steps.promote.outputs.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          previous="$(gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow source-pack-builder-baseline.yml \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId // 0')"
+          gh workflow run source-pack-builder-baseline.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$BRANCH"
+          run_id=""
+          for attempt in $(seq 1 60); do
+            run_id="$(gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow source-pack-builder-baseline.yml \
+              --branch "$BRANCH" \
+              --event workflow_dispatch \
+              --limit 20 \
+              --json databaseId,headSha \
+              --jq ".[] | select(.headSha == \"$HEAD_SHA\" and .databaseId != $previous) | .databaseId" \
+              | head -n 1)"
+            [[ -n "$run_id" ]] && break
+            sleep 2
+          done
+          [[ -n "$run_id" ]]
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 10
+
+      - name: Merge validated builder baseline promotion
+        if: steps.builder.outputs.manifest_changed == 'true'
+        env:
+          PR_NUMBER: ${{ steps.promote.outputs.pr_number }}
+          HEAD_SHA: ${{ steps.promote.outputs.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          live="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq '.headRefOid')"
+          [[ "$live" == "$HEAD_SHA" ]]
+          gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --squash --delete-branch
+          merged="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json mergedAt --jq '.mergedAt')"
+          [[ -n "$merged" && "$merged" != "null" ]]
+
+      - name: Resolve desired stable release fingerprint
+        id: desired
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.builder.outputs.manifest_changed }}" == "true" ]]; then
+            builder="${{ steps.builder.outputs.candidate }}"
+          else
+            builder="${{ steps.builder.outputs.baseline }}"
+          fi
+          echo "builder=$builder" >> "$GITHUB_OUTPUT"
+          python3 - "$builder" "${{ steps.providers.outputs.uma }}" "${{ steps.providers.outputs.gekkoushi }}" "${{ steps.providers.outputs.keiyoushi }}" <<'PY' > build/desired-release-fingerprint.json
+          import json, sys
+          builder, uma, gekkoushi, keiyoushi = sys.argv[1:5]
+          print(json.dumps({
+              "sourceCommit": builder,
+              "upstreams": {
+                  "uma": uma,
+                  "gekkoushi": gekkoushi,
+                  "keiyoushi": keiyoushi,
+              },
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Compare against latest published Source Pack release
+        id: release_need
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build/latest-release
+          mkdir -p build/latest-release
+          latest="$(gh release list \
+            --repo "$GITHUB_REPOSITORY" \
+            --limit 100 \
+            --json tagName,isDraft,isPrerelease,publishedAt \
+            --jq '[.[] | select(.isDraft == false and .isPrerelease == false and (.tagName | startswith("miyorare-sources-v")))] | sort_by(.publishedAt) | reverse | .[0].tagName // ""')"
+          echo "latest_tag=$latest" >> "$GITHUB_OUTPUT"
+          if [[ -z "$latest" ]]; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh release download "$latest" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern miyorare-source-packs.json \
+            --dir build/latest-release
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          desired = json.loads(Path("build/desired-release-fingerprint.json").read_text(encoding="utf-8"))
+          current = json.loads(Path("build/latest-release/miyorare-source-packs.json").read_text(encoding="utf-8"))
+          actual = {
+              "sourceCommit": current.get("sourceCommit"),
+              "upstreams": current.get("upstreams"),
+          }
+          print("needed=" + ("false" if actual == desired else "true"))
+          PY
+
+      - name: Refuse duplicate release dispatch while another release is active
+        if: steps.release_need.outputs.needed == 'true'
+        id: active_release
+        shell: bash
+        run: |
+          set -euo pipefail
+          active="$(gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow release-source-packs.yml \
+            --limit 30 \
+            --json status,databaseId \
+            --jq '[.[] | select(.status == "queued" or .status == "in_progress")] | length')"
+          echo "count=$active" >> "$GITHUB_OUTPUT"
+          [[ "$active" == "0" ]] || {
+            echo "A Source Pack release is already queued/running; next schedule will re-evaluate." >&2
+            exit 0
+          }
+
+      - name: Compute next immutable patch version
+        if: steps.release_need.outputs.needed == 'true' && steps.active_release.outputs.count == '0'
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(gh release list \
+            --repo "$GITHUB_REPOSITORY" \
+            --limit 200 \
+            --json tagName \
+            --jq '.[].tagName' \
+            | sed -n 's/^miyorare-sources-v//p' \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sort -V \
+            | tail -n 1)"
+          if [[ -z "$version" ]]; then
+            next="0.1.0"
+          else
+            IFS='.' read -r major minor patch <<< "$version"
+            next="$major.$minor.$((patch + 1))"
+          fi
+          echo "version=$next" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch sealed stable Source Pack release
+        if: steps.release_need.outputs.needed == 'true' && steps.active_release.outputs.count == '0'
+        id: dispatch
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          previous="$(gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow release-source-packs.yml \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId // 0')"
+          gh workflow run release-source-packs.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f version="$VERSION"
+
+          run_id=""
+          for attempt in $(seq 1 90); do
+            run_id="$(gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow release-source-packs.yml \
+              --event workflow_dispatch \
+              --limit 20 \
+              --json databaseId,status \
+              --jq ".[] | select(.databaseId != $previous) | .databaseId" \
+              | head -n 1)"
+            [[ -n "$run_id" ]] && break
+            sleep 2
+          done
+          [[ -n "$run_id" ]]
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for build, seal, attestation, and stable publish
+        if: steps.dispatch.outputs.run_id != ''
+        env:
+          RUN_ID: ${{ steps.dispatch.outputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run watch "$RUN_ID" --repo "$GITHUB_REPOSITORY" --exit-status --interval 20
+
+      - name: Upload autonomous release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-pack-autonomous-release-${{ github.run_id }}
+          path: |
+            build/candidate-packs.json
+            build/baseline-packs.json
+            build/candidate-farm-sync-report.json
+            build/miyorare-candidate-checks.json
+            build/desired-release-fingerprint.json
+            build/latest-release/miyorare-source-packs.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          echo '## Autonomous Source Pack control' >> "$GITHUB_STEP_SUMMARY"
+          echo "Current pinned builder: ${{ steps.builder.outputs.baseline }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Latest beta manifest commit: ${{ steps.builder.outputs.candidate }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Manifest promotion needed: ${{ steps.builder.outputs.manifest_changed }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Desired UMA: ${{ steps.providers.outputs.uma }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Desired Gekkoushi: ${{ steps.providers.outputs.gekkoushi }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Desired Keiyoushi: ${{ steps.providers.outputs.keiyoushi }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Release needed: ${{ steps.release_need.outputs.needed }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Release version: ${{ steps.version.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
