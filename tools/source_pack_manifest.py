@@ -78,6 +78,7 @@ def validate(
     contract: dict[str, Any],
     expected_tag: str | None = None,
     expected_contract_sha256: str | None = None,
+    require_compatibility_snapshot: bool = False,
 ) -> None:
     if manifest.get("schema") != contract.get("format", {}).get("releaseManifestSchema"):
         raise ManifestError(f"unsupported release manifest schema: {manifest.get('schema')!r}")
@@ -139,26 +140,31 @@ def validate(
         require_hex40(upstreams.get(name), f"upstreams.{name}")
 
     snapshot = manifest.get("compatibilitySnapshot")
-    if not isinstance(snapshot, dict) or snapshot.get("schemaVersion") != 1:
-        raise ManifestError("compatibilitySnapshot schemaVersion must be 1")
-    if snapshot.get("algorithm") != "sha256":
-        raise ManifestError("compatibilitySnapshot algorithm must be sha256")
-    contract_digest = require_hex64(snapshot.get("contractSha256"), "compatibilitySnapshot.contractSha256")
-    farm_commit = require_hex40(snapshot.get("farmCommit"), "compatibilitySnapshot.farmCommit")
-    if expected_contract_sha256 is not None and contract_digest != require_hex64(
-        expected_contract_sha256, "expected contract SHA-256"
-    ):
-        raise ManifestError("compatibilitySnapshot contract SHA-256 mismatch")
-    snapshot_id = require_hex64(manifest.get("compatibilitySnapshotId"), "compatibilitySnapshotId")
-    expected_snapshot_id = compatibility_snapshot_id(
-        contract_digest,
-        runtime["commit"],
-        manifest["sourceCommit"],
-        farm_commit,
-        upstreams,
-    )
-    if snapshot_id != expected_snapshot_id:
-        raise ManifestError("compatibilitySnapshotId does not match immutable compatibility inputs")
+    snapshot_id_raw = manifest.get("compatibilitySnapshotId")
+    if snapshot is None and snapshot_id_raw is None:
+        if require_compatibility_snapshot:
+            raise ManifestError("compatibilitySnapshotId is required for new stable releases")
+    else:
+        if not isinstance(snapshot, dict) or snapshot.get("schemaVersion") != 1:
+            raise ManifestError("compatibilitySnapshot schemaVersion must be 1")
+        if snapshot.get("algorithm") != "sha256":
+            raise ManifestError("compatibilitySnapshot algorithm must be sha256")
+        contract_digest = require_hex64(snapshot.get("contractSha256"), "compatibilitySnapshot.contractSha256")
+        farm_commit = require_hex40(snapshot.get("farmCommit"), "compatibilitySnapshot.farmCommit")
+        if expected_contract_sha256 is not None and contract_digest != require_hex64(
+            expected_contract_sha256, "expected contract SHA-256"
+        ):
+            raise ManifestError("compatibilitySnapshot contract SHA-256 mismatch")
+        snapshot_id = require_hex64(snapshot_id_raw, "compatibilitySnapshotId")
+        expected_snapshot_id = compatibility_snapshot_id(
+            contract_digest,
+            runtime["commit"],
+            manifest["sourceCommit"],
+            farm_commit,
+            upstreams,
+        )
+        if snapshot_id != expected_snapshot_id:
+            raise ManifestError("compatibilitySnapshotId does not match immutable compatibility inputs")
 
     packs = manifest.get("packs")
     if not isinstance(packs, list) or not packs:
@@ -295,7 +301,12 @@ def generate(
         },
         "packs": packs,
     }
-    validate(manifest, contract, expected_contract_sha256=contract_sha256)
+    validate(
+        manifest,
+        contract,
+        expected_contract_sha256=contract_sha256,
+        require_compatibility_snapshot=True,
+    )
     return manifest
 
 
@@ -322,6 +333,7 @@ def main() -> int:
     p_validate.add_argument("--manifest", type=Path, required=True)
     p_validate.add_argument("--contract", type=Path, required=True)
     p_validate.add_argument("--tag")
+    p_validate.add_argument("--require-compatibility-snapshot", action="store_true")
 
     args = parser.parse_args()
     try:
@@ -353,6 +365,7 @@ def main() -> int:
                 contract,
                 expected_tag=args.tag,
                 expected_contract_sha256=sha256(args.contract),
+                require_compatibility_snapshot=args.require_compatibility_snapshot,
             )
     except (OSError, KeyError, ManifestError) as exc:
         print(f"error: {exc}")
