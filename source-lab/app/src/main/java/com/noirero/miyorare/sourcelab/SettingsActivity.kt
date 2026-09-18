@@ -24,6 +24,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -36,20 +37,32 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
 class SettingsActivity : ComponentActivity() {
+    private val resumeGeneration = mutableIntStateOf(0)
+    private var hasResumedOnce = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             SourceLabPhase1Theme {
                 SourceLabAppSurface {
-                    SettingsScreen(onClose = { finish() })
+                    SettingsScreen(resumeGeneration.intValue, onClose = { finish() })
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (hasResumedOnce) {
+            resumeGeneration.intValue += 1
+        } else {
+            hasResumedOnce = true
         }
     }
 }
 
 @Composable
-private fun SettingsScreen(onClose: () -> Unit) {
+private fun SettingsScreen(resumeGeneration: Int, onClose: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val owner = SourceLabOwnerSessionStore.get()
@@ -60,7 +73,7 @@ private fun SettingsScreen(onClose: () -> Unit) {
         cachedInventory = SourceInventoryCacheReader.load(context)
     }
 
-    LaunchedEffect(Unit) { readCache() }
+    LaunchedEffect(resumeGeneration) { readCache() }
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
