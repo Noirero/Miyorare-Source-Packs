@@ -391,18 +391,25 @@ private fun SourcesList(
             )
             Spacer(Modifier.height(8.dp))
             FilterRow(listOf("ALL", "KEIYOUSHI", "UMA", "GEKKOUSHI"), provider, onProvider)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                FilterChip(
-                    selected = quick == "IN FARM",
-                    onClick = { onQuick(if (quick == "IN FARM") "ALL" else "IN FARM") },
-                    label = { Text("In Farm") },
-                )
-                FilterChip(
-                    selected = quick == "ISSUES",
-                    onClick = { onQuick(if (quick == "ISSUES") "ALL" else "ISSUES") },
-                    label = { Text("Issues") },
-                )
-                OutlinedButton(onClick = onMoreFilters) { Text("More") }
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                item {
+                    FilterChip(
+                        selected = quick == "IN FARM",
+                        onClick = { onQuick(if (quick == "IN FARM") "ALL" else "IN FARM") },
+                        label = { Text("In Farm") },
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = quick == "ISSUES",
+                        onClick = { onQuick(if (quick == "ISSUES") "ALL" else "ISSUES") },
+                        label = { Text("Issues") },
+                    )
+                }
+                item { OutlinedButton(onClick = onMoreFilters) { Text("More") } }
             }
             Text("${visible.size} matching sources", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
