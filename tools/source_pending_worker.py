@@ -291,7 +291,12 @@ def finalize_results(profile_results: dict[str, Any], parser_results: dict[str, 
             passed = result.get("status") == "PASS" and result.get("parserExecution") is True and result.get("detailsTraversal") is True and result.get("chapterTraversal") is True and result.get("pageExtraction") is True
             all_pass = all_pass and passed
         attempts = int(row.get("attempts", 0) or 0)
-        outcome = READY if all_pass else (HELD if attempts >= fail_threshold else RETRY)
+        hard_parser_failure = any(
+            str(item.get("reason", "")).startswith("AUTH_REQUIRED:")
+            for item in parser_evidence
+            if isinstance(item, dict)
+        )
+        outcome = READY if all_pass else (HELD if hard_parser_failure or attempts >= fail_threshold else RETRY)
         evidence = dict(row.get("evidence", {}))
         evidence["parser"] = {"executionMode": parser_results.get("executionMode", "real-live-parser"), "memberships": parser_evidence, "gate": "PASS" if all_pass else "FAIL"}
         evidence["gate"] = "REAL_PARSER_PASS" if all_pass else "REAL_PARSER_BLOCKED"
