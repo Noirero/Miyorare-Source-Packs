@@ -137,6 +137,10 @@ private fun SourceInventoryScreen(onClose: () -> Unit) {
     }
 
     suspend fun refreshOwnerCapability() {
+        if (SourceLabOwnerSessionStore.isViewerModeRequested()) {
+            ui = ui.copy(ownerSession = null, ownerError = null)
+            return
+        }
         SourceLabOwnerSessionStore.get()?.let { cachedSession ->
             ui = ui.copy(ownerSession = cachedSession, ownerError = null)
             return
