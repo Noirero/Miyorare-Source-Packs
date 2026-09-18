@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -30,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -259,10 +261,14 @@ private fun DiagnosticCard(title: String, content: @Composable () -> Unit) {
 private fun DiagnosticLine(label: String, value: String, monospace: Boolean = false) {
     Column {
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(
-            value,
-            fontFamily = if (monospace) FontFamily.Monospace else FontFamily.Default,
-            style = MaterialTheme.typography.bodySmall,
-        )
+        SelectionContainer {
+            Text(
+                value,
+                fontFamily = if (monospace) FontFamily.Monospace else FontFamily.Default,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = if (monospace) 3 else 4,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
