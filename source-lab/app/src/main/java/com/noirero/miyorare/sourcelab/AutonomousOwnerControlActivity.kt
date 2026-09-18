@@ -89,10 +89,31 @@ private fun AutonomousOwnerDashboard() {
             refreshing = hasData,
             error = null,
         )
+
+        val snapshot = try {
+            withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
+        } catch (error: Throwable) {
+            state = state.copy(
+                control = null,
+                initialLoading = false,
+                refreshing = false,
+                error = error.message ?: error.javaClass.simpleName,
+            )
+            return
+        }
+
+        // Render the live Farm snapshot immediately. Owner/capability
+        // verification continues without keeping the whole dashboard blank.
+        state = state.copy(
+            snapshot = snapshot,
+            initialLoading = false,
+            refreshing = true,
+            error = null,
+        )
+
         state = try {
-            val snapshot = withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
             val control = SourceLabControlClient.resolveState(context, snapshot)
-            AutonomousDashboardState(snapshot = snapshot, control = control)
+            state.copy(control = control, initialLoading = false, refreshing = false, error = null)
         } catch (error: SourceLabControlException) {
             state.copy(
                 control = null,
