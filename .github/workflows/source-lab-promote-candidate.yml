@@ -14,7 +14,7 @@ on:
         type: number
 
 permissions:
-  actions: read
+  actions: write
   contents: write
 
 concurrency:
@@ -315,3 +315,11 @@ jobs:
             build/promotion-receipts/*.json
           if-no-files-found: error
           retention-days: 30
+
+      - name: Revalidate PENDING sources against promoted provider baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run source-lab-pending-worker.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main
