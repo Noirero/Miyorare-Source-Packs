@@ -87,16 +87,20 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
                     // Runtime diagnostics are useful even when privileged
                     // capability resolution fails. Surface the snapshot first.
                     state = state.copy(snapshot = snapshot, error = null)
-                    val controlResult = runCatching {
-                        SourceLabControlClient.resolveState(context, snapshot)
+                    if (SourceLabOwnerSessionStore.isViewerModeRequested()) {
+                        state = state.copy(control = null, error = null)
+                    } else {
+                        val controlResult = runCatching {
+                            SourceLabControlClient.resolveState(context, snapshot)
+                        }
+                        state = state.copy(
+                            control = controlResult.getOrNull(),
+                            error = controlResult.exceptionOrNull()?.let {
+                                if (it is SourceLabControlException) it.reason
+                                else it.message ?: it.javaClass.simpleName
+                            },
+                        )
                     }
-                    state = state.copy(
-                        control = controlResult.getOrNull(),
-                        error = controlResult.exceptionOrNull()?.let {
-                            if (it is SourceLabControlException) it.reason
-                            else it.message ?: it.javaClass.simpleName
-                        },
-                    )
                 }
             }
 
