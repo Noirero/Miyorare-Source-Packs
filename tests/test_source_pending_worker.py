@@ -84,6 +84,50 @@ class PendingWorkerTest(unittest.TestCase):
         self.assertEqual({item["language"] for item in plan["items"]}, {"id", "en"})
         self.assertNotIn("active", {item["canonicalId"] for item in plan["items"]})
 
+    def test_infer_host_understands_domain_config_and_parser_constructor(self) -> None:
+        self.assertEqual(
+            worker.infer_host('private val baseUrl = "https://$domain"\noverride val configKeyDomain = ConfigKey.Domain("alawale.net")'),
+            "alawale.net",
+        )
+        self.assertEqual(
+            worker.infer_host('MadaraParser(context, MangaParserSource.X, "reader.example.com", 10)'),
+            "reader.example.com",
+        )
+        self.assertEqual(
+            worker.infer_host('@MangaSourceParser("X", "Display.example", "en")\nManga18Parser(context, MangaParserSource.X, "real.example.org")'),
+            "real.example.org",
+        )
+
+    def test_upstream_broken_marker_holds_without_wasting_retries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            gek = root / "gekkoushi"
+            source_file = gek / "src/broken.kt"
+            source_file.parent.mkdir(parents=True)
+            source_file.write_text(
+                '@Broken("Original site closed")\nMadaraParser(context, MangaParserSource.X, "closed.example.com")',
+                encoding="utf-8",
+            )
+            plan = {"items": [{
+                "canonicalId": "broken",
+                "language": "en",
+                "providers": ["gekkoushi"],
+                "upstreamIdentities": {"gekkoushi": {"file": "src/broken.kt"}},
+                "attempts": 0,
+            }]}
+            result = worker.assess_plan(
+                plan,
+                {"gekkoushi": gek, "uma": root, "keiyoushi": root},
+                {"gekkoushi": {"*": True}},
+                1.0,
+                3,
+            )
+        row = result["results"][0]
+        self.assertEqual(row["state"], worker.HELD)
+        member = row["evidence"]["profile"]["memberships"][0]
+        self.assertEqual(member["upstreamBrokenReason"], "Original site closed")
+        self.assertEqual(member["probe"]["detail"], "upstream-declared-broken")
+
     def test_compile_and_reachability_only_reach_parser_pending(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
