@@ -4,6 +4,13 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '43 * * * *'
+  push:
+    branches:
+      - main
+    paths:
+      - 'compatibility/miyorare-builder-baseline.json'
+      - '.github/workflows/source-pack-autonomous-release.yml'
+      - '.github/workflows/release-source-packs.yml'
 
 permissions:
   actions: write
