@@ -83,6 +83,13 @@ jobs:
                   'PUBLISH_PIPELINE_FAILED',
                   'Farm advanced concurrently; retrying publish marker on latest head.',
               ],
+              'source-lab-auto-farm.yml': [
+                  'publish_recovery_available',
+                  'Resume exact failed provider publish',
+                  'source-lab-publish-candidate.yml',
+                  'PUBLISH_RECOVERED_AUTOMATICALLY',
+                  'lastPublishFailure',
+              ],
               'source-lab-add-to-farm.yml': [
                   '149634319',
                   'source-inventory-live',
