@@ -127,18 +127,59 @@ jobs:
             build/source-lab-signing-manifest.json \
             --repo "$GITHUB_REPOSITORY"
 
-      - name: Reject stale signed state and create exact temporary release ref
+      - name: Verify live provider state and create exact temporary release ref
         id: release-ref
         env:
           FOUNDATION_COMMIT: ${{ steps.signature.outputs.foundation_commit }}
         shell: bash
         run: |
           set -euo pipefail
-          live="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/compatibility-farm-foundation" --jq '.object.sha')"
-          [[ "$live" == "$FOUNDATION_COMMIT" ]] || {
-            echo "Signed Compatibility Farm state is stale; run Farm/Approve/Promote/Sign again." >&2
-            exit 1
-          }
+
+          # The PENDING source worker is allowed to advance the Farm branch
+          # after provider signing. Do not bind publishability to the whole
+          # branch SHA; bind it to the exact signed provider lifecycle instead.
+          git clone --depth 1 --branch compatibility-farm-foundation \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "$RUNNER_TEMP/live-farm"
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          signing = json.loads(Path("build/source-lab-signing-receipt.json").read_text(encoding="utf-8"))
+          manifest = json.loads(Path("build/source-lab-signing-manifest.json").read_text(encoding="utf-8"))
+          root = Path(__import__("os").environ["RUNNER_TEMP"]) / "live-farm"
+          upstream = json.loads((root / "upstream/registry.json").read_text(encoding="utf-8"))
+          compatibility = json.loads((root / "compatibility/source-registry.json").read_text(encoding="utf-8"))
+          status = json.loads((root / "upstream/status.json").read_text(encoding="utf-8"))
+
+          if status.get("approvalCandidate") is not None:
+              raise SystemExit("live provider approval candidate appeared after signing")
+
+          last = status.get("lastPromotion")
+          if not isinstance(last, dict):
+              raise SystemExit("live lastPromotion is missing")
+          if last.get("candidateSetId") != signing.get("candidateSetId"):
+              raise SystemExit("live lastPromotion candidate changed after signing")
+          if last.get("promotionRunId") != signing.get("promotionRunId"):
+              raise SystemExit("live promotion run changed after signing")
+          if last.get("providers") != signing.get("providers"):
+              raise SystemExit("live promoted provider pins changed after signing")
+          if last.get("evidenceBinding") != manifest.get("evidenceBinding"):
+              raise SystemExit("live promotion evidence binding changed after signing")
+
+          for provider, commit in signing.get("providers", {}).items():
+              if upstream.get("providers", {}).get(provider, {}).get("lastKnownGood") != commit:
+                  raise SystemExit(f"live provider baseline moved after signing: {provider}")
+              if compatibility.get("providerBaselines", {}).get(provider) != commit:
+                  raise SystemExit(f"live compatibility baseline moved after signing: {provider}")
+              provider_status = status.get("providers", {}).get(provider, {})
+              if provider_status.get("activeCommit") != commit:
+                  raise SystemExit(f"live provider activeCommit moved after signing: {provider}")
+              if provider_status.get("lastKnownGood") != commit:
+                  raise SystemExit(f"live provider lastKnownGood moved after signing: {provider}")
+          PY
+
           temp_branch="source-lab-publish-${GITHUB_RUN_ID}"
           gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
             -f ref="refs/heads/$temp_branch" \
@@ -255,38 +296,168 @@ jobs:
           PY
 
       - name: Record completed publish cycle in live Farm status
-        env:
-          FOUNDATION_COMMIT: ${{ steps.signature.outputs.foundation_commit }}
         shell: bash
         run: |
           set -euo pipefail
           git clone --branch compatibility-farm-foundation \
             "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" farm
-          [[ "$(git -C farm rev-parse HEAD)" == "$FOUNDATION_COMMIT" ]] || {
-            echo "Compatibility Farm moved before publish receipt could be committed." >&2
-            exit 1
-          }
-          python3 - <<'PY'
+          git -C farm config user.name github-actions[bot]
+          git -C farm config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+          # Pending-worker commits may race this marker. Rebase on the latest
+          # authoritative Farm head and retry while the signed provider state
+          # itself remains unchanged.
+          for attempt in $(seq 1 6); do
+            git -C farm fetch origin compatibility-farm-foundation
+            git -C farm reset --hard origin/compatibility-farm-foundation
+
+            python3 - <<'PY'
           import json
+          from datetime import datetime, timezone
           from pathlib import Path
+
           receipt = json.loads(Path("build/source-lab-publish-receipt.json").read_text(encoding="utf-8"))
+          signing = json.loads(Path("build/source-lab-signing-receipt.json").read_text(encoding="utf-8"))
           status_path = Path("farm/upstream/status.json")
+          registry_path = Path("farm/upstream/registry.json")
+          compatibility_path = Path("farm/compatibility/source-registry.json")
           status = json.loads(status_path.read_text(encoding="utf-8"))
+          registry = json.loads(registry_path.read_text(encoding="utf-8"))
+          compatibility = json.loads(compatibility_path.read_text(encoding="utf-8"))
+
+          if status.get("approvalCandidate") is not None:
+              raise SystemExit("a new approvalCandidate appeared before publish marker")
           last = status.get("lastPromotion")
           if not isinstance(last, dict) or last.get("candidateSetId") != receipt["candidateSetId"]:
               raise SystemExit("live lastPromotion changed before publish marker")
-          if status.get("approvalCandidate") is not None:
-              raise SystemExit("a new approvalCandidate appeared before publish marker")
+          if last.get("promotionRunId") != signing.get("promotionRunId"):
+              raise SystemExit("live promotion run changed before publish marker")
+          if last.get("providers") != receipt.get("providers"):
+              raise SystemExit("live promoted provider pins changed before publish marker")
+
+          for provider, commit in receipt.get("providers", {}).items():
+              if registry.get("providers", {}).get(provider, {}).get("lastKnownGood") != commit:
+                  raise SystemExit(f"live provider baseline moved before publish marker: {provider}")
+              if compatibility.get("providerBaselines", {}).get(provider) != commit:
+                  raise SystemExit(f"live compatibility baseline moved before publish marker: {provider}")
+              provider_status = status.get("providers", {}).get(provider, {})
+              if provider_status.get("activeCommit") != commit or provider_status.get("lastKnownGood") != commit:
+                  raise SystemExit(f"live provider runtime state moved before publish marker: {provider}")
+
           status["lastPublish"] = receipt
+          status.pop("lastPublishFailure", None)
+
+          automation = status.get("automation")
+          if isinstance(automation, dict) and automation.get("state") == "PUBLISHING":
+              automation["state"] = "ALL_GOOD"
+              automation["reason"] = "PUBLISH_COMPLETED"
+              automation["ownerActionRequired"] = False
+              automation["workflowRunId"] = receipt["publishRunId"]
+              automation["updatedAt"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
           status_path.write_text(
               json.dumps(status, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
           )
           PY
-          git -C farm config user.name github-actions[bot]
-          git -C farm config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git -C farm add upstream/status.json
-          git -C farm commit -m "Record Source Lab published candidate $CANDIDATE_SET_ID"
-          git -C farm push origin HEAD:compatibility-farm-foundation
+
+            git -C farm add upstream/status.json
+            git -C farm commit -m "Record Source Lab published candidate $CANDIDATE_SET_ID"
+            if git -C farm push origin HEAD:compatibility-farm-foundation; then
+              break
+            fi
+            if [[ "$attempt" == "6" ]]; then
+              echo "Compatibility Farm kept moving while recording publish marker." >&2
+              exit 1
+            fi
+            echo "Farm advanced concurrently; retrying publish marker on latest head."
+          done
+
+      - name: Record failed publish cycle in live Farm status
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Never let an unauthorized/invalid dispatch mutate authoritative state.
+          [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+          [[ "$CANDIDATE_SET_ID" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$SIGNING_RUN_ID" =~ ^[0-9]+$ ]]
+
+          rm -rf farm-failure
+          git clone --branch compatibility-farm-foundation \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" farm-failure
+          git -C farm-failure config user.name github-actions[bot]
+          git -C farm-failure config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+          for attempt in $(seq 1 6); do
+            git -C farm-failure fetch origin compatibility-farm-foundation
+            git -C farm-failure reset --hard origin/compatibility-farm-foundation
+
+            set +e
+            python3 - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          path = Path("farm-failure/upstream/status.json")
+          status = json.loads(path.read_text(encoding="utf-8"))
+          last = status.get("lastPromotion")
+          candidate = os.environ["CANDIDATE_SET_ID"]
+
+          # If the lifecycle has already moved on, this failed run is historical
+          # and must not overwrite the newer authoritative state.
+          if not isinstance(last, dict) or last.get("candidateSetId") != candidate:
+              raise SystemExit(3)
+          published = status.get("lastPublish")
+          if isinstance(published, dict) and published.get("candidateSetId") == candidate:
+              raise SystemExit(3)
+
+          failure = {
+              "schemaVersion": 1,
+              "state": "FAILED",
+              "candidateSetId": candidate,
+              "signingRunId": int(os.environ["SIGNING_RUN_ID"]),
+              "publishRunId": int(os.environ["GITHUB_RUN_ID"]),
+              "reason": "PUBLISH_WORKFLOW_FAILED",
+              "recordedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+          }
+          status["lastPublishFailure"] = failure
+
+          automation = status.get("automation")
+          if not isinstance(automation, dict):
+              automation = {"schemaVersion": 2}
+          automation["state"] = "INFRASTRUCTURE_FAILURE"
+          automation["reason"] = "PUBLISH_PIPELINE_FAILED"
+          automation["ownerActionRequired"] = True
+          automation["workflowRunId"] = int(os.environ["GITHUB_RUN_ID"])
+          automation["updatedAt"] = failure["recordedAt"]
+          status["automation"] = automation
+
+          path.write_text(json.dumps(status, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+          PY
+            code=$?
+            set -e
+            if [[ "$code" == "3" ]]; then
+              echo "Publish lifecycle already moved on; failure marker not written."
+              exit 0
+            elif [[ "$code" != "0" ]]; then
+              exit "$code"
+            fi
+
+            git -C farm-failure add upstream/status.json
+            git -C farm-failure commit -m "Record Source Lab publish failure $CANDIDATE_SET_ID"
+            if git -C farm-failure push origin HEAD:compatibility-farm-foundation; then
+              break
+            fi
+            if [[ "$attempt" == "6" ]]; then
+              echo "Compatibility Farm kept moving while recording publish failure." >&2
+              exit 1
+            fi
+          done
 
       - name: Upload publish receipt
         uses: actions/upload-artifact@v4

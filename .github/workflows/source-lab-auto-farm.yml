@@ -116,13 +116,20 @@ jobs:
           pending = status.get('approvalCandidate')
           promotion = status.get('lastPromotion')
           published = status.get('lastPublish')
+          publish_failure = status.get('lastPublishFailure')
           if isinstance(pending, dict):
               pipeline_state = 'approval'
           elif isinstance(promotion, dict) and (
               not isinstance(published, dict)
               or published.get('candidateSetId') != promotion.get('candidateSetId')
           ):
-              pipeline_state = 'publishing'
+              if (
+                  isinstance(publish_failure, dict)
+                  and publish_failure.get('candidateSetId') == promotion.get('candidateSetId')
+              ):
+                  pipeline_state = 'publish_failed'
+              else:
+                  pipeline_state = 'publishing'
           else:
               pipeline_state = 'clear'
 
@@ -507,6 +514,7 @@ jobs:
           pending = status.get('approvalCandidate')
           promotion = status.get('lastPromotion')
           published = status.get('lastPublish')
+          publish_failure = status.get('lastPublishFailure')
           held_reason = None
 
           if isinstance(pending, dict):
@@ -516,8 +524,15 @@ jobs:
               not isinstance(published, dict)
               or published.get('candidateSetId') != promotion.get('candidateSetId')
           ):
-              state = 'PUBLISHING'
-              reason = 'APPROVED_PIPELINE_IN_PROGRESS'
+              if (
+                  isinstance(publish_failure, dict)
+                  and publish_failure.get('candidateSetId') == promotion.get('candidateSetId')
+              ):
+                  state = 'INFRASTRUCTURE_FAILURE'
+                  reason = 'PUBLISH_PIPELINE_FAILED'
+              else:
+                  state = 'PUBLISHING'
+                  reason = 'APPROVED_PIPELINE_IN_PROGRESS'
           elif os.environ.get('PROBE_RESULT') != 'success':
               state = 'INFRASTRUCTURE_FAILURE'
               reason = 'AUTO_PROBE_FAILED'
