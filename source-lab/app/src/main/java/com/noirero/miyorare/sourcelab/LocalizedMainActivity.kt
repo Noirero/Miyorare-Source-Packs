@@ -120,11 +120,10 @@ private fun LocalizedSourceLabApp() {
                 SourceLabBottomBar(
                     selected = SourceLabDestination.FARM,
                     onSelect = { destination ->
-                        when (destination) {
-                            SourceLabDestination.FARM -> screen = LocalizedScreen.Farm
-                            SourceLabDestination.SOURCES -> context.startActivity(android.content.Intent(context, SourceInventoryActivity::class.java))
-                            SourceLabDestination.REPORTS -> context.startActivity(android.content.Intent(context, ReportsActivity::class.java))
-                            SourceLabDestination.SETTINGS -> context.startActivity(android.content.Intent(context, SettingsActivity::class.java))
+                        if (destination == SourceLabDestination.FARM) {
+                            screen = LocalizedScreen.Farm
+                        } else {
+                            openSourceLabDestination(context, destination)
                         }
                     },
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -463,6 +462,16 @@ private fun LocalizedSourcesScreen(sources: List<LocalizedSource>, onOpen: (Loca
 
 @Composable
 private fun LocalizedTestsScreen(sync: LocalizedSyncState) {
+    val context = LocalContext.current
+    val openOwnerGate = {
+        context.startActivity(
+            android.content.Intent(context, OwnerGateActivity::class.java).addFlags(
+                android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP,
+            ),
+        )
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(20.dp),
@@ -506,9 +515,12 @@ private fun LocalizedTestsScreen(sync: LocalizedSyncState) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.remote_test_control), fontWeight = FontWeight.Bold)
                     Text(stringResource(R.string.remote_test_control_supporting))
-                    Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.run_full_farm_pending))
-                    }
+                    SourceLabPrimaryButton(
+                        text = stringResource(R.string.connect_github_owner),
+                        onClick = openOwnerGate,
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = SourceLabIconKind.LOCK,
+                    )
                 }
             }
         }
@@ -517,10 +529,17 @@ private fun LocalizedTestsScreen(sync: LocalizedSyncState) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.approval), fontWeight = FontWeight.Bold)
                     Text(stringResource(R.string.approval_locked_supporting))
-                    Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.approve_exact_candidate_locked))
-                    }
-                    Text("publishEligible=false")
+                    SourceLabSecondaryButton(
+                        text = stringResource(R.string.connect_github_owner),
+                        onClick = openOwnerGate,
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = SourceLabIconKind.LOCK,
+                    )
+                    Text(
+                        stringResource(R.string.viewer_owner_required),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }

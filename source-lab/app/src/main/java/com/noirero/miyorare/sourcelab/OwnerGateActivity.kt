@@ -31,7 +31,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
 
 class OwnerGateActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,7 +45,7 @@ class OwnerGateActivity : ComponentActivity() {
                     OwnerGateScreen(
                         operationScope = lifecycleScope,
                         onViewer = {
-                            SourceLabOwnerSessionStore.clear()
+                            SourceLabOwnerSessionStore.enterViewerMode()
                             SourceLabControlClient.clearCachedOwnerContext()
                             openDashboard(ownerAuthorized = false)
                         },
@@ -66,6 +65,7 @@ class OwnerGateActivity : ComponentActivity() {
         val target = if (ownerAuthorized) AutonomousOwnerControlActivity::class.java else LocalizedMainActivity::class.java
         startActivity(
             Intent(this, target).apply {
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 putExtra("source_lab_backend_authorized", ownerAuthorized)
                 val session = SourceLabOwnerSessionStore.get()
                 putExtra(
@@ -90,7 +90,6 @@ private fun OwnerGateScreen(
     LaunchedEffect(authorizedSession) {
         val session = authorizedSession ?: return@LaunchedEffect
         onAuthorized(session)
-        delay(650L)
         onOpenOwnerDashboard()
     }
 

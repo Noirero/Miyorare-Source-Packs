@@ -1,5 +1,6 @@
 package com.noirero.miyorare.sourcelab
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -38,6 +39,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,14 +58,26 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 class SourceInventoryActivity : ComponentActivity() {
+    private val resumeGeneration = mutableIntStateOf(0)
+    private var hasResumedOnce = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             SourceLabPhase1Theme {
                 SourceLabAppSurface {
-                    SourceInventoryScreen { finish() }
+                    SourceInventoryScreen(resumeGeneration.intValue) { finish() }
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (hasResumedOnce) {
+            resumeGeneration.intValue += 1
+        } else {
+            hasResumedOnce = true
         }
     }
 }
@@ -80,7 +94,7 @@ private data class InventoryUiState(
 )
 
 @Composable
-private fun SourceInventoryScreen(onClose: () -> Unit) {
+private fun SourceInventoryScreen(resumeGeneration: Int, onClose: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var ui by remember { mutableStateOf(InventoryUiState()) }
@@ -104,7 +118,6 @@ private fun SourceInventoryScreen(onClose: () -> Unit) {
             refreshing = hasInventory,
             inventoryError = null,
             farmError = null,
-            ownerError = null,
         )
         coroutineScope {
             val inventoryJob = async {
@@ -115,33 +128,58 @@ private fun SourceInventoryScreen(onClose: () -> Unit) {
                     )
                 }
             }
-            val farmJob = async { runCatching { SourceInventoryRepository.loadFarmMembership() } }
-            val ownerJob = async { runCatching { SourceLabControlClient.resolveOwnerSession(context) } }
+            val farmJob = async {
+                runCatching { SourceInventoryRepository.loadFarmMembership() }
+            }
+
+            // Source browsing is read-only and must never wait for Owner
+            // authorization. Publish the inventory as soon as it is available.
             val inventoryResult = inventoryJob.await()
-            val farmResult = farmJob.await()
-            val ownerResult = ownerJob.await()
             ui = ui.copy(
                 inventory = inventoryResult.getOrNull() ?: ui.inventory,
-                farm = farmResult.getOrNull(),
-                ownerSession = ownerResult.getOrNull(),
                 initialLoading = false,
-                refreshing = false,
                 inventoryError = inventoryResult.exceptionOrNull()?.readableMessage(),
+            )
+
+            val farmResult = farmJob.await()
+            ui = ui.copy(
+                farm = farmResult.getOrNull() ?: ui.farm,
+                refreshing = false,
                 farmError = farmResult.exceptionOrNull()?.readableMessage(),
-                ownerError = ownerResult.exceptionOrNull()?.readableMessage(),
             )
         }
     }
 
-    LaunchedEffect(Unit) {
+    suspend fun refreshOwnerCapability() {
+        if (SourceLabOwnerSessionStore.isViewerModeRequested()) {
+            ui = ui.copy(ownerSession = null, ownerError = null)
+            return
+        }
+        SourceLabOwnerSessionStore.get()?.let { cachedSession ->
+            ui = ui.copy(ownerSession = cachedSession, ownerError = null)
+            return
+        }
+        val ownerResult = runCatching { SourceLabControlClient.resolveOwnerSession(context) }
+        ui = ui.copy(
+            ownerSession = ownerResult.getOrNull(),
+            ownerError = ownerResult.exceptionOrNull()?.readableMessage(),
+        )
+    }
+
+    LaunchedEffect(resumeGeneration) {
         val cached = SourceInventoryCacheReader.load(context)
         if (cached != null) {
             ui = ui.copy(inventory = cached, initialLoading = false, refreshing = true)
         }
-        refresh(
-            initial = cached == null,
-            forceRefresh = false,
-        )
+        coroutineScope {
+            launch {
+                refresh(
+                    initial = cached == null,
+                    forceRefresh = false,
+                )
+            }
+            launch { refreshOwnerCapability() }
+        }
     }
 
     val inventory = ui.inventory
@@ -570,8 +608,9 @@ private fun SourceDetail(
     onBack: () -> Unit,
     onAdd: () -> Unit,
 ) {
-    val canAdd = farmResolved && farm == null && !source.needsAttention &&
-        SourceLabAccessPolicy.canPerform(SourceLabControlAction.ADD_TO_FARM, ownerSession)
+    val context = LocalContext.current
+    val ownerCanAdd = SourceLabAccessPolicy.canPerform(SourceLabControlAction.ADD_TO_FARM, ownerSession)
+    val canAdd = farmResolved && farm == null && !source.needsAttention && ownerCanAdd
     val versionBuild = source.providers.values.mapNotNull { it.extensionVersionCode }.maxOrNull()
 
     LazyColumn(
@@ -746,18 +785,41 @@ private fun SourceDetail(
             }
             if (farmResolved && farm == null) {
                 Spacer(Modifier.height(10.dp))
-                SourceLabPrimaryButton(
-                    text = if (enrolling) "Adding to Farm…" else "Add to Farm",
-                    onClick = onAdd,
-                    enabled = canAdd && !enrolling,
-                    modifier = Modifier.fillMaxWidth(),
-                    icon = SourceLabIconKind.FARM,
-                )
+                if (canAdd) {
+                    SourceLabPrimaryButton(
+                        text = if (enrolling) "Adding to Farm…" else "Add to Farm",
+                        onClick = onAdd,
+                        enabled = !enrolling,
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = SourceLabIconKind.FARM,
+                    )
+                } else if (!source.needsAttention && !ownerCanAdd) {
+                    SourceLabSecondaryButton(
+                        text = "Connect Owner to Add to Farm",
+                        onClick = {
+                            context.startActivity(
+                                Intent(context, OwnerGateActivity::class.java).addFlags(
+                                    Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP,
+                                ),
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = SourceLabIconKind.LOCK,
+                    )
+                } else {
+                    SourceLabPrimaryButton(
+                        text = "Add to Farm",
+                        onClick = onAdd,
+                        enabled = false,
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = SourceLabIconKind.FARM,
+                    )
+                }
                 if (!canAdd) {
                     val reason = when {
                         source.needsAttention -> "Resolve source identity attention before enrollment."
                         ownerError != null -> "Owner capability unavailable: $ownerError"
-                        !SourceLabAccessPolicy.canPerform(SourceLabControlAction.ADD_TO_FARM, ownerSession) -> "Backend Add to Farm capability is required."
+                        !ownerCanAdd -> "Owner/backend Add to Farm capability is required."
                         else -> "Farm state is not safe for enrollment."
                     }
                     Text(reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

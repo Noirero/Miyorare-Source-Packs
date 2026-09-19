@@ -504,6 +504,22 @@ private fun FarmRunScreen(onClose: () -> Unit) {
             }
         }
 
+        if (ui.phase == FarmRunPhase.FAILED) {
+            item(key = "retry-readiness") {
+                SourceLabSecondaryButton(
+                    text = "Recheck readiness",
+                    onClick = {
+                        scope.launch {
+                            dispatchLocked = false
+                            loadReadyState()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    icon = SourceLabIconKind.REFRESH,
+                )
+            }
+        }
+
         if (ui.phase == FarmRunPhase.SUCCESS || ui.phase == FarmRunPhase.FAILED) {
             item(key = "done") {
                 Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) {

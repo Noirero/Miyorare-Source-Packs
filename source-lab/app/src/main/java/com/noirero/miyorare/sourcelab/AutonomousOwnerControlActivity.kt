@@ -28,6 +28,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -43,14 +44,26 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class AutonomousOwnerControlActivity : ComponentActivity() {
+    private val resumeGeneration = mutableIntStateOf(0)
+    private var hasResumedOnce = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             SourceLabPhase1Theme {
                 SourceLabAppSurface {
-                    AutonomousOwnerDashboard()
+                    AutonomousOwnerDashboard(resumeGeneration.intValue)
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (hasResumedOnce) {
+            resumeGeneration.intValue += 1
+        } else {
+            hasResumedOnce = true
         }
     }
 }
@@ -72,7 +85,7 @@ private enum class RoutineFarmState {
 }
 
 @Composable
-private fun AutonomousOwnerDashboard() {
+private fun AutonomousOwnerDashboard(resumeGeneration: Int) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var state by remember { mutableStateOf(AutonomousDashboardState()) }
@@ -173,7 +186,7 @@ private fun AutonomousOwnerDashboard() {
         }
     }
 
-    LaunchedEffect(Unit) { refresh() }
+    LaunchedEffect(resumeGeneration) { refresh() }
 
     val snapshot = state.snapshot
     val control = state.control

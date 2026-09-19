@@ -791,7 +791,11 @@ internal fun openSourceLabDestination(context: Context, destination: SourceLabDe
         SourceLabDestination.SETTINGS -> SettingsActivity::class.java
     }
     if (context::class.java != target) {
-        context.startActivity(Intent(context, target))
+        context.startActivity(
+            Intent(context, target).addFlags(
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP,
+            ),
+        )
     }
 }
 

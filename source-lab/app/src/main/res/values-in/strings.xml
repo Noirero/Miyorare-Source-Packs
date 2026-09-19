@@ -44,11 +44,12 @@
     <string name="connected_read_only">Terhubung hanya-baca ke %1$s. Ini tidak dihitung sebagai bukti parser.</string>
     <string name="offline_fallback">Mode offline/fallback. Bukti seed otoritatif tetap tersedia.</string>
     <string name="remote_test_control">Kontrol pengujian jarak jauh</string>
-    <string name="remote_test_control_supporting">Pemantauan repository sudah langsung, tetapi dispatch workflow/autentikasi tetap dikunci sampai jalur kontrol aman tersedia. Tidak ada kredensial tulis yang ditanam di APK.</string>
-    <string name="run_full_farm_pending">Jalankan Farm penuh · wiring aman belum selesai</string>
+    <string name="remote_test_control_supporting">Mode Viewer hanya-baca. Masuk sebagai Owner untuk memakai jalur kontrol Compatibility Farm yang aman; token tulis repository dan material signing tidak ditanam di APK.</string>
+    <string name="run_full_farm_pending">Masuk sebagai Owner untuk menjalankan Farm</string>
     <string name="approval">Persetujuan</string>
-    <string name="approval_locked_supporting">Persetujuan exact-SHA tetap dikunci sampai wiring otorisasi upstream P0 selesai.</string>
-    <string name="approve_exact_candidate_locked">Setujui kandidat exact · terkunci</string>
+    <string name="approval_locked_supporting">Persetujuan exact-SHA tetap terkunci dalam mode Viewer dan hanya aktif setelah identitas Owner, capability backend, serta bukti kandidat live diverifikasi ulang.</string>
+    <string name="approve_exact_candidate_locked">Masuk sebagai Owner untuk meninjau persetujuan</string>
+    <string name="viewer_owner_required">Mode Viewer tetap hanya-baca sampai otorisasi Owner/backend berhasil.</string>
     <string name="report_title">Laporan Bukti</string>
     <string name="report_subtitle">Asal-usul bukti untuk checkpoint seed yang sudah diverifikasi</string>
     <string name="run_label">Run</string>

@@ -60,14 +60,26 @@ internal fun OwnerAuthorizationCard(
     suspend fun authorizeBackend(identity: GitHubOwnerIdentity) {
         state = OwnerAuthorizationUiState.AuthorizingBackend
         val proof = SourceLabBackendAuthorization.authorize(identity.accessToken)
+        if (!proof.authorized) {
+            onSessionChanged(null)
+            state = OwnerAuthorizationUiState.Failed(proof.reason)
+            return
+        }
+
         val authorizedSession = proof.applyTo(identity.session)
         val decision = SourceLabAccessPolicy.evaluate(authorizedSession)
         if (!decision.canControl) {
             onSessionChanged(null)
-            state = OwnerAuthorizationUiState.Failed(
-                if (!proof.authorized) proof.reason else decision.reason,
-            )
+            state = OwnerAuthorizationUiState.Failed(decision.reason)
         } else {
+            // The gate has already paid the cost of identity, OIDC proof and
+            // capability validation. Prime the in-process control context so
+            // the dashboard does not dispatch the same authorization workflow
+            // a second time immediately after navigation.
+            SourceLabControlClient.acceptAuthorizedOwnerContext(
+                accessToken = identity.accessToken,
+                session = authorizedSession,
+            )
             verifiedIdentity = null
             onSessionChanged(authorizedSession)
             state = OwnerAuthorizationUiState.Authorized(
