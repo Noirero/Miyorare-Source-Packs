@@ -56,8 +56,8 @@
   },
   "automation": {
     "schemaVersion": 2,
-    "state": "PUBLISHING",
-    "reason": "APPROVED_PIPELINE_IN_PROGRESS",
+    "state": "INFRASTRUCTURE_FAILURE",
+    "reason": "PUBLISH_PIPELINE_FAILED",
     "candidates": {
       "gekkoushi": {
         "candidate": "12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67",
@@ -78,10 +78,10 @@
         "recordedAt": "2026-09-17T17:41:48.451161Z"
       }
     },
-    "ownerActionRequired": false,
+    "ownerActionRequired": true,
     "lastAttemptProvider": "keiyoushi",
-    "workflowRunId": 35380510346,
-    "updatedAt": "2026-09-18T18:30:03.334025Z"
+    "workflowRunId": 35414694305,
+    "updatedAt": "2026-09-19T02:06:58Z"
   },
   "lastPromotion": {
     "schemaVersion": 1,
@@ -101,5 +101,14 @@
     },
     "approvedBy": "Noirero:149634319",
     "publishEligible": false
+  },
+  "lastPublishFailure": {
+    "schemaVersion": 1,
+    "state": "FAILED",
+    "candidateSetId": "f48a54557e3a986166daa78dd4ff4ba38cd89bfa2ab7c05f90ac6fcfe6bb618c",
+    "signingRunId": 35302405007,
+    "publishRunId": 35414694305,
+    "reason": "PUBLISH_WORKFLOW_FAILED",
+    "recordedAt": "2026-09-19T02:06:58Z"
   }
 }
