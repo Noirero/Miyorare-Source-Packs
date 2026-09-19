@@ -1,5 +1,5 @@
 name: Source Lab Publish Candidate
-run-name: Source Lab publish ${{ inputs.candidate_set_id }}
+run-name: Source Lab publish ${{ github.event.inputs.candidate_set_id || 'f48a54557e3a986166daa78dd4ff4ba38cd89bfa2ab7c05f90ac6fcfe6bb618c' }}
 
 on:
   workflow_dispatch:
@@ -12,6 +12,13 @@ on:
         description: Exact successful Source Lab signing workflow run
         required: true
         type: number
+  # One-shot Owner recovery for the currently stuck signed candidate.
+  # Removed immediately after successful recovery.
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/source-lab-publish-candidate.yml'
 
 permissions:
   actions: write
@@ -30,14 +37,14 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       EXPECTED_OWNER_ID: '149634319'
-      CANDIDATE_SET_ID: ${{ inputs.candidate_set_id }}
-      SIGNING_RUN_ID: ${{ inputs.signing_run_id }}
+      CANDIDATE_SET_ID: ${{ github.event.inputs.candidate_set_id || 'f48a54557e3a986166daa78dd4ff4ba38cd89bfa2ab7c05f90ac6fcfe6bb618c' }}
+      SIGNING_RUN_ID: ${{ github.event.inputs.signing_run_id || '35302405007' }}
     steps:
       - name: Fail closed on caller and request
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
+          [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" || "$GITHUB_EVENT_NAME" == "push" ]]
           [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
           [[ "$GITHUB_REF" == "refs/heads/main" ]]
           [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
