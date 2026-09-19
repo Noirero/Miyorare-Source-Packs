@@ -74,7 +74,14 @@ jobs:
               'source-lab-approve-candidate.yml': ['WAITING_FOR_APPROVAL', 'approval_state.py approve', 'source-lab-approval-'],
               'source-lab-promote-candidate.yml': ['authorized_promotion.py', 'approval_run_id', 'compatibility-farm-foundation'],
               'source-lab-sign-candidate.yml': ['actions/attest-build-provenance@v2', 'GITHUB_ARTIFACT_ATTESTATION'],
-              'source-lab-publish-candidate.yml': ['gh attestation verify', 'release-source-packs.yml', 'compatibility-farm-foundation'],
+              'source-lab-publish-candidate.yml': [
+                  'gh attestation verify',
+                  'release-source-packs.yml',
+                  'compatibility-farm-foundation',
+                  'live provider baseline moved after signing',
+                  'lastPublishFailure',
+                  'Farm advanced concurrently; retrying publish marker on latest head.',
+              ],
               'source-lab-add-to-farm.yml': [
                   '149634319',
                   'source-inventory-live',
@@ -196,6 +203,11 @@ jobs:
           ):
               if marker not in harness:
                   raise SystemExit(f'source_live_parser_harness.py missing real-parser marker: {marker}')
+
+          auto_farm = (root / 'source-lab-auto-farm.yml').read_text(encoding='utf-8')
+          for marker in ('lastPublishFailure', 'publish_failed', 'PUBLISH_PIPELINE_FAILED'):
+              if marker not in auto_farm:
+                  raise SystemExit(f'auto farm missing publish-failure lifecycle marker: {marker}')
 
           auth = (root / 'source-lab-backend-authorization.yml').read_text(encoding='utf-8')
           for capability in ('RUN_FARM', 'APPROVE', 'PROMOTE', 'SIGN', 'PUBLISH', 'ADD_TO_FARM'):
