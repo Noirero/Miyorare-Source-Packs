@@ -396,7 +396,8 @@ jobs:
             git -C farm-failure fetch origin compatibility-farm-foundation
             git -C farm-failure reset --hard origin/compatibility-farm-foundation
 
-            if ! python3 - <<'PY'
+            set +e
+            python3 - <<'PY'
           import json
           import os
           from datetime import datetime, timezone
@@ -438,12 +439,12 @@ jobs:
 
           path.write_text(json.dumps(status, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
           PY
-            then
-              code=$?
-              if [[ "$code" == "3" ]]; then
-                echo "Publish lifecycle already moved on; failure marker not written."
-                exit 0
-              fi
+            code=$?
+            set -e
+            if [[ "$code" == "3" ]]; then
+              echo "Publish lifecycle already moved on; failure marker not written."
+              exit 0
+            elif [[ "$code" != "0" ]]; then
               exit "$code"
             fi
 
