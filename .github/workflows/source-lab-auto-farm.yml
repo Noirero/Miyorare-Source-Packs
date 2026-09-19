@@ -33,6 +33,9 @@ jobs:
       selected_provider: ${{ steps.probe.outputs.selected_provider }}
       selected_current: ${{ steps.probe.outputs.selected_current }}
       selected_candidate: ${{ steps.probe.outputs.selected_candidate }}
+      publish_recovery_available: ${{ steps.probe.outputs.publish_recovery_available }}
+      publish_recovery_candidate: ${{ steps.probe.outputs.publish_recovery_candidate }}
+      publish_recovery_signing_run_id: ${{ steps.probe.outputs.publish_recovery_signing_run_id }}
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -133,6 +136,28 @@ jobs:
           else:
               pipeline_state = 'clear'
 
+          recovery_available = False
+          recovery_candidate = ''
+          recovery_signing_run_id = ''
+          if (
+              pipeline_state == 'publish_failed'
+              and isinstance(promotion, dict)
+              and isinstance(publish_failure, dict)
+              and publish_failure.get('candidateSetId') == promotion.get('candidateSetId')
+          ):
+              candidate = publish_failure.get('candidateSetId')
+              signing_run_id = publish_failure.get('signingRunId')
+              if (
+                  isinstance(candidate, str)
+                  and len(candidate) == 64
+                  and all(ch in '0123456789abcdef' for ch in candidate)
+                  and isinstance(signing_run_id, int)
+                  and signing_run_id > 0
+              ):
+                  recovery_available = True
+                  recovery_candidate = candidate
+                  recovery_signing_run_id = str(signing_run_id)
+
           changed = bool(candidates)
           should_run = bool(selected) and pipeline_state == 'clear'
           print(f"foundation_sha={os.environ['FOUNDATION_SHA']}")
@@ -142,8 +167,70 @@ jobs:
           print(f"selected_provider={selected}")
           print(f"selected_current={selected_item.get('current', '')}")
           print(f"selected_candidate={selected_item.get('candidate', '')}")
+          print(f"publish_recovery_available={'true' if recovery_available else 'false'}")
+          print(f"publish_recovery_candidate={recovery_candidate}")
+          print(f"publish_recovery_signing_run_id={recovery_signing_run_id}")
           print('candidates=' + json.dumps(candidates, separators=(',', ':'), sort_keys=True))
           PY
+
+  recover-publish:
+    name: Resume exact failed provider publish
+    needs: probe
+    if: >-
+      needs.probe.result == 'success' &&
+      needs.probe.outputs.publish_recovery_available == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 125
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CANDIDATE_SET_ID: ${{ needs.probe.outputs.publish_recovery_candidate }}
+      SIGNING_RUN_ID: ${{ needs.probe.outputs.publish_recovery_signing_run_id }}
+    steps:
+      - name: Validate exact recovery envelope
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$CANDIDATE_SET_ID" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$SIGNING_RUN_ID" =~ ^[0-9]+$ ]]
+
+      - name: Dispatch exact publish recovery
+        id: dispatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          started_epoch="$(date -u +%s)"
+          gh workflow run source-lab-publish-candidate.yml             --repo "$GITHUB_REPOSITORY"             --ref main             -f candidate_set_id="$CANDIDATE_SET_ID"             -f signing_run_id="$SIGNING_RUN_ID"
+
+          publish_run_id=""
+          for _ in $(seq 1 90); do
+            publish_run_id="$(gh run list               --repo "$GITHUB_REPOSITORY"               --workflow source-lab-publish-candidate.yml               --event workflow_dispatch               --limit 30               --json databaseId,displayTitle,createdAt               --jq "[.[] |
+                select(.displayTitle == \"Source Lab publish $CANDIDATE_SET_ID\") |
+                select((.createdAt | fromdateiso8601) >= ($started_epoch - 5))] |
+                sort_by(.databaseId) | last | .databaseId // empty")"
+            [[ -n "$publish_run_id" ]] && break
+            sleep 2
+          done
+          [[ "$publish_run_id" =~ ^[0-9]+$ ]]
+          echo "publish_run_id=$publish_run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for exact publish recovery
+        env:
+          PUBLISH_RUN_ID: ${{ steps.dispatch.outputs.publish_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 720); do
+            status="$(gh run view "$PUBLISH_RUN_ID" --repo "$GITHUB_REPOSITORY" --json status --jq '.status')"
+            [[ "$status" == "completed" ]] && break
+            sleep 10
+          done
+          conclusion="$(gh run view "$PUBLISH_RUN_ID" --repo "$GITHUB_REPOSITORY" --json conclusion --jq '.conclusion')"
+          [[ "$conclusion" == "success" ]] || {
+            echo "Exact publish recovery failed: run $PUBLISH_RUN_ID ($conclusion)" >&2
+            exit 1
+          }
 
   intake:
     name: Build isolated provider candidate handoff
@@ -415,7 +502,7 @@ jobs:
 
   record:
     name: Record autonomous Farm state
-    needs: [probe, intake, candidate-farm]
+    needs: [probe, recover-publish, intake, candidate-farm]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -435,6 +522,7 @@ jobs:
       INTAKE_FAILURE_REASON: ${{ needs.intake.outputs.failure_reason }}
       HAS_CANDIDATE: ${{ needs.intake.outputs.has_candidate }}
       CANDIDATE_FARM_RESULT: ${{ needs.candidate-farm.result }}
+      PUBLISH_RECOVERY_RESULT: ${{ needs.recover-publish.result }}
     steps:
       - name: Checkout latest authoritative Farm state
         uses: actions/checkout@v5
@@ -533,6 +621,9 @@ jobs:
               else:
                   state = 'PUBLISHING'
                   reason = 'APPROVED_PIPELINE_IN_PROGRESS'
+          elif os.environ.get('PUBLISH_RECOVERY_RESULT') == 'success':
+              state = 'ALL_GOOD'
+              reason = 'PUBLISH_RECOVERED_AUTOMATICALLY'
           elif os.environ.get('PROBE_RESULT') != 'success':
               state = 'INFRASTRUCTURE_FAILURE'
               reason = 'AUTO_PROBE_FAILED'
