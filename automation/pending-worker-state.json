@@ -1,5 +1,5 @@
 {
-  "lastWorkflowRunId": "35445829611",
+  "lastWorkflowRunId": "35456153973",
   "schemaVersion": 2,
   "sources": {
     "miyorare:inventory-en:18PORNCOMIC": {
@@ -780,10 +780,10 @@
     "miyorare:inventory-en:ALLPORNCOMICIO": {
       "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
+        "attempts": 2,
         "gate": "REAL_PARSER_BLOCKED",
         "parser": {
           "executionMode": "real-live-parser",
@@ -832,8 +832,8 @@
           ]
         }
       },
-      "evidenceSha256": "a7127b248c7bbd97ef2d8bb07427b974f984246ca956375d05ab74f5fedf2f0c",
-      "lastCheckedAt": "2026-09-18T03:01:25Z",
+      "evidenceSha256": "2c8c1262c664b61583fbfc6a054924bee7fd00a69a2d1bd9176f40766fc4de0f",
+      "lastCheckedAt": "2026-09-19T16:54:20Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
@@ -841,7 +841,7 @@
       "testedVersions": {
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
-      "workflowRunId": "35301259521"
+      "workflowRunId": "35456153973"
     },
     "miyorare:inventory-en:ALPHAMANGA": {
       "adapterFamily": "custom-rest-json",
@@ -2656,6 +2656,178 @@
       },
       "workflowRunId": "35445829611"
     },
+    "miyorare:inventory-en:BBATO": {
+      "adapterFamily": "custom-rest-json",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:BBATO",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.AssertionError: live browse returned no manga",
+              "failureType": "java.lang.AssertionError",
+              "failures": 1,
+              "locator": "src/en/bbato",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/bbato/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_c1df47ed886a",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-rest-json",
+              "locator": "src/en/bbato",
+              "probe": {
+                "detail": "http-403",
+                "httpStatus": 403,
+                "reachable": true,
+                "url": "https://bbato.com/"
+              },
+              "probeHost": "bbato.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "24c03b2ac110f63fe191d9fabeee4822baa5f266e0a83fa5d9b14fb087b422df",
+      "lastCheckedAt": "2026-09-19T16:54:20Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35456153973"
+    },
+    "miyorare:inventory-en:BEEHENTAI": {
+      "adapterFamily": "gekkoushi-native",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:BEEHENTAI",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "org.opentest4j.AssertionFailedError: live browse returned no manga; lastFailure=null ==> expected: <true> but was: <false>",
+              "failureType": "org.opentest4j.AssertionFailedError",
+              "failures": 1,
+              "fqcn": "tsuki.site.madtheme.en.BeeHentai",
+              "locator": "src/main/kotlin/tsuki/site/madtheme/en/BeeHentai.kt",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_dda75e5d17ab",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "gekkoushi-native",
+              "locator": "src/main/kotlin/tsuki/site/madtheme/en/BeeHentai.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://beehentai.com/"
+              },
+              "probeHost": "beehentai.com",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "a4393364f2c02c6da5a1a63d8b455e2d4bf5b3fc43511cbb25a68be69d80c67c",
+      "lastCheckedAt": "2026-09-19T16:54:20Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "35456153973"
+    },
+    "miyorare:inventory-en:BEETOONNET": {
+      "adapterFamily": "custom-paged-html",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-paged-html",
+              "locator": "src/main/kotlin/tsuki/site/en/BeeToon.kt",
+              "probe": {
+                "detail": "URLError",
+                "reachable": false,
+                "url": "https://bidmanga.com/"
+              },
+              "probeHost": "bidmanga.com",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "da51f9a2b394c284d71a5b2bafaaf56da06a5525192f1b124fc678a324743938",
+      "lastCheckedAt": "2026-09-19T16:54:20Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "35456153973"
+    },
     "miyorare:inventory-id:AARLAS": {
       "adapterFamily": "keiyoushi-native",
       "approvalState": "NOT_READY",
@@ -3447,11 +3619,11 @@
     },
     "miyorare:inventory-id:CGBUM": {
       "adapterFamily": "custom-paged-html",
-      "approvalState": "NOT_READY",
-      "attempts": 1,
+      "approvalState": "WAITING_FOR_APPROVAL",
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
+        "attempts": 2,
         "gate": "REAL_PARSER_PASS",
         "parser": {
           "executionMode": "real-live-parser",
@@ -3500,18 +3672,16 @@
           ]
         }
       },
-      "evidenceSha256": "58877a08492d1e2c572a122e011d305223f43626e2a6f93363f1f8cc4f207e4e",
-      "invalidatedByPromotionRunId": 35302153624,
-      "lastCheckedAt": "2026-09-18T03:01:25Z",
+      "evidenceSha256": "a942121a97b4bb0482aef869cb9988cb76cef22f96ebc5dab3f99cccbbe9a059",
+      "lastCheckedAt": "2026-09-19T16:54:20Z",
       "ownerActionRequired": false,
       "publishEligible": false,
-      "revalidationReason": "PROVIDER_BASELINE_CHANGED",
       "schemaVersion": 2,
-      "state": "RETRY",
+      "state": "READY_FOR_APPROVAL",
       "testedVersions": {
-        "uma": "a0ebc9ffc7de02b7b50cbcb620092d0a9263c785"
+        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
-      "workflowRunId": "35301259521"
+      "workflowRunId": "35456153973"
     },
     "miyorare:inventory-id:COMIC21": {
       "adapterFamily": "manga-reader-plus-api",
@@ -5369,7 +5539,215 @@
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
       "workflowRunId": "35445829611"
+    },
+    "miyorare:inventory-id:KIRYUU": {
+      "adapterFamily": "natsu",
+      "approvalState": "WAITING_FOR_APPROVAL",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_PASS",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "PASS",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-id:KIRYUU",
+              "chapterTraversal": true,
+              "detailsTraversal": true,
+              "errors": 0,
+              "failureMessage": null,
+              "failureType": null,
+              "failures": 0,
+              "fqcn": "tsuki.site.natsu.id.Kiryuu",
+              "locator": "src/main/kotlin/tsuki/site/natsu/id/Kiryuu.kt",
+              "pageExtraction": true,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "PASS",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_8e9af2a8b9cf",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "natsu",
+              "locator": "src/main/kotlin/tsuki/site/natsu/id/Kiryuu.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://v5.kiryuu.to/"
+              },
+              "probeHost": "v5.kiryuu.to",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "9e10cf25a17b0c1a16d288b6c861aa090b57b78e7bb49e6ab7e5dd1a68a869ad",
+      "lastCheckedAt": "2026-09-19T16:54:20Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "READY_FOR_APPROVAL",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "35456153973"
+    },
+    "miyorare:inventory-id:KISHISAN": {
+      "adapterFamily": "gekkoushi-native",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "gekkoushi-native",
+              "locator": "src/main/kotlin/tsuki/site/zeistmanga/id/Kishisan.kt",
+              "probe": {
+                "detail": "upstream-declared-broken",
+                "reachable": false
+              },
+              "probeHost": "www.kishisan.site",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "a633f12949ccdf8960b98079a506dc14241cc5d6582545b69b6685a5395df48b",
+      "lastCheckedAt": "2026-09-19T16:54:20Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "NEEDS_ATTENTION",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "35456153973"
+    },
+    "miyorare:inventory-id:KLIKMANGA": {
+      "adapterFamily": "madara",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-id:KLIKMANGA",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "org.opentest4j.AssertionFailedError: live browse returned no manga; lastFailure=ParseException ==> expected: <true> but was: <false>",
+              "failureType": "org.opentest4j.AssertionFailedError",
+              "failures": 1,
+              "fqcn": "tsuki.site.madara.id.KlikManga",
+              "locator": "src/main/kotlin/tsuki/site/madara/id/KlikManga.kt",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_2f30a416d193",
+              "tests": 1
+            },
+            {
+              "canonicalId": "miyorare:inventory-id:KLIKMANGA",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.IllegalStateException: HTTP 403",
+              "failureType": "java.lang.IllegalStateException",
+              "failures": 1,
+              "locator": "src/id/klikmanga",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/klikmanga/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_1922525d5778",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/id/KlikManga.kt",
+              "probe": {
+                "detail": "http-403",
+                "httpStatus": 403,
+                "reachable": true,
+                "url": "https://klikmanga.org/"
+              },
+              "probeHost": "klikmanga.org",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            },
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/id/klikmanga",
+              "probe": {
+                "detail": "http-403",
+                "httpStatus": 403,
+                "reachable": true,
+                "url": "https://klikmanga.org/"
+              },
+              "probeHost": "klikmanga.org",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "d8f2f06c83459531b1e9355e12297f1dfe7cce9fcf6030f7bf7940720bbfa24a",
+      "lastCheckedAt": "2026-09-19T16:54:20Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35456153973"
     }
   },
-  "updatedAt": "2026-09-19T13:33:34Z"
+  "updatedAt": "2026-09-19T16:54:20Z"
 }
