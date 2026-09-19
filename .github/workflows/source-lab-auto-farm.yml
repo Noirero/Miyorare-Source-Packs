@@ -36,6 +36,8 @@ jobs:
       publish_recovery_available: ${{ steps.probe.outputs.publish_recovery_available }}
       publish_recovery_candidate: ${{ steps.probe.outputs.publish_recovery_candidate }}
       publish_recovery_signing_run_id: ${{ steps.probe.outputs.publish_recovery_signing_run_id }}
+      ready_sources_waiting: ${{ steps.probe.outputs.ready_sources_waiting }}
+      ready_sources_count: ${{ steps.probe.outputs.ready_sources_count }}
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -77,6 +79,18 @@ jobs:
 
           registry = json.loads(Path('farm/upstream/registry.json').read_text(encoding='utf-8'))
           status = json.loads(Path('farm/upstream/status.json').read_text(encoding='utf-8'))
+          worker_path = Path('farm/automation/pending-worker-state.json')
+          worker = (
+              json.loads(worker_path.read_text(encoding='utf-8'))
+              if worker_path.is_file()
+              else {}
+          )
+          worker_sources = worker.get('sources') if isinstance(worker.get('sources'), dict) else {}
+          ready_sources_count = sum(
+              1 for item in worker_sources.values()
+              if isinstance(item, dict) and item.get('state') == 'READY_FOR_APPROVAL'
+          )
+          ready_sources_waiting = ready_sources_count > 0
           heads = {
               'keiyoushi': os.environ['KEI_HEAD'],
               'uma': os.environ['UMA_HEAD'],
@@ -159,7 +173,14 @@ jobs:
                   recovery_signing_run_id = str(signing_run_id)
 
           changed = bool(candidates)
-          should_run = bool(selected) and pipeline_state == 'clear'
+          # Give the Owner a stable approval window for source onboarding.
+          # New provider intake is deferred while any real-parser READY sources
+          # are waiting; publish recovery still runs independently above.
+          should_run = (
+              bool(selected)
+              and pipeline_state == 'clear'
+              and not ready_sources_waiting
+          )
           print(f"foundation_sha={os.environ['FOUNDATION_SHA']}")
           print(f"changed={'true' if changed else 'false'}")
           print(f"should_run={'true' if should_run else 'false'}")
@@ -170,6 +191,8 @@ jobs:
           print(f"publish_recovery_available={'true' if recovery_available else 'false'}")
           print(f"publish_recovery_candidate={recovery_candidate}")
           print(f"publish_recovery_signing_run_id={recovery_signing_run_id}")
+          print(f"ready_sources_waiting={'true' if ready_sources_waiting else 'false'}")
+          print(f"ready_sources_count={ready_sources_count}")
           print('candidates=' + json.dumps(candidates, separators=(',', ':'), sort_keys=True))
           PY
 
@@ -523,6 +546,8 @@ jobs:
       HAS_CANDIDATE: ${{ needs.intake.outputs.has_candidate }}
       CANDIDATE_FARM_RESULT: ${{ needs.candidate-farm.result }}
       PUBLISH_RECOVERY_RESULT: ${{ needs.recover-publish.result }}
+      READY_SOURCES_WAITING: ${{ needs.probe.outputs.ready_sources_waiting }}
+      READY_SOURCES_COUNT: ${{ needs.probe.outputs.ready_sources_count }}
     steps:
       - name: Checkout latest authoritative Farm state
         uses: actions/checkout@v5
@@ -624,6 +649,9 @@ jobs:
           elif os.environ.get('PUBLISH_RECOVERY_RESULT') == 'success':
               state = 'ALL_GOOD'
               reason = 'PUBLISH_RECOVERED_AUTOMATICALLY'
+          elif os.environ.get('READY_SOURCES_WAITING') == 'true':
+              state = 'ALL_GOOD'
+              reason = 'READY_SOURCE_APPROVAL_WINDOW'
           elif os.environ.get('PROBE_RESULT') != 'success':
               state = 'INFRASTRUCTURE_FAILURE'
               reason = 'AUTO_PROBE_FAILED'
