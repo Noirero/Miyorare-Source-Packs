@@ -1,5 +1,5 @@
 name: Source Lab Publish Candidate
-run-name: Source Lab publish ${{ github.event.inputs.candidate_set_id || 'f48a54557e3a986166daa78dd4ff4ba38cd89bfa2ab7c05f90ac6fcfe6bb618c' }}
+run-name: Source Lab publish ${{ inputs.candidate_set_id }}
 
 on:
   workflow_dispatch:
@@ -12,13 +12,6 @@ on:
         description: Exact successful Source Lab signing workflow run
         required: true
         type: number
-  # One-shot Owner recovery for the currently stuck signed candidate.
-  # Removed immediately after successful recovery.
-  push:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/source-lab-publish-candidate.yml'
 
 permissions:
   actions: write
@@ -37,14 +30,14 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       EXPECTED_OWNER_ID: '149634319'
-      CANDIDATE_SET_ID: ${{ github.event.inputs.candidate_set_id || 'f48a54557e3a986166daa78dd4ff4ba38cd89bfa2ab7c05f90ac6fcfe6bb618c' }}
-      SIGNING_RUN_ID: ${{ github.event.inputs.signing_run_id || '35302405007' }}
+      CANDIDATE_SET_ID: ${{ inputs.candidate_set_id }}
+      SIGNING_RUN_ID: ${{ inputs.signing_run_id }}
     steps:
       - name: Fail closed on caller and request
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" || "$GITHUB_EVENT_NAME" == "push" ]]
+          [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
           [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
           [[ "$GITHUB_REF" == "refs/heads/main" ]]
           [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
@@ -77,11 +70,11 @@ jobs:
       - name: Download exact attested signing material
         uses: actions/download-artifact@v5
         with:
-          name: source-lab-signature-${{ github.event.inputs.candidate_set_id || 'f48a54557e3a986166daa78dd4ff4ba38cd89bfa2ab7c05f90ac6fcfe6bb618c' }}
+          name: source-lab-signature-${{ inputs.candidate_set_id }}
           path: build/signature
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
-          run-id: ${{ github.event.inputs.signing_run_id || '35302405007' }}
+          run-id: ${{ inputs.signing_run_id }}
 
       - name: Validate signing receipt and manifest
         id: signature
@@ -355,7 +348,17 @@ jobs:
           status.pop("lastPublishFailure", None)
 
           automation = status.get("automation")
-          if isinstance(automation, dict) and automation.get("state") == "PUBLISHING":
+          publish_recovery_state = (
+              isinstance(automation, dict)
+              and (
+                  automation.get("state") == "PUBLISHING"
+                  or (
+                      automation.get("state") == "INFRASTRUCTURE_FAILURE"
+                      and automation.get("reason") == "PUBLISH_PIPELINE_FAILED"
+                  )
+              )
+          )
+          if publish_recovery_state:
               automation["state"] = "ALL_GOOD"
               automation["reason"] = "PUBLISH_COMPLETED"
               automation["ownerActionRequired"] = False
@@ -469,7 +472,7 @@ jobs:
       - name: Upload publish receipt
         uses: actions/upload-artifact@v4
         with:
-          name: source-lab-publish-${{ github.event.inputs.candidate_set_id || 'f48a54557e3a986166daa78dd4ff4ba38cd89bfa2ab7c05f90ac6fcfe6bb618c' }}
+          name: source-lab-publish-${{ inputs.candidate_set_id }}
           path: |
             build/source-lab-publish-receipt.json
             build/source-lab-signing-receipt.json
