@@ -316,6 +316,16 @@ private fun SourcesScreen(sources: List<SourceItem>, onOpen: (SourceItem) -> Uni
 
 @Composable
 private fun TestsScreen(syncState: SyncState) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val openOwnerGate = {
+        context.startActivity(
+            android.content.Intent(context, OwnerGateActivity::class.java).addFlags(
+                android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP,
+            ),
+        )
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(20.dp),
@@ -362,12 +372,15 @@ private fun TestsScreen(syncState: SyncState) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Remote test control", fontWeight = FontWeight.Bold)
                     Text(
-                        "Repository viewing is live, but workflow dispatch/auth stays locked until a dedicated secure control path exists. No GitHub token is embedded in the APK.",
+                        "Repository viewing stays read-only. Connect the verified Owner session to unlock secure Farm recovery controls; no GitHub token is embedded in the APK.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
-                        Text("Run Full Farm · secure wiring pending")
-                    }
+                    SourceLabPrimaryButton(
+                        text = "Connect Owner",
+                        onClick = openOwnerGate,
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = SourceLabIconKind.LOCK,
+                    )
                 }
             }
         }
@@ -376,11 +389,14 @@ private fun TestsScreen(syncState: SyncState) {
             Card {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Approval", fontWeight = FontWeight.Bold)
-                    Text("Exact-SHA approval remains locked until P0 upstream authorization wiring is complete.")
-                    Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
-                        Text("Approve exact candidate · locked")
-                    }
-                    Text("publishEligible=false", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Approval remains fail-closed until a verified Owner session and live backend capability proof are available.")
+                    SourceLabSecondaryButton(
+                        text = "Connect Owner for Approval",
+                        onClick = openOwnerGate,
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = SourceLabIconKind.LOCK,
+                    )
+                    Text("Viewer mode never mutates Farm state.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
