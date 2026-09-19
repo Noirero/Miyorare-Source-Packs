@@ -347,7 +347,13 @@ jobs:
           status.pop("lastPublishFailure", None)
 
           automation = status.get("automation")
-          if isinstance(automation, dict) and automation.get("state") == "PUBLISHING":
+          if isinstance(automation, dict) and (
+              automation.get("state") == "PUBLISHING"
+              or (
+                  automation.get("state") == "INFRASTRUCTURE_FAILURE"
+                  and automation.get("reason") == "PUBLISH_PIPELINE_FAILED"
+              )
+          ):
               automation["state"] = "ALL_GOOD"
               automation["reason"] = "PUBLISH_COMPLETED"
               automation["ownerActionRequired"] = False
