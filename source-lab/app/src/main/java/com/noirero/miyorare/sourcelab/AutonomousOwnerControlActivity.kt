@@ -191,6 +191,7 @@ private fun AutonomousOwnerDashboard(resumeGeneration: Int) {
     val snapshot = state.snapshot
     val control = state.control
     val approvalAvailability = control?.actions?.get(SourceLabControlAction.APPROVE)
+    val publishRecoveryAvailability = control?.actions?.get(SourceLabControlAction.PUBLISH)
     val readySourcesApprovalAvailability = control?.actions?.get(SourceLabControlAction.APPROVE_READY_SOURCES)
     val routineState = snapshot?.let(::resolveRoutineFarmState)
 
@@ -338,9 +339,11 @@ private fun AutonomousOwnerDashboard(resumeGeneration: Int) {
                         state = routineState ?: RoutineFarmState.INFRASTRUCTURE_FAILURE,
                         snapshot = snapshot,
                         approvalAvailability = approvalAvailability,
+                        publishRecoveryAvailability = publishRecoveryAvailability,
                         approving = approving,
                         onReview = { context.startActivity(Intent(context, ApprovalReviewActivity::class.java)) },
                         onApprove = { confirmApproval = true },
+                        onPublishRecovery = { context.startActivity(Intent(context, OwnerControlActivity::class.java)) },
                         onExceptions = { context.startActivity(Intent(context, ReportsActivity::class.java)) },
                         onDiagnostics = { context.startActivity(Intent(context, SourceLabDiagnosticsActivity::class.java)) },
                     )
@@ -593,9 +596,11 @@ private fun RoutineStateCard(
     state: RoutineFarmState,
     snapshot: LiveFarmSnapshot,
     approvalAvailability: SourceLabActionAvailability?,
+    publishRecoveryAvailability: SourceLabActionAvailability?,
     approving: Boolean,
     onReview: () -> Unit,
     onApprove: () -> Unit,
+    onPublishRecovery: () -> Unit,
     onExceptions: () -> Unit,
     onDiagnostics: () -> Unit,
 ) {
@@ -603,7 +608,21 @@ private fun RoutineStateCard(
     val presentation = when (state) {
         RoutineFarmState.ALL_GOOD -> Triple("All good", "No action required. Upstream monitoring and Farm checks run automatically.", SourceLabTone.GOOD)
         RoutineFarmState.APPROVAL_REQUIRED -> Triple("1 update ready", "Candidate passed the safety gates and is waiting for your decision.", SourceLabTone.WARNING)
-        RoutineFarmState.PUBLISHING -> Triple("Publishing approved update", "No action required. The approved pipeline is finishing automatically.", SourceLabTone.ACCENT)
+        RoutineFarmState.PUBLISHING -> {
+            if (publishRecoveryAvailability?.available == true) {
+                Triple(
+                    "Publish needs recovery",
+                    "The exact approved provider state is already signed, but publish has not completed. Resume the exact publish safely.",
+                    SourceLabTone.WARNING,
+                )
+            } else {
+                Triple(
+                    "Publishing approved update",
+                    "The approved pipeline is finishing automatically.",
+                    SourceLabTone.ACCENT,
+                )
+            }
+        }
         RoutineFarmState.HELD -> Triple("Held / safely blocked", "The bot could not safely advance this candidate. Last-known-good remains active.", SourceLabTone.WARNING)
         RoutineFarmState.INFRASTRUCTURE_FAILURE -> Triple("Infrastructure failure", "Automation needs attention. Last-known-good remains the safe active baseline.", SourceLabTone.ERROR)
     }
@@ -668,15 +687,37 @@ private fun RoutineStateCard(
                         )
                     }
                 }
+                RoutineFarmState.PUBLISHING -> {
+                    if (publishRecoveryAvailability?.available == true) {
+                        Button(onClick = onPublishRecovery, modifier = Modifier.fillMaxWidth()) {
+                            Text("Resume Publish")
+                        }
+                    }
+                }
                 RoutineFarmState.HELD -> OutlinedButton(onClick = onExceptions, modifier = Modifier.fillMaxWidth()) { Text("Open Exceptions") }
-                RoutineFarmState.INFRASTRUCTURE_FAILURE -> OutlinedButton(onClick = onDiagnostics, modifier = Modifier.fillMaxWidth()) { Text("Open Diagnostics") }
-                RoutineFarmState.ALL_GOOD, RoutineFarmState.PUBLISHING -> Unit
+                RoutineFarmState.INFRASTRUCTURE_FAILURE -> {
+                    if (publishRecoveryAvailability?.available == true) {
+                        Button(onClick = onPublishRecovery, modifier = Modifier.fillMaxWidth()) {
+                            Text("Resume Publish")
+                        }
+                    } else {
+                        OutlinedButton(onClick = onDiagnostics, modifier = Modifier.fillMaxWidth()) { Text("Open Diagnostics") }
+                    }
+                }
+                RoutineFarmState.ALL_GOOD -> Unit
             }
         }
     }
 }
 
 private fun resolveRoutineFarmState(snapshot: LiveFarmSnapshot): RoutineFarmState {
+    // Explicit backend failure/hold state must win over inferred lifecycle state.
+    // Otherwise a failed publish with no lastPublish marker is misreported forever
+    // as "PUBLISHING / no action required".
+    when (snapshot.automation?.state) {
+        "INFRASTRUCTURE_FAILURE" -> return RoutineFarmState.INFRASTRUCTURE_FAILURE
+        "HELD" -> return RoutineFarmState.HELD
+    }
     if (snapshot.approvalCandidate?.state == "WAITING_FOR_APPROVAL") {
         return RoutineFarmState.APPROVAL_REQUIRED
     }
@@ -688,8 +729,6 @@ private fun resolveRoutineFarmState(snapshot: LiveFarmSnapshot): RoutineFarmStat
     return when (snapshot.automation?.state) {
         "APPROVAL_REQUIRED" -> RoutineFarmState.APPROVAL_REQUIRED
         "PUBLISHING" -> RoutineFarmState.PUBLISHING
-        "HELD" -> RoutineFarmState.HELD
-        "INFRASTRUCTURE_FAILURE" -> RoutineFarmState.INFRASTRUCTURE_FAILURE
         "ALL_GOOD", null -> RoutineFarmState.ALL_GOOD
         else -> RoutineFarmState.INFRASTRUCTURE_FAILURE
     }
