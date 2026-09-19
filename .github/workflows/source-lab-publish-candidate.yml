@@ -77,11 +77,11 @@ jobs:
       - name: Download exact attested signing material
         uses: actions/download-artifact@v5
         with:
-          name: source-lab-signature-${{ inputs.candidate_set_id }}
+          name: source-lab-signature-${{ env.CANDIDATE_SET_ID }}
           path: build/signature
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
-          run-id: ${{ inputs.signing_run_id }}
+          run-id: ${{ env.SIGNING_RUN_ID }}
 
       - name: Validate signing receipt and manifest
         id: signature
@@ -386,7 +386,7 @@ jobs:
           set -euo pipefail
 
           # Never let an unauthorized/invalid dispatch mutate authoritative state.
-          [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
+          [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" || "$GITHUB_EVENT_NAME" == "push" ]]
           [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
           [[ "$GITHUB_REF" == "refs/heads/main" ]]
           [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
@@ -469,7 +469,7 @@ jobs:
       - name: Upload publish receipt
         uses: actions/upload-artifact@v4
         with:
-          name: source-lab-publish-${{ inputs.candidate_set_id }}
+          name: source-lab-publish-${{ env.CANDIDATE_SET_ID }}
           path: |
             build/source-lab-publish-receipt.json
             build/source-lab-signing-receipt.json
