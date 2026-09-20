@@ -1,5 +1,5 @@
 {
-  "lastWorkflowRunId": "35510515864",
+  "lastWorkflowRunId": "35522928493",
   "schemaVersion": 2,
   "sources": {
     "miyorare:inventory-en:18PORNCOMIC": {
@@ -1569,10 +1569,10 @@
     "miyorare:inventory-en:ARVENCOMICS": {
       "adapterFamily": "gekkoushi-native",
       "approvalState": "NOT_READY",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
+        "attempts": 2,
         "gate": "REAL_PARSER_BLOCKED",
         "parser": {
           "executionMode": "real-live-parser",
@@ -1621,8 +1621,8 @@
           ]
         }
       },
-      "evidenceSha256": "7408cbfb272f80f8d758a99a02a7e44387584df08fe275e35599a7d3aceed006",
-      "lastCheckedAt": "2026-09-18T19:43:51Z",
+      "evidenceSha256": "7bcbd19c18bc9f8a0e199723139731cd8d8298c54321a7509fcef569f9a30530",
+      "lastCheckedAt": "2026-09-20T16:34:01Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
@@ -1630,7 +1630,7 @@
       "testedVersions": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
-      "workflowRunId": "35387053714"
+      "workflowRunId": "35522928493"
     },
     "miyorare:inventory-en:ARYASCANS": {
       "adapterFamily": "madara",
@@ -3954,6 +3954,149 @@
       },
       "workflowRunId": "35510515864"
     },
+    "miyorare:inventory-en:COLOREDMANGA": {
+      "adapterFamily": "madara",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/ColoredManga.kt",
+              "probe": {
+                "detail": "upstream-declared-broken",
+                "reachable": false
+              },
+              "probeHost": "coloredmanga.net",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": "Site is online but parser is broken \u2014 layout/API changed, needs rewrite"
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "f8be3dfadac403bdf01547d88fff9f0765d9a1692522368d457e49ec6ff18f1d",
+      "lastCheckedAt": "2026-09-20T16:34:01Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "NEEDS_ATTENTION",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "35522928493"
+    },
+    "miyorare:inventory-en:COLORIZEDMANGAS": {
+      "adapterFamily": "custom-paged-html",
+      "approvalState": "WAITING_FOR_APPROVAL",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_PASS",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "PASS",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:COLORIZEDMANGAS",
+              "chapterTraversal": true,
+              "detailsTraversal": true,
+              "errors": 0,
+              "failureMessage": null,
+              "failureType": null,
+              "failures": 0,
+              "locator": "src/en/colorizedmangas",
+              "pageExtraction": true,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/colorizedmangas/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "PASS",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_35572e9c39d8",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-paged-html",
+              "locator": "src/en/colorizedmangas",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://colorizedmangas.com/"
+              },
+              "probeHost": "colorizedmangas.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "d0a12e42a40e096b6247168003cc57ac89c8138a6eb11d98266a4548ae6913d5",
+      "lastCheckedAt": "2026-09-20T16:34:01Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "READY_FOR_APPROVAL",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35522928493"
+    },
+    "miyorare:inventory-en:COMIC1000": {
+      "adapterFamily": "gekkoushi-native",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "gekkoushi-native",
+              "locator": "src/main/kotlin/tsuki/site/manga18/en/Comic1000.kt",
+              "probe": {
+                "detail": "upstream-declared-broken",
+                "reachable": false
+              },
+              "probeHost": "comic1000.com",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": "Domain hijacked \u2014 now serves a JS redirect to spam/ads"
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "c7c924561fdcc757edc8edcdb2291cd904aa2948c8eb84d4877e27bda1019c5f",
+      "lastCheckedAt": "2026-09-20T16:34:01Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "NEEDS_ATTENTION",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "35522928493"
+    },
     "miyorare:inventory-id:AARLAS": {
       "adapterFamily": "keiyoushi-native",
       "approvalState": "NOT_READY",
@@ -5299,10 +5442,10 @@
     "miyorare:inventory-id:DOJINGNET": {
       "adapterFamily": "multi-provider",
       "approvalState": "NOT_READY",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
+        "attempts": 2,
         "gate": "REAL_PARSER_BLOCKED",
         "parser": {
           "executionMode": "real-live-parser",
@@ -5385,8 +5528,8 @@
           ]
         }
       },
-      "evidenceSha256": "201b3ef21d6db27d98857e51facee32f458fa08f06549e4e69237d09b9c51f50",
-      "lastCheckedAt": "2026-09-18T17:11:35Z",
+      "evidenceSha256": "10d4a6d1f4e301b9b2c1e63c41d17aadac9ef3148b316dfa5bf6307c5ecb32b4",
+      "lastCheckedAt": "2026-09-20T16:34:01Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
@@ -5395,7 +5538,7 @@
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
-      "workflowRunId": "35372314288"
+      "workflowRunId": "35522928493"
     },
     "miyorare:inventory-id:DOUJINDESU": {
       "adapterFamily": "multi-provider",
@@ -8053,7 +8196,177 @@
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
       "workflowRunId": "35510515864"
+    },
+    "miyorare:inventory-id:KOMIKNEXTGONLINE": {
+      "adapterFamily": "custom-paged-html",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-id:KOMIKNEXTGONLINE",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.AssertionError: live browse returned no manga",
+              "failureType": "java.lang.AssertionError",
+              "failures": 1,
+              "locator": "src/id/komiknextgonline",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/komiknextgonline/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_182aad1aa004",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-paged-html",
+              "locator": "src/id/komiknextgonline",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://komiknextgonline.com/"
+              },
+              "probeHost": "komiknextgonline.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "5226b282177a34a296a07427912e991708cd276f01d0d880c15f99a4f0c154bc",
+      "lastCheckedAt": "2026-09-20T16:34:01Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35522928493"
+    },
+    "miyorare:inventory-id:KOMIKPIX": {
+      "adapterFamily": "manga-reader-plus-api",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "manga-reader-plus-api",
+              "locator": "src/main/kotlin/tsuki/site/mangareader/id/KomikPix.kt",
+              "probe": {
+                "detail": "upstream-declared-broken",
+                "reachable": false
+              },
+              "probeHost": "komikpix.com",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": "Domain hijacked \u2014 now serves a JS redirect to spam/ads"
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "a9d7bc83db2c91d3e64f6a947d591b4ae1255084ca1e1b7bd59ffb8d1c56a6df",
+      "lastCheckedAt": "2026-09-20T16:34:01Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "NEEDS_ATTENTION",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "35522928493"
+    },
+    "miyorare:inventory-id:KOMIKPOI": {
+      "adapterFamily": "manga-reader-plus-api",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-id:KOMIKPOI",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "org.opentest4j.AssertionFailedError: live browse returned no manga; lastFailure=NotFoundException ==> expected: <true> but was: <false>",
+              "failureType": "org.opentest4j.AssertionFailedError",
+              "failures": 1,
+              "fqcn": "tsuki.site.mangareader.id.KomikPoi",
+              "locator": "src/main/kotlin/tsuki/site/mangareader/id/KomikPoi.kt",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_10e8c88f20f1",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "manga-reader-plus-api",
+              "locator": "src/main/kotlin/tsuki/site/mangareader/id/KomikPoi.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://komikpoi.com/"
+              },
+              "probeHost": "komikpoi.com",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "1494e8ba89b9e099d96f6cfcb197383c65f9f7a05f222b2c1be85ab97945f432",
+      "lastCheckedAt": "2026-09-20T16:34:01Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "35522928493"
     }
   },
-  "updatedAt": "2026-09-20T12:26:59Z"
+  "updatedAt": "2026-09-20T16:34:01Z"
 }
