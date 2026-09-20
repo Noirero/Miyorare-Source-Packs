@@ -6,10 +6,10 @@
       "commit": "12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67"
     },
     "keiyoushi": {
-      "commit": "9137b65daada0b328a05e7c3ce8c4490bbd90dac"
+      "commit": "8ef06cd86e19655a511373b7e4abe92c94721ad3"
     },
     "uma": {
-      "commit": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      "commit": "317ac060bbaab34d3ac2c3e4e63b79f98dd49916"
     }
   },
   "schemaVersion": 1,
@@ -3253,6 +3253,22 @@
     },
     {
       "attentionReasons": [],
+      "canonicalId": "miyorare:inventory-ar:KARH",
+      "displayName": "Karh",
+      "identityConfidence": "exact-name",
+      "language": "ar",
+      "needsAttention": false,
+      "providers": {
+        "uma": {
+          "available": true,
+          "displayName": "Karh",
+          "file": "src/main/kotlin/tsuki/site/ar/Karh.kt",
+          "sourceName": "KARH"
+        }
+      }
+    },
+    {
+      "attentionReasons": [],
       "canonicalId": "miyorare:inventory-ar:KAWAIIMANGA",
       "displayName": "Kawaii Manga",
       "identityConfidence": "previous",
@@ -3792,7 +3808,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://mangatek.com",
-          "extensionVersionCode": 5,
+          "extensionVersionCode": 6,
           "module": "src/ar/mangatek",
           "sourceId": 1011491016492324749,
           "sourceName": "MangaTek"
@@ -16398,6 +16414,22 @@
     },
     {
       "attentionReasons": [],
+      "canonicalId": "miyorare:inventory-en:TOONTOPIO",
+      "displayName": "ToonTop.io",
+      "identityConfidence": "exact-name",
+      "language": "en",
+      "needsAttention": false,
+      "providers": {
+        "uma": {
+          "available": true,
+          "displayName": "ToonTop.io",
+          "file": "src/main/kotlin/tsuki/site/en/nsfw/ToonTopIO.kt",
+          "sourceName": "TOONTOPIO"
+        }
+      }
+    },
+    {
+      "attentionReasons": [],
       "canonicalId": "miyorare:inventory-en:TOPMANHUA",
       "displayName": "Top Manhua",
       "identityConfidence": "explicit",
@@ -17073,6 +17105,22 @@
           "sourceId": 3119719730967642939,
           "sourceName": "WitchScans",
           "versionId": 2
+        }
+      }
+    },
+    {
+      "attentionReasons": [],
+      "canonicalId": "miyorare:inventory-en:WITCHTOONS",
+      "displayName": "WitchToons",
+      "identityConfidence": "exact-name",
+      "language": "en",
+      "needsAttention": false,
+      "providers": {
+        "uma": {
+          "available": true,
+          "displayName": "WitchToons",
+          "file": "src/main/kotlin/tsuki/site/en/WitchToons.kt",
+          "sourceName": "WITCHTOONS"
         }
       }
     },
@@ -20100,7 +20148,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://onfmangas.com",
-          "extensionVersionCode": 6,
+          "extensionVersionCode": 7,
           "module": "src/es/onfmangas",
           "sourceId": 438553037668091848,
           "sourceName": "ONF MANGAS"
@@ -22288,7 +22336,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://lanortrad.com",
-          "extensionVersionCode": 2,
+          "extensionVersionCode": 1,
           "module": "src/fr/lanortrad",
           "sourceId": 6624592926208705847,
           "sourceName": "LanorTrad"
@@ -22937,6 +22985,12 @@
           "module": "src/fr/ortegascans",
           "sourceId": 8598370605081191622,
           "sourceName": "Ortega Scans"
+        },
+        "uma": {
+          "available": true,
+          "displayName": "Ortega Scans",
+          "file": "src/main/kotlin/tsuki/site/fr/nsfw/OrtegaScans.kt",
+          "sourceName": "ORTEGASCANS"
         }
       }
     },
@@ -23039,7 +23093,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://perf-scan.xyz",
-          "extensionVersionCode": 31,
+          "extensionVersionCode": 0,
           "module": "src/fr/perfscan",
           "sourceId": 4533007917829146766,
           "sourceName": "Perf Scan",
@@ -24657,7 +24711,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://dreamteams.space",
-          "extensionVersionCode": 33,
+          "extensionVersionCode": 0,
           "module": "src/id/dreamteamsscans",
           "sourceId": 4473891485969679132,
           "sourceName": "DreamTeams Scans"
@@ -26685,7 +26739,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://roseveil.org",
-          "extensionVersionCode": 47,
+          "extensionVersionCode": 0,
           "module": "src/id/roseveil",
           "sourceId": 5328028029485519937,
           "sourceName": "Roseveil",
@@ -28640,7 +28694,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://gorakuweb.com",
-          "extensionVersionCode": 2,
+          "extensionVersionCode": 1,
           "module": "src/ja/gorakuweb",
           "sourceId": 8261703368756535165,
           "sourceName": "Goraku Web"
@@ -29993,7 +30047,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://ebookstore.sony.jp",
-          "extensionVersionCode": 2,
+          "extensionVersionCode": 1,
           "module": "src/ja/readerstore",
           "sourceId": 424606783143704524,
           "sourceName": "Reader Store"
@@ -39000,7 +39054,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://manga-tr.com",
-          "extensionVersionCode": 23,
+          "extensionVersionCode": 24,
           "module": "src/tr/mangatr",
           "sourceId": 4990678311970770946,
           "sourceName": "Manga-TR"
@@ -39646,7 +39700,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://www.ruyamanga2.com",
-          "extensionVersionCode": 4,
+          "extensionVersionCode": 5,
           "module": "src/tr/ruyamanga",
           "sourceId": 5786550835901373927,
           "sourceName": "Rüya Manga"
@@ -40589,19 +40643,19 @@
     },
     {
       "attentionReasons": [],
-      "canonicalId": "miyorare:inventory-uk:PURESKILL",
-      "displayName": "PureSkill",
-      "identityConfidence": "previous",
+      "canonicalId": "miyorare:inventory-uk:MANGARAMA",
+      "displayName": "Mangarama",
+      "identityConfidence": "exact-name",
       "language": "uk",
       "needsAttention": false,
       "providers": {
         "keiyoushi": {
           "available": true,
-          "baseUrl": "https://pure-skill.pages.dev",
-          "extensionVersionCode": 1,
-          "module": "src/uk/pureskill",
-          "sourceId": 1283950283349516077,
-          "sourceName": "PureSkill"
+          "baseUrl": "https://mangarama.com.ua",
+          "extensionVersionCode": 0,
+          "module": "src/uk/mangarama",
+          "sourceId": 2988064575635454860,
+          "sourceName": "Mangarama"
         }
       }
     },
@@ -43973,7 +44027,7 @@
       "providers": {
         "keiyoushi": {
           "available": true,
-          "extensionVersionCode": 10,
+          "extensionVersionCode": 1,
           "module": "src/zh/dm5",
           "sourceId": 293789630396851172,
           "sourceName": "动漫屋"
@@ -44440,8 +44494,8 @@
     }
   ],
   "stats": {
-    "allSources": 2421,
+    "allSources": 2424,
     "needsAttention": 1,
-    "providerMappings": 2901
+    "providerMappings": 2905
   }
 }
