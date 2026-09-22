@@ -399,31 +399,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          previous="$(gh run list \
-            --repo "$GITHUB_REPOSITORY" \
-            --workflow release-source-packs.yml \
-            --limit 1 \
-            --json databaseId \
-            --jq '.[0].databaseId // 0')"
-          gh workflow run release-source-packs.yml \
+          run_url="$(gh workflow run release-source-packs.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref main \
-            -f version="$VERSION"
-
-          run_id=""
-          for attempt in $(seq 1 90); do
-            run_id="$(gh run list \
-              --repo "$GITHUB_REPOSITORY" \
-              --workflow release-source-packs.yml \
-              --event workflow_dispatch \
-              --limit 20 \
-              --json databaseId,status \
-              --jq ".[] | select(.databaseId != $previous) | .databaseId" \
-              | head -n 1)"
-            [[ -n "$run_id" ]] && break
-            sleep 2
-          done
-          [[ -n "$run_id" ]]
+            -f version="$VERSION")"
+          run_id="${run_url##*/}"
+          [[ "$run_id" =~ ^[0-9]+$ ]] || {
+            echo "Could not resolve the newly dispatched Source Pack release run ID from: $run_url" >&2
+            exit 1
+          }
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
 
       - name: Wait for build, seal, attestation, and stable publish
