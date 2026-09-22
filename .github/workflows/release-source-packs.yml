@@ -208,6 +208,46 @@ jobs:
           print(f"compatibility_epoch={contract['compatibility']['compatibilityEpoch']}")
           PY
 
+  build-audio:
+    name: Stage Miyorare Audio catalog
+    needs: resolve-source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact pinned Miyorare builder
+        uses: actions/checkout@v5
+        with:
+          repository: Noirero/Miyorare
+          ref: ${{ needs.resolve-source.outputs.source_commit }}
+          path: miyorare
+          fetch-depth: 1
+
+      - name: Validate optional audio catalog
+        id: audio
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="miyorare/extensions/miyorare-audio/pack.json"
+          validator="miyorare/extensions/miyorare-audio/tools/validate_pack.py"
+          if [ ! -f "$manifest" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "Pinned Miyorare builder predates the Audio Pack; skipping audio catalog asset."
+            exit 0
+          fi
+          test -f "$validator"
+          python3 "$validator" "$manifest"
+          mkdir -p build/audio
+          cp "$manifest" build/audio/miyorare-audio-extensions.json
+          echo "present=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload audio catalog release candidate
+        if: steps.audio.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: miyorare-audio-release
+          path: build/audio/miyorare-audio-extensions.json
+          if-no-files-found: error
+          retention-days: 3
+
   build-pack:
     name: Build Miyorare-${{ matrix.pack }}
     needs: resolve-source
@@ -498,7 +538,7 @@ jobs:
 
   stage-draft:
     name: Stage official source packs as draft
-    needs: [resolve-source, build-pack, build-global]
+    needs: [resolve-source, build-pack, build-global, build-audio]
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.draft.outputs.tag }}
@@ -553,6 +593,18 @@ jobs:
           test -f "dist/miyorare-global-gekkoushi.jar.sha256"
           (cd dist && sha256sum -c "miyorare-global-gekkoushi.jar.sha256")
           test -f "dist/miyorare-global-pack.json"
+          if [ -f "dist/miyorare-audio-extensions.json" ]; then
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("dist/miyorare-audio-extensions.json").read_text(encoding="utf-8"))
+          if data.get("schemaVersion") != 1 or data.get("packId") != "miyorare-audio" or data.get("mediaType") != "audio":
+              raise SystemExit("invalid staged Miyorare audio catalog")
+          extensions = data.get("extensions")
+          if not isinstance(extensions, list) or not extensions:
+              raise SystemExit("staged Miyorare audio catalog is empty")
+          PY
+          fi
           if gh release view "$TAG" >/dev/null 2>&1 || \
              git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "::error::Release or tag $TAG already exists. Source-pack releases are immutable."
@@ -598,21 +650,26 @@ jobs:
         run: |
           set -euo pipefail
           TAG="miyorare-sources-v${SOURCE_VERSION}"
-          gh release create "$TAG" \
-            dist/miyorare-id-uma.jar \
-            dist/miyorare-id-uma.jar.sha256 \
-            dist/miyorare-id-gekkoushi.jar \
-            dist/miyorare-id-gekkoushi.jar.sha256 \
-            dist/miyorare-id-pack.json \
-            dist/miyorare-en-uma.jar \
-            dist/miyorare-en-uma.jar.sha256 \
-            dist/miyorare-en-gekkoushi.jar \
-            dist/miyorare-en-gekkoushi.jar.sha256 \
-            dist/miyorare-en-pack.json \
-            dist/miyorare-global-gekkoushi.jar \
-            dist/miyorare-global-gekkoushi.jar.sha256 \
-            dist/miyorare-global-pack.json \
-            dist/miyorare-source-packs.json \
+          assets=(
+            dist/miyorare-id-uma.jar
+            dist/miyorare-id-uma.jar.sha256
+            dist/miyorare-id-gekkoushi.jar
+            dist/miyorare-id-gekkoushi.jar.sha256
+            dist/miyorare-id-pack.json
+            dist/miyorare-en-uma.jar
+            dist/miyorare-en-uma.jar.sha256
+            dist/miyorare-en-gekkoushi.jar
+            dist/miyorare-en-gekkoushi.jar.sha256
+            dist/miyorare-en-pack.json
+            dist/miyorare-global-gekkoushi.jar
+            dist/miyorare-global-gekkoushi.jar.sha256
+            dist/miyorare-global-pack.json
+            dist/miyorare-source-packs.json
+          )
+          if [ -f dist/miyorare-audio-extensions.json ]; then
+            assets+=(dist/miyorare-audio-extensions.json)
+          fi
+          gh release create "$TAG" "${assets[@]}" \
             --draft \
             --latest=false \
             --target "$GITHUB_SHA" \
