@@ -1,5 +1,5 @@
 {
-  "lastWorkflowRunId": "35828055742",
+  "lastWorkflowRunId": "35859420051",
   "schemaVersion": 2,
   "sources": {
     "miyorare:inventory-en:18PORNCOMIC": {
@@ -2796,10 +2796,10 @@
     "miyorare:inventory-en:BEETOONNET": {
       "adapterFamily": "custom-paged-html",
       "approvalState": "NOT_READY",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
+        "attempts": 2,
         "profile": {
           "gate": "FAIL",
           "memberships": [
@@ -2822,8 +2822,8 @@
           ]
         }
       },
-      "evidenceSha256": "da51f9a2b394c284d71a5b2bafaaf56da06a5525192f1b124fc678a324743938",
-      "lastCheckedAt": "2026-09-19T16:54:20Z",
+      "evidenceSha256": "e4de019af11d370b02aa1b6c91f87119559d9d32090ebf8b7bb4e54af9a85692",
+      "lastCheckedAt": "2026-09-23T12:18:52Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
@@ -2831,7 +2831,7 @@
       "testedVersions": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
-      "workflowRunId": "35456153973"
+      "workflowRunId": "35859420051"
     },
     "miyorare:inventory-en:BESTMANHUACOM": {
       "adapterFamily": "madara",
@@ -7268,6 +7268,139 @@
       },
       "workflowRunId": "35828055742"
     },
+    "miyorare:inventory-en:ELITEMANGA": {
+      "adapterFamily": "madara",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/EliteManga.kt",
+              "probe": {
+                "detail": "upstream-declared-broken",
+                "reachable": false
+              },
+              "probeHost": "www.beinmanga.com",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "b4fb0f530cfa8fac2117b745324a2d66cdd1fecd000348f9f32abea93ec2f89d",
+      "lastCheckedAt": "2026-09-23T12:18:52Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "NEEDS_ATTENTION",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "35859420051"
+    },
+    "miyorare:inventory-en:EMAQI": {
+      "adapterFamily": "custom-paged-form-api",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "FORM",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:EMAQI",
+              "parserExecution": false,
+              "provider": "keiyoushi",
+              "reason": "AUTH_REQUIRED:FORM",
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_19a5f39dca7b"
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "FORM",
+              "compile": true,
+              "exists": true,
+              "family": "custom-paged-form-api",
+              "locator": "src/en/emaqi",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://emaqi.com/"
+              },
+              "probeHost": "emaqi.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "ad78f3a784ca7bde5b853edbf9336b617c5e92558f1fab2aa32f80009b5a014e",
+      "lastCheckedAt": "2026-09-23T12:18:52Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "NEEDS_ATTENTION",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35859420051"
+    },
+    "miyorare:inventory-en:ENHUNTERSSCAN": {
+      "adapterFamily": "madara",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/HuntersScanEn.kt",
+              "probe": {
+                "detail": "upstream-declared-broken",
+                "reachable": false
+              },
+              "probeHost": "en.huntersscan.xyz",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "ffb81a8b60e8a5da5acdcae9458ed134fcde350af49ef73ea712c36adfb2893d",
+      "lastCheckedAt": "2026-09-23T12:18:52Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "NEEDS_ATTENTION",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "35859420051"
+    },
     "miyorare:inventory-id:AARLAS": {
       "adapterFamily": "keiyoushi-native",
       "approvalState": "NOT_READY",
@@ -10425,10 +10558,10 @@
     "miyorare:inventory-id:KOMIKCAST": {
       "adapterFamily": "custom-rest-json",
       "approvalState": "NOT_READY",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
+        "attempts": 2,
         "profile": {
           "gate": "FAIL",
           "memberships": [
@@ -10451,8 +10584,8 @@
           ]
         }
       },
-      "evidenceSha256": "ceeaa7022bfa021ec73a8346caada99df7fa168b3e0dcd67a4e5cd2b0360b900",
-      "lastCheckedAt": "2026-09-19T21:50:10Z",
+      "evidenceSha256": "a56a40ab3f41711e7ae68d31a20e0e98c32477321aa53066ce7ae8bc917c131f",
+      "lastCheckedAt": "2026-09-23T12:18:52Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
@@ -10460,7 +10593,7 @@
       "testedVersions": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
-      "workflowRunId": "35471414285"
+      "workflowRunId": "35859420051"
     },
     "miyorare:inventory-id:KOMIKCINTA": {
       "adapterFamily": "manga-reader-plus-api",
@@ -14657,7 +14790,143 @@
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
       "workflowRunId": "35828055742"
+    },
+    "miyorare:inventory-id:MIKOROKU": {
+      "adapterFamily": "multi-provider",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-paged-html",
+              "locator": "src/main/kotlin/tsuki/site/zeistmanga/id/Mikoroku.kt",
+              "probe": {
+                "detail": "upstream-declared-broken",
+                "reachable": false
+              },
+              "probeHost": "www.mikoroku.web.id",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
+            },
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "keiyoushi-native",
+              "locator": "src/id/mikoroku",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://www.mikoroku.com/"
+              },
+              "probeHost": "www.mikoroku.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "697fe83a1296c6e0582b3f668d827b411dd4fa522cca00a935465bc2c77c37fd",
+      "lastCheckedAt": "2026-09-23T12:18:52Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "NEEDS_ATTENTION",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35859420051"
+    },
+    "miyorare:inventory-id:MONZEEKOMIK": {
+      "adapterFamily": "manga-reader-plus-api",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "manga-reader-plus-api",
+              "locator": "src/main/kotlin/tsuki/site/mangareader/id/MonzeeKomik.kt",
+              "probe": {
+                "detail": "URLError",
+                "reachable": false,
+                "url": "https://monzee01.my.id/"
+              },
+              "probeHost": "monzee01.my.id",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "a4cc9a283aeed8b56aa44da3e360311f71e47a25dc2e624b71763d9840b38938",
+      "lastCheckedAt": "2026-09-23T12:18:52Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "35859420051"
+    },
+    "miyorare:inventory-id:NARASININJA": {
+      "adapterFamily": "custom-paged-form-api",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-paged-form-api",
+              "locator": "src/id/narasininja",
+              "probe": {
+                "detail": "TimeoutError",
+                "reachable": false,
+                "url": "https://narasininja.net/"
+              },
+              "probeHost": "narasininja.net",
+              "profilePass": false,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "4c59bc793c93ba35cc3cf68333d0f209c1518ed0d609c2667eb0b161889a6675",
+      "lastCheckedAt": "2026-09-23T12:18:52Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35859420051"
     }
   },
-  "updatedAt": "2026-09-23T06:46:31Z"
+  "updatedAt": "2026-09-23T12:18:52Z"
 }
