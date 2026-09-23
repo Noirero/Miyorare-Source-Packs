@@ -221,26 +221,19 @@ jobs:
           path: miyorare
           fetch-depth: 1
 
-      - name: Validate optional audio catalog
-        id: audio
+      - name: Validate required audio catalog
         shell: bash
         run: |
           set -euo pipefail
           manifest="miyorare/extensions/miyorare-audio/pack.json"
           validator="miyorare/extensions/miyorare-audio/tools/validate_pack.py"
-          if [ ! -f "$manifest" ]; then
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "Pinned Miyorare builder predates the Audio Pack; skipping audio catalog asset."
-            exit 0
-          fi
-          test -f "$validator"
+          test -s "$manifest"
+          test -s "$validator"
           python3 "$validator" "$manifest"
           mkdir -p build/audio
           cp "$manifest" build/audio/miyorare-audio-extensions.json
-          echo "present=true" >> "$GITHUB_OUTPUT"
 
       - name: Upload audio catalog release candidate
-        if: steps.audio.outputs.present == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: miyorare-audio-release
@@ -593,18 +586,32 @@ jobs:
           test -f "dist/miyorare-global-gekkoushi.jar.sha256"
           (cd dist && sha256sum -c "miyorare-global-gekkoushi.jar.sha256")
           test -f "dist/miyorare-global-pack.json"
-          if [ -f "dist/miyorare-audio-extensions.json" ]; then
-            python3 - <<'PY'
+          test -s "dist/miyorare-audio-extensions.json"
+          python3 - <<'PY'
           import json
           from pathlib import Path
           data = json.loads(Path("dist/miyorare-audio-extensions.json").read_text(encoding="utf-8"))
           if data.get("schemaVersion") != 1 or data.get("packId") != "miyorare-audio" or data.get("mediaType") != "audio":
               raise SystemExit("invalid staged Miyorare audio catalog")
           extensions = data.get("extensions")
-          if not isinstance(extensions, list) or not extensions:
-              raise SystemExit("staged Miyorare audio catalog is empty")
+          if not isinstance(extensions, list) or len(extensions) != 6:
+              raise SystemExit("staged Miyorare audio catalog must contain exactly six runtimes")
+          expected = {
+              "miyorare.audio.asmr_one",
+              "miyorare.audio.hentai_asmr",
+              "miyorare.audio.japanese_asmr",
+              "miyorare.audio.asmr18",
+              "miyorare.audio.ero_voice",
+              "miyorare.audio.asmr_hentai_net",
+          }
+          actual = {item.get("id") for item in extensions if isinstance(item, dict)}
+          if actual != expected:
+              raise SystemExit(f"unexpected staged audio runtime set: {sorted(actual)}")
+          hentai = next(item for item in extensions if item.get("id") == "miyorare.audio.asmr_hentai_net")
+          capabilities = set(hentai.get("capabilities") or [])
+          if not {"playback", "subtitles"} <= capabilities or "download" in capabilities:
+              raise SystemExit("ASMR Hentai capabilities do not match verified Hiraukan runtime")
           PY
-          fi
           if gh release view "$TAG" >/dev/null 2>&1 || \
              git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "::error::Release or tag $TAG already exists. Source-pack releases are immutable."
@@ -665,16 +672,14 @@ jobs:
             dist/miyorare-global-gekkoushi.jar.sha256
             dist/miyorare-global-pack.json
             dist/miyorare-source-packs.json
+            dist/miyorare-audio-extensions.json
           )
-          if [ -f dist/miyorare-audio-extensions.json ]; then
-            assets+=(dist/miyorare-audio-extensions.json)
-          fi
           gh release create "$TAG" "${assets[@]}" \
             --draft \
             --latest=false \
             --target "$GITHUB_SHA" \
             --title "Miyorare Source Packs v${SOURCE_VERSION}" \
-            --notes "Official Miyorare-ID, Miyorare-EN, and Miyorare-Global packs. Compatibility snapshot ${{ steps.manifest.outputs.compatibility_snapshot_id }}; Farm ${FARM_COMMIT}; pinned Miyorare builder ${SOURCE_COMMIT} (beta lineage); stable runtime compatibility baseline Miyorare main ${RUNTIME_COMMIT} (versionCode ${RUNTIME_VERSION_CODE}, Tsuki ${TSUKI_API}); validated upstreams: UMA ${UMA_COMMIT}, Gekkoushi ${GEKKOUSHI_COMMIT}, Keiyoushi ${KEIYOUSHI_COMMIT}."
+            --notes "Official Miyorare-ID, Miyorare-EN, and Miyorare-Global packs plus the sealed Hiraukan audio catalog. Compatibility snapshot ${{ steps.manifest.outputs.compatibility_snapshot_id }}; Farm ${FARM_COMMIT}; pinned Miyorare builder ${SOURCE_COMMIT} (beta lineage); stable runtime compatibility baseline Miyorare main ${RUNTIME_COMMIT} (versionCode ${RUNTIME_VERSION_CODE}, Tsuki ${TSUKI_API}); validated upstreams: UMA ${UMA_COMMIT}, Gekkoushi ${GEKKOUSHI_COMMIT}, Keiyoushi ${KEIYOUSHI_COMMIT}."
           gh release view "$TAG" --json isDraft,isPrerelease --jq 'select(.isDraft == true and .isPrerelease == false)' >/dev/null
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
