@@ -1,5 +1,5 @@
 {
-  "lastWorkflowRunId": "35942896740",
+  "lastWorkflowRunId": "35966150175",
   "schemaVersion": 2,
   "sources": {
     "miyorare:inventory-en:18PORNCOMIC": {
@@ -3189,10 +3189,10 @@
     "miyorare:inventory-en:BRAINROTCOMICS": {
       "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
+        "attempts": 2,
         "gate": "REAL_PARSER_BLOCKED",
         "parser": {
           "executionMode": "real-live-parser",
@@ -3241,8 +3241,8 @@
           ]
         }
       },
-      "evidenceSha256": "53d2dcdac81b4e75dae3b97cfb292a8162819484f649bb34b6bbcb2d4bcb6586",
-      "lastCheckedAt": "2026-09-19T23:43:24Z",
+      "evidenceSha256": "2af3b0402903ac56be3e5243df6038639add0bb0740598f994e2f6669bdbb822",
+      "lastCheckedAt": "2026-09-24T06:50:38Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
@@ -3250,7 +3250,7 @@
       "testedVersions": {
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
-      "workflowRunId": "35476652144"
+      "workflowRunId": "35966150175"
     },
     "miyorare:inventory-en:BROCCOLISOUP": {
       "adapterFamily": "custom-paged-html",
@@ -7976,6 +7976,188 @@
       },
       "workflowRunId": "35942896740"
     },
+    "miyorare:inventory-en:EZMANGA": {
+      "adapterFamily": "multi-provider",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:EZMANGA",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "org.opentest4j.AssertionFailedError: live browse returned no manga; lastFailure=NotFoundException ==> expected: <true> but was: <false>",
+              "failureType": "org.opentest4j.AssertionFailedError",
+              "failures": 1,
+              "fqcn": "tsuki.site.keyoapp.en.EzManga",
+              "locator": "src/main/kotlin/tsuki/site/keyoapp/en/EzManga.kt",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_af87842236d9",
+              "tests": 1
+            },
+            {
+              "canonicalId": "miyorare:inventory-en:EZMANGA",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.reflect.InvocationTargetException",
+              "failureType": "java.lang.reflect.InvocationTargetException",
+              "failures": 1,
+              "locator": "src/en/ezmanga",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/ezmanga/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_82d273969713",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "gekkoushi-native",
+              "locator": "src/main/kotlin/tsuki/site/keyoapp/en/EzManga.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://ezmanga.org/"
+              },
+              "probeHost": "ezmanga.org",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            },
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-rest-json",
+              "locator": "src/en/ezmanga",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://ezmanga.org/"
+              },
+              "probeHost": "ezmanga.org",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "c62945285910d0ff29d614efabe4eb0bb02e844210ccffb50b1fbcf9f3e2098f",
+      "lastCheckedAt": "2026-09-24T06:50:38Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35966150175"
+    },
+    "miyorare:inventory-en:FACTMANGA": {
+      "adapterFamily": "madara",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/FactManga.kt",
+              "probe": {
+                "detail": "URLError",
+                "reachable": false,
+                "url": "https://factmanga.com/"
+              },
+              "probeHost": "factmanga.com",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "d09f46ff4488d2035234c22bd345e37aa6b6c4541cf3a06e32025f7d4fa9a7b1",
+      "lastCheckedAt": "2026-09-24T06:50:38Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "35966150175"
+    },
+    "miyorare:inventory-en:FAIRYSCANS": {
+      "adapterFamily": "custom-paged-form-api",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-paged-form-api",
+              "locator": "src/en/fairyscans",
+              "probe": {
+                "detail": "http-520",
+                "httpStatus": 520,
+                "reachable": false,
+                "url": "https://fairyscans.org/"
+              },
+              "probeHost": "fairyscans.org",
+              "profilePass": false,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "b9dd59a8db533c60c66a65e264448725768b3a4595c72f0f5797c54fe154ce3b",
+      "lastCheckedAt": "2026-09-24T06:50:38Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35966150175"
+    },
     "miyorare:inventory-id:AARLAS": {
       "adapterFamily": "keiyoushi-native",
       "approvalState": "NOT_READY",
@@ -11586,10 +11768,10 @@
     "miyorare:inventory-id:KOMIKINDO": {
       "adapterFamily": "multi-provider",
       "approvalState": "NOT_READY",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
+        "attempts": 2,
         "gate": "REAL_PARSER_BLOCKED",
         "parser": {
           "executionMode": "real-live-parser",
@@ -11619,8 +11801,8 @@
               "chapterTraversal": false,
               "detailsTraversal": false,
               "errors": 0,
-              "failureMessage": "java.lang.UnsatisfiedLinkError: no zstd-kmp in java.library.path: /usr/java/packages/lib:/usr/lib64:/lib64:/lib:/usr/lib:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/komikindo/src/testDebug/jniLibs:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/komikindo/src/test/jniLibs",
-              "failureType": "java.lang.UnsatisfiedLinkError",
+              "failureMessage": "java.net.SocketTimeoutException: timeout",
+              "failureType": "java.net.SocketTimeoutException",
               "failures": 1,
               "locator": "src/id/komikindo",
               "pageExtraction": false,
@@ -11672,8 +11854,8 @@
           ]
         }
       },
-      "evidenceSha256": "a63d0afd4d1444c4630cc07e19fd5f3ddd88e160008a7a20dcbb9f6f9fde68e5",
-      "lastCheckedAt": "2026-09-20T01:45:46Z",
+      "evidenceSha256": "38964ce2532d34c3836d33d5ae379d8b09303d3382ace90f251377210ac1adb3",
+      "lastCheckedAt": "2026-09-24T06:50:38Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
@@ -11682,7 +11864,7 @@
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
-      "workflowRunId": "35482060886"
+      "workflowRunId": "35966150175"
     },
     "miyorare:inventory-id:KOMIKINDOID": {
       "adapterFamily": "custom-paged-html",
@@ -16093,7 +16275,212 @@
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
       "workflowRunId": "35942896740"
+    },
+    "miyorare:inventory-id:OTASCANS": {
+      "adapterFamily": "madara",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-id:OTASCANS",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.UnsatisfiedLinkError: no zstd-kmp in java.library.path: /usr/java/packages/lib:/usr/lib64:/lib64:/lib:/usr/lib:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/otascans/src/testDebug/jniLibs:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/otascans/src/test/jniLibs",
+              "failureType": "java.lang.UnsatisfiedLinkError",
+              "failures": 1,
+              "locator": "src/id/otascans",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/otascans/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_75eb67d50124",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/id/otascans",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://yurilab.top/"
+              },
+              "probeHost": "yurilab.top",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "2816321b1f00df5a9e2fbe8295ef4762180a526801326a27f758a9305684efb5",
+      "lastCheckedAt": "2026-09-24T06:50:38Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35966150175"
+    },
+    "miyorare:inventory-id:OTSUGAMI": {
+      "adapterFamily": "manga-reader-plus-api",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "manga-reader-plus-api",
+              "locator": "src/main/kotlin/tsuki/site/mangareader/id/Otsugami.kt",
+              "probe": {
+                "detail": "upstream-declared-broken",
+                "reachable": false
+              },
+              "probeHost": "otsugami.id",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": "Blocked by Cloudflare challenge"
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "ba54d1ad01749535ef6be965f1d7b7352ecd8a758f15fdde1612482fca747197",
+      "lastCheckedAt": "2026-09-24T06:50:38Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "NEEDS_ATTENTION",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "35966150175"
+    },
+    "miyorare:inventory-id:PIXHENTAI": {
+      "adapterFamily": "multi-provider",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-id:PIXHENTAI",
+              "chapterTraversal": true,
+              "detailsTraversal": true,
+              "errors": 0,
+              "failureMessage": null,
+              "failureType": null,
+              "failures": 0,
+              "fqcn": "tsuki.site.id.PixHentai",
+              "locator": "src/main/kotlin/tsuki/site/id/PixHentai.kt",
+              "pageExtraction": true,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "PASS",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_19e5fd338de7",
+              "tests": 1
+            },
+            {
+              "canonicalId": "miyorare:inventory-id:PIXHENTAI",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.reflect.InvocationTargetException",
+              "failureType": "java.lang.reflect.InvocationTargetException",
+              "failures": 1,
+              "locator": "src/id/pixhentai",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/pixhentai/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_50f436b5d6b1",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-paged-html",
+              "locator": "src/main/kotlin/tsuki/site/id/PixHentai.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://pixhentai.com/"
+              },
+              "probeHost": "pixhentai.com",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            },
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "keiyoushi-native",
+              "locator": "src/id/pixhentai",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://pixhentai.com/"
+              },
+              "probeHost": "pixhentai.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "444dbb8fba0c280aac0b2e8f0c86601e7c2e26f19acdbbddeb8e7d3411aaab12",
+      "lastCheckedAt": "2026-09-24T06:50:38Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "35966150175"
     }
   },
-  "updatedAt": "2026-09-24T01:29:13Z"
+  "updatedAt": "2026-09-24T06:50:38Z"
 }
