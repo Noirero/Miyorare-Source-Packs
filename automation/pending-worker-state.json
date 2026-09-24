@@ -1,5 +1,5 @@
 {
-  "lastWorkflowRunId": "35998316697",
+  "lastWorkflowRunId": "36035196489",
   "schemaVersion": 2,
   "sources": {
     "miyorare:inventory-en:18PORNCOMIC": {
@@ -3320,10 +3320,10 @@
     "miyorare:inventory-en:BUNMANGA": {
       "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
+        "attempts": 2,
         "gate": "REAL_PARSER_BLOCKED",
         "parser": {
           "executionMode": "real-live-parser",
@@ -3371,8 +3371,8 @@
           ]
         }
       },
-      "evidenceSha256": "91094e5d7c8ba9ba33977eeb430e26e8f1259441f0df3905e92102064c6c7af2",
-      "lastCheckedAt": "2026-09-20T01:45:46Z",
+      "evidenceSha256": "07faaf425e2518222f319d0b62e12710eaba2eabe36aef3c76f230177a8ad973",
+      "lastCheckedAt": "2026-09-24T17:39:28Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
@@ -3380,7 +3380,7 @@
       "testedVersions": {
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
-      "workflowRunId": "35482060886"
+      "workflowRunId": "36035196489"
     },
     "miyorare:inventory-en:BUTTSMITHY": {
       "adapterFamily": "custom-paged-html",
@@ -8347,6 +8347,221 @@
       },
       "workflowRunId": "35998316697"
     },
+    "miyorare:inventory-en:FLAMECOMICS": {
+      "adapterFamily": "custom-rest-json",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:FLAMECOMICS",
+              "chapterTraversal": true,
+              "detailsTraversal": true,
+              "errors": 0,
+              "failureMessage": null,
+              "failureType": null,
+              "failures": 0,
+              "fqcn": "tsuki.site.en.FlameComics",
+              "locator": "src/main/kotlin/tsuki/site/en/FlameComics.kt",
+              "pageExtraction": true,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "PASS",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_2e68e996d4ce",
+              "tests": 1
+            },
+            {
+              "canonicalId": "miyorare:inventory-en:FLAMECOMICS",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.reflect.InvocationTargetException",
+              "failureType": "java.lang.reflect.InvocationTargetException",
+              "failures": 1,
+              "locator": "src/en/flamecomics",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/flamecomics/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_8d0294323580",
+              "tests": 1
+            },
+            {
+              "canonicalId": "miyorare:inventory-en:FLAMECOMICS",
+              "chapterTraversal": true,
+              "detailsTraversal": true,
+              "errors": 0,
+              "failureMessage": null,
+              "failureType": null,
+              "failures": 0,
+              "fqcn": "tsuki.site.en.FlameComics",
+              "locator": "src/main/kotlin/tsuki/site/en/FlameComics.kt",
+              "pageExtraction": true,
+              "parserExecution": true,
+              "provider": "uma",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/uma/build/test-results/test",
+              "skipped": 0,
+              "status": "PASS",
+              "testClass": "compatibilityfarm.AutoLive_uma_1c2783d6b46a",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-rest-json",
+              "locator": "src/main/kotlin/tsuki/site/en/FlameComics.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://flamecomics.xyz/"
+              },
+              "probeHost": "flamecomics.xyz",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            },
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-rest-json",
+              "locator": "src/en/flamecomics",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://flamecomics.xyz/"
+              },
+              "probeHost": "flamecomics.xyz",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            },
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-rest-json",
+              "locator": "src/main/kotlin/tsuki/site/en/FlameComics.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://flamecomics.xyz/"
+              },
+              "probeHost": "flamecomics.xyz",
+              "profilePass": true,
+              "provider": "uma",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "5b27080bc13f53d02e2c1424ed56f4f4309ea750e5b644930d87627c60e80814",
+      "lastCheckedAt": "2026-09-24T17:39:28Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
+        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "workflowRunId": "36035196489"
+    },
+    "miyorare:inventory-en:FLIXSCANSORG": {
+      "adapterFamily": "custom-rest-json",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-rest-json",
+              "locator": "src/main/kotlin/tsuki/site/en/FlixScansOrg.kt",
+              "probe": {
+                "detail": "upstream-declared-broken",
+                "reachable": false
+              },
+              "probeHost": "flixscans.org",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": "Domain hijacked \u2014 now serves a JS redirect to spam/ads"
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "a3fad92e50766f0b7b62fb9dc8b5317cb37bc0c9bfc6c1828c2b57897dcc4386",
+      "lastCheckedAt": "2026-09-24T17:39:28Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "NEEDS_ATTENTION",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "36035196489"
+    },
+    "miyorare:inventory-en:FREAKCOMIC": {
+      "adapterFamily": "manga-reader-plus-api",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "manga-reader-plus-api",
+              "locator": "src/main/kotlin/tsuki/site/mangareader/en/FreakComic.kt",
+              "probe": {
+                "detail": "upstream-declared-broken",
+                "reachable": false
+              },
+              "probeHost": "freakcomic.com",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": "Domain hijacked \u2014 now serves a JS redirect to spam/ads"
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "303824a1443b7f1c72828a73083e9ef1601ff919d1204d81b69886857c8aa7cb",
+      "lastCheckedAt": "2026-09-24T17:39:28Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "NEEDS_ATTENTION",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "36035196489"
+    },
     "miyorare:inventory-id:AARLAS": {
       "adapterFamily": "keiyoushi-native",
       "approvalState": "NOT_READY",
@@ -12294,10 +12509,10 @@
     "miyorare:inventory-id:KOMIKMAMA": {
       "adapterFamily": "manga-reader-plus-api",
       "approvalState": "NOT_READY",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
+        "attempts": 2,
         "gate": "REAL_PARSER_BLOCKED",
         "parser": {
           "executionMode": "real-live-parser",
@@ -12346,8 +12561,8 @@
           ]
         }
       },
-      "evidenceSha256": "8e6290d266acc9d34f3e2143be25f846c4adad4007b7ffa88b5a917f558e2e3b",
-      "lastCheckedAt": "2026-09-20T12:26:59Z",
+      "evidenceSha256": "1e56cf5ecc2c462b44a137787e19154b14d946b83ef7d829135ead3dc1a00d7a",
+      "lastCheckedAt": "2026-09-24T17:39:28Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
@@ -12355,7 +12570,7 @@
       "testedVersions": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
-      "workflowRunId": "35510515864"
+      "workflowRunId": "36035196489"
     },
     "miyorare:inventory-id:KOMIKNESIA": {
       "adapterFamily": "keiyoushi-native",
@@ -16839,7 +17054,276 @@
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
       "workflowRunId": "35998316697"
+    },
+    "miyorare:inventory-id:REYUME": {
+      "adapterFamily": "multi-provider",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-id:REYUME",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "org.jsoup.HttpStatusException: . Status=429, URL=[https://www.google.com/sorry/index?continue=https://www.re-yume.my.id/2024/01/shangri-la-frontier-kusoge-hunter.html&q=EgQUU54kGKTA1dUGIi20Z7bHmNaF8FWLt3HlI0iZtDRfYMdV5xcLKIgWof7aycrRHj6XuSMPqLjc4gsyAnJSWgFD]",
+              "failureType": "org.jsoup.HttpStatusException",
+              "failures": 1,
+              "fqcn": "tsuki.site.zeistmanga.id.ReYume",
+              "locator": "src/main/kotlin/tsuki/site/zeistmanga/id/ReYume.kt",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_3a7aa702e15f",
+              "tests": 1
+            },
+            {
+              "canonicalId": "miyorare:inventory-id:REYUME",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.IllegalStateException: HTTP 429",
+              "failureType": "java.lang.IllegalStateException",
+              "failures": 1,
+              "locator": "src/id/inazumanga",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/inazumanga/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_9c5d4988d6a1",
+              "tests": 1
+            },
+            {
+              "canonicalId": "miyorare:inventory-id:REYUME",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "org.jsoup.HttpStatusException: . Status=429, URL=[https://www.google.com/sorry/index?continue=https://www.re-yume.my.id/2024/01/shangri-la-frontier-kusoge-hunter.html&q=EgQUU54kGI3A1dUGIi15VUxyTWinIPEuQekoJL4xL_RjHHLZuFf5wQO30SeIzENQTmtZFJOPx9LGzToyAnJSWgFD]",
+              "failureType": "org.jsoup.HttpStatusException",
+              "failures": 1,
+              "fqcn": "tsuki.site.id.ReYume",
+              "locator": "src/main/kotlin/tsuki/site/id/ReYume.kt",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "uma",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/uma/build/test-results/test",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_uma_f308a73d504e",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "gekkoushi-native",
+              "locator": "src/main/kotlin/tsuki/site/zeistmanga/id/ReYume.kt",
+              "probe": {
+                "detail": "http-429",
+                "httpStatus": 429,
+                "reachable": true,
+                "url": "https://www.re-yume.my.id/"
+              },
+              "probeHost": "www.re-yume.my.id",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            },
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-paged-html",
+              "locator": "src/id/inazumanga",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://www.re-yume.my.id/"
+              },
+              "probeHost": "www.re-yume.my.id",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            },
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-rest-json",
+              "locator": "src/main/kotlin/tsuki/site/id/ReYume.kt",
+              "probe": {
+                "detail": "http-429",
+                "httpStatus": 429,
+                "reachable": true,
+                "url": "https://www.re-yume.my.id/"
+              },
+              "probeHost": "www.re-yume.my.id",
+              "profilePass": true,
+              "provider": "uma",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "d1713f2640dbcda7169ef1ffa8513e0763ef1c11f2f81858c337288395e9f515",
+      "lastCheckedAt": "2026-09-24T17:39:28Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
+        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "workflowRunId": "36035196489"
+    },
+    "miyorare:inventory-id:RIZTRANSLATION": {
+      "adapterFamily": "keiyoushi-native",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-id:RIZTRANSLATION",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.reflect.InvocationTargetException",
+              "failureType": "java.lang.reflect.InvocationTargetException",
+              "failures": 1,
+              "locator": "src/id/riztranslation",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/riztranslation/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_4fcc7c0eb8ae",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "keiyoushi-native",
+              "locator": "src/id/riztranslation",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://riztranslation.pages.dev/"
+              },
+              "probeHost": "riztranslation.pages.dev",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "3288e7d38f9c1d64bc2dca991e6bcba16a092aad71ab6aea4d447bfae8241b0d",
+      "lastCheckedAt": "2026-09-24T17:39:28Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "36035196489"
+    },
+    "miyorare:inventory-id:ROSEVEIL": {
+      "adapterFamily": "keiyoushi-native",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-id:ROSEVEIL",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.reflect.InvocationTargetException",
+              "failureType": "java.lang.reflect.InvocationTargetException",
+              "failures": 1,
+              "locator": "src/id/roseveil",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/roseveil/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_d80608d9c465",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "keiyoushi-native",
+              "locator": "src/id/roseveil",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://roseveil.org/"
+              },
+              "probeHost": "roseveil.org",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "4fda633b2919126171b268250d13a6cab7c1ea4f3eced636b60b2c8b508ff49b",
+      "lastCheckedAt": "2026-09-24T17:39:28Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "36035196489"
     }
   },
-  "updatedAt": "2026-09-24T12:23:26Z"
+  "updatedAt": "2026-09-24T17:39:28Z"
 }
