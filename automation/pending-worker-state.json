@@ -1,5 +1,5 @@
 {
-  "lastWorkflowRunId": "36240024118",
+  "lastWorkflowRunId": "36255413184",
   "schemaVersion": 2,
   "sources": {
     "miyorare:inventory-en:18PORNCOMIC": {
@@ -4333,37 +4333,12 @@
     "miyorare:inventory-en:COMICKFANMADE": {
       "adapterFamily": "custom-rest-json",
       "approvalState": "NOT_READY",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
-        "gate": "REAL_PARSER_BLOCKED",
-        "parser": {
-          "executionMode": "real-live-parser",
-          "gate": "FAIL",
-          "memberships": [
-            {
-              "canonicalId": "miyorare:inventory-en:COMICKFANMADE",
-              "chapterTraversal": false,
-              "detailsTraversal": false,
-              "errors": 0,
-              "failureMessage": "java.lang.reflect.InvocationTargetException",
-              "failureType": "java.lang.reflect.InvocationTargetException",
-              "failures": 1,
-              "locator": "src/en/comickfan",
-              "pageExtraction": false,
-              "parserExecution": true,
-              "provider": "keiyoushi",
-              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/comickfan/build/test-results/testDebugUnitTest",
-              "skipped": 0,
-              "status": "FAIL",
-              "testClass": "compatibilityfarm.AutoLive_keiyoushi_4dc84738cd4d",
-              "tests": 1
-            }
-          ]
-        },
+        "attempts": 2,
         "profile": {
-          "gate": "PASS",
+          "gate": "FAIL",
           "memberships": [
             {
               "authType": "NO_AUTH",
@@ -4372,20 +4347,20 @@
               "family": "custom-rest-json",
               "locator": "src/en/comickfan",
               "probe": {
-                "httpStatus": 200,
-                "reachable": true,
+                "detail": "TimeoutError",
+                "reachable": false,
                 "url": "https://comickfan.com/"
               },
               "probeHost": "comickfan.com",
-              "profilePass": true,
+              "profilePass": false,
               "provider": "keiyoushi",
               "upstreamBrokenReason": null
             }
           ]
         }
       },
-      "evidenceSha256": "c08fe1a2b43dfabb64b68d0c0b1df68068fb0f71c61cee7cda1d80d821816cb3",
-      "lastCheckedAt": "2026-09-20T21:41:46Z",
+      "evidenceSha256": "45f656906d6e0e29387baef5e238c3f0db8dec4e4b42574a13118ac9a1790da1",
+      "lastCheckedAt": "2026-09-26T16:29:51Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
@@ -4393,7 +4368,7 @@
       "testedVersions": {
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
-      "workflowRunId": "35539149253"
+      "workflowRunId": "36255413184"
     },
     "miyorare:inventory-en:COMICLAND": {
       "adapterFamily": "multi-provider",
@@ -10480,6 +10455,472 @@
       },
       "workflowRunId": "36240024118"
     },
+    "miyorare:inventory-en:HENTAI20": {
+      "adapterFamily": "manga-reader-plus-api",
+      "approvalState": "WAITING_FOR_APPROVAL",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_PASS",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "PASS",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:HENTAI20",
+              "chapterTraversal": true,
+              "detailsTraversal": true,
+              "errors": 0,
+              "failureMessage": null,
+              "failureType": null,
+              "failures": 0,
+              "fqcn": "tsuki.site.mangareader.en.Hentai20",
+              "locator": "src/main/kotlin/tsuki/site/mangareader/en/Hentai20.kt",
+              "pageExtraction": true,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "PASS",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_179e1a30e5cf",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "manga-reader-plus-api",
+              "locator": "src/main/kotlin/tsuki/site/mangareader/en/Hentai20.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://hentai20.io/"
+              },
+              "probeHost": "hentai20.io",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "6105a07dcff43a70d35ccbd4bdd2df7381a9b9e013572989c9607c1f4261ed0e",
+      "lastCheckedAt": "2026-09-26T16:29:51Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "READY_FOR_APPROVAL",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "36255413184"
+    },
+    "miyorare:inventory-en:HENTAI2READ": {
+      "adapterFamily": "custom-rest-json",
+      "approvalState": "WAITING_FOR_APPROVAL",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_PASS",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "PASS",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:HENTAI2READ",
+              "chapterTraversal": true,
+              "detailsTraversal": true,
+              "errors": 0,
+              "failureMessage": null,
+              "failureType": null,
+              "failures": 0,
+              "fqcn": "tsuki.site.en.Hentai2Read",
+              "locator": "src/main/kotlin/tsuki/site/en/Hentai2Read.kt",
+              "pageExtraction": true,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "PASS",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_0010cbcdcf06",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-rest-json",
+              "locator": "src/main/kotlin/tsuki/site/en/Hentai2Read.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://static.hentai.direct/"
+              },
+              "probeHost": "static.hentai.direct",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "c361a865c1e558b27ac8bccc7e7311797744e9241bd7cdfef5049ac07ca12f6c",
+      "lastCheckedAt": "2026-09-26T16:29:51Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "READY_FOR_APPROVAL",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "36255413184"
+    },
+    "miyorare:inventory-en:HENTAI3ZCC": {
+      "adapterFamily": "custom-paged-html",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:HENTAI3ZCC",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "org.opentest4j.AssertionFailedError: live browse returned no manga; lastFailure=HttpStatusException ==> expected: <true> but was: <false>",
+              "failureType": "org.opentest4j.AssertionFailedError",
+              "failures": 1,
+              "fqcn": "tsuki.site.manga18.en.Hentai3zCc",
+              "locator": "src/main/kotlin/tsuki/site/manga18/en/Hentai3zCc.kt",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_43dc68270d7a",
+              "tests": 1
+            },
+            {
+              "canonicalId": "miyorare:inventory-en:HENTAI3ZCC",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.AssertionError: live browse returned no manga",
+              "failureType": "java.lang.AssertionError",
+              "failures": 1,
+              "locator": "src/en/hentai3zcc",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/hentai3zcc/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_ab921f38493b",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-paged-html",
+              "locator": "src/main/kotlin/tsuki/site/manga18/en/Hentai3zCc.kt",
+              "probe": {
+                "detail": "http-403",
+                "httpStatus": 403,
+                "reachable": true,
+                "url": "https://hentai3z.cc/"
+              },
+              "probeHost": "hentai3z.cc",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            },
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-paged-html",
+              "locator": "src/en/hentai3zcc",
+              "probe": {
+                "detail": "http-403",
+                "httpStatus": 403,
+                "reachable": true,
+                "url": "https://hentai3z.cc/"
+              },
+              "probeHost": "hentai3z.cc",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "02eac8bc07e4617f38eafbc9e6f4e3fc24bbf4910821ed2b18017b5115155f3f",
+      "lastCheckedAt": "2026-09-26T16:29:51Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "36255413184"
+    },
+    "miyorare:inventory-en:HENTAI4FREE": {
+      "adapterFamily": "madara",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:HENTAI4FREE",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "org.opentest4j.AssertionFailedError: live browse returned no manga; lastFailure=HttpStatusException ==> expected: <true> but was: <false>",
+              "failureType": "org.opentest4j.AssertionFailedError",
+              "failures": 1,
+              "fqcn": "tsuki.site.madara.en.Hentai4Free",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/Hentai4Free.kt",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_546c62e2c5f2",
+              "tests": 1
+            },
+            {
+              "canonicalId": "miyorare:inventory-en:HENTAI4FREE",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.AssertionError: live browse returned no manga",
+              "failureType": "java.lang.AssertionError",
+              "failures": 1,
+              "locator": "src/en/hentai4free",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/hentai4free/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_875c616fac1c",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/Hentai4Free.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://hentai4free.net/"
+              },
+              "probeHost": "hentai4free.net",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            },
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/en/hentai4free",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://hentai4free.net/"
+              },
+              "probeHost": "hentai4free.net",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "a9330601bcff7d4d9baf3cead3a6a7e6667141885f2ed166212e62c2d8d7eaa6",
+      "lastCheckedAt": "2026-09-26T16:29:51Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "36255413184"
+    },
+    "miyorare:inventory-en:HENTAIHERE": {
+      "adapterFamily": "custom-paged-html",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:HENTAIHERE",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.reflect.InvocationTargetException",
+              "failureType": "java.lang.reflect.InvocationTargetException",
+              "failures": 1,
+              "locator": "src/en/hentaihere",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/hentaihere/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_8f7f9095366b",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-paged-html",
+              "locator": "src/en/hentaihere",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://hentaihere.com/"
+              },
+              "probeHost": "hentaihere.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "b2014e2d74e067450d2974e5536323fa73a724f96ad41374fb3aecd39d62358f",
+      "lastCheckedAt": "2026-09-26T16:29:51Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "36255413184"
+    },
+    "miyorare:inventory-en:HENTAIKISU": {
+      "adapterFamily": "custom-paged-html",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:HENTAIKISU",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.reflect.InvocationTargetException",
+              "failureType": "java.lang.reflect.InvocationTargetException",
+              "failures": 1,
+              "locator": "src/en/hentaikisu",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/hentaikisu/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_a021e3d2e28e",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-paged-html",
+              "locator": "src/en/hentaikisu",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://hentaikisu.com/"
+              },
+              "probeHost": "hentaikisu.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "1c42090a6b591f5174c778445b25d14e3589f5b062ab307d23bac02c184d1319",
+      "lastCheckedAt": "2026-09-26T16:29:51Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+      },
+      "workflowRunId": "36255413184"
+    },
     "miyorare:inventory-id:AARLAS": {
       "adapterFamily": "keiyoushi-native",
       "approvalState": "NOT_READY",
@@ -15424,10 +15865,10 @@
     "miyorare:inventory-id:KUMAPOI": {
       "adapterFamily": "keiyoushi-native",
       "approvalState": "NOT_READY",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
+        "attempts": 2,
         "gate": "REAL_PARSER_BLOCKED",
         "parser": {
           "executionMode": "real-live-parser",
@@ -15475,8 +15916,8 @@
           ]
         }
       },
-      "evidenceSha256": "a62bc7b7e4734bfa219a5b2efe8d1d55bb6e90983b70fdde6f9998e58ee791bd",
-      "lastCheckedAt": "2026-09-21T01:46:46Z",
+      "evidenceSha256": "1421bf85e7ad107995ea666b6562dfede4430a93a3ff6e89fa715f2bbab03b4e",
+      "lastCheckedAt": "2026-09-26T16:29:51Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
@@ -15484,7 +15925,7 @@
       "testedVersions": {
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
-      "workflowRunId": "35551791103"
+      "workflowRunId": "36255413184"
     },
     "miyorare:inventory-id:KUMOPOI": {
       "adapterFamily": "keiyoushi-native",
@@ -21376,5 +21817,5 @@
       "workflowRunId": "36240024118"
     }
   },
-  "updatedAt": "2026-09-26T11:54:33Z"
+  "updatedAt": "2026-09-26T16:29:51Z"
 }
