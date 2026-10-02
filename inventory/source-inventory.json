@@ -6,7 +6,7 @@
       "commit": "12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67"
     },
     "keiyoushi": {
-      "commit": "aa14252caaba8bfe676eaf62095819745a2138ec"
+      "commit": "d0c08644e05f7efcebad77a8d8306024197f387d"
     },
     "uma": {
       "commit": "f207e8ea5d04cefbc97f840865aff79cee110a5c"
@@ -1211,7 +1211,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "http://127.0.0.1:3000",
-          "extensionVersionCode": 0,
+          "extensionVersionCode": 1,
           "module": "src/all/lanraragi",
           "sourceId": 4482480338677079857,
           "sourceName": "LANraragi (1)"
@@ -1229,7 +1229,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "http://127.0.0.1:3000",
-          "extensionVersionCode": 0,
+          "extensionVersionCode": 1,
           "module": "src/all/lanraragi",
           "sourceId": 6188058704030343819,
           "sourceName": "LANraragi (2)"
@@ -5674,6 +5674,24 @@
     },
     {
       "attentionReasons": [],
+      "canonicalId": "miyorare:inventory-en:AUNTMANHWA",
+      "displayName": "Aunt Manhwa",
+      "identityConfidence": "exact-name",
+      "language": "en",
+      "needsAttention": false,
+      "providers": {
+        "keiyoushi": {
+          "available": true,
+          "baseUrl": "https://auntmanhwa.com",
+          "extensionVersionCode": 0,
+          "module": "src/en/auntmanhwa",
+          "sourceId": 6576302499429437207,
+          "sourceName": "Aunt Manhwa"
+        }
+      }
+    },
+    {
+      "attentionReasons": [],
       "canonicalId": "miyorare:inventory-en:AURORA",
       "displayName": "Aurora",
       "identityConfidence": "explicit",
@@ -6953,24 +6971,6 @@
     },
     {
       "attentionReasons": [],
-      "canonicalId": "miyorare:inventory-en:DUSKSCANS",
-      "displayName": "Dusk Scans",
-      "identityConfidence": "explicit",
-      "language": "en",
-      "needsAttention": false,
-      "providers": {
-        "keiyoushi": {
-          "available": true,
-          "baseUrl": "https://duskscans.com",
-          "extensionVersionCode": 4,
-          "module": "src/en/duskscans",
-          "sourceId": 6702526497040269835,
-          "sourceName": "Dusk Scans"
-        }
-      }
-    },
-    {
-      "attentionReasons": [],
       "canonicalId": "miyorare:inventory-en:DYNASTYSCANS",
       "displayName": "DynastyScans",
       "identityConfidence": "explicit",
@@ -6996,6 +6996,24 @@
           "displayName": "Dynasty Scans",
           "file": "src/main/kotlin/tsuki/site/en/DynastyScans.kt",
           "sourceName": "DYNASTYSCANS"
+        }
+      }
+    },
+    {
+      "attentionReasons": [],
+      "canonicalId": "miyorare:inventory-en:EBOOKRENTA",
+      "displayName": "EbookRenta",
+      "identityConfidence": "exact-name",
+      "language": "en",
+      "needsAttention": false,
+      "providers": {
+        "keiyoushi": {
+          "available": true,
+          "baseUrl": "https://www.ebookrenta.com",
+          "extensionVersionCode": 0,
+          "module": "src/en/ebookrenta",
+          "sourceId": 8412178155364465470,
+          "sourceName": "EbookRenta"
         }
       }
     },
@@ -7071,17 +7089,18 @@
       "attentionReasons": [],
       "canonicalId": "miyorare:inventory-en:ELFTOON",
       "displayName": "Elf Toon",
-      "identityConfidence": "explicit",
+      "identityConfidence": "exact-name",
       "language": "en",
       "needsAttention": false,
       "providers": {
         "keiyoushi": {
           "available": true,
-          "baseUrl": "https://elftoon.com",
-          "extensionVersionCode": 3,
+          "baseUrl": "https://elftoon.net",
+          "extensionVersionCode": 4,
           "module": "src/en/elftoon",
-          "sourceId": 3896703921896511395,
-          "sourceName": "Elf Toon"
+          "sourceId": 7881856136524765210,
+          "sourceName": "Elf Toon",
+          "versionId": 2
         }
       }
     },
@@ -8641,8 +8660,8 @@
         },
         "keiyoushi": {
           "available": true,
-          "baseUrl": "https://hotcomics.me",
-          "extensionVersionCode": 0,
+          "baseUrl": "https://hotcomics.io",
+          "extensionVersionCode": 1,
           "module": "src/en/hotcomics",
           "sourceId": 6335003343669033128,
           "sourceName": "HotComics"
@@ -10420,6 +10439,14 @@
           "displayName": "MangaEclipse",
           "file": "src/main/kotlin/tsuki/site/madara/en/MangaEclipse.kt",
           "sourceName": "MANGAECLIPSE"
+        },
+        "keiyoushi": {
+          "available": true,
+          "baseUrl": "https://mangaeclipse.com",
+          "extensionVersionCode": 0,
+          "module": "src/en/mangaeclipse",
+          "sourceId": 5229341270935044914,
+          "sourceName": "Manga Eclipse"
         }
       }
     },
@@ -23162,15 +23189,6 @@
           "displayName": "PerfScan",
           "file": "src/main/kotlin/tsuki/site/heancms/fr/PerfScan.kt",
           "sourceName": "PERF_SCAN"
-        },
-        "keiyoushi": {
-          "available": true,
-          "baseUrl": "https://perf-scan.xyz",
-          "extensionVersionCode": 0,
-          "module": "src/fr/perfscan",
-          "sourceId": 4533007917829146766,
-          "sourceName": "Perf Scan",
-          "versionId": 2
         }
       }
     },
@@ -25174,6 +25192,14 @@
           "displayName": "KomBatch",
           "file": "src/main/kotlin/tsuki/site/mangareader/id/KomBatch.kt",
           "sourceName": "KOMBATCH"
+        },
+        "keiyoushi": {
+          "available": true,
+          "baseUrl": "https://kombatch.cc",
+          "extensionVersionCode": 0,
+          "module": "src/id/kombatch",
+          "sourceId": 911623545095065045,
+          "sourceName": "Kombatch"
         }
       }
     },
@@ -25331,8 +25357,8 @@
         },
         "keiyoushi": {
           "available": true,
-          "baseUrl": "https://komikindo.cam",
-          "extensionVersionCode": 8,
+          "baseUrl": "https://1.komikindo.shop",
+          "extensionVersionCode": 9,
           "module": "src/id/komikindo",
           "sourceId": 1210328269637877420,
           "sourceName": "Komikindo"
@@ -27258,8 +27284,7 @@
       "providers": {
         "keiyoushi": {
           "available": true,
-          "baseUrl": "https://v4.voratoon.com",
-          "extensionVersionCode": 85,
+          "extensionVersionCode": 86,
           "module": "src/id/voratoon",
           "sourceId": 972717448578983812,
           "sourceName": "VoraToon"
@@ -27906,6 +27931,24 @@
           "displayName": "ScanIta.org",
           "file": "src/main/kotlin/tsuki/site/scan/it/ScanIta.kt",
           "sourceName": "SCANITA"
+        }
+      }
+    },
+    {
+      "attentionReasons": [],
+      "canonicalId": "miyorare:inventory-it:SHINOBISCANS",
+      "displayName": "Shinobi Scans",
+      "identityConfidence": "exact-name",
+      "language": "it",
+      "needsAttention": false,
+      "providers": {
+        "keiyoushi": {
+          "available": true,
+          "baseUrl": "https://shinobiscans.com",
+          "extensionVersionCode": 0,
+          "module": "src/it/shinobiscans",
+          "sourceId": 7733551911826034167,
+          "sourceName": "Shinobi Scans"
         }
       }
     },
@@ -31612,7 +31655,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://egotoons.com",
-          "extensionVersionCode": 9,
+          "extensionVersionCode": 10,
           "module": "src/pt/egotoons",
           "sourceId": 4749792168996703143,
           "sourceName": "Ego Toons",
@@ -36897,6 +36940,14 @@
           "displayName": "Doujin69",
           "file": "src/main/kotlin/tsuki/site/mangareader/th/Doujin69.kt",
           "sourceName": "DOUJIN69"
+        },
+        "keiyoushi": {
+          "available": true,
+          "baseUrl": "https://doujin69.com",
+          "extensionVersionCode": 0,
+          "module": "src/th/doujin69",
+          "sourceId": 216615711286665281,
+          "sourceName": "Doujin69"
         }
       }
     },
@@ -37033,6 +37084,24 @@
           "module": "src/th/finmanga",
           "sourceId": 7656859857051979814,
           "sourceName": "Fin Manga"
+        }
+      }
+    },
+    {
+      "attentionReasons": [],
+      "canonicalId": "miyorare:inventory-th:FLASHMANGA",
+      "displayName": "Flash-Manga",
+      "identityConfidence": "exact-name",
+      "language": "th",
+      "needsAttention": false,
+      "providers": {
+        "keiyoushi": {
+          "available": true,
+          "baseUrl": "https://www.flash-manga.net",
+          "extensionVersionCode": 0,
+          "module": "src/th/flashmanga",
+          "sourceId": 3953857548169222543,
+          "sourceName": "Flash-Manga"
         }
       }
     },
@@ -37347,6 +37416,24 @@
           "displayName": "MangaMoons",
           "file": "src/main/kotlin/tsuki/site/mangareader/th/MangaMoons.kt",
           "sourceName": "MANGAMOONS"
+        }
+      }
+    },
+    {
+      "attentionReasons": [],
+      "canonicalId": "miyorare:inventory-th:MANGANEKO",
+      "displayName": "Manga-Neko",
+      "identityConfidence": "exact-name",
+      "language": "th",
+      "needsAttention": false,
+      "providers": {
+        "keiyoushi": {
+          "available": true,
+          "baseUrl": "https://manga-neko.com",
+          "extensionVersionCode": 0,
+          "module": "src/th/manganeko",
+          "sourceId": 5623426415743614214,
+          "sourceName": "Manga-Neko"
         }
       }
     },
@@ -39467,6 +39554,14 @@
           "displayName": "MindaFansub",
           "file": "src/main/kotlin/tsuki/site/madara/tr/MindaFansub.kt",
           "sourceName": "MINDAFANSUB"
+        },
+        "keiyoushi": {
+          "available": true,
+          "baseUrl": "https://mindafansub.dev",
+          "extensionVersionCode": 0,
+          "module": "src/tr/mindafansub",
+          "sourceId": 8477380026777524321,
+          "sourceName": "Minda Fansub"
         }
       }
     },
@@ -44704,8 +44799,8 @@
     }
   ],
   "stats": {
-    "allSources": 2439,
+    "allSources": 2443,
     "needsAttention": 1,
-    "providerMappings": 2915
+    "providerMappings": 2922
   }
 }
