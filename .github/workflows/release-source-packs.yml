@@ -425,6 +425,15 @@ jobs:
           root = Path('miyorare/extensions/miyorare-sources/overlays/gekkoushi/all')
           if not root.is_dir():
               raise SystemExit(0)
+
+          # RawDEX moved from the pinned legacy Madara implementation to the
+          # Miyorare-owned Global overlay. Remove only the legacy copy from
+          # this disposable release checkout so the runtime identity is unique.
+          legacy_rawdex = Path('_upstream/gekkoushi/src/main/kotlin/tsuki/site/madara/ko/RawDex.kt')
+          if legacy_rawdex.exists():
+              legacy_rawdex.unlink()
+              print(f'removed legacy Global RawDEX parser: {legacy_rawdex}')
+
           for file in root.rglob('*.kt'):
               rel = file.relative_to(root)
               target = Path('_upstream/gekkoushi/src/main/kotlin/tsuki/site/all') / rel
@@ -484,8 +493,8 @@ jobs:
           from pathlib import Path
           p = Path('build/miyorare-source-packs/global/miyorare-global-pack.json')
           data = json.loads(p.read_text(encoding='utf-8'))
-          assert data['sourceNames'] == ['EXHENTAI', 'GELBOORU'], data['sourceNames']
-          assert data['sourceCount'] == 2, data['sourceCount']
+          assert data['sourceNames'] == ['EXHENTAI', 'GELBOORU', 'RAWDEX', 'NEWXTOON'], data['sourceNames']
+          assert data['sourceCount'] == 4, data['sourceCount']
           PY
 
       - name: Upload release candidate
