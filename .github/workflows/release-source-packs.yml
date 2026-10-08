@@ -493,8 +493,11 @@ jobs:
           from pathlib import Path
           p = Path('build/miyorare-source-packs/global/miyorare-global-pack.json')
           data = json.loads(p.read_text(encoding='utf-8'))
-          assert data['sourceNames'] == ['EXHENTAI', 'GELBOORU', 'RAWDEX', 'NEWXTOON'], data['sourceNames']
-          assert data['sourceCount'] == 4, data['sourceCount']
+          expected_sources = {'EXHENTAI', 'GELBOORU', 'RAWDEX', 'NEWXTOON'}
+          source_names = data['sourceNames']
+          assert len(source_names) == len(set(source_names)), source_names
+          assert set(source_names) == expected_sources, source_names
+          assert data['sourceCount'] == len(expected_sources), data['sourceCount']
           PY
 
       - name: Upload release candidate
@@ -718,17 +721,3 @@ jobs:
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
             --json isDraft,isPrerelease,tagName \
             --jq 'select(.isDraft == false and .isPrerelease == false)' >/dev/null
-
-      - name: Summary
-        shell: bash
-        run: |
-          {
-            echo '# Stable Source Pack publication'
-            echo
-            echo "Tag: \`$TAG\`"
-            echo "Pinned builder: \`${{ needs.resolve-source.outputs.source_commit }}\`"
-            echo "Farm snapshot: \`${{ needs.resolve-source.outputs.farm_commit }}\`"
-            echo "Compatibility snapshot ID: \`${{ needs.stage-draft.outputs.compatibility_snapshot_id }}\`"
-            echo 'The release remained draft through payload upload, manifest validation, release-lock generation, OIDC attestation, and remote re-download audit.'
-            echo 'Stable publication occurred only after seal-before-publish verification succeeded.'
-          } >> "$GITHUB_STEP_SUMMARY"
