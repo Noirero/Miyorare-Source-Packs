@@ -219,6 +219,11 @@ jobs:
           pack = os.environ['PACK']
           selected = 'all' if pack == 'global' else pack
           source_root = Path('miyorare/extensions/miyorare-sources/overlays/gekkoushi') / selected
+          if pack == 'global':
+              legacy_rawdex = Path('_upstream/gekkoushi/src/main/kotlin/tsuki/site/madara/ko/RawDex.kt')
+              if legacy_rawdex.exists():
+                  legacy_rawdex.unlink()
+                  print(f'removed legacy Global RawDEX parser: {legacy_rawdex}')
           if source_root.is_dir():
               for file in source_root.rglob('*.kt'):
                   rel = file.relative_to(source_root)
