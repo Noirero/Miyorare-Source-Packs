@@ -6,7 +6,7 @@
       "commit": "12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67"
     },
     "keiyoushi": {
-      "commit": "53a6f21bb143649751632667cafa0eff413ae487"
+      "commit": "b5d2cd5c3d23a3408c7daa3eb807668aedfce3e0"
     },
     "uma": {
       "commit": "f207e8ea5d04cefbc97f840865aff79cee110a5c"
@@ -61,7 +61,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://www.4khd.com",
-          "extensionVersionCode": 3,
+          "extensionVersionCode": 4,
           "module": "src/all/fourkhd",
           "sourceId": 6501663152246384585,
           "sourceName": "4KHD"
@@ -265,7 +265,7 @@
       "providers": {
         "keiyoushi": {
           "available": true,
-          "extensionVersionCode": 5,
+          "extensionVersionCode": 6,
           "module": "src/all/comicklive",
           "sourceId": 4972933717624256217,
           "sourceName": "Comick (Unoriginal)"
@@ -1176,7 +1176,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://127.0.0.1:25600",
-          "extensionVersionCode": 72,
+          "extensionVersionCode": 73,
           "module": "src/all/komga",
           "sourceId": 4508733312114627536,
           "sourceName": "Komga"
@@ -1194,7 +1194,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://127.0.0.1:25600",
-          "extensionVersionCode": 72,
+          "extensionVersionCode": 73,
           "module": "src/all/komga",
           "sourceId": 8074481155021144106,
           "sourceName": "Komga (2)"
@@ -1212,7 +1212,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://127.0.0.1:25600",
-          "extensionVersionCode": 72,
+          "extensionVersionCode": 73,
           "module": "src/all/komga",
           "sourceId": 5132811728275817394,
           "sourceName": "Komga (3)"
@@ -2023,7 +2023,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://$sub.novelcool.com",
-          "extensionVersionCode": 0,
+          "extensionVersionCode": 1,
           "module": "src/all/novelcool",
           "sourceId": 4598602417121525633,
           "sourceName": "NovelCool"
@@ -6439,7 +6439,7 @@
         },
         "keiyoushi": {
           "available": true,
-          "extensionVersionCode": 45,
+          "extensionVersionCode": 46,
           "module": "src/en/comix",
           "sourceId": 7537715367149829912,
           "sourceName": "Comix"
@@ -14192,17 +14192,18 @@
       "attentionReasons": [],
       "canonicalId": "miyorare:inventory-en:ONEMANGAINFO",
       "displayName": "OneManga.info",
-      "identityConfidence": "explicit",
+      "identityConfidence": "exact-name",
       "language": "en",
       "needsAttention": false,
       "providers": {
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://onemanga.info",
-          "extensionVersionCode": 0,
+          "extensionVersionCode": 1,
           "module": "src/en/onemangainfo",
-          "sourceId": 846921309315987472,
-          "sourceName": "OneManga.info"
+          "sourceId": 1622381620031536307,
+          "sourceName": "OneManga.info",
+          "versionId": 2
         }
       }
     },
@@ -16259,7 +16260,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://templetoons.com",
-          "extensionVersionCode": 58,
+          "extensionVersionCode": 59,
           "module": "src/en/templescan",
           "sourceId": 4210732525216763379,
           "sourceName": "Temple Scan",
@@ -16648,6 +16649,24 @@
     },
     {
       "attentionReasons": [],
+      "canonicalId": "miyorare:inventory-en:TOONX",
+      "displayName": "Toonx",
+      "identityConfidence": "exact-name",
+      "language": "en",
+      "needsAttention": false,
+      "providers": {
+        "keiyoushi": {
+          "available": true,
+          "baseUrl": "https://toonx.to",
+          "extensionVersionCode": 3,
+          "module": "src/en/toonz",
+          "sourceId": 3603837449597882885,
+          "sourceName": "Toonx"
+        }
+      }
+    },
+    {
+      "attentionReasons": [],
       "canonicalId": "miyorare:inventory-en:TOONZ",
       "displayName": "Toonz",
       "identityConfidence": "previous",
@@ -16657,7 +16676,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://toonz.to",
-          "extensionVersionCode": 2,
+          "extensionVersionCode": 3,
           "module": "src/en/toonz",
           "sourceId": 225310046014902430,
           "sourceName": "Toonz"
@@ -18679,8 +18698,8 @@
         },
         "keiyoushi": {
           "available": true,
-          "baseUrl": "https://imperiomanhua.com",
-          "extensionVersionCode": 14,
+          "baseUrl": "https://imperiomanhwa.com",
+          "extensionVersionCode": 70,
           "module": "src/es/emperorscan",
           "sourceId": 4562754350961964148,
           "sourceName": "Emperor Scan"
@@ -19452,6 +19471,24 @@
           "displayName": "Lectorunm.life",
           "file": "src/main/kotlin/tsuki/site/madara/es/Lectorunm.kt",
           "sourceName": "LECTORUNM"
+        }
+      }
+    },
+    {
+      "attentionReasons": [],
+      "canonicalId": "miyorare:inventory-es:LECTORXD",
+      "displayName": "LectorXD",
+      "identityConfidence": "exact-name",
+      "language": "es",
+      "needsAttention": false,
+      "providers": {
+        "keiyoushi": {
+          "available": true,
+          "baseUrl": "https://lectorxd.com",
+          "extensionVersionCode": 1,
+          "module": "src/es/lectorxd",
+          "sourceId": 4078570629457850125,
+          "sourceName": "LectorXD"
         }
       }
     },
@@ -31889,7 +31926,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://aniargos.com",
-          "extensionVersionCode": 61,
+          "extensionVersionCode": 62,
           "module": "src/pt/argoscomics",
           "sourceId": 2731562656488805764,
           "sourceName": "Argos Comics",
@@ -33736,7 +33773,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://3xyaoi.com",
-          "extensionVersionCode": 4,
+          "extensionVersionCode": 5,
           "module": "src/pt/xxxyaoi",
           "sourceId": 2490962516027621137,
           "sourceName": "XXX Yaoi"
@@ -39200,7 +39237,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://golgebahcesi.com",
-          "extensionVersionCode": 33,
+          "extensionVersionCode": 0,
           "module": "src/tr/golgebahcesi",
           "sourceId": 7442439989890509521,
           "sourceName": "Gölge Bahçesi",
@@ -41863,7 +41900,7 @@
         },
         "keiyoushi": {
           "available": true,
-          "extensionVersionCode": 30,
+          "extensionVersionCode": 31,
           "module": "src/vi/doctruyen3q",
           "sourceId": 6168143505244976507,
           "sourceName": "DocTruyen3Q"
@@ -42588,7 +42625,7 @@
       "providers": {
         "keiyoushi": {
           "available": true,
-          "extensionVersionCode": 3,
+          "extensionVersionCode": 4,
           "module": "src/vi/metruyen18",
           "sourceId": 6662865328420899419,
           "sourceName": "MeTruyen18"
@@ -42862,8 +42899,8 @@
       "providers": {
         "keiyoushi": {
           "available": true,
-          "baseUrl": "https://nettruyen13s.com",
-          "extensionVersionCode": 0,
+          "baseUrl": "https://nettruyen14s.com",
+          "extensionVersionCode": 1,
           "module": "src/vi/nettruyens",
           "sourceId": 6085559443545258070,
           "sourceName": "NetTruyenS (unoriginal)"
@@ -43356,7 +43393,7 @@
       "providers": {
         "keiyoushi": {
           "available": true,
-          "extensionVersionCode": 9,
+          "extensionVersionCode": 10,
           "module": "src/vi/thienthaitruyen",
           "sourceId": 4424472966200672277,
           "sourceName": "ThienThaiTruyen"
@@ -43379,7 +43416,7 @@
         },
         "keiyoushi": {
           "available": true,
-          "extensionVersionCode": 38,
+          "extensionVersionCode": 39,
           "module": "src/vi/toptruyen",
           "sourceId": 1166901607721102706,
           "sourceName": "Top Truyen"
@@ -43833,7 +43870,7 @@
       "providers": {
         "keiyoushi": {
           "available": true,
-          "extensionVersionCode": 17,
+          "extensionVersionCode": 18,
           "module": "src/vi/vinahentai",
           "sourceId": 4572372176917567711,
           "sourceName": "VinaHentai"
@@ -43931,7 +43968,7 @@
       "providers": {
         "keiyoushi": {
           "available": true,
-          "extensionVersionCode": 13,
+          "extensionVersionCode": 14,
           "module": "src/vi/zettruyen",
           "sourceId": 893747327087652119,
           "sourceName": "ZetTruyen"
@@ -45478,8 +45515,8 @@
     }
   ],
   "stats": {
-    "allSources": 2482,
+    "allSources": 2484,
     "needsAttention": 1,
-    "providerMappings": 2958
+    "providerMappings": 2960
   }
 }
