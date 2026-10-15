@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   dispatch:
-    name: Dispatch release from merged upstream promotion
+    name: Request release evaluation from authoritative controller
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
@@ -43,7 +43,7 @@ jobs:
           before_sha = os.environ['BEFORE_SHA']
           after_sha = os.environ['AFTER_SHA']
           if not before_sha or set(before_sha) == {'0'}:
-              raise SystemExit('cannot release without a concrete pre-merge registry revision')
+              raise SystemExit('cannot request release evaluation without a concrete pre-merge registry revision')
 
           before_raw = subprocess.check_output(
               ['git', 'show', f'{before_sha}:upstream/registry.json'],
@@ -94,41 +94,12 @@ jobs:
           print(f"providers={','.join(promoted)}")
           PY
 
-      - name: Determine next immutable source-pack version
-        if: steps.promotion.outputs.promoted == 'true'
-        id: version
-        shell: bash
-        run: |
-          set -euo pipefail
-          next_version="$(python3 - <<'PY'
-          import json
-          import re
-          import subprocess
-
-          raw = subprocess.check_output(
-              ['gh', 'release', 'list', '--limit', '100', '--json', 'tagName'],
-              text=True,
-          )
-          versions = []
-          for item in json.loads(raw):
-              match = re.fullmatch(r'miyorare-sources-v(\d+)\.(\d+)\.(\d+)', item['tagName'])
-              if match:
-                  versions.append(tuple(map(int, match.groups())))
-          if not versions:
-              print('0.1.0')
-          else:
-              major, minor, patch = max(versions)
-              print(f'{major}.{minor}.{patch + 1}')
-          PY
-          )"
-          echo "version=$next_version" >> "$GITHUB_OUTPUT"
-
-      - name: Dispatch immutable Source Pack release
+      - name: Request authoritative stable release evaluation
         if: steps.promotion.outputs.promoted == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          echo "Dispatching Source Pack ${{ steps.version.outputs.version }} for ${{ steps.promotion.outputs.providers }} from merged main $GITHUB_SHA"
-          gh workflow run release-source-packs.yml \
-            --ref main \
-            -f version="${{ steps.version.outputs.version }}"
+          echo "Requesting authoritative release evaluation for ${{ steps.promotion.outputs.providers }} from merged main $GITHUB_SHA"
+          gh workflow run source-pack-autonomous-release.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main
