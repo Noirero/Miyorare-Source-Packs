@@ -7,23 +7,11 @@
     "sourceHealth": "per-source evidence only",
     "providerStatus": "context only; provider failure must not automatically change unrelated source health",
     "lastKnownGood": "Compatibility Farm source lastKnownGood",
-    "origin": "Canonical Source Registry V2 projection rules"
+    "packs": "Canonical Source Registry V2 explicit pack authority",
+    "origin": "Canonical Source Registry V2 explicit origin authority",
+    "lifecycle": "Canonical Source Registry V2 lifecycle authority"
   },
-  "requiredSourceFields": [
-    "canonicalId",
-    "displayName",
-    "language",
-    "packs",
-    "health",
-    "lifecycle",
-    "reasonCodes",
-    "providers",
-    "origin",
-    "lastKnownGood",
-    "lastValidation",
-    "lastCheck",
-    "evidence"
-  ],
+  "requiredSourceFields": ["canonicalId","displayName","language","packs","health","lifecycle","reasonCodes","providers","origin","lastKnownGood","lastValidation","lastCheck","evidence"],
   "rules": [
     "UNKNOWN is a valid fail-closed observation state and must not be rewritten to HEALTHY without evidence",
     "unsupported capability is not evidence of broken source health",
@@ -31,14 +19,17 @@
     "candidate failure must not replace last-known-good",
     "timestamps must not be invented; unavailable observed times are null",
     "unmatched external source-status identities are reported, never silently remapped",
+    "pack and origin authority must be consumed from Canonical Source Registry V2 and must never be re-inferred from language or provider lists",
+    "undeclared canonical pack membership is HELD with PACK_MEMBERSHIP_UNDECLARED",
     "health projection is observational and must not mutate Farm state, source identity, LKG, lifecycle authority, or release state"
   ],
   "precedence": [
     "deprecated lifecycle -> DEPRECATED",
+    "canonical lifecycle held with undeclared pack membership -> HELD / PACK_MEMBERSHIP_UNDECLARED",
     "explicit per-source upstream hold/review-required -> HELD",
     "Farm runtimeHealth when it is a recognized non-UNKNOWN health state",
     "Farm approval HELD/REVIEW_REQUIRED -> HELD",
     "otherwise -> UNKNOWN"
   ],
-  "evidenceKinds": ["farm-runtime", "farm-baseline", "farm-enrollment", "upstream-source-status", "upstream-provider-status", "lkg"]
+  "evidenceKinds": ["canonical-authority","farm-runtime","farm-baseline","farm-enrollment","upstream-source-status","upstream-provider-status","lkg"]
 }
