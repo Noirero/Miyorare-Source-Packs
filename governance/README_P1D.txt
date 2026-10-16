@@ -1,1 +1,0 @@
-P1-D scope marker: immutable GitHub Action commit pinning only. No Source Pack identity, Compatibility Farm, provider baseline, LKG, promotion-authority, or stable-release behavior change is intended.
