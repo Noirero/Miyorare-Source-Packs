@@ -28,12 +28,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {label: BACAMI, canonical: 'miyorare:miyorare-id:BACAMI', module: 'src/id/bacami', test: 'compatibilityfarm.BacamiParserHarnessTest', webview: false}
-          - {label: KIRYUU, canonical: 'miyorare:miyorare-id:KIRYUU', module: 'src/id/kiryuu', test: 'compatibilityfarm.KiryuuNatsuParserHarnessTest', webview: false}
-          - {label: KOMIKU, canonical: 'miyorare:miyorare-id:KOMIKU', module: 'src/id/komiku', test: 'compatibilityfarm.KomikuParserHarnessTest', webview: false}
-          - {label: ASURASCANS, canonical: 'miyorare:miyorare-en:ASURASCANS', module: 'src/en/asurascans', test: 'compatibilityfarm.AsuraScansParserHarnessTest', webview: false}
-          - {label: AQUAMANGA, canonical: 'miyorare:miyorare-en:AQUAMANGA', module: 'src/en/aquamanga', test: 'compatibilityfarm.AquaReaderMadaraParserHarnessTest', webview: false}
-          - {label: BATCAVE, canonical: 'miyorare:miyorare-en:BATCAVE', module: 'src/en/batcave', test: 'compatibilityfarm.BatcaveParserHarnessTest', webview: true}
+          - {label: BACAMI, canonical: 'miyorare:miyorare-id:BACAMI', module: 'src/id/bacami', test: 'compatibilityfarm.KeiyoushiBacamiParserHarnessTest', profile: common, webview: false}
+          - {label: KIRYUU, canonical: 'miyorare:miyorare-id:KIRYUU', module: 'src/id/kiryuu', test: 'compatibilityfarm.KeiyoushiKiryuuParserHarnessTest', profile: common, webview: false}
+          - {label: KOMIKU, canonical: 'miyorare:miyorare-id:KOMIKU', module: 'src/id/komiku', test: 'compatibilityfarm.KeiyoushiKomikuParserHarnessTest', profile: common, webview: false}
+          - {label: ASURASCANS, canonical: 'miyorare:miyorare-en:ASURASCANS', module: 'src/en/asurascans', test: 'compatibilityfarm.KeiyoushiAsuraScansParserHarnessTest', profile: configurable, webview: false}
+          - {label: AQUAMANGA, canonical: 'miyorare:miyorare-en:AQUAMANGA', module: 'src/en/aquamanga', test: 'compatibilityfarm.KeiyoushiAquaMangaParserHarnessTest', profile: common, webview: false}
+          - {label: BATCAVE, canonical: 'miyorare:miyorare-en:BATCAVE', module: 'src/en/batcave', test: 'compatibilityfarm.KeiyoushiBatCaveParserHarnessTest', profile: common, webview: true}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -69,6 +69,7 @@ jobs:
         env:
           MODULE: ${{ matrix.module }}
           TEST_CLASS: ${{ matrix.test }}
+          RUNTIME_PROFILE: ${{ matrix.profile }}
         run: |
           set -euo pipefail
           test "$(git -C _farm rev-parse HEAD)" = "$FOUNDATION"
@@ -77,6 +78,9 @@ jobs:
           mkdir -p "$module/compatibility-farm-test" "$module/compatibility-farm-resources/compatibility-farm"
           cp "_farm/compatibility/harness/keiyoushi/${TEST_CLASS##*.}.kt" "$module/compatibility-farm-test/"
           cp -R _farm/compatibility/harness/keiyoushi/runtime/. "$module/compatibility-farm-test/"
+          if [[ "$RUNTIME_PROFILE" != common ]]; then
+            cp -R "_farm/compatibility/harness/keiyoushi/runtime-profiles/$RUNTIME_PROFILE/." "$module/compatibility-farm-test/"
+          fi
           cp -R _farm/compatibility/harness/keiyoushi/resources/. "$module/compatibility-farm-resources/compatibility-farm/"
           ln -s ../../../lib-multisrc "$module/lib-multisrc"
           cat >> "$module/build.gradle.kts" <<'EOF'
