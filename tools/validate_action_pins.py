@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
-USES = re.compile(r"^\s*uses:\s*([^\s#]+)")
+USES = re.compile(r"^\s*(?:-\s*)?uses:\s*([^\s#]+)")
 
 
 def load_policy(path: Path):
