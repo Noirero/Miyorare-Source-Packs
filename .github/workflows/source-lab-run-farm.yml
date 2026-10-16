@@ -115,10 +115,18 @@ jobs:
           import argparse
           import json
           import re
+          import urllib.error
+          import urllib.parse
+          import urllib.request
           from pathlib import Path
 
           PROVIDERS = ('keiyoushi', 'uma', 'gekkoushi')
           HEX40 = re.compile(r'^[0-9a-f]{40}$')
+          EXPECTED_REPOSITORIES = {
+              'keiyoushi': 'keiyoushi/extensions-source',
+              'uma': 'InvalidDavid/UMA',
+              'gekkoushi': 'Gekkoushi/plugin-source',
+          }
 
           parser = argparse.ArgumentParser()
           parser.add_argument('--plan', required=True, type=Path)
@@ -136,11 +144,37 @@ jobs:
           selected = providers.get(args.provider)
           if not isinstance(selected, dict) or selected.get('changed') is not True:
               raise SystemExit('selected provider no longer differs from LKG')
-          if selected.get('candidate') != args.expected_candidate:
-              raise SystemExit(
-                  f"selected provider candidate mismatch: expected={args.expected_candidate!r}, "
-                  f"resolved={selected.get('candidate')!r}"
-              )
+          repository = selected.get('repository')
+          if repository != EXPECTED_REPOSITORIES[args.provider]:
+              raise SystemExit('selected provider repository identity mismatch')
+          base = selected.get('lastKnownGood')
+          if not isinstance(base, str) or not HEX40.fullmatch(base):
+              raise SystemExit('selected provider LKG is invalid')
+
+          live_candidate = selected.get('candidate')
+          if live_candidate != args.expected_candidate:
+              quoted_base = urllib.parse.quote(base, safe='')
+              quoted_candidate = urllib.parse.quote(args.expected_candidate, safe='')
+              compare_url = f'https://api.github.com/repos/{repository}/compare/{quoted_base}...{quoted_candidate}'
+              request = urllib.request.Request(compare_url, headers={'Accept': 'application/vnd.github+json', 'User-Agent': 'miyorare-source-lab'})
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      comparison = json.load(response)
+              except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
+                  raise SystemExit(f'locked candidate could not be verified in upstream history: {exc}') from exc
+              if comparison.get('status') != 'ahead':
+                  raise SystemExit(
+                      f'locked candidate is not a descendant of LKG: expected={args.expected_candidate!r}, '
+                      f'status={comparison.get("status")!r}'
+                  )
+              if comparison.get('base_commit', {}).get('sha') != base:
+                  raise SystemExit('locked candidate comparison base mismatch')
+              if comparison.get('merge_base_commit', {}).get('sha') != base:
+                  raise SystemExit('locked candidate does not preserve the exact LKG ancestry boundary')
+              selected['liveCandidate'] = live_candidate
+              selected['candidate'] = args.expected_candidate
+              selected['state'] = 'candidate'
+
           for name, item in providers.items():
               if not isinstance(item, dict):
                   raise SystemExit(f'invalid provider plan entry: {name}')
