@@ -53,12 +53,19 @@ jobs:
           ref: 3ddb997f545b2267dc3371c64b77e1b2a9019126
           path: _farm
           persist-credentials: false
+      - name: Checkout exact provenance producer
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          path: _control
+          persist-credentials: false
       - name: Checkout exact Keiyoushi candidate
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: keiyoushi/extensions-source
           ref: 23345ef345e3b20d7fcc0b5d8fdc922d025af47f
           path: _upstream/keiyoushi
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
         with:
@@ -73,6 +80,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git -C _farm rev-parse HEAD)" = "$FOUNDATION"
+          test "$(git -C _control rev-parse HEAD)" = "$GITHUB_SHA"
           test "$(git -C _upstream/keiyoushi rev-parse HEAD)" = "$CANDIDATE"
           module="_upstream/keiyoushi/$MODULE"
           mkdir -p "$module/compatibility-farm-test" "$module/compatibility-farm-resources/compatibility-farm"
@@ -107,7 +115,9 @@ jobs:
         env:
           MODULE: ${{ matrix.module }}
           TEST_CLASS: ${{ matrix.test }}
-        run: bash gradlew ":${MODULE//\//:}:testDebugUnitTest" --tests "$TEST_CLASS" --no-daemon
+        run: |
+          set -o pipefail
+          bash gradlew ":${MODULE//\//:}:testDebugUnitTest" --tests "$TEST_CLASS" --no-daemon --console=plain | tee "$RUNNER_TEMP/runtime-closure-gradle.log"
       - name: Record exact execution provenance
         if: always()
         env:
@@ -117,25 +127,18 @@ jobs:
           JOB_STATUS: ${{ job.status }}
         run: |
           mkdir -p build/runtime-closure
-          python3 - <<'PY'
-          import json,os
-          from pathlib import Path
-          upstream=Path('_upstream/keiyoushi'); module=upstream/os.environ['MODULE']
-          paths=[]
-          for p in module.rglob('*'):
-              if p.is_file() and 'compatibility-farm-' not in p.as_posix() and '/build/' not in p.as_posix():
-                  paths.append(p.relative_to(upstream).as_posix())
-          webview=os.environ['WEBVIEW'].lower()=='true'
-          proof={'schema':1,'base':os.environ['BASELINE'],'candidate':os.environ['CANDIDATE'],'proofs':[{
-            'canonicalId':os.environ['CANONICAL'],'result':'PASS' if os.environ['JOB_STATUS']=='success' else 'FAIL',
-            'infrastructureBlocked':webview,'candidateRevision':os.environ['CANDIDATE'],
-            'runtimeClosureRevision':os.environ['CANDIDATE'],
-            'evidenceId':f"github-run:{os.environ['GITHUB_RUN_ID']}:{os.environ['CANONICAL']}",
-            'requiresAndroidWebView':webview,'androidWebViewExecutionProven':False,
-            'executedRuntimeClosurePaths':sorted(set(paths)),
-            'exercisedChangeClasses':['parser-code-change','build-script-change','shared-runtime-change']}]}
-          Path('build/runtime-closure/execution.json').write_text(json.dumps(proof,indent=2)+'\n')
-          PY
+          test -f "$RUNNER_TEMP/runtime-closure-gradle.log" || : > "$RUNNER_TEMP/runtime-closure-gradle.log"
+          python3 _control/tools/runtime_closure_provenance.py \
+            --repo _upstream/keiyoushi \
+            --base "$BASELINE" \
+            --candidate "$CANDIDATE" \
+            --module "$MODULE" \
+            --canonical "$CANONICAL" \
+            --gradle-log "$RUNNER_TEMP/runtime-closure-gradle.log" \
+            --webview "$WEBVIEW" \
+            --job-status "$JOB_STATUS" \
+            --run-id "$GITHUB_RUN_ID" \
+            --output build/runtime-closure/execution.json
       - name: Upload runtime closure evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
