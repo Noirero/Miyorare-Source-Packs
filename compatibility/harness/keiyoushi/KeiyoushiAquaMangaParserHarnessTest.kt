@@ -9,6 +9,7 @@ import eu.kanade.tachiyomi.network.DeterministicNetwork
 import eu.kanade.tachiyomi.network.DeterministicNetwork.FixtureResponse
 import keiyoushi.source.KeiSource
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Protocol
@@ -20,12 +21,24 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.BeforeClass
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.addSingleton
 import java.lang.reflect.Method
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 
 class KeiyoushiAquaMangaParserHarnessTest {
+    companion object {
+        @JvmStatic
+        @BeforeClass
+        fun installHostServices() {
+            // Madara 1.6 serializes genre/path memo through the host Json service.
+            Injekt.addSingleton(Json { ignoreUnknownKeys = true })
+        }
+    }
+
     private val source: Any by lazy {
         val generated = Class.forName("keiyoushi.source.Generated")
         val coroutineApi = generateSequence<Class<*>>(generated) { it.superclass }
