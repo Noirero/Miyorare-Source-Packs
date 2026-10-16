@@ -1,0 +1,33 @@
+name: Runtime Closure Evidence CI
+
+on:
+  pull_request:
+    branches: [compatibility-farm-foundation]
+    paths:
+      - 'tools/runtime_closure_evidence.py'
+      - 'tests/test_runtime_closure_evidence.py'
+      - '.github/workflows/runtime-closure-evidence-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-closure-evidence-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fail-closed:
+    name: Fail-closed runtime closure evidence regressions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact PR head
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Compile evidence helper
+        run: python3 -m py_compile tools/runtime_closure_evidence.py tests/test_runtime_closure_evidence.py
+      - name: Run fail-closed regressions
+        run: python3 -m unittest tests.test_runtime_closure_evidence -v
