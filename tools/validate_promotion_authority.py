@@ -69,7 +69,11 @@ def main() -> None:
     require("Main Required Gates" in main_gate and "pull_request:" in main_gate, "protected main gate contract missing")
 
     require("gh workflow run release-source-packs.yml" in controller, "authoritative controller no longer dispatches sole publisher")
-    require("Determine next immutable source-pack version" in controller, "stable version authority moved from controller")
+    require(
+        "Compute next immutable patch version" in controller
+        and "Allocate next immutable stable version" in controller,
+        "stable version authority moved from controller",
+    )
     require('gh release create "$TAG"' in publisher, "sole publisher no longer owns stable release creation")
 
     print("P0-C automation promotion authority validated")
