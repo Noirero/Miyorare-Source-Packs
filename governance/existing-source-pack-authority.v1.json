@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "kind": "MIYORARE_EXISTING_SOURCE_PACK_AUTHORITY",
+  "reviewedFarmCommit": "bd9a1a73d0c4cc1c36d94ca05bcf972672bdf0a2",
+  "scope": "existing Compatibility Farm sources at reviewedFarmCommit only",
+  "languageInference": false,
+  "futureSourceOnboardingUsesThisAuthority": false,
+  "rules": [
+    {"canonicalPrefix": "miyorare:miyorare-id:", "packs": ["miyorare-id"]},
+    {"canonicalPrefix": "miyorare:miyorare-en:", "packs": ["miyorare-en"]},
+    {"canonicalPrefix": "miyorare:miyorare-global:", "packs": ["miyorare-global"]},
+    {"canonicalPrefix": "miyorare:inventory-id:", "packs": ["miyorare-id"]},
+    {"canonicalPrefix": "miyorare:inventory-en:", "packs": ["miyorare-en"]}
+  ],
+  "rulesOfUse": [
+    "This is a reviewed one-time legacy authority for sources that already exist at reviewedFarmCommit; it is not language inference.",
+    "Canonical namespace rules are accepted only because this authority is bound to the exact reviewed Farm commit; they are not a general rule for future sources.",
+    "A different live Farm commit must fail closed until this authority is deliberately reviewed or the Farm sources carry explicit packs themselves.",
+    "New source onboarding must declare packs explicitly and may not rely on canonical namespace or language inference.",
+    "No rule may match more than one pack authority for the same canonicalId."
+  ]
+}

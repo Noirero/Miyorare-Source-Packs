@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'governance/source-onboarding.v1.json'
+      - 'governance/canonical-source-registry-v2.schema.json'
+      - 'governance/source-capability-lifecycle-risk.v1.json'
+      - 'governance/automation-promotion-authority.v1.json'
       - 'tools/validate_source_onboarding.py'
       - 'tests/test_p2d_source_onboarding.py'
       - 'docs/governance/P2D_STANDARDIZED_SOURCE_ONBOARDING.md'
@@ -42,8 +45,11 @@ jobs:
           assert set(onboarding['origin']['allowed']) == set(registry['originRules']['allowed'])
           assert set(onboarding['capabilities']['known']) == set(clr['capabilities']['known'])
           assert onboarding['capabilities']['baseline'] == clr['validation']['baselineCapabilities']
+          assert onboarding['capabilities']['declaredUnknownDecision'] == 'HELD'
+          assert onboarding['validation']['evidenceMustContainExactCandidateRevision'] is True
           source=promotion['classes']['source_onboarding']
           assert onboarding['promotion']['authority'] == source['requiredAuthority']
           assert onboarding['promotion']['requiredGates'] == source['requiredGates']
           assert onboarding['promotion']['ownerApprovalRequired'] == source['ownerApprovalRequired']
+          assert onboarding['promotion']['requiredGatesMustMatchExactly'] is True
           PY

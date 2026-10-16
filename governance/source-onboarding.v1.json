@@ -2,32 +2,31 @@
   "schemaVersion": 1,
   "kind": "MIYORARE_STANDARDIZED_SOURCE_ONBOARDING_CONTRACT",
   "defaultDecision": "HELD",
-  "requiredFields": [
-    "canonicalId", "displayName", "language", "packs", "origin", "providers",
-    "capabilities", "risk", "collisionCheck", "build", "runtimeSmoke", "evidence", "promotion", "lifecycle"
-  ],
+  "requiredFields": ["canonicalId","displayName","language","packs","origin","providers","capabilities","risk","collisionCheck","build","runtimeSmoke","evidence","promotion","lifecycle","candidateRevision"],
   "identity": {"canonicalPrefix":"miyorare:","immutable":true,"providerIndependent":true,"domainIndependent":true,"collisionCheckRequired":true,"aliasesPreserveContinuity":true},
   "packs": {"allowed":["miyorare-id","miyorare-en","miyorare-global"],"membershipExplicit":true,"languageDoesNotImplyGlobalMembership":true},
   "origin": {"allowed":["upstream-derived","miyorare-native","upstream-overlay"],"mustBeExplicit":true},
-  "capabilities": {"known":["browse","latest","search","filters","details","chapters","pages","download","authentication","migration","webview","challenge"],"states":["SUPPORTED","UNSUPPORTED","UNKNOWN"],"baseline":["browse","search","details","chapters","pages"],"unknownCannotBePromotedAsProven":true},
+  "capabilities": {"known":["browse","latest","search","filters","details","chapters","pages","download","authentication","migration","webview","challenge"],"states":["SUPPORTED","UNSUPPORTED","UNKNOWN"],"baseline":["browse","search","details","chapters","pages"],"unknownCannotBePromotedAsProven":true,"declaredUnknownDecision":"HELD"},
   "risk": {"newSourceMinimum":"HIGH","unknownDecision":"HELD","minimumEvidence":["identity","manifest","build","targeted-contract","runtime-smoke","regression"]},
   "validation": {
     "required":["identity","pack-membership","provider-origin","capabilities","collision-check","build","targeted-contract","runtime-smoke","regression","evidence-binding"],
-    "evidenceMustBeBoundToCandidate":true,
+    "candidateRevisionRequired":true,
+    "candidateRevisionFormat":"40-or-64-lowercase-hex",
+    "evidenceMustContainExactCandidateRevision":true,
     "buildSuccessAloneSufficient":false,"unsupportedCapabilityIsFailure":false,"candidateFailureReplacesLkg":false
   },
-  "promotion": {"class":"source_onboarding","ownerApprovalRequired":true,"authority":"source-lab-approve-ready-sources.yml","requiredGates":["ready-for-approval-state","exact-farm-state","owner-dispatch","stale-write-check"],"automationMayStage":true,"automationMayOpenPullRequest":false,"automationMayMerge":false},
+  "promotion": {"class":"source_onboarding","ownerApprovalRequired":true,"authority":"source-lab-approve-ready-sources.yml","requiredGates":["ready-for-approval-state","exact-farm-state","owner-dispatch","stale-write-check"],"requiredGatesMustMatchExactly":true,"automationMayStage":true,"automationMayOpenPullRequest":false,"automationMayMerge":false},
   "rules": [
     "new source onboarding starts as candidate and may not silently become active",
     "canonical identity, provider mapping, pack membership, and origin are separate decisions",
     "provider or domain names may not define canonical identity",
     "pack membership must be explicit and may not be inferred from language",
-    "UNKNOWN capability or risk metadata fails closed for promotion",
+    "any declared UNKNOWN capability fails closed for promotion; UNSUPPORTED remains a valid explicit capability state",
     "authentication, webview, challenge, shared-runtime, or equivalent higher-risk behavior requires stronger evidence than build success",
     "runtime smoke evidence is mandatory for a new source",
-    "required evidence must contain non-empty candidate-bound references, not labels alone",
+    "required evidence and proof fields must contain the exact candidateRevision, not merely non-empty labels",
     "a failed or incomplete candidate never replaces last-known-good state",
-    "promotion requires the existing source_onboarding authority and explicit owner approval",
+    "promotion requires the existing source_onboarding authority, the exact required gate set, and explicit owner approval",
     "onboarding validation may not mutate stable release state or bypass promotion authority"
   ]
 }
