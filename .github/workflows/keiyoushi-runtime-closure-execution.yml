@@ -90,10 +90,17 @@ jobs:
               kotlin.directories.add("compatibility-farm-test")
               resources.directories.add("compatibility-farm-resources")
             }
-            testOptions { unitTests.isReturnDefaultValues = true }
+            testOptions {
+              unitTests.isReturnDefaultValues = true
+            }
           }
-          dependencies { testImplementation(libs.junit); testImplementation(libs.bundles.common) }
-          tasks.matching { it.name == "kspDebugUnitTestKotlin" }.configureEach { enabled = false }
+          dependencies {
+            testImplementation(libs.junit)
+            testImplementation(libs.bundles.common)
+          }
+          tasks.matching { it.name == "kspDebugUnitTestKotlin" }.configureEach {
+            enabled = false
+          }
           EOF
       - name: Execute exact candidate parser
         working-directory: _upstream/keiyoushi
