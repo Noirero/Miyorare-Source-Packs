@@ -9,6 +9,9 @@ on:
       foundation_sha:
         required: true
         type: string
+      provider:
+        required: true
+        type: string
 
 permissions:
   actions: read
@@ -31,14 +34,16 @@ jobs:
           ref: ${{ inputs.foundation_sha }}
           fetch-depth: 1
 
-      - name: Validate immutable foundation ref
+      - name: Validate immutable foundation ref and provider scope
         env:
           FOUNDATION_SHA: ${{ inputs.foundation_sha }}
+          SELECTED_PROVIDER: ${{ inputs.provider }}
         shell: bash
         run: |
           set -euo pipefail
           [[ "$FOUNDATION_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$(git rev-parse HEAD)" == "$FOUNDATION_SHA" ]]
+          [[ "$SELECTED_PROVIDER" =~ ^(keiyoushi|uma|gekkoushi)$ ]]
 
       - name: Download exact upstream candidate handoff
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
@@ -53,12 +58,28 @@ jobs:
         id: matrix
         env:
           UPSTREAM_RUN_ID: ${{ inputs.upstream_run_id }}
+          SELECTED_PROVIDER: ${{ inputs.provider }}
         shell: bash
         run: |
           set -euo pipefail
           handoff="$(find build/upstream-handoff -type f -name candidate-handoff.json -print -quit)"
           [[ -n "$handoff" ]]
           cp "$handoff" build/candidate-handoff.json
+
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          plan = json.loads(Path("build/candidate-handoff.json").read_text(encoding="utf-8"))["plan"]
+          providers = plan.get("providers")
+          selected = os.environ["SELECTED_PROVIDER"]
+          if not isinstance(providers, dict) or set(providers) != {"keiyoushi", "uma", "gekkoushi"}:
+              raise SystemExit("candidate handoff provider plan is invalid")
+          changed = [name for name, item in providers.items() if item.get("changed") is True]
+          if changed != [selected]:
+              raise SystemExit(
+                  f"candidate handoff scope mismatch: selected={selected!r}, changed={changed!r}"
+              )
+          PY
 
           python3 tools/candidate_registry.py \
             --registry compatibility/source-registry.json \
@@ -71,20 +92,22 @@ jobs:
             validate \
             --output build/candidate-family-plan-validation.json
 
-          python3 tools/parser_family_plan.py \
-            --registry build/candidate-source-registry.json \
-            --families compatibility/parser-families.json \
-            plan --provider keiyoushi \
-            --output build/parser-plan-keiyoushi.json
+          if [[ "$SELECTED_PROVIDER" == "keiyoushi" ]]; then
+            python3 tools/parser_family_plan.py \
+              --registry build/candidate-source-registry.json \
+              --families compatibility/parser-families.json \
+              plan --provider keiyoushi \
+              --output build/parser-plan-keiyoushi.json
 
-          compact="$(python3 - <<'PY'
+            compact="$(python3 - <<'PY'
           import json
           from pathlib import Path
           data = json.loads(Path("build/parser-plan-keiyoushi.json").read_text(encoding="utf-8"))
           print(json.dumps({"include": data["include"]}, separators=(",", ":")))
           PY
-          )"
-          echo "keiyoushi=$compact" >> "$GITHUB_OUTPUT"
+            )"
+            echo "keiyoushi=$compact" >> "$GITHUB_OUTPUT"
+          fi
 
           python3 - <<'PY'
           import hashlib, json, os
@@ -97,6 +120,7 @@ jobs:
               "state": "CANDIDATE",
               "approvalState": "NOT_READY",
               "upstreamRunId": int(os.environ["UPSTREAM_RUN_ID"]),
+              "selectedProvider": os.environ["SELECTED_PROVIDER"],
               "candidateRegistrySha256": hashlib.sha256(registry_path.read_bytes()).hexdigest(),
               "providerCandidates": json.loads(registry_path.read_text(encoding="utf-8"))[
                   "candidateContext"
@@ -120,7 +144,7 @@ jobs:
           path: |
             build/candidate-source-registry.json
             build/candidate-family-plan-validation.json
-            build/parser-plan-keiyoushi.json
+            build/parser-plan-*.json
             build/candidate-provenance.json
             build/candidate-handoff.json
             build/sync-plan.json
@@ -130,6 +154,7 @@ jobs:
   uma-parser:
     name: Candidate UMA real parser
     needs: prepare
+    if: inputs.provider == 'uma'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Compatibility Farm
@@ -243,6 +268,7 @@ jobs:
   gekkoushi-parser:
     name: Candidate Gekkoushi real parser
     needs: prepare
+    if: inputs.provider == 'gekkoushi'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Compatibility Farm
@@ -370,6 +396,7 @@ jobs:
   keiyoushi-parser:
     name: Candidate Keiyoushi ${{ matrix.familyId }}
     needs: prepare
+    if: inputs.provider == 'keiyoushi'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -435,26 +462,20 @@ jobs:
           fi
           cp -R compatibility/harness/keiyoushi/resources/. "$module/compatibility-farm-resources/compatibility-farm/"
           cat >> "$module/build.gradle.kts" <<'EOF'
-
-          // Compatibility Farm test-only wiring. Disposable pinned checkout only.
           android {
-              sourceSets {
-                  named("test") {
-                      java.directories.add("compatibility-farm-test")
-                      kotlin.directories.add("compatibility-farm-test")
-                      resources.directories.add("compatibility-farm-resources")
-                  }
+              sourceSets.named("test") {
+                  java.directories.add("compatibility-farm-test")
+                  kotlin.directories.add("compatibility-farm-test")
+                  resources.directories.add("compatibility-farm-resources")
               }
               testOptions {
                   unitTests.isReturnDefaultValues = true
               }
           }
-
           dependencies {
               testImplementation(libs.junit)
               testImplementation(libs.bundles.common)
           }
-
           tasks.matching { it.name == "kspDebugUnitTestKotlin" }.configureEach {
               enabled = false
           }
@@ -531,21 +552,42 @@ jobs:
           name: source-lab-candidate-context-${{ inputs.upstream_run_id }}
           path: build/context
 
-      - name: Download all real-parser evidence
+      - name: Download selected-provider real-parser evidence
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           pattern: source-lab-parser-*-${{ inputs.upstream_run_id }}
           path: build/provider-evidence
           merge-multiple: true
 
-      - name: Enforce all parser jobs before staging
+      - name: Enforce selected parser job before staging
+        env:
+          SELECTED_PROVIDER: ${{ inputs.provider }}
+          PREPARE_RESULT: ${{ needs.prepare.result }}
+          UMA_RESULT: ${{ needs.uma-parser.result }}
+          GEKKOUSHI_RESULT: ${{ needs.gekkoushi-parser.result }}
+          KEIYOUSHI_RESULT: ${{ needs.keiyoushi-parser.result }}
         shell: bash
         run: |
           set -euo pipefail
-          test "${{ needs.prepare.result }}" = "success"
-          test "${{ needs.uma-parser.result }}" = "success"
-          test "${{ needs.gekkoushi-parser.result }}" = "success"
-          test "${{ needs.keiyoushi-parser.result }}" = "success"
+          test "$PREPARE_RESULT" = "success"
+          case "$SELECTED_PROVIDER" in
+            uma)
+              test "$UMA_RESULT" = "success"
+              test "$GEKKOUSHI_RESULT" = "skipped"
+              test "$KEIYOUSHI_RESULT" = "skipped"
+              ;;
+            gekkoushi)
+              test "$UMA_RESULT" = "skipped"
+              test "$GEKKOUSHI_RESULT" = "success"
+              test "$KEIYOUSHI_RESULT" = "skipped"
+              ;;
+            keiyoushi)
+              test "$UMA_RESULT" = "skipped"
+              test "$GEKKOUSHI_RESULT" = "skipped"
+              test "$KEIYOUSHI_RESULT" = "success"
+              ;;
+            *) exit 1 ;;
+          esac
 
       - name: Aggregate real parser evidence
         shell: bash
@@ -645,6 +687,7 @@ jobs:
         env:
           CANDIDATE_SET_ID: ${{ steps.stage.outputs.candidate_set_id }}
           UPSTREAM_RUN_ID: ${{ inputs.upstream_run_id }}
+          SELECTED_PROVIDER: ${{ inputs.provider }}
         shell: bash
         run: |
           set -euo pipefail
@@ -656,6 +699,7 @@ jobs:
               "schemaVersion": 1,
               "action": "RUN_FARM",
               "state": "WAITING_FOR_APPROVAL",
+              "selectedProvider": os.environ["SELECTED_PROVIDER"],
               "candidateSetId": os.environ["CANDIDATE_SET_ID"],
               "upstreamRunId": int(os.environ["UPSTREAM_RUN_ID"]),
               "farmWorkflowRunId": int(os.environ["GITHUB_RUN_ID"]),
