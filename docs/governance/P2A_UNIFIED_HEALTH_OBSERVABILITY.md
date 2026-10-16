@@ -26,4 +26,4 @@ The generated health document is observational. It does not mutate source identi
 
 ## Validation
 
-`tools/unified_source_health.py` builds and validates the projection. Regression tests protect fail-closed UNKNOWN behavior, provider isolation, exact-source holds, unmatched identity reporting, identity/LKG preservation, and duplicate-ID rejection. Source Inventory CI builds the projection from the live Compatibility Farm plus repository `upstream/status.json` and uploads it beside the existing registry previews.
+`tools/unified_source_health.py` builds and validates the projection. Regression tests protect fail-closed UNKNOWN behavior, provider isolation, exact-source holds, unmatched identity reporting, identity/LKG preservation, and duplicate-ID rejection. The dedicated `P2-A Unified Health CI` builds the projection from the live Compatibility Farm plus repository `upstream/status.json`, verifies canonical identity and LKG preservation, and uploads the generated document for inspection.
