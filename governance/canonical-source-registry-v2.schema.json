@@ -30,11 +30,22 @@
   "packRules": {
     "allowed": ["miyorare-id", "miyorare-en", "miyorare-global"],
     "membershipExplicit": true,
+    "languageMayNotDefineMembership": true,
+    "undeclaredMembership": "HELD",
     "providerIndependent": true
   },
   "originRules": {
     "allowed": ["upstream-derived", "miyorare-native", "upstream-overlay"],
+    "mustHaveAuthorityEvidence": true,
+    "acceptedAuthority": ["source-declaration", "legacy-upstream-identities"],
+    "providerListAloneMayNotDefineOrigin": true,
     "providerOriginDoesNotOverrideCompatibility": true
+  },
+  "crossAuthorityRules": {
+    "unifiedHealthConsumesCanonicalPacks": true,
+    "unifiedHealthConsumesCanonicalOrigin": true,
+    "unifiedHealthMayNotReinferPacksFromLanguage": true,
+    "unifiedHealthMayNotReinferOriginFromProviderList": true
   },
   "lifecycleStates": ["candidate", "validated", "active", "degraded", "held", "unavailable", "deprecated", "migrated"],
   "compatibilityHealth": ["HEALTHY", "DEGRADED", "HELD", "UNAVAILABLE", "DEPRECATED", "UNKNOWN"],
@@ -43,6 +54,8 @@
     "preserveCanonicalIds": true,
     "preserveProviderMappings": true,
     "preserveLastKnownGood": true,
+    "legacyOriginEvidence": "upstreamIdentities",
+    "unknownPackMembershipDecision": "HELD",
     "unknownMetadataDecision": "HELD",
     "noAutomaticIdentityRewrite": true
   }
