@@ -12,6 +12,7 @@ class P0BMainRequiredGateTests(unittest.TestCase):
         self.assertIn("name: Main Required Gates", gate)
         self.assertIn("pull_request:\n    branches: [main]", gate)
         self.assertNotIn("pull_request:\n    branches: [main]\n    paths:", gate)
+        self.assertNotIn("workflow_dispatch:", gate)
         self.assertIn("name: Main Required Gates\n    runs-on:", gate)
 
     def test_core_gates_are_dispatched_and_bound_to_exact_head(self) -> None:
