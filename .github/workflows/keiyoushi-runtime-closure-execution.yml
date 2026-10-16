@@ -1,0 +1,137 @@
+name: Keiyoushi Runtime Closure Execution
+run-name: Runtime closure ${{ inputs.request_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: 32 lowercase hex correlation identifier
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keiyoushi-runtime-closure-execution
+  cancel-in-progress: false
+
+env:
+  FOUNDATION: 3ddb997f545b2267dc3371c64b77e1b2a9019126
+  BASELINE: 2025891752e4705effc28e87a043f7205014cde3
+  CANDIDATE: 23345ef345e3b20d7fcc0b5d8fdc922d025af47f
+  EXPECTED_OWNER_ID: '149634319'
+
+jobs:
+  candidate:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {label: BACAMI, canonical: 'miyorare:miyorare-id:BACAMI', module: 'src/id/bacami', test: 'compatibilityfarm.BacamiParserHarnessTest', webview: false}
+          - {label: KIRYUU, canonical: 'miyorare:miyorare-id:KIRYUU', module: 'src/id/kiryuu', test: 'compatibilityfarm.KiryuuNatsuParserHarnessTest', webview: false}
+          - {label: KOMIKU, canonical: 'miyorare:miyorare-id:KOMIKU', module: 'src/id/komiku', test: 'compatibilityfarm.KomikuParserHarnessTest', webview: false}
+          - {label: ASURASCANS, canonical: 'miyorare:miyorare-en:ASURASCANS', module: 'src/en/asurascans', test: 'compatibilityfarm.AsuraScansParserHarnessTest', webview: false}
+          - {label: AQUAMANGA, canonical: 'miyorare:miyorare-en:AQUAMANGA', module: 'src/en/aquamanga', test: 'compatibilityfarm.AquaReaderMadaraParserHarnessTest', webview: false}
+          - {label: BATCAVE, canonical: 'miyorare:miyorare-en:BATCAVE', module: 'src/en/batcave', test: 'compatibilityfarm.BatcaveParserHarnessTest', webview: true}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Validate owner and request
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+        run: |
+          python3 - <<'PY'
+          import os,re
+          assert os.environ['GITHUB_REPOSITORY']=='Noirero/Miyorare-Source-Packs'
+          assert os.environ['GITHUB_ACTOR_ID']==os.environ['EXPECTED_OWNER_ID']
+          assert re.fullmatch(r'[0-9a-f]{32}',os.environ['REQUEST_ID'])
+          PY
+      - name: Checkout exact evidence foundation
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 3ddb997f545b2267dc3371c64b77e1b2a9019126
+          path: _farm
+          persist-credentials: false
+      - name: Checkout exact Keiyoushi candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: keiyoushi/extensions-source
+          ref: 23345ef345e3b20d7fcc0b5d8fdc922d025af47f
+          path: _upstream/keiyoushi
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+      - name: Install deterministic source harness
+        env:
+          MODULE: ${{ matrix.module }}
+          TEST_CLASS: ${{ matrix.test }}
+        run: |
+          set -euo pipefail
+          test "$(git -C _farm rev-parse HEAD)" = "$FOUNDATION"
+          test "$(git -C _upstream/keiyoushi rev-parse HEAD)" = "$CANDIDATE"
+          module="_upstream/keiyoushi/$MODULE"
+          mkdir -p "$module/compatibility-farm-test" "$module/compatibility-farm-resources/compatibility-farm"
+          cp "_farm/compatibility/harness/keiyoushi/${TEST_CLASS##*.}.kt" "$module/compatibility-farm-test/"
+          cp -R _farm/compatibility/harness/keiyoushi/runtime/. "$module/compatibility-farm-test/"
+          cp -R _farm/compatibility/harness/keiyoushi/resources/. "$module/compatibility-farm-resources/compatibility-farm/"
+          ln -s ../../../lib-multisrc "$module/lib-multisrc"
+          cat >> "$module/build.gradle.kts" <<'EOF'
+          android {
+            sourceSets.named("test") {
+              java.directories.add("compatibility-farm-test")
+              kotlin.directories.add("compatibility-farm-test")
+              resources.directories.add("compatibility-farm-resources")
+            }
+            testOptions { unitTests.isReturnDefaultValues = true }
+          }
+          dependencies { testImplementation(libs.junit); testImplementation(libs.bundles.common) }
+          tasks.matching { it.name == "kspDebugUnitTestKotlin" }.configureEach { enabled = false }
+          EOF
+      - name: Execute exact candidate parser
+        working-directory: _upstream/keiyoushi
+        env:
+          MODULE: ${{ matrix.module }}
+          TEST_CLASS: ${{ matrix.test }}
+        run: bash gradlew ":${MODULE//\//:}:testDebugUnitTest" --tests "$TEST_CLASS" --no-daemon
+      - name: Record exact execution provenance
+        if: always()
+        env:
+          CANONICAL: ${{ matrix.canonical }}
+          MODULE: ${{ matrix.module }}
+          WEBVIEW: ${{ matrix.webview }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          mkdir -p build/runtime-closure
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          upstream=Path('_upstream/keiyoushi'); module=upstream/os.environ['MODULE']
+          paths=[]
+          for p in module.rglob('*'):
+              if p.is_file() and 'compatibility-farm-' not in p.as_posix() and '/build/' not in p.as_posix():
+                  paths.append(p.relative_to(upstream).as_posix())
+          webview=os.environ['WEBVIEW'].lower()=='true'
+          proof={'schema':1,'base':os.environ['BASELINE'],'candidate':os.environ['CANDIDATE'],'proofs':[{
+            'canonicalId':os.environ['CANONICAL'],'result':'PASS' if os.environ['JOB_STATUS']=='success' else 'FAIL',
+            'infrastructureBlocked':webview,'candidateRevision':os.environ['CANDIDATE'],
+            'runtimeClosureRevision':os.environ['CANDIDATE'],
+            'evidenceId':f"github-run:{os.environ['GITHUB_RUN_ID']}:{os.environ['CANONICAL']}",
+            'requiresAndroidWebView':webview,'androidWebViewExecutionProven':False,
+            'executedRuntimeClosurePaths':sorted(set(paths)),
+            'exercisedChangeClasses':['parser-code-change','build-script-change','shared-runtime-change']}]}
+          Path('build/runtime-closure/execution.json').write_text(json.dumps(proof,indent=2)+'\n')
+          PY
+      - name: Upload runtime closure evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: runtime-closure-${{ matrix.label }}-${{ inputs.request_id }}
+          path: |
+            build/runtime-closure/execution.json
+            _upstream/keiyoushi/${{ matrix.module }}/build/test-results/testDebugUnitTest/*.xml
+          if-no-files-found: error
+          retention-days: 14
