@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "kind": "MIYORARE_BRANCH_PR_HYGIENE_CONTRACT",
+  "branchClasses": {
+    "STATE_BEARING": {
+      "examples": ["main", "compatibility-farm-foundation"],
+      "deletion": "PROHIBITED",
+      "nonFastForward": "PROHIBITED",
+      "cleanup": "NEVER_AUTOMATIC"
+    },
+    "ACTIVE_WORK": {
+      "examples": ["feat/*", "fix/*", "hardening/*", "audit/*", "phase*/*", "perf/*"],
+      "deletion": "AFTER_MERGE_VERIFICATION_ONLY",
+      "nonFastForward": "AVOID",
+      "cleanup": "ELIGIBLE_AFTER_PROOF"
+    },
+    "EPHEMERAL": {
+      "examples": ["cleanup-*", "dispatch-*-smoke-test-*", "compatibility-snapshot-*", "*-release-eligibility-*"],
+      "deletion": "AFTER_PURPOSE_COMPLETE_AND_REFERENCES_VERIFIED",
+      "nonFastForward": "AVOID",
+      "cleanup": "ELIGIBLE_AFTER_PROOF"
+    },
+    "UNKNOWN": {
+      "deletion": "PROHIBITED_UNTIL_CLASSIFIED",
+      "nonFastForward": "PROHIBITED_UNTIL_CLASSIFIED",
+      "cleanup": "HELD"
+    }
+  },
+  "stateBearingExact": ["main", "compatibility-farm-foundation"],
+  "rules": [
+    "branch classification must be evidence-based; naming alone never authorizes deletion",
+    "state-bearing branches must never be deleted or force-updated by cleanup automation",
+    "an open pull request makes its head branch ineligible for cleanup",
+    "a merged pull request head is only cleanup-eligible after merge commit and live target verification",
+    "an unmerged closed pull request does not make its branch disposable without explicit reviewed abandonment evidence",
+    "branches referenced by workflows, rulesets, release/compatibility contracts, or active automation are not cleanup-eligible",
+    "unknown or ambiguous branches fail closed as HELD",
+    "cleanup eligibility is an observation, not deletion authorization",
+    "branch deletion remains a destructive action requiring explicit owner authorization unless a separately reviewed automation policy grants it",
+    "PR hygiene must preserve exact base/head evidence, required checks, review threads, and merge/post-merge audit trail"
+  ],
+  "cleanupEvidenceRequired": [
+    "classification",
+    "pullRequestState",
+    "referenceScan",
+    "stateBearingCheck",
+    "mergeOrAbandonmentEvidence"
+  ],
+  "failClosed": {
+    "unknownClassification": "HELD",
+    "openPullRequest": "HELD",
+    "activeReference": "HELD",
+    "stateBearingBranch": "PROTECTED",
+    "missingEvidence": "HELD"
+  }
+}
