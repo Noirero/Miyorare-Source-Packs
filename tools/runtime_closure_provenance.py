@@ -93,6 +93,7 @@ def build_proof(
             "canonicalId": canonical,
             "result": result,
             "infrastructureBlocked": blocked,
+            "baseRevision": base,
             "candidateRevision": candidate,
             "runtimeClosureRevision": candidate,
             "evidenceId": f"github-run:{run_id}:{canonical}",
