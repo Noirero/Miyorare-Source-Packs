@@ -274,9 +274,13 @@ jobs:
             sleep 10
           done
           [[ "$status" == completed ]]
-          [[ "$(gh run view "$upstream_run_id" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" == success ]]
           artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$upstream_run_id/artifacts?per_page=100")"
           if jq -e '.artifacts[]|select(.name=="upstream-candidate-handoff" and .expired==false)' <<<"$artifacts" >/dev/null; then has_candidate=true; else has_candidate=false; fi
+          if [[ "$has_candidate" != true ]]; then
+            conclusion="$(gh run view "$upstream_run_id" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)"
+            echo "::error::Provider-scoped intake produced no candidate handoff (conclusion=$conclusion)"
+            exit 1
+          fi
           echo "upstream_run_id=$upstream_run_id" >> "$GITHUB_OUTPUT"
           echo "has_candidate=$has_candidate" >> "$GITHUB_OUTPUT"
 
