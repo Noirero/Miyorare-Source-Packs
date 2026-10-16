@@ -1,0 +1,49 @@
+name: P2-D Source Onboarding CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'governance/source-onboarding.v1.json'
+      - 'tools/validate_source_onboarding.py'
+      - 'tests/test_p2d_source_onboarding.py'
+      - 'docs/governance/P2D_STANDARDIZED_SOURCE_ONBOARDING.md'
+      - '.github/workflows/p2d-source-onboarding-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate standardized source onboarding
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Run P2-D regression tests
+        run: |
+          python3 -m unittest tests.test_p2d_source_onboarding -v
+          python3 -m py_compile tools/validate_source_onboarding.py
+      - name: Assert contract authority alignment
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          onboarding=json.loads(Path('governance/source-onboarding.v1.json').read_text())
+          registry=json.loads(Path('governance/canonical-source-registry-v2.schema.json').read_text())
+          clr=json.loads(Path('governance/source-capability-lifecycle-risk.v1.json').read_text())
+          promotion=json.loads(Path('governance/automation-promotion-authority.v1.json').read_text())
+          assert set(onboarding['packs']['allowed']) == set(registry['packRules']['allowed'])
+          assert set(onboarding['origin']['allowed']) == set(registry['originRules']['allowed'])
+          assert set(onboarding['capabilities']['known']) == set(clr['capabilities']['known'])
+          assert onboarding['capabilities']['baseline'] == clr['validation']['baselineCapabilities']
+          source=promotion['classes']['source_onboarding']
+          assert onboarding['promotion']['authority'] == source['requiredAuthority']
+          assert onboarding['promotion']['requiredGates'] == source['requiredGates']
+          assert onboarding['promotion']['ownerApprovalRequired'] == source['ownerApprovalRequired']
+          PY
