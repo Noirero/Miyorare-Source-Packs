@@ -1,0 +1,62 @@
+name: P1-B Registry Contract CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'governance/source-capability-lifecycle-risk.v1.json'
+      - 'tools/validate_capability_lifecycle_risk.py'
+      - 'tools/canonical_source_registry_v2.py'
+      - 'tests/test_p1b_capability_lifecycle_risk.py'
+      - '.github/workflows/p1b-registry-contract-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate P1-B against P1-A projection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout proposed P1-B contract
+        uses: actions/checkout@v5
+        with:
+          path: source-packs
+
+      - name: Checkout live Compatibility Farm state
+        uses: actions/checkout@v5
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 1
+
+      - name: Run P1-B unit tests
+        working-directory: source-packs
+        run: |
+          python3 -m unittest discover -s tests -p 'test_p1b_capability_lifecycle_risk.py' -v
+          python3 -m py_compile tools/validate_capability_lifecycle_risk.py
+
+      - name: Build unchanged P1-A projection
+        run: |
+          python3 source-packs/tools/canonical_source_registry_v2.py migrate \
+            --farm farm/compatibility/source-registry.json \
+            --output canonical-source-registry-v2.json
+
+      - name: Validate P1-B contract against live projection
+        run: |
+          python3 source-packs/tools/validate_capability_lifecycle_risk.py \
+            --contract source-packs/governance/source-capability-lifecycle-risk.v1.json \
+            --registry canonical-source-registry-v2.json
+
+      - name: Prove P1-B did not populate guessed capability or risk data
+        shell: python {0}
+        run: |
+          import json
+          from pathlib import Path
+          registry = json.loads(Path('canonical-source-registry-v2.json').read_text(encoding='utf-8'))
+          guessed = [item['canonicalId'] for item in registry['sources'] if 'capabilities' in item or 'risk' in item]
+          if guessed:
+              raise SystemExit(f'P1-B must not invent capability/risk evidence: {guessed[:5]}')
+          print(f'Validated additive P1-B boundary across {len(registry["sources"])} P1-A sources')
