@@ -1,0 +1,80 @@
+name: P1-D Corrected One-Shot Pin Migration
+
+on:
+  push:
+    branches: [hardening/p1d-full-sha-actions]
+    paths:
+      - '.github/workflows/p1d-pin-bootstrap-2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact work branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: hardening/p1d-full-sha-actions
+          fetch-depth: 1
+
+      - name: Replace existing moving tags without changing major-version behavior
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              'actions/checkout@v5': 'actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09',
+              'actions/checkout@v4': 'actions/checkout@11d5960a326750d5838078e36cf38b85af677262',
+              'actions/upload-artifact@v4': 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
+              'actions/download-artifact@v5': 'actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0',
+              'actions/github-script@v8': 'actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd',
+              'actions/setup-java@v5': 'actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961',
+              'android-actions/setup-android@v4': 'android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd',
+              'gradle/actions/setup-gradle@v6': 'gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6',
+              'gradle/actions/setup-gradle@v4': 'gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a',
+              'actions/attest-build-provenance@v2': 'actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be',
+          }
+
+          root = Path('.github/workflows')
+          changed = []
+          counts = {key: 0 for key in replacements}
+          for path in sorted(root.glob('*.yml')):
+              text = path.read_text(encoding='utf-8')
+              original = text
+              for old, new in replacements.items():
+                  count = text.count(old)
+                  if count:
+                      counts[old] += count
+                      text = text.replace(old, new)
+              if text != original:
+                  path.write_text(text, encoding='utf-8')
+                  changed.append(str(path))
+
+          print(f'changed_workflows={len(changed)}')
+          for path in changed:
+              print(path)
+          for old, count in counts.items():
+              print(f'{old}={count}')
+          PY
+
+      - name: Remove one-shot bootstrap workflows from final branch state
+        run: rm .github/workflows/p1d-pin-bootstrap.yml .github/workflows/p1d-pin-bootstrap-2.yml
+
+      - name: Validate final immutable pin state before commit
+        run: |
+          python3 -m unittest tests.test_p1d_action_pins
+          python3 tools/validate_action_pins.py
+
+      - name: Commit surgical migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows
+          git diff --cached --check
+          git commit -m 'P1-D: pin workflow actions to immutable SHAs'
+          git push origin HEAD:hardening/p1d-full-sha-actions
