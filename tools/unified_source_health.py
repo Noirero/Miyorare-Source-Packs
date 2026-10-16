@@ -21,41 +21,23 @@ def write(path: Path, value: dict[str, Any]) -> None:
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def packs_for(language: str) -> list[str]:
-    if language == "id":
-        return ["miyorare-id"]
-    if language == "en":
-        return ["miyorare-en"]
-    return []
+def canonical_index(registry: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    if registry.get("schemaVersion") != 2 or registry.get("kind") != "MIYORARE_CANONICAL_SOURCE_REGISTRY":
+        raise ValueError("P2-A requires Canonical Source Registry V2 authority")
+    indexed: dict[str, dict[str, Any]] = {}
+    for source in registry.get("sources", []):
+        canonical = source.get("canonicalId")
+        if not isinstance(canonical, str) or canonical in indexed:
+            raise ValueError(f"invalid or duplicate canonical authority: {canonical}")
+        indexed[canonical] = source
+    return indexed
 
 
-def lifecycle_for(source: dict[str, Any]) -> str:
-    approval = str(source.get("approvalState", "")).upper()
-    health = str(source.get("runtimeHealth", "UNKNOWN")).upper()
-    if health == "UNAVAILABLE":
-        return "unavailable"
-    if health == "DEGRADED":
-        return "degraded"
-    if health == "HELD" or approval in {"HELD", "REVIEW_REQUIRED"}:
-        return "held"
-    if approval == "APPROVED" and source.get("publishEligible") is True:
-        return "active"
-    baseline = str(source.get("compatibilityBaseline", {}).get("status", "")).upper()
-    if baseline in {"VALIDATED", "PASS", "PASSED"}:
-        return "validated"
-    return "candidate"
-
-
-def origin_for(source: dict[str, Any]) -> dict[str, Any]:
-    providers = sorted(p for p in source.get("providers", []) if p in PROVIDERS)
-    overlays = source.get("protectedOverlays", [])
-    result: dict[str, Any] = {
-        "kind": "upstream-overlay" if overlays else "upstream-derived",
-        "providers": providers,
-    }
-    if overlays:
-        result["protectedOverlays"] = overlays
-    return result
+def lifecycle_for(source: dict[str, Any], authority: dict[str, Any]) -> str:
+    authoritative = authority.get("lifecycle", {}).get("state")
+    if authoritative in LIFECYCLE:
+        return authoritative
+    raise ValueError(f"{source.get('canonicalId')}: canonical lifecycle authority missing")
 
 
 def upstream_source_index(status: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], list[str]]:
@@ -83,6 +65,8 @@ def health_for(source: dict[str, Any], lifecycle: str, upstream_source: dict[str
     reasons: list[str] = []
     if lifecycle == "deprecated":
         return "DEPRECATED", ["LIFECYCLE_DEPRECATED"]
+    if lifecycle == "held" and not source.get("packs"):
+        return "HELD", ["PACK_MEMBERSHIP_UNDECLARED"]
     if upstream_source:
         state = str(upstream_source.get("state", "")).lower()
         if state in {"review-required", "held", "hold"}:
@@ -103,9 +87,10 @@ def health_for(source: dict[str, Any], lifecycle: str, upstream_source: dict[str
     return "UNKNOWN", reasons
 
 
-def build(farm: dict[str, Any], upstream: dict[str, Any]) -> dict[str, Any]:
+def build(farm: dict[str, Any], upstream: dict[str, Any], registry: dict[str, Any]) -> dict[str, Any]:
     if farm.get("schemaVersion") != 1:
         raise ValueError("P2-A currently projects Compatibility Farm schemaVersion 1 only")
+    authorities = canonical_index(registry)
     source_index, duplicate_status = upstream_source_index(upstream)
     farm_ids: set[str] = set()
     output: list[dict[str, Any]] = []
@@ -115,10 +100,17 @@ def build(farm: dict[str, Any], upstream: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(canonical, str) or not canonical.startswith("miyorare:") or canonical in farm_ids:
             raise ValueError(f"invalid or duplicate canonicalId: {canonical}")
         farm_ids.add(canonical)
+        authority = authorities.get(canonical)
+        if authority is None:
+            raise ValueError(f"{canonical}: missing Canonical Source Registry V2 authority")
+        packs = authority.get("packs")
+        origin = authority.get("origin")
+        if not isinstance(packs, list) or not isinstance(origin, dict):
+            raise ValueError(f"{canonical}: canonical pack/origin authority missing")
         language = str(old.get("language", "unknown")).lower()
-        lifecycle = lifecycle_for(old)
+        lifecycle = lifecycle_for(old, authority)
         explicit = source_index.get(canonical)
-        health, reasons = health_for(old, lifecycle, explicit)
+        health, reasons = health_for(dict(old, packs=packs), lifecycle, explicit)
         providers = []
         for provider in sorted(p for p in old.get("providers", []) if p in PROVIDERS):
             context = provider_status.get(provider, {})
@@ -132,6 +124,7 @@ def build(farm: dict[str, Any], upstream: dict[str, Any]) -> dict[str, Any]:
         baseline = old.get("compatibilityBaseline", {}) if isinstance(old.get("compatibilityBaseline", {}), dict) else {}
         enrollment = old.get("enrollmentEvidence", {}) if isinstance(old.get("enrollmentEvidence", {}), dict) else {}
         evidence: list[dict[str, Any]] = [
+            {"kind": "canonical-authority", "packs": packs, "originAuthority": origin.get("authority")},
             {"kind": "farm-runtime", "runtimeHealth": str(old.get("runtimeHealth", "UNKNOWN")).upper()},
             {"kind": "farm-baseline", "status": baseline.get("status")},
             {"kind": "lkg", "providers": old.get("lastKnownGood", {}) or {}},
@@ -147,35 +140,28 @@ def build(farm: dict[str, Any], upstream: dict[str, Any]) -> dict[str, Any]:
             "canonicalId": canonical,
             "displayName": old.get("displayName") or canonical.rsplit(":", 1)[-1],
             "language": language,
-            "packs": packs_for(language),
+            "packs": packs,
             "health": health,
             "lifecycle": lifecycle,
             "reasonCodes": reasons,
             "providers": providers,
-            "origin": origin_for(old),
+            "origin": origin,
             "lastKnownGood": old.get("lastKnownGood", {}) or {},
-            "lastValidation": {
-                "state": baseline.get("status") or "UNKNOWN",
-                "workflowRunId": enrollment.get("workflowRunId"),
-                "checkedAt": None,
-            },
-            "lastCheck": {
-                "workflowRunId": upstream.get("workflowRunId"),
-                "checkedAt": None,
-            },
+            "lastValidation": {"state": baseline.get("status") or "UNKNOWN", "workflowRunId": enrollment.get("workflowRunId"), "checkedAt": None},
+            "lastCheck": {"workflowRunId": upstream.get("workflowRunId"), "checkedAt": None},
             "evidence": evidence,
         })
+    if set(authorities) != farm_ids:
+        extra = sorted(set(authorities) - farm_ids)
+        missing = sorted(farm_ids - set(authorities))
+        raise ValueError(f"canonical authority identity set differs from Farm: extra={extra[:5]} missing={missing[:5]}")
     unmatched = sorted(set(source_index) - farm_ids)
     result = {
         "schemaVersion": 1,
         "kind": "MIYORARE_UNIFIED_SOURCE_HEALTH",
         "sourceCount": len(output),
         "sources": sorted(output, key=lambda item: item["canonicalId"]),
-        "observability": {
-            "unmatchedUpstreamSourceStatus": unmatched,
-            "duplicateUpstreamSourceStatus": duplicate_status,
-            "timestampsInvented": False,
-        },
+        "observability": {"unmatchedUpstreamSourceStatus": unmatched, "duplicateUpstreamSourceStatus": duplicate_status, "timestampsInvented": False},
     }
     validate(result)
     return result
@@ -218,12 +204,13 @@ def main() -> None:
     build_cmd = sub.add_parser("build")
     build_cmd.add_argument("--farm", type=Path, required=True)
     build_cmd.add_argument("--upstream-status", type=Path, required=True)
+    build_cmd.add_argument("--canonical-registry", type=Path, required=True)
     build_cmd.add_argument("--output", type=Path, required=True)
     validate_cmd = sub.add_parser("validate")
     validate_cmd.add_argument("--health", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "build":
-        write(args.output, build(load(args.farm), load(args.upstream_status)))
+        write(args.output, build(load(args.farm), load(args.upstream_status), load(args.canonical_registry)))
         print(f"Unified source health written to {args.output}")
     else:
         validate(load(args.health))
