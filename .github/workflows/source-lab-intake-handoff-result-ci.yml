@@ -1,0 +1,42 @@
+name: Source Lab Intake Handoff Result CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/source-lab-run-farm.yml'
+      - '.github/workflows/source-lab-intake-handoff-result-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  handoff-result-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - name: Prove fail-closed handoff semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow=.github/workflows/source-lab-run-farm.yml
+
+          if grep -Fq 'conclusion --jq .conclusion)" == success' "$workflow"; then
+            echo '::error::Run Farm still requires the provider-scoped intake workflow to conclude success before consuming its fail-closed handoff.'
+            exit 1
+          fi
+          grep -Fq "select(.name==\"upstream-candidate-handoff\" and .expired==false)" "$workflow"
+          grep -Fq 'Provider-scoped intake produced no candidate handoff' "$workflow"
+
+          python3 - <<'PY'
+          def accept(artifacts):
+              return any(a.get('name') == 'upstream-candidate-handoff' and a.get('expired') is False for a in artifacts)
+
+          # A strict intake may conclude failure because its classifier deliberately
+          # holds the candidate, while still producing the immutable handoff that
+          # the later evidence gate is designed to consume.
+          assert accept([{'name': 'upstream-candidate-handoff', 'expired': False}])
+
+          # Missing or expired handoff remains fail-closed regardless of conclusion.
+          assert not accept([])
+          assert not accept([{'name': 'upstream-candidate-handoff', 'expired': True}])
+          PY
