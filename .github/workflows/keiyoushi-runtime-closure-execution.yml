@@ -1,0 +1,35 @@
+name: Keiyoushi Runtime Closure Execution
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: 32 lowercase hex correlation identifier
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate-request:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate request
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+          value=os.environ['REQUEST_ID']
+          if not re.fullmatch(r'[0-9a-f]{32}', value):
+              raise SystemExit('request_id must be 32 lowercase hex characters')
+          PY
+
+  execute:
+    needs: validate-request
+    uses: ./.github/workflows/keiyoushi-runtime-closure-reusable.yml
+    with:
+      request_id: ${{ inputs.request_id }}
+    permissions:
+      contents: read
