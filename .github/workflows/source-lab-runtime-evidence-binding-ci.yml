@@ -1,0 +1,40 @@
+name: Source Lab Runtime Evidence Binding CI
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tools/source_lab_runtime_evidence_gate.py'
+      - '.github/workflows/source-lab-run-farm.yml'
+      - '.github/workflows/source-lab-runtime-evidence-binding-ci.yml'
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Prove five compatible, BATCAVE held, and exact candidate binding
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          candidate='23345ef345e3b20d7fcc0b5d8fdc922d025af47f'
+          good=['miyorare:miyorare-id:BACAMI','miyorare:miyorare-id:KIRYUU','miyorare:miyorare-id:KOMIKU','miyorare:miyorare-en:ASURASCANS','miyorare:miyorare-en:AQUAMANGA']
+          sources=[]
+          for c in good:
+            sources.append({'canonicalId':c,'automationClass':'REVIEWED_COMPATIBLE','evidenceDisposition':{'candidate':candidate,'evidenceType':'runtime-closure-execution'}})
+          sources.append({'canonicalId':'miyorare:miyorare-en:BATCAVE','automationClass':'NEEDS_REVIEW'})
+          Path('build').mkdir(); Path('build/disposition.json').write_text(json.dumps({'candidate':candidate,'state':'hold','blockingSourceCount':1,'sources':sources}))
+          PY
+          args=(--disposition build/disposition.json --expected-candidate 23345ef345e3b20d7fcc0b5d8fdc922d025af47f --compatible miyorare:miyorare-id:BACAMI --compatible miyorare:miyorare-id:KIRYUU --compatible miyorare:miyorare-id:KOMIKU --compatible miyorare:miyorare-en:ASURASCANS --compatible miyorare:miyorare-en:AQUAMANGA --blocked miyorare:miyorare-en:BATCAVE --output build/gate.json)
+          python3 tools/source_lab_runtime_evidence_gate.py "${args[@]}"
+          ! python3 tools/source_lab_runtime_evidence_gate.py --disposition build/disposition.json --expected-candidate 0000000000000000000000000000000000000000 --compatible miyorare:miyorare-id:BACAMI --compatible miyorare:miyorare-id:KIRYUU --compatible miyorare:miyorare-id:KOMIKU --compatible miyorare:miyorare-en:ASURASCANS --compatible miyorare:miyorare-en:AQUAMANGA --blocked miyorare:miyorare-en:BATCAVE --output build/bad.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('build/disposition.json')); d['sources'][-1]['automationClass']='REVIEWED_COMPATIBLE'; open('build/batcave-bad.json','w').write(json.dumps(d))
+          PY
+          ! python3 tools/source_lab_runtime_evidence_gate.py --disposition build/batcave-bad.json --expected-candidate 23345ef345e3b20d7fcc0b5d8fdc922d025af47f --compatible miyorare:miyorare-id:BACAMI --compatible miyorare:miyorare-id:KIRYUU --compatible miyorare:miyorare-id:KOMIKU --compatible miyorare:miyorare-en:ASURASCANS --compatible miyorare:miyorare-en:AQUAMANGA --blocked miyorare:miyorare-en:BATCAVE --output build/bad2.json
