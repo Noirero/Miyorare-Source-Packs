@@ -9,7 +9,7 @@ def valid():
       "capabilities":{"browse":"SUPPORTED","search":"SUPPORTED","details":"SUPPORTED","chapters":"SUPPORTED","pages":"SUPPORTED","download":"UNSUPPORTED"},
       "risk":"HIGH","collisionCheck":{"passed":True,"evidence":"registry-scan:abc"},
       "build":{"passed":True,"evidence":"run:1"},"runtimeSmoke":{"passed":True,"evidence":"run:2"},
-      "evidence":["identity","manifest","build","targeted-contract","runtime-smoke","regression"],
+      "evidence":{"identity":"registry:EXAMPLE","manifest":"manifest:sha","build":"run:1","targeted-contract":"run:1#contract","runtime-smoke":"run:2","regression":"run:2#regression"},
       "promotion":{"class":"source_onboarding","ownerApprovalRequired":True,"authority":"source-lab-approve-ready-sources.yml"},
       "lifecycle":"candidate"
     }
@@ -28,9 +28,11 @@ class Tests(unittest.TestCase):
         d=valid(); d["runtimeSmoke"]["passed"]=False; self.assertIn("runtime-smoke-not-proven",validate(d))
     def test_collision_evidence_required(self):
         d=valid(); d["collisionCheck"]["evidence"]=""; self.assertIn("collision-check-not-proven",validate(d))
+    def test_bound_evidence_required(self):
+        d=valid(); d["evidence"]["regression"]=""; self.assertIn("insufficient-or-unbound-high-risk-evidence",validate(d))
     def test_owner_promotion_authority_required(self):
         d=valid(); d["promotion"]["ownerApprovalRequired"]=False; self.assertIn("invalid-promotion-authority",validate(d))
     def test_candidate_lifecycle_required(self):
-        d=valid(); d["lifecycle"]="active"; self.assertIn("onboarding-must-start-candidate",validate(d))
+        d=valid(); d.pop("lifecycle"); errors=validate(d); self.assertTrue(any(e.startswith("missing:") for e in errors)); self.assertIn("onboarding-must-start-candidate",errors)
 
 if __name__ == "__main__": unittest.main()
