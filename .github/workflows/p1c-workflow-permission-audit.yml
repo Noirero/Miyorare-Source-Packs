@@ -1,0 +1,32 @@
+name: P1-C Workflow Permission Audit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'governance/workflow-permission-policy.v1.json'
+      - 'tools/validate_workflow_permissions.py'
+      - 'tests/test_p1c_workflow_permissions.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Audit least-privilege workflow permissions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout proposed permission policy
+        uses: actions/checkout@v5
+
+      - name: Run permission policy tests
+        run: python3 -m unittest discover -s tests -p 'test_p1c_workflow_permissions.py' -v
+
+      - name: Audit every workflow permission block
+        run: |
+          python3 tools/validate_workflow_permissions.py \
+            --policy governance/workflow-permission-policy.v1.json \
+            --workflows .github/workflows
