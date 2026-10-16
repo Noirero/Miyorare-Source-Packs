@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "kind": "MIYORARE_WORKFLOW_PERMISSION_POLICY",
+  "default": "deny-implicit-and-unlisted-write",
+  "rules": {
+    "requireExplicitTopLevelPermissions": true,
+    "forbidWriteAll": true,
+    "forbidReadAll": true,
+    "sensitiveWriteScopes": ["actions", "attestations", "contents", "id-token", "pull-requests"]
+  },
+  "writeAuthorities": {
+    "actions": [
+      "main-required-gates.yml",
+      "one-click-source-update.yml",
+      "release-source-packs-after-merge.yml",
+      "source-lab-auto-farm.yml",
+      "source-lab-promote-candidate.yml",
+      "source-lab-publish-candidate.yml",
+      "source-lab-run-farm.yml",
+      "source-pack-autonomous-release.yml"
+    ],
+    "attestations": [
+      "release-source-packs.yml",
+      "source-lab-sign-candidate.yml",
+      "source-pack-release-seal.yml"
+    ],
+    "contents": [
+      "release-source-packs.yml",
+      "source-inventory-sync.yml",
+      "source-lab-add-to-farm.yml",
+      "source-lab-approve-ready-sources.yml",
+      "source-lab-auto-farm.yml",
+      "source-lab-candidate-farm.yml",
+      "source-lab-pending-worker.yml",
+      "source-lab-promote-candidate.yml",
+      "source-lab-publish-candidate.yml",
+      "source-lab-run-farm.yml",
+      "source-lab-stable-release.yml",
+      "source-lab-sync-farm-membership.yml",
+      "source-pack-autonomous-release.yml",
+      "source-pack-release-seal.yml"
+    ],
+    "id-token": [
+      "release-source-packs.yml",
+      "source-lab-backend-authorization.yml",
+      "source-lab-sign-candidate.yml",
+      "source-pack-release-seal.yml"
+    ],
+    "pull-requests": [
+      "source-pack-autonomous-release.yml"
+    ]
+  },
+  "roleBoundaries": {
+    "validator": "read-only unless it must dispatch an exact-head validation workflow",
+    "state-mutator": "write only the state/ref it owns",
+    "builder": "read-only unless artifact attestation requires id-token/attestations",
+    "publisher": "contents write only when publishing immutable release state",
+    "auditor": "read-only"
+  }
+}
