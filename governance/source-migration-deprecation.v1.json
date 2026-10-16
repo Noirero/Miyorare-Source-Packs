@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "kind": "MIYORARE_SOURCE_MIGRATION_DEPRECATION_CONTRACT",
+  "authority": {
+    "canonicalIdentity": "Canonical Source Registry V2",
+    "migrationDeclaration": "explicit reviewed migration record",
+    "deprecationDeclaration": "explicit reviewed deprecation record",
+    "removal": "owner-authorized reviewed removal only"
+  },
+  "lifecycle": {
+    "migrationSourceStates": ["active", "degraded", "held", "unavailable", "deprecated"],
+    "migrationTerminalState": "migrated",
+    "deprecationState": "deprecated",
+    "temporaryOutageIsDeprecation": false
+  },
+  "migrationRules": [
+    "domain migration does not create a new canonical identity",
+    "provider replacement does not create a new canonical identity",
+    "identity replacement requires an explicit sourceCanonicalId and targetCanonicalId migration record",
+    "sourceCanonicalId and targetCanonicalId must differ for identity replacement",
+    "aliases and legacy identifiers required for continuity must be preserved",
+    "migration must declare continuity for favorites, history, progress, downloads, and aliases",
+    "migration must not silently rewrite an unknown identity",
+    "migration must preserve last-known-good until target compatibility is proven",
+    "migration may not imply deletion of the source record"
+  ],
+  "deprecationRules": [
+    "deprecation is not deletion",
+    "temporary outage alone is insufficient reason for deprecation",
+    "deprecated sources preserve canonical identity, aliases, and migration metadata",
+    "a replacement target is optional only when no safe successor exists",
+    "removal requires explicit owner authorization and a reviewed reason after deprecation"
+  ],
+  "requiredMigrationFields": [
+    "id", "sourceCanonicalId", "targetCanonicalId", "reason", "continuity", "aliases", "lkgPolicy", "evidence", "approval"
+  ],
+  "requiredDeprecationFields": [
+    "id", "canonicalId", "reason", "temporaryOutageOnly", "replacementCanonicalId", "aliases", "evidence", "approval", "removal"
+  ],
+  "continuityFields": ["favorites", "history", "progress", "downloads", "aliases"],
+  "continuityAllowed": ["preserve", "migrate", "not-applicable"],
+  "lkgPolicies": ["preserve-until-target-proven"],
+  "approvalStates": ["PROPOSED", "APPROVED", "REJECTED"],
+  "removalStates": ["NOT_REQUESTED", "OWNER_APPROVAL_REQUIRED", "OWNER_APPROVED"],
+  "failClosed": {
+    "unknownIdentity": "HELD",
+    "missingContinuity": "INVALID",
+    "missingEvidence": "INVALID",
+    "implicitRemoval": "INVALID",
+    "temporaryOutageDeprecation": "INVALID"
+  }
+}
