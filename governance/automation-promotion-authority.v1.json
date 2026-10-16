@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "defaultDecision": "HELD",
+  "principle": "Automation may promote only an explicitly authorized deterministic class after all class gates pass; unknown or incompatible candidates remain HELD and LKG remains authoritative.",
+  "classes": {
+    "builder_baseline": {
+      "automationMayStage": true,
+      "automationMayOpenPullRequest": true,
+      "automationMayMerge": true,
+      "ownerApprovalRequired": false,
+      "requiredAuthority": "source-pack-autonomous-release.yml",
+      "requiredGates": [
+        "farm-synchronized-manifest",
+        "exact-miyorare-pack-checks",
+        "source-pack-builder-baseline-ci",
+        "main-required-gates",
+        "protected-main-ruleset"
+      ],
+      "failureDecision": "HELD"
+    },
+    "provider_baseline": {
+      "automationMayStage": true,
+      "automationMayOpenPullRequest": false,
+      "automationMayMerge": false,
+      "ownerApprovalRequired": true,
+      "requiredAuthority": "source-lab-approve-candidate.yml -> source-lab-promote-candidate.yml",
+      "requiredGates": [
+        "exact-candidate-set",
+        "evidence-binding",
+        "owner-approval-proof",
+        "authorized-promotion-receipt",
+        "foundation-stale-write-check"
+      ],
+      "failureDecision": "HELD"
+    },
+    "source_onboarding": {
+      "automationMayStage": true,
+      "automationMayOpenPullRequest": false,
+      "automationMayMerge": false,
+      "ownerApprovalRequired": true,
+      "requiredAuthority": "source-lab-approve-ready-sources.yml",
+      "requiredGates": [
+        "ready-for-approval-state",
+        "exact-farm-state",
+        "owner-dispatch",
+        "stale-write-check"
+      ],
+      "failureDecision": "HELD"
+    },
+    "stable_release": {
+      "automationMayStage": true,
+      "automationMayOpenPullRequest": false,
+      "automationMayMerge": false,
+      "ownerApprovalRequired": false,
+      "requiredAuthority": "source-pack-autonomous-release.yml -> release-source-packs.yml",
+      "requiredGates": [
+        "pinned-builder-and-provider-fingerprint",
+        "compatibility-contract",
+        "immutable-version-allocation",
+        "sole-publisher",
+        "seal",
+        "post-publish-audit"
+      ],
+      "failureDecision": "HELD"
+    }
+  },
+  "prohibitions": [
+    "provider autoPromote metadata is not promotion authority",
+    "validation success alone is not promotion authority",
+    "unknown promotion classes may not fail open",
+    "automation may not bypass Main Required Gates",
+    "automation may not replace LKG after a failed or incomplete candidate",
+    "no workflow other than the authoritative stable controller may allocate a stable Source Pack version",
+    "no workflow other than the sole publisher may publish a stable Source Pack release"
+  ]
+}
