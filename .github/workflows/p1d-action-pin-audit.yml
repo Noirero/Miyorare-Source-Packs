@@ -6,8 +6,10 @@ on:
     paths:
       - '.github/workflows/**'
       - 'governance/action-pins.v1.json'
+      - 'governance/action-pin-resolution-evidence.v1.json'
       - 'tools/validate_action_pins.py'
       - 'tests/test_p1d_action_pins.py'
+      - 'tests/test_p1d_resolution_evidence.py'
   workflow_dispatch:
 
 permissions:
@@ -25,7 +27,7 @@ jobs:
           fetch-depth: 1
 
       - name: Run P1-D regression tests
-        run: python3 -m unittest tests.test_p1d_action_pins
+        run: python3 -m unittest tests.test_p1d_action_pins tests.test_p1d_resolution_evidence
 
       - name: Audit every workflow action reference
         run: python3 tools/validate_action_pins.py
