@@ -12,23 +12,21 @@ on:
         description: Exact upstream provider to validate
         required: true
         type: choice
-        options:
-          - keiyoushi
-          - uma
-          - gekkoushi
+        options: [keiyoushi, uma, gekkoushi]
       expected_candidate:
         description: Exact upstream candidate SHA expected for this request
         required: true
         type: string
-
+      runtime_evidence_run_id:
+        description: Exact prior runtime-closure evidence run (required for Keiyoushi)
+        required: false
+        type: string
 permissions:
   actions: write
   contents: write
-
 concurrency:
   group: source-lab-run-farm
   cancel-in-progress: false
-
 jobs:
   upstream:
     name: Validate live upstream candidate
@@ -48,249 +46,146 @@ jobs:
       EXPECTED_CANDIDATE: ${{ inputs.expected_candidate }}
     steps:
       - name: Fail closed on owner, repository, ref, request, provider, and candidate
-        env:
-          REQUEST_ID: ${{ inputs.request_id }}
-        shell: bash
+        env: { REQUEST_ID: "${{ inputs.request_id }}" }
         run: |
           set -euo pipefail
-          [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
-          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
-          [[ "$GITHUB_REF" == "refs/heads/main" ]]
-          [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
-          [[ "$REQUEST_ID" =~ ^[0-9a-f]{32}$ ]]
-          [[ "$SELECTED_PROVIDER" =~ ^(keiyoushi|uma|gekkoushi)$ ]]
-          [[ "$EXPECTED_CANDIDATE" =~ ^[0-9a-f]{40}$ ]]
-
+          [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "$GITHUB_REPOSITORY" == Noirero/Miyorare-Source-Packs && "$GITHUB_REF" == refs/heads/main && "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+          [[ "$REQUEST_ID" =~ ^[0-9a-f]{32}$ && "$SELECTED_PROVIDER" =~ ^(keiyoushi|uma|gekkoushi)$ && "$EXPECTED_CANDIDATE" =~ ^[0-9a-f]{40}$ ]]
       - name: Create isolated farm branch from authoritative foundation
         id: prepare
-        env:
-          REQUEST_ID: ${{ inputs.request_id }}
-        shell: bash
+        env: { REQUEST_ID: "${{ inputs.request_id }}" }
         run: |
           set -euo pipefail
-          foundation_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$FARM_REF" --jq '.object.sha')"
-          [[ "$foundation_sha" =~ ^[0-9a-f]{40}$ ]]
-          temp_branch="source-lab-farm-$REQUEST_ID"
-          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
-            -f ref="refs/heads/$temp_branch" \
-            -f sha="$foundation_sha" >/dev/null
-          echo "foundation_sha=$foundation_sha" >> "$GITHUB_OUTPUT"
-          echo "temp_branch=$temp_branch" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout isolated intake branch
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-        with:
-          ref: ${{ steps.prepare.outputs.temp_branch }}
-          path: intake-branch
-          fetch-depth: 1
-
+          foundation_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$FARM_REF" --jq '.object.sha')"; [[ "$foundation_sha" =~ ^[0-9a-f]{40}$ ]]
+          temp_branch="source-lab-farm-$REQUEST_ID"; gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/heads/$temp_branch" -f sha="$foundation_sha" >/dev/null
+          echo "foundation_sha=$foundation_sha" >> "$GITHUB_OUTPUT"; echo "temp_branch=$temp_branch" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with: { ref: "${{ steps.prepare.outputs.temp_branch }}", path: intake-branch, fetch-depth: 1 }
       - name: Scope intake to exact provider and candidate without mutating LKG
         id: scope
-        env:
-          TEMP_BRANCH: ${{ steps.prepare.outputs.temp_branch }}
-        shell: bash
+        env: { TEMP_BRANCH: "${{ steps.prepare.outputs.temp_branch }}" }
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import os
-          import shutil
+          import os, shutil
           from pathlib import Path
-
-          root = Path('intake-branch')
-          provider = os.environ['SELECTED_PROVIDER']
-          expected_candidate = os.environ['EXPECTED_CANDIDATE']
-          if provider not in {'keiyoushi', 'uma', 'gekkoushi'}:
-              raise SystemExit('invalid provider scope')
-
-          original = root / 'tools/upstream_sync.py'
-          impl = root / 'tools/upstream_sync_impl.py'
-          helper = root / 'tools/source_lab_scope_plan.py'
-          if not original.is_file():
-              raise SystemExit('authoritative upstream sync helper is missing')
-          shutil.copy2(original, impl)
-
-          helper.write_text(r'''#!/usr/bin/env python3
-          import argparse
-          import json
-          import re
-          from pathlib import Path
-
-          PROVIDERS = ('keiyoushi', 'uma', 'gekkoushi')
-          HEX40 = re.compile(r'^[0-9a-f]{40}$')
-
-          parser = argparse.ArgumentParser()
-          parser.add_argument('--plan', required=True, type=Path)
-          parser.add_argument('--provider', required=True, choices=PROVIDERS)
-          parser.add_argument('--expected-candidate', required=True)
-          parser.add_argument('--github-output', type=Path)
-          args = parser.parse_args()
-
-          if not HEX40.fullmatch(args.expected_candidate):
-              raise SystemExit('expected candidate must be a 40-character lowercase git SHA')
-          plan = json.loads(args.plan.read_text(encoding='utf-8'))
-          providers = plan.get('providers')
-          if not isinstance(providers, dict) or set(providers) != set(PROVIDERS):
-              raise SystemExit('provider-scoped plan is invalid')
-          selected = providers.get(args.provider)
-          if not isinstance(selected, dict) or selected.get('changed') is not True:
-              raise SystemExit('selected provider no longer differs from LKG')
-          if selected.get('candidate') != args.expected_candidate:
-              raise SystemExit(
-                  f"selected provider candidate mismatch: expected={args.expected_candidate!r}, "
-                  f"resolved={selected.get('candidate')!r}"
-              )
-          for name, item in providers.items():
-              if not isinstance(item, dict):
-                  raise SystemExit(f'invalid provider plan entry: {name}')
-              if name != args.provider:
-                  item['candidate'] = item['lastKnownGood']
-                  item['changed'] = False
-                  item['state'] = 'synced'
-          args.plan.write_text(json.dumps(plan, indent=2) + '\n', encoding='utf-8')
-          if args.github_output:
-              with args.github_output.open('a', encoding='utf-8') as out:
-                  for name, item in providers.items():
-                      prefix = name.upper().replace('-', '_')
-                      out.write(f"{prefix}_CURRENT={item['lastKnownGood']}\n")
-                      out.write(f"{prefix}_CANDIDATE={item['candidate']}\n")
-                      out.write(f"{prefix}_CHANGED={'true' if item['changed'] else 'false'}\n")
-          ''', encoding='utf-8')
-
-          wrapper = r'''#!/usr/bin/env python3
-          import os
-          import subprocess
-          import sys
-          from pathlib import Path
-
-          PROVIDER = __PROVIDER__
-          EXPECTED_CANDIDATE = __EXPECTED_CANDIDATE__
-          ROOT = Path(__file__).resolve().parent
-          IMPL = ROOT / 'upstream_sync_impl.py'
-          HELPER = ROOT / 'source_lab_scope_plan.py'
-
-          def arg_value(args, name, required=True):
-              try:
-                  index = args.index(name)
-              except ValueError:
-                  if required:
-                      raise SystemExit(f'missing required argument: {name}')
-                  return None
-              if index + 1 >= len(args):
-                  raise SystemExit(f'missing value for argument: {name}')
-              return args[index + 1]
-
-          def main():
-              args = sys.argv[1:]
-              if not args or args[0] != 'plan':
-                  os.execv(sys.executable, [sys.executable, str(IMPL), *args])
-
-              output = arg_value(args, '--output')
-              github_output = arg_value(args, '--github-output', required=False)
-              delegated = []
-              index = 0
-              while index < len(args):
-                  if args[index] == '--github-output':
-                      index += 2
-                      continue
-                  delegated.append(args[index])
-                  index += 1
-
-              subprocess.run([sys.executable, str(IMPL), *delegated], check=True)
-              scoped = [
-                  sys.executable,
-                  str(HELPER),
-                  '--plan', output,
-                  '--provider', PROVIDER,
-                  '--expected-candidate', EXPECTED_CANDIDATE,
-              ]
-              if github_output:
-                  scoped.extend(['--github-output', github_output])
-              subprocess.run(scoped, check=True)
-
-          if __name__ == '__main__':
-              main()
-          '''.replace('__PROVIDER__', repr(provider)).replace(
-              '__EXPECTED_CANDIDATE__', repr(expected_candidate)
-          )
-          original.write_text(wrapper, encoding='utf-8')
+          root=Path('intake-branch'); provider=os.environ['SELECTED_PROVIDER']; expected=os.environ['EXPECTED_CANDIDATE']; original=root/'tools/upstream_sync.py'; impl=root/'tools/upstream_sync_impl.py'; helper=root/'tools/source_lab_scope_plan.py'; shutil.copy2(original,impl)
+          helper.write_text('''#!/usr/bin/env python3
+import argparse,json,re
+from pathlib import Path
+P=("keiyoushi","uma","gekkoushi"); H=re.compile(r"^[0-9a-f]{40}$"); p=argparse.ArgumentParser(); p.add_argument("--plan",type=Path,required=True); p.add_argument("--provider",choices=P,required=True); p.add_argument("--expected-candidate",required=True); p.add_argument("--github-output",type=Path); a=p.parse_args()
+if not H.fullmatch(a.expected_candidate): raise SystemExit("expected candidate must be a lowercase 40-character git SHA")
+d=json.loads(a.plan.read_text()); ps=d.get("providers");
+if not isinstance(ps,dict) or set(ps)!=set(P): raise SystemExit("provider-scoped plan is invalid")
+s=ps[a.provider]
+if s.get("changed") is not True: raise SystemExit("selected provider no longer differs from LKG")
+if s.get("candidate") != a.expected_candidate: raise SystemExit(f"selected provider candidate mismatch: expected={a.expected_candidate!r}, resolved={s.get('candidate')!r}")
+for n,i in ps.items():
+ if n!=a.provider: i["candidate"]=i["lastKnownGood"]; i["changed"]=False; i["state"]="synced"
+a.plan.write_text(json.dumps(d,indent=2)+"\\n")
+if a.github_output:
+ with a.github_output.open("a") as o:
+  for n,i in ps.items():
+   q=n.upper().replace("-","_"); o.write(f"{q}_CURRENT={i['lastKnownGood']}\\n{q}_CANDIDATE={i['candidate']}\\n{q}_CHANGED={'true' if i['changed'] else 'false'}\\n")
+''')
+          wrapper='''#!/usr/bin/env python3
+import os,subprocess,sys
+from pathlib import Path
+P=__P__; E=__E__; R=Path(__file__).resolve().parent; I=R/"upstream_sync_impl.py"; H=R/"source_lab_scope_plan.py"
+def v(a,n,required=True):
+ try:i=a.index(n)
+ except ValueError:
+  if required: raise SystemExit(f"missing required argument: {n}")
+  return None
+ return a[i+1]
+def main():
+ a=sys.argv[1:]
+ if not a or a[0]!="plan": os.execv(sys.executable,[sys.executable,str(I),*a])
+ out=v(a,"--output"); go=v(a,"--github-output",False); d=[]; i=0
+ while i<len(a):
+  if a[i]=="--github-output": i+=2; continue
+  d.append(a[i]); i+=1
+ subprocess.run([sys.executable,str(I),*d],check=True); c=[sys.executable,str(H),"--plan",out,"--provider",P,"--expected-candidate",E]
+ if go:c += ["--github-output",go]
+ subprocess.run(c,check=True)
+if __name__=="__main__": main()
+'''.replace('__P__',repr(provider)).replace('__E__',repr(expected)); original.write_text(wrapper)
           PY
-
-          git -C intake-branch config user.name github-actions[bot]
-          git -C intake-branch config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git -C intake-branch add tools/upstream_sync.py tools/upstream_sync_impl.py tools/source_lab_scope_plan.py
-          git -C intake-branch commit -m "Scope manual Source Lab intake to $SELECTED_PROVIDER"
-          git -C intake-branch push origin "HEAD:$TEMP_BRANCH"
-          scoped_sha="$(git -C intake-branch rev-parse HEAD)"
-          [[ "$scoped_sha" =~ ^[0-9a-f]{40}$ ]]
-          echo "scoped_sha=$scoped_sha" >> "$GITHUB_OUTPUT"
-
+          git -C intake-branch config user.name github-actions[bot]; git -C intake-branch config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C intake-branch add tools/upstream_sync.py tools/upstream_sync_impl.py tools/source_lab_scope_plan.py; git -C intake-branch commit -m "Scope manual Source Lab intake to $SELECTED_PROVIDER"; git -C intake-branch push origin "HEAD:$TEMP_BRANCH"
+          echo "scoped_sha=$(git -C intake-branch rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Dispatch provider-scoped candidate intake on isolated branch
         id: run
-        env:
-          TEMP_BRANCH: ${{ steps.prepare.outputs.temp_branch }}
-          SCOPED_SHA: ${{ steps.scope.outputs.scoped_sha }}
-        shell: bash
+        env: { TEMP_BRANCH: "${{ steps.prepare.outputs.temp_branch }}", SCOPED_SHA: "${{ steps.scope.outputs.scoped_sha }}" }
+        run: |
+          set -euo pipefail; started_epoch="$(date -u +%s)"; gh workflow run upstream-sync.yml --repo "$GITHUB_REPOSITORY" --ref "$TEMP_BRANCH"
+          upstream_run_id=""; for _ in $(seq 1 90); do upstream_run_id="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow upstream-sync.yml --branch "$TEMP_BRANCH" --event workflow_dispatch --limit 30 --json databaseId,headSha,createdAt --jq "[.[]|select(.headSha==\"$SCOPED_SHA\")|select((.createdAt|fromdateiso8601)>=($started_epoch-5))]|sort_by(.databaseId)|last|.databaseId//empty")"; [[ -n "$upstream_run_id" ]] && break; sleep 2; done; [[ "$upstream_run_id" =~ ^[0-9]+$ ]]
+          for _ in $(seq 1 720); do status="$(gh run view "$upstream_run_id" --repo "$GITHUB_REPOSITORY" --json status --jq .status)"; [[ "$status" == completed ]] && break; sleep 10; done; [[ "$status" == completed ]]; [[ "$(gh run view "$upstream_run_id" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" == success ]]
+          artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$upstream_run_id/artifacts?per_page=100")"; if jq -e '.artifacts[]|select(.name=="upstream-candidate-handoff" and .expired==false)' <<<"$artifacts">/dev/null; then has_candidate=true; else has_candidate=false; fi
+          echo "upstream_run_id=$upstream_run_id" >> "$GITHUB_OUTPUT"; echo "has_candidate=$has_candidate" >> "$GITHUB_OUTPUT"
+
+  runtime-evidence:
+    name: Bind exact runtime closure evidence
+    needs: upstream
+    if: needs.upstream.outputs.has_candidate == 'true' && inputs.provider == 'keiyoushi'
+    runs-on: ubuntu-latest
+    outputs:
+      candidate_farm_allowed: ${{ steps.gate.outputs.candidate_farm_allowed }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUNTIME_RUN_ID: ${{ inputs.runtime_evidence_run_id }}
+      EXPECTED_CANDIDATE: ${{ inputs.expected_candidate }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with: { ref: "${{ needs.upstream.outputs.foundation_sha }}", fetch-depth: 1 }
+      - name: Download exact intake and runtime evidence
+        run: |
+          set -euo pipefail; [[ "$RUNTIME_RUN_ID" =~ ^[0-9]+$ ]]
+          gh run download "${{ needs.upstream.outputs.upstream_run_id }}" --repo "$GITHUB_REPOSITORY" --name keiyoushi-intake-report --dir build/intake
+          mkdir -p build/runtime; gh run download "$RUNTIME_RUN_ID" --repo "$GITHUB_REPOSITORY" --dir build/runtime
+      - name: Derive and apply exact runtime evidence
+        id: gate
         run: |
           set -euo pipefail
-          started_epoch="$(date -u +%s)"
-          gh workflow run upstream-sync.yml \
-            --repo "$GITHUB_REPOSITORY" \
-            --ref "$TEMP_BRANCH"
-
-          upstream_run_id=""
-          for _ in $(seq 1 90); do
-            upstream_run_id="$(gh run list \
-              --repo "$GITHUB_REPOSITORY" \
-              --workflow upstream-sync.yml \
-              --branch "$TEMP_BRANCH" \
-              --event workflow_dispatch \
-              --limit 30 \
-              --json databaseId,headSha,createdAt \
-              --jq "[.[] | select(.headSha == \"$SCOPED_SHA\") |
-                select((.createdAt | fromdateiso8601) >= ($started_epoch - 5))] |
-                sort_by(.databaseId) | last | .databaseId // empty")"
-            [[ -n "$upstream_run_id" ]] && break
-            sleep 2
-          done
-          [[ "$upstream_run_id" =~ ^[0-9]+$ ]]
-
-          status=""
-          for _ in $(seq 1 720); do
-            status="$(gh run view "$upstream_run_id" --repo "$GITHUB_REPOSITORY" --json status --jq '.status')"
-            [[ "$status" == "completed" ]] && break
-            sleep 10
-          done
-          [[ "$status" == "completed" ]]
-          conclusion="$(gh run view "$upstream_run_id" --repo "$GITHUB_REPOSITORY" --json conclusion --jq '.conclusion')"
-          [[ "$conclusion" == "success" ]]
-
-          artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$upstream_run_id/artifacts?per_page=100")"
-          if jq -e '.artifacts[] | select(.name == "upstream-candidate-handoff" and .expired == false)' \
-            <<<"$artifacts" >/dev/null; then
-            has_candidate=true
-          else
-            has_candidate=false
-          fi
-
-          echo "upstream_run_id=$upstream_run_id" >> "$GITHUB_OUTPUT"
-          echo "has_candidate=$has_candidate" >> "$GITHUB_OUTPUT"
+          intake="$(find build/intake -name keiyoushi-intake.json -print -quit)"; [[ -n "$intake" ]]
+          python3 - "$RUNTIME_RUN_ID" "$EXPECTED_CANDIDATE" <<'PY'
+          import json,sys
+          from pathlib import Path
+          run=int(sys.argv[1]); candidate=sys.argv[2]; proofs=[]; base=None
+          for p in Path('build/runtime').rglob('*.json'):
+           try:d=json.loads(p.read_text())
+           except Exception:continue
+           candidates=[]
+           if isinstance(d,dict) and isinstance(d.get('proofs'),list): candidates=d['proofs']; base=d.get('base') or base
+           elif isinstance(d,dict) and d.get('canonicalId'): candidates=[d]
+           for x in candidates:
+            if isinstance(x,dict) and x.get('candidateRevision')==candidate and x.get('runtimeClosureRevision')==candidate: proofs.append(x); base=base or x.get('baseRevision')
+          if len(proofs)!=6: raise SystemExit(f'exact runtime proof count must be 6, got {len(proofs)}')
+          Path('build/runtime-execution.json').write_text(json.dumps({'schema':1,'base':base,'candidate':candidate,'proofs':proofs},indent=2)+'\n')
+          PY
+          python3 tools/runtime_closure_evidence.py --intake "$intake" --execution build/runtime-execution.json --output build/runtime-evidence.json
+          python3 tools/evidence_scoped_disposition.py --intake "$intake" --evidence build/runtime-evidence.json --output build/runtime-disposition.json
+          python3 tools/source_lab_runtime_evidence_gate.py --disposition build/runtime-disposition.json --expected-candidate "$EXPECTED_CANDIDATE" \
+            --compatible miyorare:miyorare-id:BACAMI --compatible miyorare:miyorare-id:KIRYUU --compatible miyorare:miyorare-id:KOMIKU --compatible miyorare:miyorare-en:ASURASCANS --compatible miyorare:miyorare-en:AQUAMANGA --blocked miyorare:miyorare-en:BATCAVE --output build/runtime-gate.json
+          echo "candidate_farm_allowed=false" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: source-lab-runtime-evidence-${{ inputs.request_id }}
+          path: build/runtime-*.json
+          if-no-files-found: error
+          retention-days: 30
 
   candidate-farm:
     name: Run exact candidate real-parser farm
-    needs: upstream
-    if: needs.upstream.outputs.has_candidate == 'true'
+    needs: [upstream, runtime-evidence]
+    if: needs.upstream.outputs.has_candidate == 'true' && inputs.provider != 'keiyoushi'
     uses: ./.github/workflows/source-lab-candidate-farm.yml
-    with:
-      upstream_run_id: ${{ fromJSON(needs.upstream.outputs.upstream_run_id) }}
-      foundation_sha: ${{ needs.upstream.outputs.foundation_sha }}
-      provider: ${{ inputs.provider }}
-    permissions:
-      actions: read
-      contents: write
+    with: { upstream_run_id: "${{ fromJSON(needs.upstream.outputs.upstream_run_id) }}", foundation_sha: "${{ needs.upstream.outputs.foundation_sha }}", provider: "${{ inputs.provider }}" }
+    permissions: { actions: read, contents: write }
 
   receipt:
     name: Record Source Lab farm request
-    needs: [upstream, candidate-farm]
+    needs: [upstream, runtime-evidence, candidate-farm]
     if: always() && needs.upstream.result == 'success'
     runs-on: ubuntu-latest
     steps:
@@ -299,59 +194,28 @@ jobs:
           REQUEST_ID: ${{ inputs.request_id }}
           PROVIDER: ${{ inputs.provider }}
           EXPECTED_CANDIDATE: ${{ inputs.expected_candidate }}
+          RUNTIME_EVIDENCE_RUN_ID: ${{ inputs.runtime_evidence_run_id }}
           UPSTREAM_RUN_ID: ${{ needs.upstream.outputs.upstream_run_id }}
           FOUNDATION_SHA: ${{ needs.upstream.outputs.foundation_sha }}
           SCOPED_SHA: ${{ needs.upstream.outputs.scoped_sha }}
           HAS_CANDIDATE: ${{ needs.upstream.outputs.has_candidate }}
+          RUNTIME_EVIDENCE_RESULT: ${{ needs.runtime-evidence.result }}
           CANDIDATE_FARM_RESULT: ${{ needs.candidate-farm.result }}
-        shell: bash
         run: |
-          set -euo pipefail
-          mkdir -p build
-          python3 - <<'PY'
-          import json, os
+          mkdir -p build; python3 - <<'PY'
+          import json,os
           from pathlib import Path
-          receipt = {
-              "schemaVersion": 1,
-              "action": "RUN_FARM",
-              "requestId": os.environ["REQUEST_ID"],
-              "provider": os.environ["PROVIDER"],
-              "expectedCandidate": os.environ["EXPECTED_CANDIDATE"],
-              "upstreamRunId": int(os.environ["UPSTREAM_RUN_ID"]),
-              "foundationSha": os.environ["FOUNDATION_SHA"],
-              "scopedSha": os.environ["SCOPED_SHA"],
-              "hasCandidate": os.environ["HAS_CANDIDATE"] == "true",
-              "candidateFarmResult": os.environ["CANDIDATE_FARM_RESULT"],
-              "controlRunId": int(os.environ["GITHUB_RUN_ID"]),
-          }
-          Path("build/source-lab-run-farm-receipt.json").write_text(
-              json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-          )
+          r={"schemaVersion":1,"action":"RUN_FARM","requestId":os.environ['REQUEST_ID'],"provider":os.environ['PROVIDER'],"expectedCandidate":os.environ['EXPECTED_CANDIDATE'],"runtimeEvidenceRunId":os.environ['RUNTIME_EVIDENCE_RUN_ID'],"upstreamRunId":int(os.environ['UPSTREAM_RUN_ID']),"foundationSha":os.environ['FOUNDATION_SHA'],"scopedSha":os.environ['SCOPED_SHA'],"hasCandidate":os.environ['HAS_CANDIDATE']=='true',"runtimeEvidenceResult":os.environ['RUNTIME_EVIDENCE_RESULT'],"candidateFarmResult":os.environ['CANDIDATE_FARM_RESULT'],"controlRunId":int(os.environ['GITHUB_RUN_ID'])}; Path('build/source-lab-run-farm-receipt.json').write_text(json.dumps(r,indent=2,sort_keys=True)+'\n')
           PY
-
-      - name: Upload farm control receipt
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: source-lab-run-farm-${{ inputs.request_id }}
-          path: build/source-lab-run-farm-receipt.json
-          if-no-files-found: error
-          retention-days: 30
-
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: { name: "source-lab-run-farm-${{ inputs.request_id }}", path: build/source-lab-run-farm-receipt.json, if-no-files-found: error, retention-days: 30 }
   cleanup:
     name: Remove isolated farm branch
-    needs: [upstream, candidate-farm, receipt]
+    needs: [upstream, runtime-evidence, candidate-farm, receipt]
     if: always() && needs.upstream.outputs.temp_branch != ''
     runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
-      TEMP_BRANCH: ${{ needs.upstream.outputs.temp_branch }}
+    env: { GH_TOKEN: "${{ github.token }}", TEMP_BRANCH: "${{ needs.upstream.outputs.temp_branch }}" }
     steps:
       - name: Delete temporary ref
-        shell: bash
         run: |
-          set -euo pipefail
-          if ! gh api --method DELETE \
-            "repos/$GITHUB_REPOSITORY/git/refs/heads/$TEMP_BRANCH" \
-            >/dev/null; then
-            echo "::warning::Failed to delete temporary Source Lab branch $TEMP_BRANCH"
-          fi
+          if ! gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$TEMP_BRANCH" >/dev/null; then echo "::warning::Failed to delete temporary Source Lab branch $TEMP_BRANCH"; fi
