@@ -95,10 +95,12 @@ class ProtectedMainAutomationTests(unittest.TestCase):
         self.assertIn("activeLastKnownGoodMutated", farm)
         self.assertIn("publishEligible", farm)
 
-    def test_release_after_merge_remains_legacy_only(self) -> None:
+    def test_release_after_merge_requests_authoritative_controller(self) -> None:
         release = workflow("release-source-packs-after-merge.yml")
         self.assertIn("branches:\n      - main", release)
-        self.assertIn("gh workflow run release-source-packs.yml", release)
+        self.assertIn("gh workflow run source-pack-autonomous-release.yml", release)
+        self.assertNotIn("gh workflow run release-source-packs.yml", release)
+        self.assertNotIn("Determine next immutable source-pack version", release)
 
     def test_android_sdk_guard_is_read_only_audit(self) -> None:
         audit = workflow("repair-android-sdk-setup.yml")

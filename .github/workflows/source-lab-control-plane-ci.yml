@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - '.github/workflows/source-lab-*.yml'
+      - '.github/workflows/source-pack-autonomous-release.yml'
       - '.github/workflows/release-source-packs.yml'
       - 'tools/approval_state.py'
       - 'tools/authorized_promotion.py'
@@ -26,6 +27,7 @@ on:
       - 'source-lab-one-click-*'
     paths:
       - '.github/workflows/source-lab-*.yml'
+      - '.github/workflows/source-pack-autonomous-release.yml'
       - 'tools/source_inventory_bulk_enroll.py'
       - 'tools/source_pending_worker.py'
       - 'tools/source_live_parser_harness.py'
@@ -57,6 +59,8 @@ jobs:
             YAML.load_file(path, aliases: true)
             puts "parsed #{path}"
           end
+          YAML.load_file('.github/workflows/source-pack-autonomous-release.yml', aliases: true)
+          puts 'parsed .github/workflows/source-pack-autonomous-release.yml'
 
       - name: Verify complete capability and action surface
         shell: python {0}
@@ -76,12 +80,13 @@ jobs:
               'source-lab-sign-candidate.yml': ['actions/attest-build-provenance@v2', 'GITHUB_ARTIFACT_ATTESTATION'],
               'source-lab-publish-candidate.yml': [
                   'gh attestation verify',
-                  'release-source-packs.yml',
+                  'source-pack-autonomous-release.yml',
+                  'release_mode=source_lab_signed',
+                  'source-pack-signed-release-',
                   'compatibility-farm-foundation',
                   'live provider baseline moved after signing',
                   'lastPublishFailure',
                   'PUBLISH_PIPELINE_FAILED',
-                  'Farm advanced concurrently; retrying publish marker on latest head.',
               ],
               'source-lab-auto-farm.yml': [
                   'publish_recovery_available',
@@ -156,6 +161,19 @@ jobs:
               for needle in needles:
                   if needle not in text:
                       raise SystemExit(f'{name} missing required fail-closed marker: {needle}')
+
+          controller = (root / 'source-pack-autonomous-release.yml').read_text(encoding='utf-8')
+          for marker in (
+              'source_lab_signed',
+              'gh attestation verify build/source-lab-signing-manifest.json',
+              'requested Foundation commit differs from signed receipt',
+              'temporary release ref no longer points to the exact signed Foundation commit',
+              'Dispatch sole Source Pack publisher on exact signed ref',
+              'release-source-packs.yml',
+              'source-pack-signed-release-',
+          ):
+              if marker not in controller:
+                  raise SystemExit(f'authoritative release controller missing signed-request marker: {marker}')
 
           worker = Path('tools/source_pending_worker.py').read_text(encoding='utf-8')
           for marker in (
