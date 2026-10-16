@@ -6,6 +6,9 @@ on:
       - 'source-inventory-*'
     paths:
       - 'tools/source_inventory.py'
+      - 'tools/canonical_source_registry_v2.py'
+      - 'governance/canonical-source-registry-v2.schema.json'
+      - 'tests/test_p1a_canonical_source_registry_v2.py'
       - 'source-inventory-tests/**'
       - '.github/workflows/source-inventory-*.yml'
   pull_request:
@@ -13,6 +16,9 @@ on:
       - main
     paths:
       - 'tools/source_inventory.py'
+      - 'tools/canonical_source_registry_v2.py'
+      - 'governance/canonical-source-registry-v2.schema.json'
+      - 'tests/test_p1a_canonical_source_registry_v2.py'
       - 'source-inventory-tests/**'
       - '.github/workflows/source-inventory-*.yml'
   workflow_dispatch:
@@ -70,11 +76,12 @@ jobs:
           path: upstream-gekkoushi
           fetch-depth: 1
 
-      - name: Run inventory unit tests
+      - name: Run inventory and canonical registry unit tests
         working-directory: source-packs
         run: |
           python3 -m unittest discover -s source-inventory-tests -p 'test_*.py' -v
-          python3 -m py_compile tools/source_inventory.py
+          python3 -m unittest discover -s tests -p 'test_p1a_canonical_source_registry_v2.py' -v
+          python3 -m py_compile tools/source_inventory.py tools/canonical_source_registry_v2.py
 
       - name: Build inventory from real upstream trees
         shell: bash
@@ -92,6 +99,41 @@ jobs:
             --output build/source-inventory.json
           python3 source-packs/tools/source_inventory.py validate \
             --inventory build/source-inventory.json
+
+      - name: Build Canonical Source Registry V2 projection from live Farm state
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 source-packs/tools/canonical_source_registry_v2.py migrate \
+            --farm farm/compatibility/source-registry.json \
+            --output build/canonical-source-registry-v2.json
+          python3 source-packs/tools/canonical_source_registry_v2.py validate \
+            --registry build/canonical-source-registry-v2.json
+
+      - name: Verify identity, provider and LKG preservation
+        shell: python {0}
+        run: |
+          import json
+          from pathlib import Path
+
+          farm = json.loads(Path('farm/compatibility/source-registry.json').read_text(encoding='utf-8'))
+          v2 = json.loads(Path('build/canonical-source-registry-v2.json').read_text(encoding='utf-8'))
+          old = {item['canonicalId']: item for item in farm['sources']}
+          new = {item['canonicalId']: item for item in v2['sources']}
+          if set(old) != set(new):
+              raise SystemExit('V2 canonical identity set differs from live Farm registry')
+          if v2.get('providerBaselines') != farm.get('providerBaselines'):
+              raise SystemExit('V2 provider baselines differ from live Farm registry')
+          for canonical, before in old.items():
+              after = new[canonical]
+              identities = before.get('upstreamIdentities', {})
+              if after.get('providers') != identities:
+                  raise SystemExit(f'{canonical}: provider identity mapping changed during V2 projection')
+              if after.get('compatibility', {}).get('lastKnownGood') != before.get('lastKnownGood', {}):
+                  raise SystemExit(f'{canonical}: LKG changed during V2 projection')
+              if after.get('compatibility', {}).get('currentVersion') != before.get('currentVersion', {}):
+                  raise SystemExit(f'{canonical}: current provider version changed during V2 projection')
+          print(f'V2 projection preserved {len(new)} canonical source identities')
 
       - name: Verify discovery coverage and Farm separation
         shell: python {0}
@@ -112,10 +154,12 @@ jobs:
               raise SystemExit(f'provider coverage mismatch: {sorted(discovered)}')
           print(json.dumps(inventory['stats'], sort_keys=True))
 
-      - name: Upload generated inventory for inspection
+      - name: Upload generated registry previews for inspection
         uses: actions/upload-artifact@v4
         with:
-          name: source-inventory-preview
-          path: build/source-inventory.json
+          name: source-registry-previews
+          path: |
+            build/source-inventory.json
+            build/canonical-source-registry-v2.json
           if-no-files-found: error
           retention-days: 7

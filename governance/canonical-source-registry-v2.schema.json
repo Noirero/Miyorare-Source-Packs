@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 2,
+  "kind": "MIYORARE_CANONICAL_SOURCE_REGISTRY",
+  "authority": {
+    "identity": "canonicalId",
+    "providerMappings": "providers",
+    "packMembership": "packs",
+    "origin": "origin",
+    "lifecycle": "lifecycle",
+    "compatibility": "compatibility"
+  },
+  "requiredSourceFields": [
+    "canonicalId",
+    "displayName",
+    "language",
+    "packs",
+    "origin",
+    "providers",
+    "lifecycle",
+    "compatibility"
+  ],
+  "identityRules": {
+    "canonicalIdPrefix": "miyorare:",
+    "canonicalIdImmutable": true,
+    "providerIdentityMayNotDefineCanonicalIdentity": true,
+    "domainMigrationDoesNotCreateNewIdentity": true,
+    "providerReplacementDoesNotCreateNewIdentity": true,
+    "aliasesPreserveContinuity": true
+  },
+  "packRules": {
+    "allowed": ["miyorare-id", "miyorare-en", "miyorare-global"],
+    "membershipExplicit": true,
+    "providerIndependent": true
+  },
+  "originRules": {
+    "allowed": ["upstream-derived", "miyorare-native", "upstream-overlay"],
+    "providerOriginDoesNotOverrideCompatibility": true
+  },
+  "lifecycleStates": ["candidate", "validated", "active", "degraded", "held", "unavailable", "deprecated", "migrated"],
+  "compatibilityHealth": ["HEALTHY", "DEGRADED", "HELD", "UNAVAILABLE", "DEPRECATED", "UNKNOWN"],
+  "migration": {
+    "fromFarmSchemaVersion": 1,
+    "preserveCanonicalIds": true,
+    "preserveProviderMappings": true,
+    "preserveLastKnownGood": true,
+    "unknownMetadataDecision": "HELD",
+    "noAutomaticIdentityRewrite": true
+  }
+}
