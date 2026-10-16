@@ -181,7 +181,7 @@ class KeiyoushiKomikuParserHarnessTest {
             assertEquals(2, pages.size)
             assertEquals(listOf(0, 1), pages.map { it.index })
             assertEquals(listOf("https://img.komiku.org/001.jpg", "https://img.komiku.org/002.jpg"), pages.map { it.imageUrl })
-            val image = parser.imageRequest(pages.first())
+            val image = call("imageRequest", arrayOf(Page::class.java), pages.first()) as Request
             assertEquals(pages.first().imageUrl, image.url.toString())
             assertEquals("https://komiku.org/alpha-chapter-1/", image.header("Referer"))
 

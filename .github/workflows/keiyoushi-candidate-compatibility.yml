@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: worka-keiyoushi-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   plan:
     name: Bind six-source baseline and candidate diagnostics
@@ -155,5 +159,71 @@ jobs:
           path: |
             build/worka-provenance.json
             _upstream/keiyoushi/${{ matrix.module }}/build/test-results/testDebugUnitTest/*.xml
+          if-no-files-found: error
+          retention-days: 14
+
+  uma-baseline:
+    name: Existing Miyorare UMA behavior / LKG
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: InvalidDavid/UMA
+          ref: 52185ec4faada143f57dcfb41c6fa49aa346b4db
+          path: _upstream/uma
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+      - name: Install unchanged UMA harnesses and record LKG provenance
+        run: |
+          python3 - <<'PY'
+          import json, shutil, subprocess
+          from pathlib import Path
+          root = Path('_upstream/uma')
+          revision = subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip()
+          assert revision == '52185ec4faada143f57dcfb41c6fa49aa346b4db'
+          registry = json.loads(Path('compatibility/source-registry.json').read_text())
+          selected = {'miyorare:miyorare-id:BACAMI', 'miyorare:miyorare-id:KIRYUU',
+                      'miyorare:miyorare-id:KOMIKU', 'miyorare:miyorare-en:ASURASCANS',
+                      'miyorare:miyorare-en:AQUAMANGA', 'miyorare:miyorare-en:BATCAVE'}
+          sources = [s for s in registry['sources'] if s['canonicalId'] in selected]
+          assert len(sources) == 6
+          for source in sources:
+              assert source['lastKnownGood']['uma'] == revision
+              assert (root / source['upstreamIdentities']['uma']['file']).is_file()
+          shutil.copytree('compatibility/harness/uma', root / 'src/test/kotlin/compatibilityfarm', ignore=shutil.ignore_patterns('resources'))
+          shutil.copytree('compatibility/harness/uma/resources', root / 'src/test/resources/compatibility-farm', dirs_exist_ok=True)
+          Path('build').mkdir(exist_ok=True)
+          Path('build/uma-provenance.json').write_text(json.dumps({
+              'scope': 'existing-miyorare-behavior-at-lkg', 'revision': revision,
+              'canonicalIds': sorted(selected), 'officialCandidateFarm': False,
+          }, indent=2) + '\n')
+          PY
+      - name: Execute six existing UMA parser memberships
+        working-directory: _upstream/uma
+        run: |
+          bash gradlew test \
+            --tests compatibilityfarm.KomikuParserHarnessTest \
+            --tests compatibilityfarm.KiryuuNatsuParserHarnessTest \
+            --tests compatibilityfarm.AquaReaderMadaraParserHarnessTest \
+            --tests compatibilityfarm.BacamiParserHarnessTest \
+            --tests compatibilityfarm.AsuraScansParserHarnessTest \
+            --tests compatibilityfarm.BatcaveParserHarnessTest \
+            --no-daemon
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: worka-uma-baseline-${{ github.event.pull_request.head.sha }}
+          path: |
+            build/uma-provenance.json
+            _upstream/uma/build/test-results/test/*.xml
           if-no-files-found: error
           retention-days: 14

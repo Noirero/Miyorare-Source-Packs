@@ -255,7 +255,7 @@ class KeiyoushiAquaMangaParserHarnessTest {
                 assertEquals("https://aquareader.org/pages/002.jpg", pages[1].imageUrl)
                 val expectedPageUrl = "${canonical}chapter-${index + 1}/" + if (index == 1) "?style=list" else ""
                 assertEquals(expectedPageUrl, pages[0].url)
-                val image = parser.imageRequest(pages[0])
+                val image = call("imageRequest", arrayOf(Page::class.java), pages[0]) as Request
                 assertEquals(pages[0].imageUrl, image.url.toString())
                 assertEquals(expectedPageUrl, image.header("Referer"))
             }
