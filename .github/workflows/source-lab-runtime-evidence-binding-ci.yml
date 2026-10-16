@@ -16,6 +16,21 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+      - name: Prove immutable runtime tool ownership boundary
+        env:
+          GITHUB_SHA_EXPRESSION: '${{ ''${{ github.sha }}'' }}'
+        run: |
+          set -euo pipefail
+          workflow=.github/workflows/source-lab-run-farm.yml
+          grep -F 'ref: ${{ needs.upstream.outputs.foundation_sha }}' "$workflow"
+          grep -F 'path: foundation' "$workflow"
+          grep -F "ref: $GITHUB_SHA_EXPRESSION" "$workflow"
+          grep -F 'path: control-plane' "$workflow"
+          grep -F 'python3 foundation/tools/runtime_closure_evidence.py' "$workflow"
+          grep -F 'python3 foundation/tools/evidence_scoped_disposition.py' "$workflow"
+          grep -F 'python3 control-plane/tools/source_lab_runtime_evidence_gate.py' "$workflow"
+          ! grep -F 'ref: main' "$workflow"
+          ! grep -F 'python3 tools/source_lab_runtime_evidence_gate.py' "$workflow"
       - name: Prove five compatible, BATCAVE held, and exact candidate binding
         run: |
           set -euo pipefail

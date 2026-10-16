@@ -297,7 +297,14 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: ${{ needs.upstream.outputs.foundation_sha }}
+          path: foundation
           fetch-depth: 1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          path: control-plane
+          fetch-depth: 1
+          persist-credentials: false
       - name: Download exact intake and runtime evidence
         shell: bash
         run: |
@@ -334,9 +341,9 @@ jobs:
               raise SystemExit(f'exact runtime proof count must be 6, got {len(proofs)}')
           Path('build/runtime-execution.json').write_text(json.dumps({'schema': 1, 'base': base, 'candidate': candidate, 'proofs': proofs}, indent=2) + '\n', encoding='utf-8')
           PY
-          python3 tools/runtime_closure_evidence.py --intake "$intake" --execution build/runtime-execution.json --output build/runtime-evidence.json
-          python3 tools/evidence_scoped_disposition.py --intake "$intake" --evidence build/runtime-evidence.json --output build/runtime-disposition.json
-          python3 tools/source_lab_runtime_evidence_gate.py --disposition build/runtime-disposition.json --expected-candidate "$EXPECTED_CANDIDATE" --compatible miyorare:miyorare-id:BACAMI --compatible miyorare:miyorare-id:KIRYUU --compatible miyorare:miyorare-id:KOMIKU --compatible miyorare:miyorare-en:ASURASCANS --compatible miyorare:miyorare-en:AQUAMANGA --blocked miyorare:miyorare-en:BATCAVE --output build/runtime-gate.json
+          python3 foundation/tools/runtime_closure_evidence.py --intake "$intake" --execution build/runtime-execution.json --output build/runtime-evidence.json
+          python3 foundation/tools/evidence_scoped_disposition.py --intake "$intake" --evidence build/runtime-evidence.json --output build/runtime-disposition.json
+          python3 control-plane/tools/source_lab_runtime_evidence_gate.py --disposition build/runtime-disposition.json --expected-candidate "$EXPECTED_CANDIDATE" --compatible miyorare:miyorare-id:BACAMI --compatible miyorare:miyorare-id:KIRYUU --compatible miyorare:miyorare-id:KOMIKU --compatible miyorare:miyorare-en:ASURASCANS --compatible miyorare:miyorare-en:AQUAMANGA --blocked miyorare:miyorare-en:BATCAVE --output build/runtime-gate.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: source-lab-runtime-evidence-${{ inputs.request_id }}
