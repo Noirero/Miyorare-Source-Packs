@@ -302,6 +302,13 @@ jobs:
           if not root.is_dir():
               raise SystemExit(0)
           allowed = {'all'} if pack == 'global' else {pack}
+          if pack == 'global' and (root / 'all/RawDex.kt').is_file():
+              # Match release preparation: the Global overlay replaces the legacy
+              # RawDEX implementation only in this disposable upstream checkout.
+              legacy_rawdex = Path('_upstream/gekkoushi/src/main/kotlin/tsuki/site/madara/ko/RawDex.kt')
+              if legacy_rawdex.exists():
+                  legacy_rawdex.unlink()
+                  print(f'removed legacy Global RawDEX parser: {legacy_rawdex}')
           for file in root.rglob('*.kt'):
               rel = file.relative_to(root)
               if not rel.parts or rel.parts[0] not in allowed:
@@ -478,6 +485,13 @@ jobs:
           if not root.is_dir():
               raise SystemExit(0)
           allowed = {'all'} if pack == 'global' else {pack}
+          if pack == 'global' and (root / 'all/RawDex.kt').is_file():
+              # Match release preparation: the Global overlay replaces the legacy
+              # RawDEX implementation only in this disposable upstream checkout.
+              legacy_rawdex = Path('_upstream/gekkoushi/src/main/kotlin/tsuki/site/madara/ko/RawDex.kt')
+              if legacy_rawdex.exists():
+                  legacy_rawdex.unlink()
+                  print(f'removed legacy Global RawDEX parser: {legacy_rawdex}')
           for file in root.rglob('*.kt'):
               rel = file.relative_to(root)
               if not rel.parts or rel.parts[0] not in allowed:

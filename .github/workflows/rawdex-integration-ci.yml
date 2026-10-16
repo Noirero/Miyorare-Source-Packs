@@ -1,0 +1,80 @@
+name: RAWDEX Integration Regression
+
+on:
+  pull_request:
+    branches: [compatibility-farm-foundation]
+    paths:
+      - '.github/workflows/upstream-sync.yml'
+      - '.github/workflows/rawdex-integration-ci.yml'
+      - 'tests/validate_rawdex_integration.py'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate RAWDEX replacement and Global build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Checkout pinned Miyorare builder and overlays
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Noirero/Miyorare
+          ref: 1e687d3cdfdd9c1caa882aeb1947f1085f66a3f1
+          path: fixtures/miyorare
+          persist-credentials: false
+
+      - name: Checkout pinned Gekkoushi LKG fixture
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: 9aa770b7cb699c6385f574f13710990e17ef5517
+          path: fixtures/gekkoushi
+          persist-credentials: false
+
+      - name: Extract proposed integration preparation
+        run: >-
+          ruby -rjson -ryaml -e 'puts JSON.generate(YAML.load_file(ARGV[0], aliases: true))'
+          .github/workflows/upstream-sync.yml > "$RUNNER_TEMP/rawdex-workflow.json"
+
+      - name: Validate replacement, uniqueness, and ID/EN isolation
+        run: |
+          python3 tests/validate_rawdex_integration.py \
+            --workflow-json "$RUNNER_TEMP/rawdex-workflow.json" \
+            --miyorare-root fixtures/miyorare \
+            --gekkoushi-root fixtures/gekkoushi \
+            --stage-global build/rawdex-validation
+
+      - name: Set up Java 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Build prepared Global Gekkoushi shard
+        working-directory: build/rawdex-validation/gekkoushi
+        run: |
+          chmod +x gradlew
+          ./gradlew buildJar --no-daemon
+
+      - name: Upload disposable validation evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rawdex-integration-${{ github.event.pull_request.head.sha }}
+          path: |
+            build/rawdex-validation/gekkoushi/miyorare-pack.json
+            build/rawdex-validation/gekkoushi/build/libs/gekkoushi.jar
+          if-no-files-found: error
+          retention-days: 14
