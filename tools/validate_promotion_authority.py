@@ -50,17 +50,26 @@ def main() -> None:
     publisher = (WORKFLOWS / "release-source-packs.yml").read_text(encoding="utf-8")
     main_gate = (WORKFLOWS / "main-required-gates.yml").read_text(encoding="utf-8")
 
-    owner_marker = 'EXPECTED_OWNER_ID: \'149634319\''
-    require(owner_marker in approve and '[[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]' in approve, "provider approval lost owner binding")
-    require(owner_marker in promote and 'approval_run_id' in promote and 'authorized_promotion.py' in promote, "provider promotion lost owner-approved authority chain")
-    require(owner_marker in onboarding and 'READY_FOR_APPROVAL' in onboarding, "source onboarding lost owner approval authority")
+    owner_marker = "EXPECTED_OWNER_ID: '149634319'"
+    owner_check = '[[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]'
+    require(owner_marker in approve and owner_check in approve, "provider approval lost owner binding")
+    require(owner_marker in promote and owner_check in promote and "approval_run_id" in promote and "authorized_promotion.py" in promote, "provider promotion lost owner-approved authority chain")
+    require(
+        owner_marker in onboarding
+        and owner_check in onboarding
+        and "source_pending_approval.py plan" in onboarding
+        and "source_pending_approval.py apply" in onboarding
+        and '--approved-by "$GITHUB_ACTOR:$GITHUB_ACTOR_ID"' in onboarding
+        and "Refuse stale approval commit" in onboarding,
+        "source onboarding lost owner approval authority",
+    )
 
     require('gh pr merge "$PR_NUMBER"' in controller, "builder baseline automated merge path moved; classify it before changing authority")
-    require('source-pack-builder-baseline.yml' in controller, "builder baseline exact validation missing")
-    require('Main Required Gates' in main_gate and 'pull_request:' in main_gate, "protected main gate contract missing")
+    require("source-pack-builder-baseline.yml" in controller, "builder baseline exact validation missing")
+    require("Main Required Gates" in main_gate and "pull_request:" in main_gate, "protected main gate contract missing")
 
-    require('gh workflow run release-source-packs.yml' in controller, "authoritative controller no longer dispatches sole publisher")
-    require('Determine next immutable source-pack version' in controller, "stable version authority moved from controller")
+    require("gh workflow run release-source-packs.yml" in controller, "authoritative controller no longer dispatches sole publisher")
+    require("Determine next immutable source-pack version" in controller, "stable version authority moved from controller")
     require('gh release create "$TAG"' in publisher, "sole publisher no longer owns stable release creation")
 
     print("P0-C automation promotion authority validated")
