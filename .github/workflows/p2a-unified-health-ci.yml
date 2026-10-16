@@ -1,0 +1,74 @@
+name: P2-A Unified Health CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'governance/unified-source-health.v1.json'
+      - 'tools/unified_source_health.py'
+      - 'tests/test_p2a_unified_source_health.py'
+      - 'upstream/status.json'
+      - '.github/workflows/p2a-unified-health-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unified-health:
+    name: Validate unified source health projection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: source-packs
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Checkout live Compatibility Farm state
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 1
+
+      - name: Run P2-A regression tests
+        working-directory: source-packs
+        run: |
+          python3 -m unittest tests.test_p2a_unified_source_health -v
+          python3 -m py_compile tools/unified_source_health.py
+
+      - name: Build unified health from live Farm and repository status evidence
+        run: |
+          python3 source-packs/tools/unified_source_health.py build \
+            --farm farm/compatibility/source-registry.json \
+            --upstream-status source-packs/upstream/status.json \
+            --output build/unified-source-health.json
+          python3 source-packs/tools/unified_source_health.py validate \
+            --health build/unified-source-health.json
+
+      - name: Verify projection preserves Farm identity and LKG
+        shell: python {0}
+        run: |
+          import json
+          from pathlib import Path
+          farm = json.loads(Path('farm/compatibility/source-registry.json').read_text(encoding='utf-8'))
+          health = json.loads(Path('build/unified-source-health.json').read_text(encoding='utf-8'))
+          old = {item['canonicalId']: item for item in farm['sources']}
+          new = {item['canonicalId']: item for item in health['sources']}
+          if set(old) != set(new):
+              raise SystemExit('unified health canonical identity set differs from live Farm registry')
+          for canonical, before in old.items():
+              if new[canonical]['lastKnownGood'] != before.get('lastKnownGood', {}):
+                  raise SystemExit(f'{canonical}: unified health changed LKG')
+          print(f'Unified health preserved {len(new)} canonical identities and LKG records')
+
+      - name: Upload unified health preview
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: unified-source-health-preview
+          path: build/unified-source-health.json
+          if-no-files-found: error
+          retention-days: 7
