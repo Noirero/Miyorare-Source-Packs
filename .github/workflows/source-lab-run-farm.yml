@@ -262,6 +262,7 @@ jobs:
     with:
       upstream_run_id: ${{ fromJSON(needs.upstream.outputs.upstream_run_id) }}
       foundation_sha: ${{ needs.upstream.outputs.foundation_sha }}
+      provider: ${{ inputs.provider }}
     permissions:
       actions: read
       contents: write
@@ -269,10 +270,7 @@ jobs:
   receipt:
     name: Record Source Lab farm request
     needs: [upstream, candidate-farm]
-    if: >-
-      always() &&
-      needs.upstream.result == 'success' &&
-      (needs.upstream.outputs.has_candidate != 'true' || needs.candidate-farm.result == 'success')
+    if: always() && needs.upstream.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Emit control receipt
@@ -329,6 +327,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh api --method DELETE \
+          if ! gh api --method DELETE \
             "repos/$GITHUB_REPOSITORY/git/refs/heads/$TEMP_BRANCH" \
-            >/dev/null 2>&1 || true
+            >/dev/null; then
+            echo "::warning::Failed to delete temporary Source Lab branch $TEMP_BRANCH"
+          fi
