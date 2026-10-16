@@ -3,7 +3,6 @@ name: Main Required Gates
 on:
   pull_request:
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   actions: write
@@ -11,7 +10,7 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: main-required-gates-${{ github.event.pull_request.number || github.ref_name }}
+  group: main-required-gates-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
@@ -22,8 +21,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
-      HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      HEAD_BRANCH: ${{ github.head_ref || github.ref_name }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      HEAD_BRANCH: ${{ github.head_ref }}
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@v5
@@ -32,7 +31,6 @@ jobs:
           fetch-depth: 1
 
       - name: Fail closed unless candidate is exact current PR head
-        if: github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
@@ -42,7 +40,6 @@ jobs:
           [[ "$live" == "$HEAD_SHA" ]] || { echo "PR head moved before required-gate validation." >&2; exit 1; }
 
       - name: Resolve changed-file gate set
-        if: github.event_name == 'pull_request'
         id: scope
         shell: bash
         run: |
@@ -77,7 +74,7 @@ jobs:
 
           upstream = any(p.startswith('upstream/') or p.startswith('tests/') or p in upstream_exact for p in paths)
           source_lab = any(
-              (p.startswith('.github/workflows/source-lab-'))
+              p.startswith('.github/workflows/source-lab-')
               or p in {'.github/workflows/source-pack-autonomous-release.yml', '.github/workflows/release-source-packs.yml'}
               or p in source_lab_tools
               or p.startswith('tests/')
@@ -92,7 +89,6 @@ jobs:
           cat "$RUNNER_TEMP/changed-files.txt"
 
       - name: Dispatch and require core exact-head gates
-        if: github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
@@ -139,7 +135,6 @@ jobs:
           fi
 
       - name: Require relevant changed-file gates
-        if: github.event_name == 'pull_request'
         env:
           NEED_UPSTREAM: ${{ steps.scope.outputs.upstream }}
           NEED_SOURCE_LAB: ${{ steps.scope.outputs.source_lab }}
@@ -173,7 +168,6 @@ jobs:
           [[ "$NEED_ANDROID" != "true" ]] || wait_natural repair-android-sdk-setup.yml
 
       - name: Revalidate exact head after all required gates
-        if: github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
