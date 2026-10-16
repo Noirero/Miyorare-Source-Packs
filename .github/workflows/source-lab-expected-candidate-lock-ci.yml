@@ -1,0 +1,99 @@
+name: Source Lab Expected Candidate Lock CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/source-lab-run-farm.yml'
+      - '.github/workflows/source-lab-expected-candidate-lock-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  expected-candidate-lock:
+    name: Prove expected candidate match and mismatch behavior
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Execute embedded candidate-scope helper against match and mismatch plans
+        shell: python {0}
+        run: |
+          import json
+          import subprocess
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/source-lab-run-farm.yml').read_text(encoding='utf-8')
+          start_marker = "helper.write_text(r'''"
+          end_marker = "          ''', encoding='utf-8')"
+          start = workflow.find(start_marker)
+          if start < 0:
+              raise SystemExit('candidate-scope helper start marker not found')
+          start += len(start_marker)
+          end = workflow.find(end_marker, start)
+          if end < 0:
+              raise SystemExit('candidate-scope helper end marker not found')
+
+          helper_source = workflow[start:end]
+          helper_source = helper_source.replace('\n          ', '\n').lstrip('\n')
+          expected = '23345ef345e3b20d7fcc0b5d8fdc922d025af47f'
+          mismatch = '0' * 40
+
+          with tempfile.TemporaryDirectory() as tmp:
+              root = Path(tmp)
+              helper = root / 'source_lab_scope_plan.py'
+              helper.write_text(helper_source, encoding='utf-8')
+
+              def write_plan(candidate):
+                  plan = {
+                      'providers': {
+                          'keiyoushi': {
+                              'changed': True,
+                              'candidate': candidate,
+                              'lastKnownGood': '3' * 40,
+                          },
+                          'uma': {
+                              'changed': False,
+                              'candidate': '1' * 40,
+                              'lastKnownGood': '1' * 40,
+                          },
+                          'gekkoushi': {
+                              'changed': False,
+                              'candidate': '2' * 40,
+                              'lastKnownGood': '2' * 40,
+                          },
+                      }
+                  }
+                  path = root / 'plan.json'
+                  path.write_text(json.dumps(plan), encoding='utf-8')
+                  return path
+
+              matched = subprocess.run(
+                  [sys.executable, str(helper), '--plan', str(write_plan(expected)),
+                   '--provider', 'keiyoushi', '--expected-candidate', expected],
+                  text=True, capture_output=True,
+              )
+              if matched.returncode != 0:
+                  raise SystemExit(
+                      f'matching candidate was rejected: stdout={matched.stdout!r} stderr={matched.stderr!r}'
+                  )
+
+              rejected = subprocess.run(
+                  [sys.executable, str(helper), '--plan', str(write_plan(mismatch)),
+                   '--provider', 'keiyoushi', '--expected-candidate', expected],
+                  text=True, capture_output=True,
+              )
+              if rejected.returncode == 0:
+                  raise SystemExit('mismatched candidate was incorrectly accepted')
+              if 'selected provider candidate mismatch' not in rejected.stderr:
+                  raise SystemExit(
+                      f'mismatch failed for the wrong reason: stdout={rejected.stdout!r} stderr={rejected.stderr!r}'
+                  )
+
+          print('expected candidate lock: matching SHA accepted; mismatched SHA rejected fail-closed')
