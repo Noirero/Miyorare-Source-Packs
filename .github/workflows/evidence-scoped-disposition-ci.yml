@@ -1,0 +1,36 @@
+name: Evidence Scoped Disposition CI
+
+on:
+  pull_request:
+    branches: [compatibility-farm-foundation]
+    paths:
+      - 'tools/evidence_scoped_disposition.py'
+      - 'tests/test_evidence_scoped_disposition.py'
+      - '.github/workflows/evidence-scoped-disposition-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evidence-disposition-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    name: Fail-closed evidence disposition regressions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact head
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Compile contract tool
+        run: python3 -m py_compile tools/evidence_scoped_disposition.py
+      - name: Run regression tests
+        run: python3 -m unittest tests.test_evidence_scoped_disposition -v
