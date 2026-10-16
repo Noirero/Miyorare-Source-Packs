@@ -1,0 +1,176 @@
+name: Main Required Gates
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: main-required-gates-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  required:
+    name: Main Required Gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      HEAD_BRANCH: ${{ github.head_ref }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          fetch-depth: 1
+
+      - name: Fail closed unless candidate is exact current PR head
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          [[ "$actual" == "$HEAD_SHA" ]]
+          live="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
+          [[ "$live" == "$HEAD_SHA" ]] || { echo "PR head moved before required-gate validation." >&2; exit 1; }
+
+      - name: Resolve changed-file gate set
+        id: scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --jq '.[].filename' > "$RUNNER_TEMP/changed-files.txt"
+          python3 - "$RUNNER_TEMP/changed-files.txt" <<'PY' >> "$GITHUB_OUTPUT"
+          import sys
+          paths = [line.strip() for line in open(sys.argv[1], encoding='utf-8') if line.strip()]
+
+          upstream_exact = {
+              'tools/upstream_sync.py',
+              'tools/keiyoushi_intake.py',
+              'tools/keiyoushi_semantic_adapter.py',
+              '.github/workflows/upstream-sync.yml',
+              '.github/workflows/upstream-sync-status.yml',
+              '.github/workflows/upstream-sync-pr-check.yml',
+              '.github/workflows/release-source-packs.yml',
+              '.github/workflows/release-source-packs-after-merge.yml',
+              'README.md',
+          }
+          source_lab_tools = {
+              'tools/approval_state.py',
+              'tools/authorized_promotion.py',
+              'tools/candidate_lifecycle.py',
+              'tools/candidate_registry.py',
+              'tools/approval_evidence.py',
+              'tools/source_inventory_bulk_enroll.py',
+              'tools/source_pending_worker.py',
+              'tools/source_live_parser_harness.py',
+              'tools/source_pending_approval.py',
+          }
+
+          upstream = any(p.startswith('upstream/') or p.startswith('tests/') or p in upstream_exact for p in paths)
+          source_lab = any(
+              p.startswith('.github/workflows/source-lab-')
+              or p in {'.github/workflows/source-pack-autonomous-release.yml', '.github/workflows/release-source-packs.yml'}
+              or p in source_lab_tools
+              or p.startswith('tests/')
+              for p in paths
+          )
+          android = any(p.startswith('.github/workflows/') for p in paths)
+
+          print(f"upstream={'true' if upstream else 'false'}")
+          print(f"source_lab={'true' if source_lab else 'false'}")
+          print(f"android={'true' if android else 'false'}")
+          PY
+          cat "$RUNNER_TEMP/changed-files.txt"
+
+      - name: Dispatch and require core exact-head gates
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          wait_for_run() {
+            local workflow="$1"
+            local event="$2"
+            local previous="${3:-0}"
+            local run_id=""
+            for _ in $(seq 1 120); do
+              run_id="$(gh run list \
+                --repo "$GITHUB_REPOSITORY" \
+                --workflow "$workflow" \
+                --branch "$HEAD_BRANCH" \
+                --event "$event" \
+                --limit 100 \
+                --json databaseId,headSha \
+                --jq ".[] | select(.headSha == \"$HEAD_SHA\" and .databaseId > $previous) | .databaseId" \
+                | sort -n | tail -n 1)"
+              [[ -n "$run_id" ]] && break
+              sleep 2
+            done
+            [[ "$run_id" =~ ^[0-9]+$ ]] || { echo "No exact-head $workflow run found." >&2; exit 1; }
+            gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 15
+          }
+
+          dispatch_exact() {
+            local workflow="$1"
+            local previous
+            previous="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "$workflow" --limit 1 --json databaseId --jq '.[0].databaseId // 0')"
+            gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref "$HEAD_BRANCH"
+            wait_for_run "$workflow" workflow_dispatch "$previous"
+          }
+
+          dispatch_exact source-pack-contract.yml
+          dispatch_exact source-pack-builder-baseline.yml
+
+          previous_inventory="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow source-inventory-ci.yml --limit 1 --json databaseId --jq '.[0].databaseId // 0')"
+          if gh workflow run source-inventory-ci.yml --repo "$GITHUB_REPOSITORY" --ref "$HEAD_BRANCH"; then
+            wait_for_run source-inventory-ci.yml workflow_dispatch "$previous_inventory"
+          else
+            echo "Source Inventory workflow_dispatch is not yet on default branch; requiring its natural exact-head PR run for this bootstrap PR."
+            wait_for_run source-inventory-ci.yml pull_request 0
+          fi
+
+      - name: Require relevant changed-file gates
+        env:
+          NEED_UPSTREAM: ${{ steps.scope.outputs.upstream }}
+          NEED_SOURCE_LAB: ${{ steps.scope.outputs.source_lab }}
+          NEED_ANDROID: ${{ steps.scope.outputs.android }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          wait_natural() {
+            local workflow="$1"
+            local run_id=""
+            for _ in $(seq 1 120); do
+              run_id="$(gh run list \
+                --repo "$GITHUB_REPOSITORY" \
+                --workflow "$workflow" \
+                --branch "$HEAD_BRANCH" \
+                --event pull_request \
+                --limit 100 \
+                --json databaseId,headSha \
+                --jq ".[] | select(.headSha == \"$HEAD_SHA\") | .databaseId" \
+                | sort -n | tail -n 1)"
+              [[ -n "$run_id" ]] && break
+              sleep 2
+            done
+            [[ "$run_id" =~ ^[0-9]+$ ]] || { echo "Required changed-file workflow $workflow did not run on exact PR head." >&2; exit 1; }
+            gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 15
+          }
+
+          [[ "$NEED_UPSTREAM" != "true" ]] || wait_natural upstream-sync-pr-check.yml
+          [[ "$NEED_SOURCE_LAB" != "true" ]] || wait_natural source-lab-control-plane-ci.yml
+          [[ "$NEED_ANDROID" != "true" ]] || wait_natural repair-android-sdk-setup.yml
+
+      - name: Revalidate exact head after all required gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          live="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
+          [[ "$live" == "$HEAD_SHA" ]] || { echo "PR head moved after required-gate validation; refusing stale success." >&2; exit 1; }
+          echo "All mandatory and relevant exact-head gates passed for $HEAD_SHA"
