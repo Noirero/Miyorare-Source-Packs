@@ -16,6 +16,10 @@ on:
           - keiyoushi
           - uma
           - gekkoushi
+      expected_candidate:
+        description: Exact upstream candidate SHA expected for this request
+        required: true
+        type: string
 
 permissions:
   actions: write
@@ -41,8 +45,9 @@ jobs:
       FARM_REF: compatibility-farm-foundation
       EXPECTED_OWNER_ID: '149634319'
       SELECTED_PROVIDER: ${{ inputs.provider }}
+      EXPECTED_CANDIDATE: ${{ inputs.expected_candidate }}
     steps:
-      - name: Fail closed on owner, repository, ref, request, and provider
+      - name: Fail closed on owner, repository, ref, request, provider, and candidate
         env:
           REQUEST_ID: ${{ inputs.request_id }}
         shell: bash
@@ -54,6 +59,7 @@ jobs:
           [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
           [[ "$REQUEST_ID" =~ ^[0-9a-f]{32}$ ]]
           [[ "$SELECTED_PROVIDER" =~ ^(keiyoushi|uma|gekkoushi)$ ]]
+          [[ "$EXPECTED_CANDIDATE" =~ ^[0-9a-f]{40}$ ]]
 
       - name: Create isolated farm branch from authoritative foundation
         id: prepare
@@ -78,7 +84,7 @@ jobs:
           path: intake-branch
           fetch-depth: 1
 
-      - name: Scope intake to exact provider without mutating LKG
+      - name: Scope intake to exact provider and candidate without mutating LKG
         id: scope
         env:
           TEMP_BRANCH: ${{ steps.prepare.outputs.temp_branch }}
@@ -92,6 +98,7 @@ jobs:
 
           root = Path('intake-branch')
           provider = os.environ['SELECTED_PROVIDER']
+          expected_candidate = os.environ['EXPECTED_CANDIDATE']
           if provider not in {'keiyoushi', 'uma', 'gekkoushi'}:
               raise SystemExit('invalid provider scope')
 
@@ -105,16 +112,21 @@ jobs:
           helper.write_text(r'''#!/usr/bin/env python3
           import argparse
           import json
+          import re
           from pathlib import Path
 
           PROVIDERS = ('keiyoushi', 'uma', 'gekkoushi')
+          HEX40 = re.compile(r'^[0-9a-f]{40}$')
 
           parser = argparse.ArgumentParser()
           parser.add_argument('--plan', required=True, type=Path)
           parser.add_argument('--provider', required=True, choices=PROVIDERS)
+          parser.add_argument('--expected-candidate', required=True)
           parser.add_argument('--github-output', type=Path)
           args = parser.parse_args()
 
+          if not HEX40.fullmatch(args.expected_candidate):
+              raise SystemExit('expected candidate must be a 40-character lowercase git SHA')
           plan = json.loads(args.plan.read_text(encoding='utf-8'))
           providers = plan.get('providers')
           if not isinstance(providers, dict) or set(providers) != set(PROVIDERS):
@@ -122,6 +134,11 @@ jobs:
           selected = providers.get(args.provider)
           if not isinstance(selected, dict) or selected.get('changed') is not True:
               raise SystemExit('selected provider no longer differs from LKG')
+          if selected.get('candidate') != args.expected_candidate:
+              raise SystemExit(
+                  f"selected provider candidate mismatch: expected={args.expected_candidate!r}, "
+                  f"resolved={selected.get('candidate')!r}"
+              )
           for name, item in providers.items():
               if not isinstance(item, dict):
                   raise SystemExit(f'invalid provider plan entry: {name}')
@@ -146,6 +163,7 @@ jobs:
           from pathlib import Path
 
           PROVIDER = __PROVIDER__
+          EXPECTED_CANDIDATE = __EXPECTED_CANDIDATE__
           ROOT = Path(__file__).resolve().parent
           IMPL = ROOT / 'upstream_sync_impl.py'
           HELPER = ROOT / 'source_lab_scope_plan.py'
@@ -183,6 +201,7 @@ jobs:
                   str(HELPER),
                   '--plan', output,
                   '--provider', PROVIDER,
+                  '--expected-candidate', EXPECTED_CANDIDATE,
               ]
               if github_output:
                   scoped.extend(['--github-output', github_output])
@@ -190,7 +209,9 @@ jobs:
 
           if __name__ == '__main__':
               main()
-          '''.replace('__PROVIDER__', repr(provider))
+          '''.replace('__PROVIDER__', repr(provider)).replace(
+              '__EXPECTED_CANDIDATE__', repr(expected_candidate)
+          )
           original.write_text(wrapper, encoding='utf-8')
           PY
 
@@ -277,6 +298,7 @@ jobs:
         env:
           REQUEST_ID: ${{ inputs.request_id }}
           PROVIDER: ${{ inputs.provider }}
+          EXPECTED_CANDIDATE: ${{ inputs.expected_candidate }}
           UPSTREAM_RUN_ID: ${{ needs.upstream.outputs.upstream_run_id }}
           FOUNDATION_SHA: ${{ needs.upstream.outputs.foundation_sha }}
           SCOPED_SHA: ${{ needs.upstream.outputs.scoped_sha }}
@@ -294,6 +316,7 @@ jobs:
               "action": "RUN_FARM",
               "requestId": os.environ["REQUEST_ID"],
               "provider": os.environ["PROVIDER"],
+              "expectedCandidate": os.environ["EXPECTED_CANDIDATE"],
               "upstreamRunId": int(os.environ["UPSTREAM_RUN_ID"]),
               "foundationSha": os.environ["FOUNDATION_SHA"],
               "scopedSha": os.environ["SCOPED_SHA"],
