@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "kind": "MIYORARE_SOURCE_CAPABILITY_LIFECYCLE_RISK_CONTRACT",
+  "capabilities": {
+    "known": ["browse", "latest", "search", "filters", "details", "chapters", "pages", "download", "authentication", "migration", "webview", "challenge"],
+    "states": ["SUPPORTED", "UNSUPPORTED", "UNKNOWN"],
+    "rule": "unsupported is not broken; UNKNOWN cannot be promoted as proven support"
+  },
+  "lifecycle": {
+    "states": ["candidate", "validated", "active", "degraded", "held", "unavailable", "deprecated", "migrated"],
+    "transitions": {
+      "candidate": ["validated", "held", "unavailable"],
+      "validated": ["active", "held", "unavailable"],
+      "active": ["degraded", "held", "unavailable", "deprecated"],
+      "degraded": ["active", "held", "unavailable", "deprecated"],
+      "held": ["candidate", "validated", "active", "unavailable", "deprecated"],
+      "unavailable": ["candidate", "validated", "active", "held", "deprecated"],
+      "deprecated": ["migrated"],
+      "migrated": []
+    },
+    "rules": [
+      "provider failure does not automatically change unrelated source lifecycle",
+      "deprecation is not deletion",
+      "migration must preserve canonical identity continuity unless explicitly reviewed",
+      "candidate failure must not replace last-known-good"
+    ]
+  },
+  "risk": {
+    "levels": ["LOW", "MEDIUM", "HIGH", "VERY_HIGH", "UNKNOWN"],
+    "classes": {
+      "metadata-or-domain-only": "LOW",
+      "literal-selector-or-parser-local": "MEDIUM",
+      "structural-parser-change": "HIGH",
+      "authentication-or-webview-or-challenge": "HIGH",
+      "shared-runtime-change": "VERY_HIGH",
+      "new-source": "HIGH",
+      "unknown": "UNKNOWN"
+    },
+    "rules": [
+      "risk is evidence for validation depth, not permission to bypass promotion authority",
+      "UNKNOWN fails closed to HELD for promotion decisions",
+      "shared-runtime changes require validation of affected sources, not only the initiating source"
+    ]
+  },
+  "validation": {
+    "baselineCapabilities": ["browse", "search", "details", "chapters", "pages"],
+    "riskMinimumEvidence": {
+      "LOW": ["identity", "manifest", "build", "targeted-contract"],
+      "MEDIUM": ["identity", "manifest", "build", "targeted-contract", "runtime-smoke"],
+      "HIGH": ["identity", "manifest", "build", "targeted-contract", "runtime-smoke", "regression"],
+      "VERY_HIGH": ["identity", "manifest", "build", "targeted-contract", "runtime-smoke", "affected-source-regression", "exact-head-ci"],
+      "UNKNOWN": ["hold-for-classification"]
+    }
+  }
+}
