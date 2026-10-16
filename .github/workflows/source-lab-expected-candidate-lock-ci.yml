@@ -53,9 +53,21 @@ jobs:
               def write_plan(candidate):
                   plan = {
                       'providers': {
-                          'keiyoushi': {'changed': True, 'candidate': candidate},
-                          'uma': {'changed': False, 'candidate': '1' * 40},
-                          'gekkoushi': {'changed': False, 'candidate': '2' * 40},
+                          'keiyoushi': {
+                              'changed': True,
+                              'candidate': candidate,
+                              'lastKnownGood': '3' * 40,
+                          },
+                          'uma': {
+                              'changed': False,
+                              'candidate': '1' * 40,
+                              'lastKnownGood': '1' * 40,
+                          },
+                          'gekkoushi': {
+                              'changed': False,
+                              'candidate': '2' * 40,
+                              'lastKnownGood': '2' * 40,
+                          },
                       }
                   }
                   path = root / 'plan.json'
