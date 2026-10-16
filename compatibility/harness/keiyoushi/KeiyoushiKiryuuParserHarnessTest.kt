@@ -98,6 +98,11 @@ class KeiyoushiKiryuuParserHarnessTest {
 
         try {
             val source = newSource()
+            val supportsAlternateMetadata = Class.forName("eu.kanade.tachiyomi.multisrc.natsuid.Manga")
+                .declaredFields.any { it.name == "meta" }
+            System.getProperty("compatibility.candidate")?.let {
+                assertEquals("Unexpected NatsuId metadata generation for the pinned revision", it.toBoolean(), supportsAlternateMetadata)
+            }
 
             val popular = source.getPopularManga(1)
             assertFalse(popular.hasNextPage)
@@ -108,6 +113,11 @@ class KeiyoushiKiryuuParserHarnessTest {
             assertEquals("Fixture Artist", manga.artist)
             assertEquals("Action, Manga", manga.genre)
             assertEquals("https://v7.kiryuu.to/cover.jpg", manga.thumbnail_url)
+            if (supportsAlternateMetadata) {
+                assertEquals("Fixture synopsis.\n\nAlternative Names:\n- Alternate Alpha\n- Alpha & Friends", manga.description)
+            } else {
+                assertEquals("Fixture synopsis.", manga.description)
+            }
 
             val searched = source.getSearchMangaList(1, "Alpha", FilterList(SortFilter(0)))
             assertEquals(1, searched.mangas.size)
@@ -128,6 +138,7 @@ class KeiyoushiKiryuuParserHarnessTest {
                 fetchChapters = true,
             )
             assertEquals("Alpha", update.manga.title)
+            assertEquals(manga.description, update.manga.description)
             assertEquals(1, update.chapters.size)
             val chapter = update.chapters.single()
             assertEquals("Chapter 1", chapter.name)
@@ -171,6 +182,7 @@ class KeiyoushiKiryuuParserHarnessTest {
           "slug": "alpha",
           "title": {"rendered": "Alpha"},
           "content": {"rendered": "<p>Fixture synopsis.</p>"},
+          "metadata": {"meta": {"alternative_title": "Alpha, Alternate Alpha, Alpha &amp; Friends, Alternate Alpha"}},
           "_embedded": {
             "wp:featuredmedia": [
               {"source_url": "https://v7.kiryuu.to/cover.jpg"}
