@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "kind": "MIYORARE_GITHUB_ACTION_PIN_POLICY",
+  "rule": "Every external GitHub Action used by repository workflows must resolve to an explicitly approved 40-hex commit SHA. Local reusable workflows are exempt.",
+  "approved": {
+    "actions/checkout": {
+      "v4": "11d5960a326750d5838078e36cf38b85af677262",
+      "v5": "fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09"
+    },
+    "actions/upload-artifact": {
+      "v4": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    "actions/download-artifact": {
+      "v5": "634f93cb2916e3fdff6788551b99b062d0335ce0"
+    },
+    "actions/github-script": {
+      "v8": "ed597411d8f924073f98dfc5c65a23a2325f34cd"
+    },
+    "actions/setup-java": {
+      "v5": "b6effb05e454b25005698d916606bdc6ffcbf961"
+    },
+    "android-actions/setup-android": {
+      "v4": "be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd"
+    },
+    "gradle/actions/setup-gradle": {
+      "v4": "ed408507eac070d1f99cc633dbcf757c94c7933a",
+      "v6": "3f5f9adaf7d9fecd50b5935e54106014257a94e6"
+    },
+    "actions/attest-build-provenance": {
+      "v2": "e8998f949152b193b063cb0ec769d69d929409be"
+    }
+  }
+}
