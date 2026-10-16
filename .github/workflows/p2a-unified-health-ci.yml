@@ -6,6 +6,7 @@ on:
     paths:
       - 'governance/unified-source-health.v1.json'
       - 'governance/canonical-source-registry-v2.schema.json'
+      - 'governance/existing-source-pack-authority.v1.json'
       - 'tools/canonical_source_registry_v2.py'
       - 'tools/unified_source_health.py'
       - 'tests/test_p1a_canonical_source_registry_v2.py'
@@ -29,28 +30,30 @@ jobs:
           path: source-packs
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
-
       - name: Checkout live Compatibility Farm state
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: compatibility-farm-foundation
           path: farm
           fetch-depth: 1
-
       - name: Run cross-authority regression tests
         working-directory: source-packs
         run: |
           python3 -m unittest tests.test_p1a_canonical_source_registry_v2 tests.test_p2a_unified_source_health -v
           python3 -m py_compile tools/canonical_source_registry_v2.py tools/unified_source_health.py
-
-      - name: Build canonical authority from live Farm without language inference
+      - name: Build canonical authority from exact reviewed Farm
+        shell: bash
         run: |
+          set -euo pipefail
+          farm_commit="$(git -C farm rev-parse HEAD)"
+          reviewed="$(python3 -c "import json; print(json.load(open('source-packs/governance/existing-source-pack-authority.v1.json'))['reviewedFarmCommit'])")"
+          [[ "$farm_commit" == "$reviewed" ]] || { echo "Live Farm moved beyond reviewed existing-source pack authority: $farm_commit != $reviewed" >&2; exit 1; }
           python3 source-packs/tools/canonical_source_registry_v2.py migrate \
             --farm farm/compatibility/source-registry.json \
+            --pack-authority source-packs/governance/existing-source-pack-authority.v1.json \
+            --farm-commit "$farm_commit" \
             --output build/canonical-source-registry-v2.json
-          python3 source-packs/tools/canonical_source_registry_v2.py validate \
-            --registry build/canonical-source-registry-v2.json
-
+          python3 source-packs/tools/canonical_source_registry_v2.py validate --registry build/canonical-source-registry-v2.json
       - name: Build unified health from canonical authority and runtime evidence
         run: |
           python3 source-packs/tools/unified_source_health.py build \
@@ -58,31 +61,23 @@ jobs:
             --upstream-status source-packs/upstream/status.json \
             --canonical-registry build/canonical-source-registry-v2.json \
             --output build/unified-source-health.json
-          python3 source-packs/tools/unified_source_health.py validate \
-            --health build/unified-source-health.json
-
+          python3 source-packs/tools/unified_source_health.py validate --health build/unified-source-health.json
       - name: Verify projection preserves identity, LKG, pack and origin authority
         shell: python {0}
         run: |
           import json
           from pathlib import Path
-          farm = json.loads(Path('farm/compatibility/source-registry.json').read_text(encoding='utf-8'))
-          registry = json.loads(Path('build/canonical-source-registry-v2.json').read_text(encoding='utf-8'))
-          health = json.loads(Path('build/unified-source-health.json').read_text(encoding='utf-8'))
-          old = {item['canonicalId']: item for item in farm['sources']}
-          canonical = {item['canonicalId']: item for item in registry['sources']}
-          new = {item['canonicalId']: item for item in health['sources']}
-          if set(old) != set(canonical) or set(old) != set(new):
-              raise SystemExit('cross-authority canonical identity sets differ')
-          for source_id, before in old.items():
-              if new[source_id]['lastKnownGood'] != before.get('lastKnownGood', {}):
-                  raise SystemExit(f'{source_id}: unified health changed LKG')
-              if new[source_id]['packs'] != canonical[source_id]['packs']:
-                  raise SystemExit(f'{source_id}: unified health diverged from canonical pack authority')
-              if new[source_id]['origin'] != canonical[source_id]['origin']:
-                  raise SystemExit(f'{source_id}: unified health diverged from canonical origin authority')
-          print(f'Cross-authority projection preserved {len(new)} identities, LKG, packs and origins')
-
+          farm=json.loads(Path('farm/compatibility/source-registry.json').read_text(encoding='utf-8'))
+          registry=json.loads(Path('build/canonical-source-registry-v2.json').read_text(encoding='utf-8'))
+          health=json.loads(Path('build/unified-source-health.json').read_text(encoding='utf-8'))
+          old={item['canonicalId']:item for item in farm['sources']}; canonical={item['canonicalId']:item for item in registry['sources']}; new={item['canonicalId']:item for item in health['sources']}
+          if set(old)!=set(canonical) or set(old)!=set(new): raise SystemExit('cross-authority canonical identity sets differ')
+          for source_id,before in old.items():
+              if new[source_id]['lastKnownGood'] != before.get('lastKnownGood',{}): raise SystemExit(f'{source_id}: unified health changed LKG')
+              if new[source_id]['packs'] != canonical[source_id]['packs']: raise SystemExit(f'{source_id}: unified health diverged from canonical pack authority')
+              if not canonical[source_id]['packs']: raise SystemExit(f'{source_id}: existing source lacks explicit reviewed pack authority')
+              if new[source_id]['origin'] != canonical[source_id]['origin']: raise SystemExit(f'{source_id}: unified health diverged from canonical origin authority')
+          print(f'Cross-authority projection preserved {len(new)} identities, LKG, explicit packs and origins')
       - name: Upload cross-authority previews
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
