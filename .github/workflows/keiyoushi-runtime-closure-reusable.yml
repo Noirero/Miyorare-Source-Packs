@@ -1,0 +1,96 @@
+name: Keiyoushi Runtime Closure Reusable
+
+on:
+  workflow_call:
+    inputs:
+      request_id:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE: 23345ef345e3b20d7fcc0b5d8fdc922d025af47f
+
+jobs:
+  candidate:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: BACAMI
+            module: src/id/bacami
+            test: compatibilityfarm.BacamiParserHarnessTest
+          - label: KIRYUU
+            module: src/id/kiryuu
+            test: compatibilityfarm.KiryuuNatsuParserHarnessTest
+          - label: KOMIKU
+            module: src/id/komiku
+            test: compatibilityfarm.KomikuParserHarnessTest
+          - label: ASURASCANS
+            module: src/en/asurascans
+            test: compatibilityfarm.AsuraScansParserHarnessTest
+          - label: AQUAMANGA
+            module: src/en/aquamanga
+            test: compatibilityfarm.AquaReaderMadaraParserHarnessTest
+          - label: BATCAVE
+            module: src/en/batcave
+            test: compatibilityfarm.BatcaveParserHarnessTest
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout evidence infrastructure
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - name: Checkout exact Keiyoushi candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: keiyoushi/extensions-source
+          ref: 23345ef345e3b20d7fcc0b5d8fdc922d025af47f
+          path: _upstream/keiyoushi
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+      - name: Install existing deterministic harness
+        env:
+          MODULE: ${{ matrix.module }}
+          TEST_CLASS: ${{ matrix.test }}
+        run: |
+          set -euo pipefail
+          module="_upstream/keiyoushi/$MODULE"
+          mkdir -p "$module/compatibility-farm-test" "$module/compatibility-farm-resources/compatibility-farm"
+          cp "compatibility/harness/keiyoushi/${TEST_CLASS##*.}.kt" "$module/compatibility-farm-test/"
+          cp -R compatibility/harness/keiyoushi/runtime/. "$module/compatibility-farm-test/"
+          cp -R compatibility/harness/keiyoushi/resources/. "$module/compatibility-farm-resources/compatibility-farm/"
+          ln -s ../../../lib-multisrc "$module/lib-multisrc"
+          cat >> "$module/build.gradle.kts" <<'EOF'
+          android {
+            sourceSets.named("test") {
+              java.directories.add("compatibility-farm-test")
+              kotlin.directories.add("compatibility-farm-test")
+              resources.directories.add("compatibility-farm-resources")
+            }
+            testOptions { unitTests.isReturnDefaultValues = true }
+          }
+          dependencies { testImplementation(libs.junit); testImplementation(libs.bundles.common) }
+          tasks.matching { it.name == "kspDebugUnitTestKotlin" }.configureEach { enabled = false }
+          EOF
+      - name: Execute exact candidate parser
+        working-directory: _upstream/keiyoushi
+        env:
+          MODULE: ${{ matrix.module }}
+          TEST_CLASS: ${{ matrix.test }}
+        run: bash gradlew ":${MODULE//\//:}:testDebugUnitTest" --tests "$TEST_CLASS" --no-daemon
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: runtime-closure-${{ matrix.label }}-${{ inputs.request_id }}
+          path: _upstream/keiyoushi/${{ matrix.module }}/build/test-results/testDebugUnitTest/*.xml
+          if-no-files-found: error
+          retention-days: 14
