@@ -88,7 +88,10 @@ class ProtectedMainAutomationTests(unittest.TestCase):
 
     def test_candidate_farm_stages_waiting_for_approval_only_after_real_parser_gate(self) -> None:
         farm = workflow("source-lab-candidate-farm.yml")
-        self.assertIn("Enforce all parser jobs before staging", farm)
+        self.assertIn("Enforce selected parser job before staging", farm)
+        self.assertIn("SELECTED_PROVIDER: ${{ inputs.provider }}", farm)
+        self.assertIn('test "$PREPARE_RESULT" = "success"', farm)
+        self.assertIn('test "$KEIYOUSHI_RESULT" = "success"', farm)
         self.assertIn("candidate_gate.py", farm)
         self.assertIn("approval_evidence.py", farm)
         self.assertIn("WAITING_FOR_APPROVAL", farm)
