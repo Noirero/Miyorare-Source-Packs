@@ -21,6 +21,9 @@ object DeterministicNetwork {
         val body: String,
         val contentType: String = "text/html; charset=utf-8",
         val code: Int = 200,
+        // Final response URL after a redirect; models the HTTP client's result,
+        // while the responder still observes the original parser request.
+        val finalUrl: String? = null,
     )
 
     @Volatile
@@ -56,7 +59,7 @@ private class FixtureOrLiveInterceptor : Interceptor {
         val request = chain.request()
         val fixture = DeterministicNetwork.respondOrNull(request) ?: return chain.proceed(request)
         return Response.Builder()
-            .request(request)
+            .request(fixture.finalUrl?.let { request.newBuilder().url(it).build() } ?: request)
             .protocol(Protocol.HTTP_1_1)
             .code(fixture.code)
             .message(if (fixture.code in 200..299) "OK" else "Fixture")

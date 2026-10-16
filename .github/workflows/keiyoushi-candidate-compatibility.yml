@@ -1,0 +1,159 @@
+name: Keiyoushi Candidate Compatibility Evidence
+
+on:
+  pull_request:
+    branches: [compatibility-farm-foundation]
+    paths:
+      - 'compatibility/harness/keiyoushi/**'
+      - '.github/workflows/keiyoushi-candidate-compatibility.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Bind six-source baseline and candidate diagnostics
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - id: matrix
+        shell: bash
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          baseline = '2025891752e4705effc28e87a043f7205014cde3'
+          candidate = '23345ef345e3b20d7fcc0b5d8fdc922d025af47f'
+          selected = {
+              'miyorare:miyorare-id:BACAMI', 'miyorare:miyorare-id:KIRYUU',
+              'miyorare:miyorare-id:KOMIKU', 'miyorare:miyorare-en:ASURASCANS',
+              'miyorare:miyorare-en:AQUAMANGA', 'miyorare:miyorare-en:BATCAVE',
+          }
+          registry = json.loads(Path('compatibility/source-registry.json').read_text())
+          sources = {s['canonicalId']: s for s in registry['sources']}
+          families = json.loads(Path('compatibility/parser-families.json').read_text())
+          members = [m for f in families['families'] if f['provider'] == 'keiyoushi'
+                     for m in f['members'] if m['canonicalId'] in selected]
+          assert len(members) == len(selected)
+          assert {m['canonicalId'] for m in members} == selected
+          rows = []
+          for member in members:
+              source = sources[member['canonicalId']]
+              assert source['compatibilityEnrollment']['state'] == 'ACTIVE'
+              assert source['lastKnownGood']['keiyoushi'] == baseline
+              assert source['upstreamIdentities']['keiyoushi']['module'] == member['module']
+              for kind, revision in [('baseline', baseline), ('candidate', candidate)]:
+                  rows.append({**member, 'kind': kind, 'revision': revision,
+                               'label': member['canonicalId'].split(':')[-1],
+                               'runtimeProfile': member.get('runtimeProfile', 'common')})
+          print('matrix=' + json.dumps({'include': rows}, separators=(',', ':')))
+          PY
+
+  parser:
+    name: ${{ matrix.label }} / ${{ matrix.kind }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Checkout immutable upstream revision
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: keiyoushi/extensions-source
+          ref: ${{ matrix.revision }}
+          path: _upstream/keiyoushi
+          persist-credentials: false
+      - name: Set up Java 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+      - name: Install existing host harness in disposable checkout
+        env:
+          MODULE: ${{ matrix.module }}
+          TEST_CLASS: ${{ matrix.testClass }}
+          RUNTIME_PROFILE: ${{ matrix.runtimeProfile }}
+          CANONICAL_ID: ${{ matrix.canonicalId }}
+          EXPECTED_REVISION: ${{ matrix.revision }}
+          FARM_HEAD: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C _upstream/keiyoushi rev-parse HEAD)" = "$EXPECTED_REVISION"
+          test "$(git rev-parse HEAD)" = "$FARM_HEAD"
+          module="_upstream/keiyoushi/$MODULE"
+          mkdir -p "$module/compatibility-farm-test" "$module/compatibility-farm-resources/compatibility-farm"
+          cp "compatibility/harness/keiyoushi/${TEST_CLASS##*.}.kt" "$module/compatibility-farm-test/"
+          cp -R compatibility/harness/keiyoushi/runtime/. "$module/compatibility-farm-test/"
+          if [[ "$RUNTIME_PROFILE" != common ]]; then
+            cp -R "compatibility/harness/keiyoushi/runtime-profiles/$RUNTIME_PROFILE/." "$module/compatibility-farm-test/"
+          fi
+          cp -R compatibility/harness/keiyoushi/resources/. "$module/compatibility-farm-resources/compatibility-farm/"
+          ln -s ../../../lib-multisrc "$module/lib-multisrc"
+          cat >> "$module/build.gradle.kts" <<'EOF'
+
+          // Test-only wiring in the disposable diagnostic checkout.
+          android {
+              sourceSets {
+                  named("test") {
+                      java.directories.add("compatibility-farm-test")
+                      kotlin.directories.add("compatibility-farm-test")
+                      resources.directories.add("compatibility-farm-resources")
+                  }
+              }
+              testOptions { unitTests.isReturnDefaultValues = true }
+          }
+          dependencies {
+              testImplementation(libs.junit)
+              testImplementation(libs.bundles.common)
+          }
+          tasks.matching { it.name == "kspDebugUnitTestKotlin" }.configureEach { enabled = false }
+          tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+              systemProperty("compatibility.candidate", System.getenv("WORKA_CANDIDATE"))
+          }
+          EOF
+          mkdir -p build
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          keys = ('CANONICAL_ID', 'MODULE', 'TEST_CLASS', 'RUNTIME_PROFILE', 'EXPECTED_REVISION', 'FARM_HEAD')
+          evidence = {k: os.environ[k] for k in keys}
+          evidence.update(scope='deterministic-host-harness', officialCandidateFarm=False,
+                          lifecycleDispositionChanged=False, androidWebViewExecutionProven=False)
+          Path('build/worka-provenance.json').write_text(json.dumps(evidence, indent=2) + '\n')
+          PY
+      - name: Execute pinned real parser with deterministic fixtures
+        working-directory: _upstream/keiyoushi
+        env:
+          MODULE: ${{ matrix.module }}
+          TEST_CLASS: ${{ matrix.testClass }}
+          WORKA_CANDIDATE: ${{ matrix.kind == 'candidate' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash gradlew ":${MODULE//\//:}:testDebugUnitTest" --tests "$TEST_CLASS" --no-daemon
+      - name: Upload diagnostic evidence without lifecycle disposition
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: worka-${{ matrix.label }}-${{ matrix.kind }}-${{ github.event.pull_request.head.sha }}
+          path: |
+            build/worka-provenance.json
+            _upstream/keiyoushi/${{ matrix.module }}/build/test-results/testDebugUnitTest/*.xml
+          if-no-files-found: error
+          retention-days: 14
