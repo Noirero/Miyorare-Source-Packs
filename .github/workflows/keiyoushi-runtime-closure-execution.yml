@@ -85,21 +85,21 @@ jobs:
           ln -s ../../../lib-multisrc "$module/lib-multisrc"
           cat >> "$module/build.gradle.kts" <<'EOF'
           android {
-            sourceSets.named("test") {
-              java.directories.add("compatibility-farm-test")
-              kotlin.directories.add("compatibility-farm-test")
-              resources.directories.add("compatibility-farm-resources")
-            }
-            testOptions {
-              unitTests.isReturnDefaultValues = true
-            }
+              sourceSets.named("test") {
+                  java.directories.add("compatibility-farm-test")
+                  kotlin.directories.add("compatibility-farm-test")
+                  resources.directories.add("compatibility-farm-resources")
+              }
+              testOptions {
+                  unitTests.isReturnDefaultValues = true
+              }
           }
           dependencies {
-            testImplementation(libs.junit)
-            testImplementation(libs.bundles.common)
+              testImplementation(libs.junit)
+              testImplementation(libs.bundles.common)
           }
           tasks.matching { it.name == "kspDebugUnitTestKotlin" }.configureEach {
-            enabled = false
+              enabled = false
           }
           EOF
       - name: Execute exact candidate parser
