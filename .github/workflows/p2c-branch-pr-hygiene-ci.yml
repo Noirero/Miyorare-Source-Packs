@@ -1,0 +1,44 @@
+name: P2-C Branch PR Hygiene CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'governance/branch-pr-hygiene.v1.json'
+      - 'tools/branch_pr_hygiene.py'
+      - 'tests/test_p2c_branch_pr_hygiene.py'
+      - 'docs/governance/P2C_BRANCH_PR_HYGIENE.md'
+      - '.github/workflows/p2c-branch-pr-hygiene-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate branch and PR hygiene guardrail
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Run P2-C regression tests
+        run: |
+          python3 -m unittest tests.test_p2c_branch_pr_hygiene -v
+          python3 -m py_compile tools/branch_pr_hygiene.py
+
+      - name: Assert state-bearing policy
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          policy = json.loads(Path('governance/branch-pr-hygiene.v1.json').read_text())
+          exact = set(policy['stateBearingExact'])
+          assert {'main', 'compatibility-farm-foundation'} <= exact
+          assert policy['branchClasses']['STATE_BEARING']['deletion'] == 'PROHIBITED'
+          assert policy['branchClasses']['UNKNOWN']['cleanup'] == 'HELD'
+          PY
