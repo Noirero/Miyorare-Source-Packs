@@ -33,12 +33,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout proposed inventory engine
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           path: source-packs
 
       - name: Checkout Miyorare canonical manifests
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: Noirero/Miyorare
           ref: beta
@@ -46,14 +46,14 @@ jobs:
           fetch-depth: 1
 
       - name: Checkout Compatibility Farm membership
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: compatibility-farm-foundation
           path: farm
           fetch-depth: 1
 
       - name: Checkout Keiyoushi
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: keiyoushi/extensions-source
           ref: main
@@ -61,7 +61,7 @@ jobs:
           fetch-depth: 1
 
       - name: Checkout UMA
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: InvalidDavid/UMA
           ref: master
@@ -69,7 +69,7 @@ jobs:
           fetch-depth: 1
 
       - name: Checkout Gekkoushi
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: Gekkoushi/plugin-source
           ref: master
@@ -155,7 +155,7 @@ jobs:
           print(json.dumps(inventory['stats'], sort_keys=True))
 
       - name: Upload generated registry previews for inspection
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: source-registry-previews
           path: |

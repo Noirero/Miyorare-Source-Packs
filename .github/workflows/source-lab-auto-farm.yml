@@ -53,7 +53,7 @@ jobs:
           esac
 
       - name: Checkout authoritative Compatibility Farm
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: compatibility-farm-foundation
           path: farm
@@ -291,7 +291,7 @@ jobs:
           echo "temp_branch=$temp_branch" >> "$GITHUB_OUTPUT"
 
       - name: Checkout isolated intake branch
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: ${{ steps.prepare.outputs.temp_branch }}
           path: intake-branch
@@ -550,7 +550,7 @@ jobs:
       READY_SOURCES_COUNT: ${{ needs.probe.outputs.ready_sources_count }}
     steps:
       - name: Checkout latest authoritative Farm state
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: compatibility-farm-foundation
           path: farm

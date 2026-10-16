@@ -49,14 +49,14 @@ jobs:
           [[ "$FOUNDATION_COMMIT" =~ ^[0-9a-f]{40}$ ]]
 
       - name: Checkout exact inventory snapshot
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: ${{ inputs.inventory_commit }}
           path: inventory
           fetch-depth: 1
 
       - name: Checkout exact Compatibility Farm foundation
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: ${{ inputs.foundation_commit }}
           path: farm
@@ -284,7 +284,7 @@ jobs:
             --force-with-lease=refs/heads/compatibility-farm-foundation:${FOUNDATION_COMMIT}
 
       - name: Upload enrollment receipt
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: source-lab-enrollment-${{ github.run_id }}
           path: enrollment-receipt.json

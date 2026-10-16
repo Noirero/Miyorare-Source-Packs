@@ -32,21 +32,21 @@ jobs:
           fi
 
       - name: Checkout control plane
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: main
           path: control
           fetch-depth: 1
 
       - name: Checkout source inventory
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: source-inventory-live
           path: inventory
           fetch-depth: 1
 
       - name: Checkout Compatibility Farm
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: compatibility-farm-foundation
           path: farm

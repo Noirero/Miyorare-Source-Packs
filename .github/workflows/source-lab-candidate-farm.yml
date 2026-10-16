@@ -26,7 +26,7 @@ jobs:
       keiyoushi: ${{ steps.matrix.outputs.keiyoushi }}
     steps:
       - name: Checkout authoritative Compatibility Farm
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: ${{ inputs.foundation_sha }}
           fetch-depth: 1
@@ -41,7 +41,7 @@ jobs:
           [[ "$(git rev-parse HEAD)" == "$FOUNDATION_SHA" ]]
 
       - name: Download exact upstream candidate handoff
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           name: upstream-candidate-handoff
           path: build/upstream-handoff
@@ -114,7 +114,7 @@ jobs:
           PY
 
       - name: Upload candidate context
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: source-lab-candidate-context-${{ inputs.upstream_run_id }}
           path: |
@@ -133,12 +133,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Compatibility Farm
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: ${{ inputs.foundation_sha }}
 
       - name: Download exact candidate context
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           name: source-lab-candidate-context-${{ inputs.upstream_run_id }}
           path: build/context
@@ -155,7 +155,7 @@ jobs:
           PY
 
       - name: Checkout candidate UMA
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: InvalidDavid/UMA
           ref: ${{ steps.ref.outputs.uma }}
@@ -163,13 +163,13 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Java 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
 
       - name: Install deterministic UMA harness
         shell: bash
@@ -224,7 +224,7 @@ jobs:
 
       - name: Upload UMA evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: source-lab-parser-uma-${{ inputs.upstream_run_id }}
           path: |
@@ -246,12 +246,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Compatibility Farm
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: ${{ inputs.foundation_sha }}
 
       - name: Download exact candidate context
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           name: source-lab-candidate-context-${{ inputs.upstream_run_id }}
           path: build/context
@@ -268,7 +268,7 @@ jobs:
           PY
 
       - name: Checkout candidate Gekkoushi
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: Gekkoushi/plugin-source
           ref: ${{ steps.ref.outputs.gekkoushi }}
@@ -276,13 +276,13 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Java 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
 
       - name: Install deterministic Gekkoushi harness
         shell: bash
@@ -349,7 +349,7 @@ jobs:
 
       - name: Upload Gekkoushi evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: source-lab-parser-gekkoushi-${{ inputs.upstream_run_id }}
           path: |
@@ -376,12 +376,12 @@ jobs:
       matrix: ${{ fromJson(needs.prepare.outputs.keiyoushi) }}
     steps:
       - name: Checkout Compatibility Farm
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: ${{ inputs.foundation_sha }}
 
       - name: Download exact candidate context
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           name: source-lab-candidate-context-${{ inputs.upstream_run_id }}
           path: build/context
@@ -398,7 +398,7 @@ jobs:
           PY
 
       - name: Checkout candidate Keiyoushi
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: keiyoushi/extensions-source
           ref: ${{ steps.ref.outputs.keiyoushi }}
@@ -406,13 +406,13 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Java 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
 
       - name: Install deterministic Keiyoushi family harness
         shell: bash
@@ -495,7 +495,7 @@ jobs:
 
       - name: Upload Keiyoushi evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: source-lab-parser-${{ matrix.familyId }}-${{ inputs.upstream_run_id }}
           path: |
@@ -520,19 +520,19 @@ jobs:
       candidate_set_id: ${{ steps.stage.outputs.candidate_set_id }}
     steps:
       - name: Checkout authoritative Compatibility Farm
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: ${{ inputs.foundation_sha }}
           fetch-depth: 0
 
       - name: Download exact candidate context
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           name: source-lab-candidate-context-${{ inputs.upstream_run_id }}
           path: build/context
 
       - name: Download all real-parser evidence
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           pattern: source-lab-parser-*-${{ inputs.upstream_run_id }}
           path: build/provider-evidence
@@ -675,7 +675,7 @@ jobs:
           PY
 
       - name: Upload candidate evidence and receipt
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: source-lab-farm-candidate-${{ steps.stage.outputs.candidate_set_id }}
           path: |

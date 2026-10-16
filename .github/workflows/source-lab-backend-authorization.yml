@@ -96,7 +96,7 @@ jobs:
           PY
 
       - name: Mint GitHub-signed OIDC proof
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
         env:
           SOURCE_LAB_CHALLENGE: ${{ inputs.challenge }}
         with:
@@ -140,7 +140,7 @@ jobs:
 
       - name: Upload short-lived authorization proof
         id: upload-proof
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: source-lab-authorization-${{ inputs.challenge }}
           path: build/source-lab-authz/
