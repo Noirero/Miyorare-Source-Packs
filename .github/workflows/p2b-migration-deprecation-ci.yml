@@ -1,0 +1,47 @@
+name: P2-B Migration Deprecation CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'governance/source-migration-deprecation.v1.json'
+      - 'governance/source-migration-deprecation-state.v1.json'
+      - 'tools/validate_migration_deprecation.py'
+      - 'tests/test_p2b_migration_deprecation.py'
+      - '.github/workflows/p2b-migration-deprecation-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate migration and deprecation contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: source-packs
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Checkout live Compatibility Farm registry
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 1
+
+      - name: Run P2-B regression tests
+        working-directory: source-packs
+        run: |
+          python3 -m unittest tests.test_p2b_migration_deprecation -v
+          python3 -m py_compile tools/validate_migration_deprecation.py
+
+      - name: Validate declarations against live canonical identities
+        run: |
+          python3 source-packs/tools/validate_migration_deprecation.py \
+            --state source-packs/governance/source-migration-deprecation-state.v1.json \
+            --registry farm/compatibility/source-registry.json
