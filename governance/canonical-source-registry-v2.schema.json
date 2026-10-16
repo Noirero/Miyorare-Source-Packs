@@ -1,62 +1,22 @@
 {
   "schemaVersion": 2,
   "kind": "MIYORARE_CANONICAL_SOURCE_REGISTRY",
-  "authority": {
-    "identity": "canonicalId",
-    "providerMappings": "providers",
-    "packMembership": "packs",
-    "origin": "origin",
-    "lifecycle": "lifecycle",
-    "compatibility": "compatibility"
-  },
-  "requiredSourceFields": [
-    "canonicalId",
-    "displayName",
-    "language",
-    "packs",
-    "origin",
-    "providers",
-    "lifecycle",
-    "compatibility"
-  ],
-  "identityRules": {
-    "canonicalIdPrefix": "miyorare:",
-    "canonicalIdImmutable": true,
-    "providerIdentityMayNotDefineCanonicalIdentity": true,
-    "domainMigrationDoesNotCreateNewIdentity": true,
-    "providerReplacementDoesNotCreateNewIdentity": true,
-    "aliasesPreserveContinuity": true
-  },
+  "authority": {"identity":"canonicalId","providerMappings":"providers","packMembership":"packs","packMembershipEvidence":"packAuthority","origin":"origin","lifecycle":"lifecycle","compatibility":"compatibility"},
+  "requiredSourceFields": ["canonicalId","displayName","language","packs","origin","providers","lifecycle","compatibility"],
+  "identityRules": {"canonicalIdPrefix":"miyorare:","canonicalIdImmutable":true,"providerIdentityMayNotDefineCanonicalIdentity":true,"domainMigrationDoesNotCreateNewIdentity":true,"providerReplacementDoesNotCreateNewIdentity":true,"aliasesPreserveContinuity":true},
   "packRules": {
-    "allowed": ["miyorare-id", "miyorare-en", "miyorare-global"],
-    "membershipExplicit": true,
-    "languageMayNotDefineMembership": true,
-    "undeclaredMembership": "HELD",
-    "providerIndependent": true
+    "allowed":["miyorare-id","miyorare-en","miyorare-global"],
+    "membershipExplicit":true,
+    "languageMayNotDefineMembership":true,
+    "acceptedAuthority":["source-declaration","reviewed-existing-source-authority"],
+    "reviewedExistingAuthorityMustBindExactFarmCommit":true,
+    "reviewedExistingAuthorityIsNotValidForFutureOnboarding":true,
+    "undeclaredMembership":"HELD",
+    "providerIndependent":true
   },
-  "originRules": {
-    "allowed": ["upstream-derived", "miyorare-native", "upstream-overlay"],
-    "mustHaveAuthorityEvidence": true,
-    "acceptedAuthority": ["source-declaration", "legacy-upstream-identities"],
-    "providerListAloneMayNotDefineOrigin": true,
-    "providerOriginDoesNotOverrideCompatibility": true
-  },
-  "crossAuthorityRules": {
-    "unifiedHealthConsumesCanonicalPacks": true,
-    "unifiedHealthConsumesCanonicalOrigin": true,
-    "unifiedHealthMayNotReinferPacksFromLanguage": true,
-    "unifiedHealthMayNotReinferOriginFromProviderList": true
-  },
-  "lifecycleStates": ["candidate", "validated", "active", "degraded", "held", "unavailable", "deprecated", "migrated"],
-  "compatibilityHealth": ["HEALTHY", "DEGRADED", "HELD", "UNAVAILABLE", "DEPRECATED", "UNKNOWN"],
-  "migration": {
-    "fromFarmSchemaVersion": 1,
-    "preserveCanonicalIds": true,
-    "preserveProviderMappings": true,
-    "preserveLastKnownGood": true,
-    "legacyOriginEvidence": "upstreamIdentities",
-    "unknownPackMembershipDecision": "HELD",
-    "unknownMetadataDecision": "HELD",
-    "noAutomaticIdentityRewrite": true
-  }
+  "originRules": {"allowed":["upstream-derived","miyorare-native","upstream-overlay"],"mustHaveAuthorityEvidence":true,"acceptedAuthority":["source-declaration","legacy-upstream-identities"],"providerListAloneMayNotDefineOrigin":true,"providerOriginDoesNotOverrideCompatibility":true},
+  "crossAuthorityRules": {"unifiedHealthConsumesCanonicalPacks":true,"unifiedHealthConsumesCanonicalOrigin":true,"unifiedHealthMayNotReinferPacksFromLanguage":true,"unifiedHealthMayNotReinferOriginFromProviderList":true},
+  "lifecycleStates":["candidate","validated","active","degraded","held","unavailable","deprecated","migrated"],
+  "compatibilityHealth":["HEALTHY","DEGRADED","HELD","UNAVAILABLE","DEPRECATED","UNKNOWN"],
+  "migration": {"fromFarmSchemaVersion":1,"preserveCanonicalIds":true,"preserveProviderMappings":true,"preserveLastKnownGood":true,"legacyPackAuthority":"governance/existing-source-pack-authority.v1.json","legacyOriginEvidence":"upstreamIdentities","unknownPackMembershipDecision":"HELD","unknownMetadataDecision":"HELD","noAutomaticIdentityRewrite":true}
 }
