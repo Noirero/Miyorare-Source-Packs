@@ -185,7 +185,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          started_epoch="$(date -u +%s)"
+          request_id="source-lab-${GITHUB_RUN_ID}-${CANDIDATE_SET_ID}"
+          expected_title="Source Pack control $request_id"
           gh workflow run source-pack-autonomous-release.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref main \
@@ -193,7 +194,9 @@ jobs:
             -f candidate_set_id="$CANDIDATE_SET_ID" \
             -f signing_run_id="$SIGNING_RUN_ID" \
             -f release_ref="$TEMP_BRANCH" \
-            -f foundation_commit="$FOUNDATION_COMMIT"
+            -f foundation_commit="$FOUNDATION_COMMIT" \
+            -f request_id="$request_id" \
+            -f request_run_id="$GITHUB_RUN_ID"
 
           controller_run_id=""
           for _ in $(seq 1 90); do
@@ -202,13 +205,16 @@ jobs:
               --workflow source-pack-autonomous-release.yml \
               --branch main \
               --event workflow_dispatch \
-              --limit 30 \
-              --json databaseId,createdAt,displayTitle \
-              --jq "[.[] | select((.createdAt | fromdateiso8601) >= ($started_epoch - 5))] | sort_by(.databaseId) | last | .databaseId // empty")"
+              --limit 100 \
+              --json databaseId,displayTitle \
+              --jq ".[] | select(.displayTitle == \"$expected_title\") | .databaseId" \
+              | head -n 1)"
             [[ -n "$controller_run_id" ]] && break
             sleep 2
           done
           [[ "$controller_run_id" =~ ^[0-9]+$ ]]
+          actual_title="$(gh run view "$controller_run_id" --repo "$GITHUB_REPOSITORY" --json displayTitle --jq '.displayTitle')"
+          [[ "$actual_title" == "$expected_title" ]]
           gh run watch "$controller_run_id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 20
           echo "run_id=$controller_run_id" >> "$GITHUB_OUTPUT"
 
