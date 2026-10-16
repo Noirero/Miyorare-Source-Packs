@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
       - name: Audit Source Pack workflows
         shell: bash
@@ -37,7 +37,7 @@ jobs:
 
           root = Path('.github/workflows')
           self_name = 'repair-android-sdk-setup.yml'
-          uses_line = 'uses: android-actions/setup-android@v4'
+          uses_line = 'uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd'
           failures = []
           checked = 0
 
@@ -64,7 +64,7 @@ jobs:
                       failures.append(f'{path}:{index + 1}')
 
           if checked == 0:
-              raise SystemExit('No android-actions/setup-android@v4 usage found to audit.')
+              raise SystemExit('No android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd usage found to audit.')
           if failures:
               print('Android SDK setup must explicitly request packages: platform-tools at:')
               for item in failures:

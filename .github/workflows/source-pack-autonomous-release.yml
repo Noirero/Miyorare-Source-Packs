@@ -68,21 +68,21 @@ jobs:
       FARM_BRANCH: compatibility-farm-foundation
     steps:
       - name: Checkout Source Packs control plane
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: main
           path: control
           fetch-depth: 0
 
       - name: Checkout authoritative Compatibility Farm
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: compatibility-farm-foundation
           path: farm
           fetch-depth: 1
 
       - name: Checkout Miyorare beta lineage
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: Noirero/Miyorare
           ref: beta
@@ -340,7 +340,7 @@ jobs:
 
       - name: Upload autonomous release evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: source-pack-autonomous-release-${{ github.run_id }}
           path: |
@@ -441,7 +441,7 @@ jobs:
           PY
 
       - name: Download exact attested signing material
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           name: source-lab-signature-${{ inputs.candidate_set_id }}
           path: build/signature
@@ -547,7 +547,7 @@ jobs:
           PY
 
       - name: Upload signed release result
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: source-pack-signed-release-${{ inputs.candidate_set_id }}
           path: |

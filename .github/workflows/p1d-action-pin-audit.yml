@@ -1,0 +1,33 @@
+name: P1-D Action Pin Audit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'governance/action-pins.v1.json'
+      - 'governance/action-pin-resolution-evidence.v1.json'
+      - 'tools/validate_action_pins.py'
+      - 'tests/test_p1d_action_pins.py'
+      - 'tests/test_p1d_resolution_evidence.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  action-pins:
+    name: Validate immutable GitHub Action pins
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Run P1-D regression tests
+        run: python3 -m unittest tests.test_p1d_action_pins tests.test_p1d_resolution_evidence
+
+      - name: Audit every workflow action reference
+        run: python3 tools/validate_action_pins.py

@@ -54,7 +54,7 @@ jobs:
           [[ "$REPAIR_EVIDENCE_SHA256" =~ ^[0-9a-f]{64}$ ]]
 
       - name: Reject an already-approved candidate set
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
         env:
           CANDIDATE_SET_ID: ${{ inputs.candidate_set_id }}
         with:
@@ -79,7 +79,7 @@ jobs:
             }
 
       - name: Checkout authoritative Compatibility Farm foundation
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: compatibility-farm-foundation
           path: farm
@@ -197,7 +197,7 @@ jobs:
           PY
 
       - name: Upload approval proof only
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: source-lab-approval-${{ inputs.candidate_set_id }}
           path: |

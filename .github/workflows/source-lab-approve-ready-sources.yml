@@ -29,14 +29,14 @@ jobs:
           [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
 
       - name: Checkout control plane
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: main
           path: control
           fetch-depth: 1
 
       - name: Checkout authoritative Compatibility Farm
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: compatibility-farm-foundation
           path: farm
@@ -164,7 +164,7 @@ jobs:
 
       - name: Upload immutable approval evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: source-onboarding-approval-${{ github.run_id }}
           path: |

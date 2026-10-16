@@ -164,7 +164,7 @@ jobs:
           PY
 
       - name: Upload farm control receipt
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: source-lab-run-farm-${{ inputs.request_id }}
           path: build/source-lab-run-farm-receipt.json

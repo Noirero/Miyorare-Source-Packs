@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Source Packs
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
       - name: Validate contract semantics
         shell: bash
@@ -290,7 +290,7 @@ jobs:
           grep -Fq 'compatibilitySnapshotId' tools/source_pack_manifest.py
           grep -Fq "'compatibilitySnapshotId': snapshot_id" "$seal"
           grep -Fq 'tools/source_pack_manifest.py validate' "$release"
-          grep -Fq 'actions/attest-build-provenance@v2' "$seal"
+          grep -Fq 'actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be' "$seal"
           grep -Fq 'gh attestation verify' "$seal"
           grep -Fq 'miyorare-release-lock.json' "$seal"
           grep -Fq 'already_sealed' "$seal"

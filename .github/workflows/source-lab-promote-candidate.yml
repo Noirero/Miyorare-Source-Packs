@@ -67,7 +67,7 @@ jobs:
           PY
 
       - name: Checkout authoritative Compatibility Farm
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: compatibility-farm-foundation
           fetch-depth: 0
@@ -79,7 +79,7 @@ jobs:
         run: echo "sha=$(git -C farm rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Download immutable approval proof
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           name: source-lab-approval-${{ inputs.candidate_set_id }}
           path: build/approval
@@ -367,7 +367,7 @@ jobs:
           PY
 
       - name: Upload promotion receipt
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: source-lab-promotion-${{ inputs.candidate_set_id }}
           path: |

@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout pull request
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
       - name: Compile sync helpers
         run: |
@@ -143,7 +143,7 @@ jobs:
         pack: [id, en, global]
     steps:
       - name: Checkout pull request
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
       - name: Resolve validated pins
         id: pins
@@ -159,7 +159,7 @@ jobs:
           PY
 
       - name: Checkout Miyorare beta
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: Noirero/Miyorare
           ref: beta
@@ -167,7 +167,7 @@ jobs:
           fetch-depth: 1
 
       - name: Checkout validated Gekkoushi
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: Gekkoushi/plugin-source
           ref: ${{ steps.pins.outputs.gekkoushi }}
@@ -176,7 +176,7 @@ jobs:
 
       - name: Checkout validated UMA
         if: matrix.pack != 'global'
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: InvalidDavid/UMA
           ref: ${{ steps.pins.outputs.uma }}
@@ -185,7 +185,7 @@ jobs:
 
       - name: Checkout validated Keiyoushi
         if: matrix.pack != 'global'
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: keiyoushi/extensions-source
           ref: ${{ steps.pins.outputs.keiyoushi }}
@@ -233,18 +233,18 @@ jobs:
           PY
 
       - name: Set up Java 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
         with:
           gradle-version: '8.14.3'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
         with:
           packages: platform-tools
 

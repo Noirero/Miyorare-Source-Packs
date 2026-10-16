@@ -67,7 +67,7 @@ jobs:
           PY
 
       - name: Download exact attested signing material
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           name: source-lab-signature-${{ inputs.candidate_set_id }}
           path: build/signature
@@ -219,7 +219,7 @@ jobs:
           echo "run_id=$controller_run_id" >> "$GITHUB_OUTPUT"
 
       - name: Download authoritative controller result
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           name: source-pack-signed-release-${{ inputs.candidate_set_id }}
           path: build/controller
@@ -415,7 +415,7 @@ jobs:
           done
 
       - name: Upload publish receipt
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: source-lab-publish-${{ inputs.candidate_set_id }}
           path: |

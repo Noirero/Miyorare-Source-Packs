@@ -26,14 +26,14 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout inventory engine
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: main
           path: source-packs
           fetch-depth: 0
 
       - name: Checkout Miyorare canonical manifests
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: Noirero/Miyorare
           ref: beta
@@ -41,14 +41,14 @@ jobs:
           fetch-depth: 1
 
       - name: Checkout Compatibility Farm membership
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: compatibility-farm-foundation
           path: farm
           fetch-depth: 1
 
       - name: Checkout Keiyoushi
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: keiyoushi/extensions-source
           ref: main
@@ -56,7 +56,7 @@ jobs:
           fetch-depth: 1
 
       - name: Checkout UMA
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: InvalidDavid/UMA
           ref: master
@@ -64,7 +64,7 @@ jobs:
           fetch-depth: 1
 
       - name: Checkout Gekkoushi
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: Gekkoushi/plugin-source
           ref: master
