@@ -158,6 +158,9 @@ class BatCaveAndroidWebViewEvidenceTests(unittest.TestCase):
         self.assertIn("val testContext = instrumentation.context", harness)
         self.assertIn('testContext.assets.open("p2/batcave.apk")', harness)
         self.assertNotIn('context.assets.open("p2/batcave.apk")', harness)
+        self.assertIn("fun probeExactBatCaveRuntime() {", harness)
+        self.assertIn("runBlocking {", harness)
+        self.assertNotIn("fun probeExactBatCaveRuntime() = runBlocking", harness)
         self.assertNotIn('.put("dleGuardTrustCookieObserved", true)', harness)
 
     def test_workflow_is_read_only_exact_and_fail_closed(self) -> None:
