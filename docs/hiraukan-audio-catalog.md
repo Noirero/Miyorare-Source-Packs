@@ -38,8 +38,8 @@ If immutable seal assets already exist, P3 staging is skipped. A sealed release 
 
 ## Current promotion state
 
-The pinned Miyorare catalog currently comes from Audio Pack PR #219 and is structurally cross-validated against the pinned Hiraukan beta runtime. It is **not yet release-eligible** because the Miyorare Audio Pack has not been promoted to its final beta authority. Stable sealing therefore remains fail-closed.
+The pinned Miyorare catalog authority is the final beta merge commit `4fb61632f43af55b22e24b168717d495f0926f81` from merged Audio Pack PR #219. That dependency has been post-merge verified, and the P3 baseline now declares `miyorareBetaMerged = true` with `releaseEligibility.state = ELIGIBLE` and reason `FINAL_MIYORARE_BETA_MERGED`.
 
 Real-device validation was explicitly deferred by the owner on 2026-10-17 and is not a P3 release requirement. `deviceValidation.state = DEFERRED_BY_OWNER` records that decision while `validated = false` ensures repository/CI evidence is never misrepresented as physical-device evidence.
 
-Once the final Miyorare beta Audio Pack authority exists, the catalog baseline must be advanced to that exact commit and `miyorareBetaMerged` / `releaseEligibility` may be changed only after refreshing repository truth and rerunning the full P3 validation lane.
+Release eligibility does not itself merge or publish PR #93. The exact Source Pack head must still pass the normal P3, contract, upstream-sync, and main required gates, and merge to `main` remains subject to explicit owner authorization.
