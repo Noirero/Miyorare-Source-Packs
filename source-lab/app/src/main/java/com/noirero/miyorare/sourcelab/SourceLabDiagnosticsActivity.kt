@@ -1,5 +1,7 @@
 package com.noirero.miyorare.sourcelab
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -15,6 +17,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,8 +54,10 @@ private data class DiagnosticsState(
     val snapshot: LiveFarmSnapshot? = null,
     val control: SourceLabResolvedControlState? = null,
     val inventory: SourceInventorySnapshot? = null,
+    val p2Evidence: P2BatcaveRuntimeEvidence? = null,
     val error: String? = null,
     val inventoryError: String? = null,
+    val p2EvidenceError: String? = null,
 )
 
 @Composable
@@ -63,7 +68,7 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
 
     LaunchedEffect(refreshKey) {
         val previous = state
-        state = state.copy(loading = true, error = null, inventoryError = null)
+        state = state.copy(loading = true, error = null, inventoryError = null, p2EvidenceError = null)
         coroutineScope {
             launch {
                 val snapshotResult = runCatching {
@@ -108,6 +113,18 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
                     },
                 )
             }
+
+            launch {
+                val evidenceResult = runCatching {
+                    P2RuntimeEvidenceRepository.loadBatcaveEvidence()
+                }
+                state = state.copy(
+                    p2Evidence = evidenceResult.getOrNull(),
+                    p2EvidenceError = evidenceResult.exceptionOrNull()?.let {
+                        it.message ?: it.javaClass.simpleName
+                    },
+                )
+            }
         }
         state = state.copy(loading = false)
     }
@@ -144,7 +161,7 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
                         CircularProgressIndicator(Modifier.padding(2.dp), strokeWidth = 2.dp, color = SourceLabPrimary)
                         Column(Modifier.weight(1f)) {
                             Text("Refreshing diagnostic state…", fontWeight = FontWeight.SemiBold)
-                            if (state.snapshot != null || state.inventory != null) {
+                            if (state.snapshot != null || state.inventory != null || state.p2Evidence != null) {
                                 Text(
                                     "Previously loaded values remain visible while refreshing.",
                                     style = MaterialTheme.typography.bodySmall,
@@ -269,6 +286,36 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
             }
         }
 
+        state.p2Evidence?.let { evidence ->
+            item(key = "p2-batcave-evidence") {
+                P2BatcaveEvidenceCard(
+                    evidence = evidence,
+                    onOpenRun = {
+                        if (evidence.workflowRunUrl.isNotBlank()) {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(evidence.workflowRunUrl)))
+                        }
+                    },
+                )
+            }
+        }
+
+        state.p2EvidenceError?.let { error ->
+            item(key = "p2-batcave-error") {
+                SourceLabCard(tone = SourceLabTone.WARNING) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        SourceLabStatusBadge("P2 EVIDENCE UNAVAILABLE", SourceLabTone.WARNING)
+                        Text("BATCAVE Android/WebView evidence could not be resolved from authoritative CI logs.", fontWeight = FontWeight.Bold)
+                        Text(error, style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            "No protected-path success is inferred. The CI log may have expired, become unavailable, or changed contract; BATCAVE remains governed by backend/Farm authority.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+
         state.inventory?.let { inventory ->
             item(key = "inventory") {
                 DiagnosticCard("Source inventory") {
@@ -303,6 +350,74 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+@Composable
+private fun P2BatcaveEvidenceCard(
+    evidence: P2BatcaveRuntimeEvidence,
+    onOpenRun: () -> Unit,
+) {
+    val proven = evidence.androidWebViewExecutionProven
+    SourceLabCard(tone = if (proven) SourceLabTone.GOOD else SourceLabTone.WARNING) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("P2 Runtime Evidence · BATCAVE", fontWeight = FontWeight.Bold)
+            SourceLabStatusBadge(
+                if (proven) "PROTECTED PATH PROVEN" else "PROTECTED PATH NOT PROVEN",
+                if (proven) SourceLabTone.GOOD else SourceLabTone.WARNING,
+            )
+            Text(
+                "Runtime result ${evidence.runtimeResult} describes the exact runtime/request evidence. It is separate from promotion state and from proof that the DLE Guard protected path executed.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            DiagnosticLine("Evidence workflow run", evidence.workflowRunId.toString(), true)
+            if (evidence.workflowHeadSha.isNotBlank()) {
+                DiagnosticLine("Source Pack evidence head", evidence.workflowHeadSha, true)
+            }
+            if (evidence.workflowCreatedAt.isNotBlank()) {
+                DiagnosticLine("Evidence created at", evidence.workflowCreatedAt, true)
+            }
+            DiagnosticLine("Base revision", evidence.baseRevision, true)
+            DiagnosticLine("Candidate revision", evidence.candidateRevision, true)
+            DiagnosticLine("Miyorare host revision", evidence.miyorareRevision, true)
+            DiagnosticLine("Extension package", evidence.extensionPackageName, true)
+            DiagnosticLine("Extension install", if (evidence.extensionInstallSucceeded) "SUCCEEDED" else "FAILED")
+            DiagnosticLine("Extension load", if (evidence.extensionLoadSucceeded) "SUCCEEDED" else "FAILED")
+            DiagnosticLine(
+                "Live source request",
+                if (evidence.sourceRequestSucceeded) "SUCCEEDED · ${evidence.sourceResultCount} results" else "FAILED · ${evidence.sourceResultCount} results",
+            )
+            DiagnosticLine(
+                "System WebView",
+                if (evidence.webViewAvailable) {
+                    "AVAILABLE · ${evidence.webViewPackageName} · ${evidence.webViewVersion}"
+                } else {
+                    "UNAVAILABLE"
+                },
+            )
+            DiagnosticLine(
+                "__guard_trust evidence",
+                if (evidence.dleGuardTrustCookieObserved) "OBSERVED" else "NOT OBSERVED",
+            )
+            DiagnosticLine("Android WebView execution proven", proven.toString())
+            DiagnosticLine("Infrastructure blocked", evidence.infrastructureBlocked.toString())
+            DiagnosticLine("Probe error", evidence.probeError ?: "none")
+            Text(
+                if (evidence.dleGuardTrustCookieObserved) {
+                    "The trust cookie was actually observed after the live source request."
+                } else {
+                    "System WebView availability is not treated as DLE Guard execution. No protected-path success is inferred without observed trust evidence."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (evidence.workflowRunUrl.isNotBlank()) {
+                OutlinedButton(onClick = onOpenRun, modifier = Modifier.fillMaxWidth()) {
+                    Text("Open Authoritative CI Evidence")
+                }
+            }
         }
     }
 }
