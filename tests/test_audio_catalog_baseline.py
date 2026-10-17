@@ -23,6 +23,9 @@ class AudioCatalogBaselineTests(unittest.TestCase):
     def test_repository_baseline_is_structurally_valid(self) -> None:
         result = validate(BASELINE)
         self.assertEqual("BLOCKED", result["releaseEligibility"])
+        self.assertEqual("DEFERRED_BY_OWNER", result["deviceValidation"])
+        self.assertFalse(result["deviceValidationRequiredForRelease"])
+        self.assertFalse(result["deviceValidated"])
         self.assertEqual(40, len(result["miyorareCommit"]))
         self.assertEqual(40, len(result["hiraukanCommit"]))
 
@@ -30,21 +33,42 @@ class AudioCatalogBaselineTests(unittest.TestCase):
         with self.assertRaises(BaselineError):
             validate(BASELINE, require_release_eligible=True)
 
-    def test_release_can_only_become_eligible_when_both_external_gates_are_satisfied(self) -> None:
+    def test_owner_deferred_device_test_does_not_block_after_beta_merge(self) -> None:
         data = baseline_data()
         data["releaseEligibility"] = {
             "state": "ELIGIBLE",
-            "realDeviceValidated": True,
             "miyorareBetaMerged": True,
-            "reason": "REAL_DEVICE_VALIDATED_AND_FINAL_MIYORARE_BETA_MERGED",
+            "reason": "FINAL_MIYORARE_BETA_MERGED",
         }
         result = validate_data(data, require_release_eligible=True)
         self.assertEqual("ELIGIBLE", result["releaseEligibility"])
+        self.assertFalse(result["deviceValidated"])
 
-    def test_eligible_without_real_device_validation_is_rejected(self) -> None:
+    def test_eligible_without_final_beta_merge_is_rejected(self) -> None:
         data = baseline_data()
         data["releaseEligibility"]["state"] = "ELIGIBLE"
-        data["releaseEligibility"]["miyorareBetaMerged"] = True
+        with self.assertRaises(BaselineError):
+            validate_data(data)
+
+    def test_deferred_device_test_cannot_claim_device_evidence(self) -> None:
+        data = baseline_data()
+        data["deviceValidation"]["validated"] = True
+        with self.assertRaises(BaselineError):
+            validate_data(data)
+
+    def test_required_device_test_still_blocks_when_not_validated(self) -> None:
+        data = baseline_data()
+        data["deviceValidation"] = {
+            "state": "REQUIRED",
+            "requiredForRelease": True,
+            "validated": False,
+            "note": "Example required device gate",
+        }
+        data["releaseEligibility"] = {
+            "state": "ELIGIBLE",
+            "miyorareBetaMerged": True,
+            "reason": "INVALID_EXAMPLE",
+        }
         with self.assertRaises(BaselineError):
             validate_data(data)
 
