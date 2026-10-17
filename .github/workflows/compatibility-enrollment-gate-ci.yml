@@ -7,9 +7,14 @@ on:
     paths:
       - 'compatibility/source-registry.json'
       - 'compatibility/parser-families.json'
+      - 'compatibility/harness/**'
+      - 'compatibility/onboarding-harness-provenance.json'
       - 'tools/parser_family_plan.py'
       - 'tools/parser_harness_aggregate.py'
       - 'tests/test_parser_family_plan.py'
+      - 'tests/test_onboarding_parser_coverage.py'
+      - 'tools/parser_harness_report.py'
+      - '.github/workflows/compatibility-farm-accelerated.yml'
       - 'tests/test_parser_harness_aggregate.py'
       - '.github/workflows/compatibility-enrollment-gate-ci.yml'
   push:
@@ -35,6 +40,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact validation head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
 
       - name: Compile enrollment gate helpers
         run: |
@@ -79,4 +92,6 @@ jobs:
         run: |
           python3 -m unittest \
             tests.test_parser_family_plan \
-            tests.test_parser_harness_aggregate
+            tests.test_parser_harness_aggregate \
+            tests.test_parser_harness_report \
+            tests.test_onboarding_parser_coverage
