@@ -21,8 +21,6 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
       - name: Execute embedded candidate-scope helper against advanced head and invalid candidate
-        env:
-          GH_TOKEN: ${{ github.token }}
         shell: python {0}
         run: |
           import json
@@ -33,7 +31,7 @@ jobs:
 
           workflow = Path('.github/workflows/source-lab-run-farm.yml').read_text(encoding='utf-8')
           start_marker = "helper.write_text(r'''"
-          end_marker = "          ''', encoding='utf-8')"
+          end_marker = "          '''.replace("
           start = workflow.find(start_marker)
           if start < 0:
               raise SystemExit('candidate-scope helper start marker not found')
@@ -48,6 +46,8 @@ jobs:
           advanced_head = '7363e4298c2a6cc4e32e6ef6af2d48611d5b619e'
           invalid = '0' * 40
           base = '2025891752e4705effc28e87a043f7205014cde3'
+          repository = 'keiyoushi/extensions-source'
+          helper_source = helper_source.replace('__VERIFIED_REPOSITORY__', repr(repository)).replace('__VERIFIED_BASE__', repr(base)).replace('__VERIFIED_CANDIDATE__', repr(expected))
 
           with tempfile.TemporaryDirectory() as tmp:
               root = Path(tmp)
@@ -58,7 +58,7 @@ jobs:
                   plan = {
                       'providers': {
                           'keiyoushi': {
-                              'repository': 'keiyoushi/extensions-source',
+                              'repository': repository,
                               'changed': True,
                               'candidate': candidate,
                               'lastKnownGood': base,
@@ -101,6 +101,18 @@ jobs:
                   text=True, capture_output=True,
               )
               if rejected.returncode == 0:
-                  raise SystemExit('invalid/unrelated candidate was incorrectly accepted')
+                  raise SystemExit('invalid/unverified candidate was incorrectly accepted')
 
-          print('expected candidate lock: historical locked SHA replayed after upstream advance; invalid candidate rejected fail-closed')
+              wrong_base_plan = write_plan(advanced_head)
+              wrong_base_data = json.loads(wrong_base_plan.read_text(encoding='utf-8'))
+              wrong_base_data['providers']['keiyoushi']['lastKnownGood'] = '3' * 40
+              wrong_base_plan.write_text(json.dumps(wrong_base_data), encoding='utf-8')
+              wrong_base = subprocess.run(
+                  [sys.executable, str(helper), '--plan', str(wrong_base_plan),
+                   '--provider', 'keiyoushi', '--expected-candidate', expected],
+                  text=True, capture_output=True,
+              )
+              if wrong_base.returncode == 0:
+                  raise SystemExit('post-verification LKG drift was incorrectly accepted')
+
+          print('expected candidate lock: preverified historical SHA replayed; invalid candidate and LKG drift rejected fail-closed')
