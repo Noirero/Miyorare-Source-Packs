@@ -15,6 +15,8 @@ internal data class LiveProviderState(
     val lastKnownGood: String,
     val recoveryState: String,
     val reason: String?,
+    val releaseEligibility: String,
+    val releaseEligibilityReason: String?,
 )
 
 internal data class LiveSourceState(
@@ -49,6 +51,7 @@ internal data class LiveApprovalCandidate(
     val providers: Map<String, LiveCandidateProvider>,
     val evidenceBinding: LiveEvidenceBinding,
     val publishEligible: Boolean,
+    val sourceScope: Map<String, List<String>>,
 )
 
 internal data class LivePromotionState(
@@ -57,6 +60,7 @@ internal data class LivePromotionState(
     val providers: Map<String, String>,
     val evidenceBinding: LiveEvidenceBinding?,
     val publishEligible: Boolean,
+    val sourceScope: Map<String, List<String>>,
 )
 
 internal data class LivePublishState(
@@ -114,6 +118,7 @@ internal data class LiveFarmSnapshot(
     val cohort: String,
     val targetSize: Int,
     val branch: String,
+    val farmCommit: String,
     val retrievedAtEpochMs: Long,
     val automation: LiveAutomationState? = null,
     val pendingWorker: LivePendingWorkerState? = null,
@@ -176,23 +181,9 @@ internal object SourceLabRepository {
             }
         }
 
-        val providerObject = status.getJSONObject("providers")
-        val providers = providerObject.keys().asSequence().map { providerId ->
-            val provider = providerObject.getJSONObject(providerId)
-            LiveProviderState(
-                id = providerId,
-                updateState = provider.optString("updateState", "UNKNOWN"),
-                runtimeHealth = provider.optString("runtimeHealth", "UNKNOWN"),
-                activeCommit = provider.optString("activeCommit", ""),
-                lastKnownGood = provider.optString("lastKnownGood", ""),
-                recoveryState = provider.optString("recoveryState", "UNKNOWN"),
-                reason = provider.optString("reason").takeIf { it.isNotBlank() },
-            )
-        }.sortedBy { it.id }.toList()
-
         LiveFarmSnapshot(
             sources = sources,
-            providers = providers,
+            providers = parseProviderStates(status),
             recentRuns = recentRunsJob.await(),
             approvalCandidate = status.optJSONObject("approvalCandidate")?.toApprovalCandidate(),
             lastPromotion = status.optJSONObject("lastPromotion")?.toPromotionState(),
@@ -200,6 +191,7 @@ internal object SourceLabRepository {
             cohort = scope.optString("cohort", "unknown"),
             targetSize = scope.optInt("targetSize", sources.size),
             branch = farmBranch,
+            farmCommit = farmCommit,
             retrievedAtEpochMs = System.currentTimeMillis(),
             automation = status.optJSONObject("automation")?.toAutomationState(),
             pendingWorker = pendingWorkerJob.await(),
@@ -220,6 +212,31 @@ internal object SourceLabRepository {
         return "https://raw.githubusercontent.com/$repository/$commit/$path"
     }
 
+    internal fun parseProviderStates(status: JSONObject): List<LiveProviderState> {
+        val providerObject = status.getJSONObject("providers")
+        return providerObject.keys().asSequence().map { providerId ->
+            val provider = providerObject.getJSONObject(providerId)
+            LiveProviderState(
+                id = providerId,
+                updateState = provider.optString("updateState", "UNKNOWN"),
+                runtimeHealth = provider.optString("runtimeHealth", "UNKNOWN"),
+                activeCommit = provider.optString("activeCommit", ""),
+                lastKnownGood = provider.optString("lastKnownGood", ""),
+                recoveryState = provider.optString("recoveryState", "UNKNOWN"),
+                reason = provider.optString("reason").takeIf { it.isNotBlank() },
+                releaseEligibility = provider.optString("releaseEligibility", "UNKNOWN"),
+                releaseEligibilityReason = provider.optString("releaseEligibilityReason")
+                    .takeIf { it.isNotBlank() },
+            )
+        }.sortedBy { it.id }.toList()
+    }
+
+    internal fun parseApprovalCandidate(root: JSONObject): LiveApprovalCandidate =
+        root.toApprovalCandidate()
+
+    internal fun parsePromotionState(root: JSONObject): LivePromotionState =
+        root.toPromotionState()
+
     private fun loadFarmBranchHead(): String =
         parseFarmBranchHead(JSONObject(fetchText("$apiBase/branches/$farmBranch")))
 
@@ -239,6 +256,7 @@ internal object SourceLabRepository {
             providers = providerMap.toSortedMap(),
             evidenceBinding = getJSONObject("evidenceBinding").toEvidenceBinding(),
             publishEligible = optBoolean("publishEligible", false),
+            sourceScope = readSourceScope(),
         )
     }
 
@@ -253,7 +271,20 @@ internal object SourceLabRepository {
             providers = providerMap.toSortedMap(),
             evidenceBinding = optJSONObject("evidenceBinding")?.toEvidenceBinding(),
             publishEligible = optBoolean("publishEligible", false),
+            sourceScope = readSourceScope(),
         )
+    }
+
+    private fun JSONObject.readSourceScope(): Map<String, List<String>> {
+        val scope = optJSONObject("sourceScope") ?: return emptyMap()
+        return scope.keys().asSequence().associateWith { provider ->
+            val values = scope.getJSONArray(provider)
+            buildList {
+                for (index in 0 until values.length()) {
+                    add(values.getString(index))
+                }
+            }
+        }.toSortedMap()
     }
 
     private fun JSONObject.toPublishState(): LivePublishState {
