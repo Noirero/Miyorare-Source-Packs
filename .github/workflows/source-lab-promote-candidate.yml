@@ -124,6 +124,12 @@ jobs:
               for provider, item in sorted(pending["providers"].items())
           }:
               raise SystemExit("approved provider SHAs do not match live candidate")
+          if approval.get("sourceScope") != pending.get("sourceScope"):
+              raise SystemExit("approval sourceScope changed")
+          if "sourceScope" in pending:
+              Path("build/source-scope.json").write_text(
+                  json.dumps(pending["sourceScope"], indent=2, sort_keys=True) + "\n", encoding="utf-8"
+              )
           PY
 
       - name: Authorize and promote every provider atomically
@@ -149,23 +155,33 @@ jobs:
           print(pending["providers"][sys.argv[1]]["candidate"])
           PY
             )"
+            scope_args=()
+            if [[ -f build/source-scope.json ]]; then
+              scope_args=(--source-scope build/source-scope.json)
+            fi
             python3 farm/tools/approval_state.py authorize \
               --registry farm/upstream/registry.json \
               --pending build/pending-approval.json \
               --approval build/approval-proof.json \
               --provider "$provider" \
               --commit "$commit" \
+              "${scope_args[@]}" \
               --output "build/promotion-auth/$provider.json"
 
+            promotion_scope_args=()
+            if [[ -f build/source-scope.json ]]; then
+              promotion_scope_args=(--source-scope build/source-scope.json --pending build/pending-approval.json)
+            fi
             python3 farm/tools/authorized_promotion.py \
               --registry farm/upstream/registry.json \
               --authorization "build/promotion-auth/$provider.json" \
               --provider "$provider" \
               --commit "$commit" \
+              "${promotion_scope_args[@]}" \
               --receipt "build/promotion-receipts/$provider.json"
           done
 
-      - name: Advance Compatibility Farm baseline and runtime status
+      - name: Advance Compatibility Farm baseline and scoped runtime status
         shell: bash
         run: |
           set -euo pipefail
@@ -180,18 +196,23 @@ jobs:
           worker_state_path = Path("farm/automation/pending-worker-state.json")
           registry = json.loads(registry_path.read_text(encoding="utf-8"))
           status = json.loads(status_path.read_text(encoding="utf-8"))
-          worker_state = (
-              json.loads(worker_state_path.read_text(encoding="utf-8"))
-              if worker_state_path.is_file()
-              else None
-          )
+          worker_state = json.loads(worker_state_path.read_text(encoding="utf-8")) if worker_state_path.is_file() else None
           if worker_state is not None and worker_state.get("schemaVersion") != 2:
               raise SystemExit("pending worker state schema must remain 2")
-
           if status.get("schema") != 3:
               raise SystemExit("upstream status schema must remain 3")
           if status.get("approvalCandidate", {}).get("candidateSetId") != pending["candidateSetId"]:
               raise SystemExit("live candidate changed before promotion commit")
+
+          source_scope = pending.get("sourceScope")
+          if source_scope is not None:
+              if not isinstance(source_scope, dict) or set(source_scope) != set(pending["providers"]):
+                  raise SystemExit("scoped promotion must cover exactly pending providers")
+          source_by_id = {
+              source.get("canonicalId"): source
+              for source in registry.get("sources", [])
+              if isinstance(source, dict) and isinstance(source.get("canonicalId"), str)
+          }
 
           for provider, item in sorted(pending["providers"].items()):
               current = item["current"]
@@ -200,13 +221,24 @@ jobs:
                   raise SystemExit(f"{provider} compatibility baseline moved")
               registry["providerBaselines"][provider] = candidate
 
-              for source in registry["sources"]:
-                  if provider not in source.get("providers", []):
-                      continue
-                  if source["lastKnownGood"].get(provider) != current:
-                      raise SystemExit(
-                          f"{source.get('canonicalId')} {provider} lastKnownGood moved"
-                      )
+              if source_scope is None:
+                  selected = {
+                      source.get("canonicalId")
+                      for source in registry["sources"]
+                      if provider in source.get("providers", [])
+                  }
+              else:
+                  scoped = source_scope.get(provider)
+                  if not isinstance(scoped, list) or not scoped or len(scoped) != len(set(scoped)):
+                      raise SystemExit(f"{provider} sourceScope is invalid")
+                  selected = set(scoped)
+
+              for canonical_id in sorted(selected):
+                  source = source_by_id.get(canonical_id)
+                  if not isinstance(source, dict) or provider not in source.get("providers", []):
+                      raise SystemExit(f"scoped source is not a {provider} member: {canonical_id}")
+                  if source["lastKnownGood"].get(provider) != current or source["currentVersion"].get(provider) != current:
+                      raise SystemExit(f"{canonical_id} {provider} source state moved")
                   source["currentVersion"][provider] = candidate
                   source["lastKnownGood"][provider] = candidate
                   history = source.setdefault("healthyHistory", [])
@@ -220,25 +252,18 @@ jobs:
               provider_status = status["providers"].get(provider)
               if not isinstance(provider_status, dict):
                   raise SystemExit(f"status provider missing: {provider}")
-              if provider_status.get("activeCommit") != current:
-                  raise SystemExit(f"{provider} activeCommit moved")
-              if provider_status.get("lastKnownGood") != current:
-                  raise SystemExit(f"{provider} lastKnownGood moved")
+              if provider_status.get("activeCommit") != current or provider_status.get("lastKnownGood") != current:
+                  raise SystemExit(f"{provider} active/LKG moved")
               provider_status["activeCommit"] = candidate
               provider_status["lastKnownGood"] = candidate
               history = provider_status.setdefault("healthyHistory", [])
               if candidate not in history:
                   history.append(candidate)
               provider_status["updateState"] = "PROMOTED"
-              provider_status["reason"] = "owner-approved-exact-promotion"
+              provider_status["reason"] = "owner-approved-exact-scoped-promotion" if source_scope is not None else "owner-approved-exact-promotion"
               provider_status.pop("candidate", None)
 
           if worker_state is not None:
-              source_by_id = {
-                  source.get("canonicalId"): source
-                  for source in registry.get("sources", [])
-                  if isinstance(source, dict)
-              }
               invalidated = []
               for canonical_id, entry in worker_state.get("sources", {}).items():
                   if not isinstance(entry, dict) or entry.get("state") != "READY_FOR_APPROVAL":
@@ -248,12 +273,9 @@ jobs:
                       continue
                   if source.get("compatibilityEnrollment", {}).get("state") != "PENDING":
                       continue
-                  current = source.get("currentVersion", {})
+                  current_versions = source.get("currentVersion", {})
                   providers = source.get("providers", [])
-                  expected = {
-                      provider: current.get(provider)
-                      for provider in providers
-                  }
+                  expected = {provider: current_versions.get(provider) for provider in providers}
                   if entry.get("testedVersions") == expected:
                       continue
                   entry["state"] = "RETRY"
@@ -276,26 +298,17 @@ jobs:
               "candidateSetId": pending["candidateSetId"],
               "approvalRunId": int(os.environ["APPROVAL_RUN_ID"]),
               "promotionRunId": int(os.environ["GITHUB_RUN_ID"]),
-              "providers": {
-                  provider: item["candidate"]
-                  for provider, item in sorted(pending["providers"].items())
-              },
+              "providers": {provider: item["candidate"] for provider, item in sorted(pending["providers"].items())},
               "evidenceBinding": pending["evidenceBinding"],
               "approvedBy": approval["approvedBy"],
               "publishEligible": False,
+              **({"sourceScope": source_scope} if source_scope is not None else {}),
           }
 
-          registry_path.write_text(
-              json.dumps(registry, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-          )
-          status_path.write_text(
-              json.dumps(status, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-          )
+          registry_path.write_text(json.dumps(registry, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+          status_path.write_text(json.dumps(status, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
           if worker_state is not None:
-              worker_state_path.write_text(
-                  json.dumps(worker_state, indent=2, ensure_ascii=False) + "\n",
-                  encoding="utf-8",
-              )
+              worker_state_path.write_text(json.dumps(worker_state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
           PY
 
       - name: Reconcile explicit provider release eligibility
@@ -353,13 +366,11 @@ jobs:
               "approvalRunId": int(os.environ["APPROVAL_RUN_ID"]),
               "promotionRunId": int(os.environ["GITHUB_RUN_ID"]),
               "foundationCommit": os.environ["FOUNDATION_COMMIT"],
-              "providers": {
-                  provider: item["candidate"]
-                  for provider, item in sorted(pending["providers"].items())
-              },
+              "providers": {provider: item["candidate"] for provider, item in sorted(pending["providers"].items())},
               "evidenceBinding": pending["evidenceBinding"],
               "approvedBy": approval["approvedBy"],
               "publishEligible": False,
+              **({"sourceScope": pending["sourceScope"]} if "sourceScope" in pending else {}),
           }
           Path("build/source-lab-promotion-receipt.json").write_text(
               json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
