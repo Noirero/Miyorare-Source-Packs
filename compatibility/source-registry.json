@@ -36,7 +36,7 @@
       "uma",
       "gekkoushi"
     ],
-    "targetSize": 849
+    "targetSize": 852
   },
   "sources": [
     {
@@ -5878,7 +5878,7 @@
       "currentVersion": {
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
-      "displayName": "Danke f\u00fcrs Lesen",
+      "displayName": "Danke fürs Lesen",
       "enrollmentEvidence": {
         "foundationBefore": "71e4fbc10dfd6e9d99377a7fedad4773eeaf6460",
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
@@ -5912,7 +5912,7 @@
         "keiyoushi": {
           "module": "src/en/dankefurslesen",
           "sourceId": 370316150648855996,
-          "sourceName": "Danke f\u00fcrs Lesen"
+          "sourceName": "Danke fürs Lesen"
         }
       }
     },
@@ -40372,6 +40372,78 @@
       }
     },
     {
+      "canonicalId": "miyorare:inventory-en:TIMELESSTOONS",
+      "displayName": "TimelessToons",
+      "language": "en",
+      "contentProfile": "manga",
+      "authType": "UNSUPPORTED",
+      "adapterFamily": "unclassified",
+      "compatibilityEnrollment": {
+        "state": "PENDING",
+        "parserCoverageRequired": false
+      },
+      "providers": [
+        "keiyoushi",
+        "uma"
+      ],
+      "upstreamIdentities": {
+        "keiyoushi": {
+          "sourceName": "TimelessToons",
+          "module": "src/en/timelesstoons",
+          "sourceId": 9063123408669132087
+        },
+        "uma": {
+          "sourceName": "TIMELESSTOONS",
+          "file": "src/main/kotlin/tsuki/site/en/TimelessToons.kt"
+        }
+      },
+      "currentVersion": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
+        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "lastKnownGood": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
+        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "healthyHistory": [],
+      "updateState": "PROMOTED",
+      "runtimeHealth": "UNKNOWN",
+      "approvalState": "NOT_READY",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "protectedOverlays": [],
+      "compatibilityBaseline": {
+        "status": "PENDING",
+        "capabilities": [
+          "load",
+          "browse",
+          "search",
+          "details",
+          "chapters",
+          "content",
+          "authenticate",
+          "download",
+          "reader"
+        ]
+      },
+      "repairPolicy": {
+        "autoDiagnose": true,
+        "holdRequiresOwnerAction": false,
+        "keepLastKnownGood": true,
+        "safeSelfRepair": true,
+        "validatedCanonicalFallback": true
+      },
+      "selectionReasons": [
+        "automatic-source-inventory",
+        "language-scope-id-en"
+      ],
+      "enrollmentEvidence": {
+        "inventoryCommit": "4078be642b3871f25cbfc2d8aff97a23fbe946b8",
+        "foundationBefore": "10c269e9c69f56c27f6756797b1a16ad52272651",
+        "workflowRunId": 39012037962
+      }
+    },
+    {
       "adapterFamily": "unclassified",
       "approvalState": "NOT_READY",
       "authType": "UNSUPPORTED",
@@ -42985,6 +43057,85 @@
       }
     },
     {
+      "canonicalId": "miyorare:inventory-en:WEBTOONSCAN",
+      "displayName": "WebtoonScan",
+      "language": "en",
+      "contentProfile": "manga",
+      "authType": "UNSUPPORTED",
+      "adapterFamily": "unclassified",
+      "compatibilityEnrollment": {
+        "state": "PENDING",
+        "parserCoverageRequired": false
+      },
+      "providers": [
+        "gekkoushi",
+        "keiyoushi",
+        "uma"
+      ],
+      "upstreamIdentities": {
+        "gekkoushi": {
+          "sourceName": "WEBTOONSCAN",
+          "file": "src/main/kotlin/tsuki/site/madara/en/WebtoonScan.kt"
+        },
+        "keiyoushi": {
+          "sourceName": "WebtoonScan",
+          "module": "src/en/webtoonscan",
+          "sourceId": 3062846066388633553
+        },
+        "uma": {
+          "sourceName": "WEBTOONSCAN",
+          "file": "src/main/kotlin/tsuki/site/en/nsfw/WebtoonScan.kt"
+        }
+      },
+      "currentVersion": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
+        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "lastKnownGood": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
+        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "healthyHistory": [],
+      "updateState": "PROMOTED",
+      "runtimeHealth": "UNKNOWN",
+      "approvalState": "NOT_READY",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "protectedOverlays": [],
+      "compatibilityBaseline": {
+        "status": "PENDING",
+        "capabilities": [
+          "load",
+          "browse",
+          "search",
+          "details",
+          "chapters",
+          "content",
+          "authenticate",
+          "download",
+          "reader"
+        ]
+      },
+      "repairPolicy": {
+        "autoDiagnose": true,
+        "holdRequiresOwnerAction": false,
+        "keepLastKnownGood": true,
+        "safeSelfRepair": true,
+        "validatedCanonicalFallback": true
+      },
+      "selectionReasons": [
+        "automatic-source-inventory",
+        "language-scope-id-en"
+      ],
+      "enrollmentEvidence": {
+        "inventoryCommit": "4078be642b3871f25cbfc2d8aff97a23fbe946b8",
+        "foundationBefore": "10c269e9c69f56c27f6756797b1a16ad52272651",
+        "workflowRunId": 39012037962
+      }
+    },
+    {
       "adapterFamily": "unclassified",
       "approvalState": "NOT_READY",
       "authType": "UNSUPPORTED",
@@ -45161,7 +45312,7 @@
       "currentVersion": {
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
-      "displayName": "\u5c0f\u9ec4\u4e66",
+      "displayName": "小黄书",
       "enrollmentEvidence": {
         "foundationBefore": "71e4fbc10dfd6e9d99377a7fedad4773eeaf6460",
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
@@ -45195,7 +45346,7 @@
         "keiyoushi": {
           "module": "src/all/yellownote",
           "sourceId": 6844007153169388830,
-          "sourceName": "\u5c0f\u9ec4\u4e66"
+          "sourceName": "小黄书"
         }
       }
     },
@@ -55554,6 +55705,78 @@
           "file": "src/main/kotlin/tsuki/site/zeistmanga/id/Sobatmanku.kt",
           "sourceName": "SOBATMANKU"
         }
+      }
+    },
+    {
+      "canonicalId": "miyorare:inventory-id:SOFTKOMIK",
+      "displayName": "Softkomik",
+      "language": "id",
+      "contentProfile": "manga",
+      "authType": "UNSUPPORTED",
+      "adapterFamily": "unclassified",
+      "compatibilityEnrollment": {
+        "state": "PENDING",
+        "parserCoverageRequired": false
+      },
+      "providers": [
+        "keiyoushi",
+        "uma"
+      ],
+      "upstreamIdentities": {
+        "keiyoushi": {
+          "sourceName": "Softkomik",
+          "module": "src/id/softkomik",
+          "sourceId": 4398521787288838980
+        },
+        "uma": {
+          "sourceName": "SOFTKOMIK",
+          "file": "src/main/kotlin/tsuki/site/id/SoftKomik.kt"
+        }
+      },
+      "currentVersion": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
+        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "lastKnownGood": {
+        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
+        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "healthyHistory": [],
+      "updateState": "PROMOTED",
+      "runtimeHealth": "UNKNOWN",
+      "approvalState": "NOT_READY",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "protectedOverlays": [],
+      "compatibilityBaseline": {
+        "status": "PENDING",
+        "capabilities": [
+          "load",
+          "browse",
+          "search",
+          "details",
+          "chapters",
+          "content",
+          "authenticate",
+          "download",
+          "reader"
+        ]
+      },
+      "repairPolicy": {
+        "autoDiagnose": true,
+        "holdRequiresOwnerAction": false,
+        "keepLastKnownGood": true,
+        "safeSelfRepair": true,
+        "validatedCanonicalFallback": true
+      },
+      "selectionReasons": [
+        "automatic-source-inventory",
+        "language-scope-id-en"
+      ],
+      "enrollmentEvidence": {
+        "inventoryCommit": "4078be642b3871f25cbfc2d8aff97a23fbe946b8",
+        "foundationBefore": "10c269e9c69f56c27f6756797b1a16ad52272651",
+        "workflowRunId": 39012037962
       }
     },
     {
