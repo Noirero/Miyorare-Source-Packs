@@ -2,7 +2,7 @@
   "schema": 3,
   "providers": {
     "keiyoushi": {
-      "updateState": "PROMOTED",
+      "updateState": "CANDIDATE",
       "runtimeHealth": "HEALTHY",
       "activeCommit": "2025891752e4705effc28e87a043f7205014cde3",
       "lastKnownGood": "2025891752e4705effc28e87a043f7205014cde3",
@@ -18,9 +18,33 @@
         "domain-base-url",
         "literal-semantic"
       ],
-      "reason": "per-source-runtime-probe",
+      "reason": "waiting-for-exact-approval",
       "releaseEligibility": "ELIGIBLE",
-      "releaseEligibilityReason": "ACTIVE_COMMIT_IS_LAST_KNOWN_GOOD"
+      "releaseEligibilityReason": "ACTIVE_COMMIT_IS_LAST_KNOWN_GOOD",
+      "candidate": {
+        "commit": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f",
+        "expectedLastKnownGood": "2025891752e4705effc28e87a043f7205014cde3",
+        "candidateSetId": "786f42935a941860ca4f315522f6e0015ba9554190a6cf49c85ee6f901ee42b6",
+        "gateFingerprint": "750d9cfadc4bd5822abe79a4893d30e457d3c31b5cd8ab59d1be79ecb5c50bb6",
+        "evidenceBinding": {
+          "farmEvidenceSha256": "6204afd65221a7edfb4adf0e45b76abb9ef0ef48051385621532d58e902d54e8",
+          "gateSha256": "2a883b097b10641b043b9131752ea6dd9ebf10a919577611596e0458c4743bb6",
+          "repairEvidenceCount": 0,
+          "repairEvidenceSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "schemaVersion": 1
+        },
+        "approvalState": "WAITING_FOR_APPROVAL",
+        "publishEligible": false,
+        "sourceScope": {
+          "keiyoushi": [
+            "miyorare:miyorare-en:AQUAMANGA",
+            "miyorare:miyorare-en:ASURASCANS",
+            "miyorare:miyorare-id:BACAMI",
+            "miyorare:miyorare-id:KIRYUU",
+            "miyorare:miyorare-id:KOMIKU"
+          ]
+        }
+      }
     },
     "uma": {
       "updateState": "PROMOTED",
@@ -120,5 +144,37 @@
     "state": "PUBLISHED",
     "tag": "miyorare-sources-v0.5.5",
     "version": "0.5.5"
+  },
+  "approvalCandidate": {
+    "candidateSetId": "786f42935a941860ca4f315522f6e0015ba9554190a6cf49c85ee6f901ee42b6",
+    "evidenceBinding": {
+      "farmEvidenceSha256": "6204afd65221a7edfb4adf0e45b76abb9ef0ef48051385621532d58e902d54e8",
+      "gateSha256": "2a883b097b10641b043b9131752ea6dd9ebf10a919577611596e0458c4743bb6",
+      "repairEvidenceCount": 0,
+      "repairEvidenceSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "schemaVersion": 1
+    },
+    "gateFingerprint": "750d9cfadc4bd5822abe79a4893d30e457d3c31b5cd8ab59d1be79ecb5c50bb6",
+    "maintenanceMode": "APPROVE_ONLY",
+    "ownerActionRequired": false,
+    "providers": {
+      "keiyoushi": {
+        "candidate": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f",
+        "current": "2025891752e4705effc28e87a043f7205014cde3",
+        "state": "WAITING_FOR_APPROVAL"
+      }
+    },
+    "publishEligible": false,
+    "schemaVersion": 1,
+    "sourceScope": {
+      "keiyoushi": [
+        "miyorare:miyorare-en:AQUAMANGA",
+        "miyorare:miyorare-en:ASURASCANS",
+        "miyorare:miyorare-id:BACAMI",
+        "miyorare:miyorare-id:KIRYUU",
+        "miyorare:miyorare-id:KOMIKU"
+      ]
+    },
+    "state": "WAITING_FOR_APPROVAL"
   }
 }
