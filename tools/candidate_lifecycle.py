@@ -72,6 +72,8 @@ def stage_waiting(status: dict[str, Any], pending: dict[str, Any]) -> dict[str, 
             "approvalState": "WAITING_FOR_APPROVAL",
             "publishEligible": False,
         }
+        if "sourceScope" in pending:
+            state["candidate"]["sourceScope"] = deepcopy(pending["sourceScope"])
         state["reason"] = "waiting-for-exact-approval"
 
     # This is intentionally the same validated pending object consumed by the approval engine.

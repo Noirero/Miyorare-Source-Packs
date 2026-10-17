@@ -36,6 +36,7 @@ on:
       - '.github/workflows/compatibility-farm-control-plane.yml'
   pull_request:
     branches:
+      - compatibility-farm-foundation
       - beta
       - main
     paths:
@@ -82,6 +83,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact validation head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
 
       - name: Compile control-plane helpers
         run: >-
@@ -99,6 +108,13 @@ jobs:
 
       - name: Validate approve-only contract
         run: python3 tools/compatibility_contract.py validate --contract compatibility/contract.json
+
+      - name: Validate immutable scope authority and legacy compatibility
+        run: >-
+          python3 -m unittest -v
+          tests.test_approval_state
+          tests.test_candidate_lifecycle
+          tests.test_authorized_promotion
 
       - name: Validate declarative parser family plan
         run: >-
