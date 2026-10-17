@@ -144,7 +144,7 @@ jobs:
             -no-snapshot \
             -camera-back none \
             > build/emulator.log 2>&1 &
-          adb wait-for-device
+          timeout 180 adb wait-for-device
           booted=''
           for _ in $(seq 1 120); do
             booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
