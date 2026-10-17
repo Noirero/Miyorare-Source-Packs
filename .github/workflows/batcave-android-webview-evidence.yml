@@ -29,7 +29,6 @@ jobs:
       MIYORARE_REVISION: 812cfd2567afa9b5517ce639620b002271a09c95
       BATCAVE_CANONICAL: miyorare:miyorare-en:BATCAVE
       BATCAVE_MODULE: src/en/batcave
-      DEBUG_APPLICATION_ID: org.noirero.miyorare.debug
 
     steps:
       - name: Checkout exact Source Pack control plane
@@ -164,6 +163,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          adb logcat -c
           chmod +x miyorare/gradlew
           (
             cd miyorare
@@ -182,9 +182,43 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build
-          adb exec-out run-as "$DEBUG_APPLICATION_ID" \
-            cat files/p2-batcave-evidence.json \
-            > build/p2-batcave-evidence.json
+          adb logcat -d -v raw -s 'P2_BATCAVE_EVIDENCE:I' '*:S' \
+            > build/p2-batcave-evidence.log
+
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          log_path = Path('build/p2-batcave-evidence.log')
+          output_path = Path('build/p2-batcave-evidence.json')
+          candidate = os.environ['KEIYOUSHI_CANDIDATE']
+          miyorare = os.environ['MIYORARE_REVISION']
+          run_id = int(os.environ['GITHUB_RUN_ID'])
+
+          matches = []
+          for raw_line in log_path.read_text(encoding='utf-8', errors='replace').splitlines():
+              line = raw_line.strip()
+              if not line:
+                  continue
+              try:
+                  record = json.loads(line)
+              except json.JSONDecodeError:
+                  continue
+              if (
+                  record.get('canonicalId') == 'miyorare:miyorare-en:BATCAVE'
+                  and record.get('candidateRevision') == candidate
+                  and record.get('miyorareRevision') == miyorare
+                  and record.get('workflowRunId') == run_id
+              ):
+                  matches.append(record)
+
+          if len(matches) != 1:
+              raise SystemExit(f'Expected exactly one exact-run BATCAVE evidence record, got {len(matches)}')
+
+          output_path.write_text(json.dumps(matches[0], indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+
           test -s build/p2-batcave-evidence.json
           python3 -m json.tool build/p2-batcave-evidence.json
           if [[ '${{ steps.android_probe.outcome }}' != 'success' ]]; then
@@ -224,6 +258,7 @@ jobs:
           path: |
             build/batcave-gradle.log
             build/batcave-runtime-proof.json
+            build/p2-batcave-evidence.log
             build/p2-batcave-evidence.json
             build/batcave-runtime-proof-android.json
             build/miyorare-android.log
