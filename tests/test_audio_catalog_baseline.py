@@ -22,16 +22,16 @@ def baseline_data() -> dict:
 class AudioCatalogBaselineTests(unittest.TestCase):
     def test_repository_baseline_is_structurally_valid(self) -> None:
         result = validate(BASELINE)
-        self.assertEqual("BLOCKED", result["releaseEligibility"])
+        self.assertEqual("ELIGIBLE", result["releaseEligibility"])
         self.assertEqual("DEFERRED_BY_OWNER", result["deviceValidation"])
         self.assertFalse(result["deviceValidationRequiredForRelease"])
         self.assertFalse(result["deviceValidated"])
         self.assertEqual(40, len(result["miyorareCommit"]))
         self.assertEqual(40, len(result["hiraukanCommit"]))
 
-    def test_repository_baseline_is_fail_closed_for_release(self) -> None:
-        with self.assertRaises(BaselineError):
-            validate(BASELINE, require_release_eligible=True)
+    def test_repository_baseline_passes_release_gate(self) -> None:
+        result = validate(BASELINE, require_release_eligible=True)
+        self.assertEqual("ELIGIBLE", result["releaseEligibility"])
 
     def test_owner_deferred_device_test_does_not_block_after_beta_merge(self) -> None:
         data = baseline_data()
@@ -47,6 +47,7 @@ class AudioCatalogBaselineTests(unittest.TestCase):
     def test_eligible_without_final_beta_merge_is_rejected(self) -> None:
         data = baseline_data()
         data["releaseEligibility"]["state"] = "ELIGIBLE"
+        data["releaseEligibility"]["miyorareBetaMerged"] = False
         with self.assertRaises(BaselineError):
             validate_data(data)
 
