@@ -1,0 +1,42 @@
+name: Source Lab Scoped Approval CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tools/source_lab_scoped_approval.py'
+      - 'tests/test_source_lab_scoped_approval.py'
+      - '.github/workflows/source-lab-stage-scoped-approval.yml'
+      - '.github/workflows/source-lab-scoped-approval-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact PR head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Compile and run scoped approval regressions
+        run: |
+          python3 -m py_compile tools/source_lab_scoped_approval.py tests/test_source_lab_scoped_approval.py
+          python3 -m unittest -v tests.test_source_lab_scoped_approval
+      - name: Audit staging workflow safety boundaries
+        run: |
+          set -euo pipefail
+          workflow=.github/workflows/source-lab-stage-scoped-approval.yml
+          grep -F "workflows: [\"Source Lab Run Farm\"]" "$workflow"
+          grep -F "github.event.workflow_run.conclusion == 'success'" "$workflow"
+          grep -F "[[ \"\$current_main\" == \"\$RUN_SHA\" ]]" "$workflow"
+          grep -F 'source_lab_scoped_approval.py' "$workflow"
+          grep -F 'approval_evidence.py' "$workflow"
+          grep -F 'approval_state.py stage' "$workflow"
+          grep -F 'candidate_lifecycle.py stage' "$workflow"
+          grep -F "set(scope) & set(blocked)" "$workflow"
+          grep -F "git -C farm add upstream/status.json" "$workflow"
+          ! grep -E 'sign|publish|release' "$workflow" | grep -v 'publishEligible'

@@ -1,0 +1,144 @@
+name: Source Lab Stage Scoped Approval
+
+on:
+  workflow_run:
+    workflows: ["Source Lab Run Farm"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: source-lab-stage-scoped-approval
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+      EXPECTED_OWNER_ID: '149634319'
+    steps:
+      - name: Fail closed on exact owner-triggered main run
+        shell: bash
+        run: |
+          set -euo pipefail
+          run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")"
+          [[ "$(jq -r '.event' <<<"$run")" == workflow_dispatch ]]
+          [[ "$(jq -r '.head_branch' <<<"$run")" == main ]]
+          [[ "$(jq -r '.path' <<<"$run")" == '.github/workflows/source-lab-run-farm.yml' ]]
+          [[ "$(jq -r '.conclusion' <<<"$run")" == success ]]
+          [[ "$(jq -r '.actor.id' <<<"$run")" == "$EXPECTED_OWNER_ID" ]]
+          [[ "$(jq -r '.head_sha' <<<"$run")" == "$RUN_SHA" ]]
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          [[ "$current_main" == "$RUN_SHA" ]] || { echo '::error::main moved after Farm; refusing stale stage'; exit 1; }
+
+      - name: Download immutable Farm evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/control
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --dir build/control
+          receipt="$(find build/control -name source-lab-run-farm-receipt.json -print -quit)"
+          runtime_gate="$(find build/control -name runtime-gate.json -print -quit)"
+          disposition="$(find build/control -name runtime-disposition.json -print -quit)"
+          [[ -n "$receipt" && -n "$runtime_gate" && -n "$disposition" ]]
+          cp "$receipt" build/run-farm-receipt.json
+          cp "$runtime_gate" build/runtime-gate.json
+          cp "$disposition" build/runtime-disposition.json
+          provider="$(jq -r '.provider' build/run-farm-receipt.json)"
+          [[ "$provider" == keiyoushi ]] || { echo 'Non-Keiyoushi Farm uses the existing Candidate Farm staging path.'; exit 0; }
+          [[ "$(jq -r '.runtimeEvidenceResult' build/run-farm-receipt.json)" == success ]]
+          [[ "$(jq -r '.hasCandidate' build/run-farm-receipt.json)" == true ]]
+          upstream_run_id="$(jq -r '.upstreamRunId' build/run-farm-receipt.json)"
+          [[ "$upstream_run_id" =~ ^[0-9]+$ ]]
+          mkdir -p build/handoff
+          gh run download "$upstream_run_id" --repo "$GITHUB_REPOSITORY" --name upstream-candidate-handoff --dir build/handoff
+          handoff="$(find build/handoff -name candidate-handoff.json -print -quit)"
+          [[ -n "$handoff" ]]
+          jq '.plan' "$handoff" > build/sync-plan.json
+
+      - name: Checkout exact control plane and Farm foundation
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 0
+
+      - name: Build exact evidence-scoped approval candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_foundation="$(jq -r '.foundationSha' build/run-farm-receipt.json)"
+          expected_candidate="$(jq -r '.expectedCandidate' build/run-farm-receipt.json)"
+          [[ "$(git -C farm rev-parse HEAD)" == "$expected_foundation" ]]
+          [[ "$(jq -r '.candidate' build/runtime-gate.json)" == "$expected_candidate" ]]
+          python3 control/tools/source_lab_scoped_approval.py \
+            --runtime-gate build/runtime-gate.json \
+            --disposition build/runtime-disposition.json \
+            --provider keiyoushi \
+            --aggregate-output build/scoped-runtime-aggregate.json \
+            --gate-output build/scoped-candidate-gate.json
+          python3 farm/tools/approval_evidence.py \
+            --aggregate build/scoped-runtime-aggregate.json \
+            --gate build/scoped-candidate-gate.json \
+            --output build/approval-evidence-binding.json
+          python3 farm/tools/approval_state.py stage \
+            --registry farm/upstream/registry.json \
+            --plan build/sync-plan.json \
+            --gate build/scoped-candidate-gate.json \
+            --evidence-binding build/approval-evidence-binding.json \
+            --output build/pending-approval.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          status=json.loads(Path('farm/upstream/status.json').read_text())
+          pending=json.loads(Path('build/pending-approval.json').read_text())
+          existing=status.get('approvalCandidate')
+          if existing is not None and existing.get('candidateSetId') != pending.get('candidateSetId'):
+              raise SystemExit('a different live approvalCandidate is already staged')
+          scope=pending.get('sourceScope',{}).get('keiyoushi',[])
+          blocked=json.loads(Path('build/runtime-gate.json').read_text()).get('infrastructureBlocked',[])
+          if set(scope) & set(blocked):
+              raise SystemExit('infrastructure-blocked source entered approval scope')
+          PY
+          python3 farm/tools/candidate_lifecycle.py stage --status farm/upstream/status.json --pending build/pending-approval.json
+
+      - name: Refuse stale foundation and commit only candidate metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_foundation="$(jq -r '.foundationSha' build/run-farm-receipt.json)"
+          remote="$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')"
+          [[ "$remote" == "$expected_foundation" ]] || { echo '::error::Compatibility Farm moved after evidence capture'; exit 1; }
+          git -C farm config user.name github-actions[bot]
+          git -C farm config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C farm add upstream/status.json
+          git -C farm diff --cached --quiet && { echo 'Scoped approval candidate is already staged identically.'; exit 0; }
+          git -C farm commit -m 'Stage evidence-scoped Source Lab approval candidate'
+          git -C farm push origin HEAD:compatibility-farm-foundation
+
+      - name: Upload immutable scoped staging evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: source-lab-scoped-approval-${{ github.event.workflow_run.id }}
+          path: |
+            build/run-farm-receipt.json
+            build/runtime-gate.json
+            build/runtime-disposition.json
+            build/scoped-runtime-aggregate.json
+            build/scoped-candidate-gate.json
+            build/approval-evidence-binding.json
+            build/pending-approval.json
+          if-no-files-found: error
+          retention-days: 30
