@@ -1,112 +1,76 @@
 # Miyorare Source Lab
 
-Android control panel for the Miyorare Compatibility Farm.
+Android owner/viewer console for the Miyorare Source Pack backend and Compatibility Farm.
 
 ## Purpose
 
-Source Lab is intentionally a separate Android app. It does **not** replace repository/CI automation and must never make the phone a required part of upstream maintenance.
+Source Lab is intentionally a separate Android app. It does **not** replace repository/CI automation and does not make a phone a required part of normal Source Pack maintenance.
 
-Repository inspection remains read-only by default. GitHub App identity, owner identity, repository installation, and backend authorization are separate gates, and every write capability remains explicit and fail-closed.
+Repository, CI, and backend state remain authoritative. Viewer paths are read-only. GitHub identity, owner identity, backend authorization, and action-specific capability are separate gates, and mutations remain explicit and fail-closed.
 
-## Implemented foundation
+The current development target is **Source Lab v1.2.15 — Backend Alignment**. Publishing an official stable APK remains a separate owner-triggered action.
 
-- seed-12 dashboard (12 canonical sources / 21 provider memberships);
-- live read-only sync from `compatibility-farm-foundation` for:
-  - `compatibility/source-registry.json`;
-  - `upstream/status.json`;
-- provider runtime-health display kept separate from candidate/test evidence;
-- ID + EN source registry browser with embedded verified fallback data;
-- authoritative Compatibility Farm checkpoint viewer;
-- repair evidence visibility;
-- exact checkpoint provenance (run, seed SHA, approval-foundation SHA, artifact id/digest);
-- read-only parsing of recent `compatibility-farm-accelerated.yml` workflow runs;
-- explicit safety boundary for `WAITING_FOR_APPROVAL`;
-- owner access policy bound to immutable GitHub user id `149634319`;
-- owner login bound to GitHub App id `4959004` and installation id `162045953` for `Noirero/Miyorare-Source-Packs`;
-- Device Flow remains the interactive identity layer without embedding a client secret/private key;
-- short-lived backend authorization client that verifies a GitHub Actions OIDC proof against GitHub's published JWKS;
-- backend proof bound to a fresh 256-bit app challenge, exact workflow/ref/run/repository/actor claims, and JWT expiry;
-- backend authorization grants **no write capability implicitly**;
-- Android CI that produces and uploads a debug APK artifact.
+## Current architecture
 
-## Backend authorization P0
+- live Compatibility Farm state is read from `compatibility-farm-foundation` and pinned to one exact Farm commit before related registry/status/worker files are parsed;
+- Source Registry, Farm status, and pending-worker schemas are checked fail-closed before authority-critical state is presented;
+- operational health is kept separate from compatibility evidence and release eligibility;
+- active commit and last-known-good state are shown independently from newer/live candidate state;
+- candidate-lock review preserves candidate identity, expected baseline/LKG context, evidence binding, publish eligibility, and scoped source authority;
+- P2 BATCAVE runtime evidence is read from authoritative GitHub Actions evidence and does not depend on Source Lab or a physical phone to produce proof;
+- P2 distinguishes WebView availability/request success from proven protected-path execution and remains fail-closed when `__guard_trust` / bound execution proof is incomplete;
+- P3 Miyorare Audio Catalog is presented as separate catalog/release authority and is never folded into Compatibility Farm source counts;
+- P3 preserves exact Miyorare catalog revision, exact Hiraukan runtime authority, six builtin audio-runtime bindings, release eligibility, and owner-deferred device-validation state;
+- Reports and Diagnostics expose authority/provenance details without turning the dashboard into a second backend implementation.
 
-GitHub login proves the owner identity and repository permission through the expected Source Lab GitHub App installation. It does not by itself unlock sensitive controls.
+## Owner authorization and control
 
-The backend authorization flow is:
+GitHub login proves identity and repository access, but does not by itself unlock sensitive actions.
 
-1. The access gate first requires the exact owner GitHub user id, GitHub App id `4959004`, installation id `162045953`, repository, and admin repository permission.
-2. Source Lab generates 32 cryptographically random bytes and sends the lowercase-hex challenge to the dedicated default-branch authorization workflow.
-3. The workflow fails closed unless the dispatcher is GitHub user id `149634319`, the repository is exactly `Noirero/Miyorare-Source-Packs`, the event is `workflow_dispatch`, and the ref is `refs/heads/main`.
-4. GitHub Actions mints a short-lived OIDC JWT whose audience is `miyorare-source-lab:<challenge>`.
-5. Source Lab downloads the short-lived proof artifact and verifies the JWT signature with GitHub's OIDC JWKS.
-6. Source Lab validates the exact issuer, audience, subject, actor id, repository id, owner id, workflow, workflow ref, event, ref, run id, issued-at/not-before/expiry claims.
-7. Only then does the owner session become `BACKEND_AUTHORIZED` until the signed proof expires.
+The Owner path remains layered:
 
-The backend workflow must exist on the repository **default branch** for `workflow_dispatch` to work. It is staged separately from the Android branch for that reason.
+1. Source Lab verifies the expected GitHub identity/repository installation context.
+2. A short-lived backend authorization proof is obtained and cryptographically validated.
+3. Backend authorization grants no write capability implicitly.
+4. Each control action requires its own capability and current authoritative state.
+5. Mutation flows refresh/revalidate authority before dispatch rather than trusting stale UI state.
 
-P0 backend authorization is session authorization only. `RUN_FARM`, `APPROVE`, `PROMOTE`, `SIGN`, and `PUBLISH` remain individually denied until a dedicated capability path explicitly grants them.
+Manual Farm recovery is deliberately narrow. Source Lab requires an exact provider and exact expected candidate, reloads the authoritative Farm snapshot immediately before dispatch, and rejects candidate drift. Keiyoushi recovery additionally requires the exact runtime-evidence run when the backend contract requires it.
+
+Approval, promotion, signing, publishing, and recovery remain governed by their backend contracts. `PASS` is never treated as `PROMOTED`.
 
 ## Safety invariants
 
-1. PASS is not PROMOTED.
-2. `lastKnownGood` / `upstreamBase` must not move before exact approval authorization.
-3. Candidate SHA, candidateSetId, expected LKG and evidence digest must be revalidated before promotion.
-4. Stale/mismatched approval fails closed.
-5. Candidate failure does not imply the active source is broken.
-6. Runtime HEALTHY is not derived from fixture/shape evidence alone.
-7. Regression budget remains zero.
-8. Public/live repository inspection remains read-only.
-9. No GitHub write token, client secret, or private signing key is embedded in the APK.
-10. Backend authorization is short-lived and cryptographically verified.
-11. Backend authorization never implies a write capability.
-12. Sign/release/publish remain governed by the official release flow.
+1. Repository/CI/backend state is authoritative.
+2. Viewer mode remains read-only.
+3. Owner identity, backend authorization, and action capability are separate gates.
+4. Backend authorization never implies a global write switch.
+5. `PASS` is not `PROMOTED`.
+6. Candidate SHA, candidate-set identity, expected LKG/baseline, evidence binding, and source scope must remain exact where the backend requires them.
+7. Stale or mismatched authority fails closed.
+8. Candidate failure does not imply the active source is broken.
+9. WebView availability or request success alone does not prove a protected runtime path executed.
+10. P3 Audio Catalog data is not Compatibility Farm source membership.
+11. No GitHub client secret, private key, signing key, keystore secret, or equivalent release secret is embedded in the APK.
+12. Stable Source Lab publication is never a side effect of an ordinary branch push.
 
-## Current authoritative Compatibility Farm checkpoint
+## Validation and release path
 
-- authoritative run: `35002747386`
-- seed commit: `4dc733270e4022c0eff9fe91479d3cf5e78eadbe`
-- approval-proof foundation: `7dfce1617d24ebf1a7e21ed8e41412d79791a731`
-- artifact id: `10410915845`
-- canonical coverage: `12/12`
-- provider membership coverage: `21/21`
-- failures: `0`
-- generic auto-repair: `2/2`
-- gate: `WAITING_FOR_APPROVAL`
-- publish eligible: `false`
+Internal Source Lab CI runs unit tests, debug lint, and debug assembly, verifies the debug APK exists, and intentionally does not publish it.
 
-## Source Lab build checkpoint
+The official `Source Lab Stable Release` workflow is `workflow_dispatch` only and requires an explicit release version. The trusted Source Lab branch is checked out at an exact source commit; CI parity checks run again; release lint and release assembly run with repository-held signing configuration; the APK signature is verified; and the APK plus SHA-256 digest are published only through that explicit release flow.
 
-The first artifact-producing Source Lab CI completed successfully:
+Existing official tags are treated as immutable source identities: the release workflow refuses to reuse a version tag that already points to different source code.
 
-- run: `35007505172`
-- head SHA: `20020cbbfb8e60aa2c958b08aba330592bb7d28e`
-- artifact: `miyorare-source-lab-debug`
-- artifact id: `10412576077`
-- artifact digest: `sha256:80f2b8fa2e787871e044d4c28a435677bbc2aebf2cb259442c30be0815610ef3`
+## v1.2.15 alignment scope
 
-The CI installs Android 35 requirements, builds `:app:assembleDebug`, and fails if the APK artifact is missing.
+The v1.2.15 alignment work covers:
 
-## Next engineering steps
+- explicit/manual-only stable release safety and current manual Farm recovery contract;
+- P1 operational-authority, candidate-lock, scoped-approval, and release-eligibility presentation;
+- P2 BATCAVE authoritative runtime-evidence inspection;
+- P3 Miyorare Audio Catalog authority presentation;
+- focused backend/app compatibility guards for authority-critical contract drift;
+- final release-readiness audit and exact-head validation before any owner-authorized stable publication.
 
-P0 — read/inspect path:
-
-- surface recent Compatibility Farm workflow history in the UI;
-- parse authoritative run/artifact evidence instead of treating workflow status alone as compatibility evidence;
-- add detailed provider/source current-vs-candidate inspection;
-- keep verified embedded fallback data for temporary API/network failures.
-
-P0 — capability control path:
-
-- connect `Run Full Farm` to its own backend-authorized, least-privilege dispatch capability;
-- keep `Approve exact candidate` disabled until exact candidate SHA + candidateSetId + expected LKG + evidence digest are wired end-to-end;
-- preserve action-specific authorization rather than converting backend session authorization into a global write switch.
-
-After approve-only upstream P0 lands:
-
-- display exact candidate SHA + candidateSetId + expected LKG + evidence digest;
-- enable exact-candidate approval;
-- show authorization result and stale-approval reasons;
-- only then expose promotion state.
-
-Release/sign/publish remain governed by the official Miyorare release flow and stay outside Source Lab until their separate authorization paths are complete.
+For phase continuity and exact verification checkpoints, see `SOURCE_LAB_V1_2_15_PLAN.md`.
