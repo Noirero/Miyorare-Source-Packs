@@ -45,7 +45,7 @@ class KeiyoushiBatCaveAndroidWebViewProbeTest {
 
         val providerUrl = "https://batcave.biz/"
         val providerHost = "batcave.biz"
-        val evidenceFile = File(requireNotNull(context.getExternalFilesDir(null)), "p2-batcave-evidence.json")
+        val evidenceFile = File(context.filesDir, "p2-batcave-evidence.json")
         val apkFile = File(context.cacheDir, "p2-batcave.apk")
         context.assets.open("p2/batcave.apk").use { input ->
             apkFile.outputStream().use(input::copyTo)
@@ -132,7 +132,6 @@ class KeiyoushiBatCaveAndroidWebViewProbeTest {
             .put("webView", webViewJson)
             .put("error", error ?: JSONObject.NULL)
 
-        evidenceFile.parentFile?.mkdirs()
         evidenceFile.writeText(evidence.toString(2) + "\n")
 
         if (packageName.isNotEmpty()) {
