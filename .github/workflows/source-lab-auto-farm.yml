@@ -519,6 +519,7 @@ jobs:
     with:
       upstream_run_id: ${{ fromJSON(needs.intake.outputs.upstream_run_id) }}
       foundation_sha: ${{ needs.probe.outputs.foundation_sha }}
+      provider: ${{ needs.probe.outputs.selected_provider }}
     permissions:
       actions: read
       contents: write
