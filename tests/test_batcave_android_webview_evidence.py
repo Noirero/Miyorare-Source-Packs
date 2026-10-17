@@ -161,6 +161,8 @@ class BatCaveAndroidWebViewEvidenceTests(unittest.TestCase):
         self.assertIn("fun probeExactBatCaveRuntime() {", harness)
         self.assertIn("runBlocking {", harness)
         self.assertNotIn("fun probeExactBatCaveRuntime() = runBlocking", harness)
+        self.assertIn('const val EVIDENCE_LOG_TAG = "P2_BATCAVE_EVIDENCE"', harness)
+        self.assertIn("Log.i(EVIDENCE_LOG_TAG, compactEvidence)", harness)
         self.assertNotIn('.put("dleGuardTrustCookieObserved", true)', harness)
 
     def test_workflow_is_read_only_exact_and_fail_closed(self) -> None:
@@ -181,6 +183,14 @@ class BatCaveAndroidWebViewEvidenceTests(unittest.TestCase):
         self.assertNotIn("nohup emulator \\", workflow)
         self.assertIn("timeout 180 adb wait-for-device", workflow)
         self.assertIn("if: always() && steps.android_probe.outcome != 'skipped'", workflow)
+        self.assertIn("adb logcat -c", workflow)
+        self.assertIn("P2_BATCAVE_EVIDENCE:I", workflow)
+        self.assertIn("build/p2-batcave-evidence.log", workflow)
+        self.assertIn("record.get('candidateRevision') == candidate", workflow)
+        self.assertIn("record.get('miyorareRevision') == miyorare", workflow)
+        self.assertIn("record.get('workflowRunId') == run_id", workflow)
+        self.assertIn("Expected exactly one exact-run BATCAVE evidence record", workflow)
+        self.assertNotIn("adb exec-out run-as", workflow)
         self.assertNotIn("android sdk install --canary", workflow)
         self.assertNotIn("compatibility-farm-foundation", workflow)
         self.assertNotIn("gh pr merge", workflow)
