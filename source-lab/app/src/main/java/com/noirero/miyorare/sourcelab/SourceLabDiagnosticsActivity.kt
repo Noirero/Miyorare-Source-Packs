@@ -13,13 +13,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,7 +24,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,7 +57,7 @@ private data class DiagnosticsState(
 
 @Composable
 private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
-    val context = LocalContext.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     var refreshKey by remember { mutableStateOf(0) }
     var state by remember { mutableStateOf(DiagnosticsState()) }
 
@@ -84,8 +79,6 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
                         },
                     )
                 } else {
-                    // Runtime diagnostics are useful even when privileged
-                    // capability resolution fails. Surface the snapshot first.
                     state = state.copy(snapshot = snapshot, error = null)
                     if (SourceLabOwnerSessionStore.isViewerModeRequested()) {
                         state = state.copy(control = null, error = null)
@@ -127,7 +120,7 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
         item(key = "header") {
             SourceLabTopBar(
                 title = "Diagnostics",
-                subtitle = "Runtime, capability proof, Farm state, and inventory metadata.",
+                subtitle = "Runtime, capability proof, Farm authority, and inventory metadata.",
                 onBack = onClose,
                 trailing = {
                     SourceLabIconButton(
@@ -183,9 +176,27 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
                 DiagnosticCard("Runtime") {
                     DiagnosticLine("App version", BuildConfig.VERSION_NAME)
                     DiagnosticLine("Farm branch", snapshot.branch, true)
+                    DiagnosticLine("Farm commit", snapshot.farmCommit, true)
                     DiagnosticLine("Farm sources", "${snapshot.sources.size}/${snapshot.targetSize}")
                     DiagnosticLine("Cohort", snapshot.cohort)
                     DiagnosticLine("Retrieved at", snapshot.retrievedAtEpochMs.toString(), true)
+                }
+            }
+            item(key = "provider-authority") {
+                DiagnosticCard("Provider authority") {
+                    snapshot.providers.forEach { provider ->
+                        DiagnosticLine("${provider.id} updateState", provider.updateState)
+                        DiagnosticLine("${provider.id} operational health", provider.runtimeHealth)
+                        DiagnosticLine("${provider.id} active commit", provider.activeCommit, true)
+                        DiagnosticLine("${provider.id} last-known-good", provider.lastKnownGood, true)
+                        DiagnosticLine("${provider.id} release eligibility", provider.releaseEligibility)
+                        provider.reason?.let {
+                            DiagnosticLine("${provider.id} operational reason", it)
+                        }
+                        provider.releaseEligibilityReason?.let {
+                            DiagnosticLine("${provider.id} eligibility reason", it)
+                        }
+                    }
                 }
             }
             if (control != null) {
@@ -208,6 +219,20 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
                         DiagnosticLine("candidateSetId", candidate.candidateSetId, true)
                         DiagnosticLine("state", candidate.state)
                         DiagnosticLine("publishEligible", candidate.publishEligible.toString())
+                        candidate.providers.forEach { (provider, refs) ->
+                            DiagnosticLine("$provider expected LKG", refs.current, true)
+                            DiagnosticLine("$provider locked candidate", refs.candidate, true)
+                            snapshot.providers.firstOrNull { it.id == provider }?.let { state ->
+                                DiagnosticLine("$provider active commit", state.activeCommit, true)
+                                DiagnosticLine("$provider current LKG", state.lastKnownGood, true)
+                            }
+                            snapshot.automation?.candidates?.get(provider)?.let { live ->
+                                DiagnosticLine("$provider live upstream", live.candidate, true)
+                            }
+                            candidate.sourceScope[provider]?.let { scope ->
+                                DiagnosticLine("$provider source scope", scope.joinToString("\n"), true)
+                            }
+                        }
                         DiagnosticLine("farm evidence", candidate.evidenceBinding.farmEvidenceSha256, true)
                         DiagnosticLine("gate", candidate.evidenceBinding.gateSha256, true)
                         DiagnosticLine("repair", candidate.evidenceBinding.repairEvidenceSha256, true)
@@ -221,6 +246,12 @@ private fun SourceLabDiagnosticsScreen(onClose: () -> Unit) {
                         DiagnosticLine("candidateSetId", promotion.candidateSetId, true)
                         DiagnosticLine("promotionRunId", promotion.promotionRunId.toString(), true)
                         DiagnosticLine("publishEligible", promotion.publishEligible.toString())
+                        promotion.providers.forEach { (provider, commit) ->
+                            DiagnosticLine("$provider promoted commit", commit, true)
+                        }
+                        promotion.sourceScope.forEach { (provider, scope) ->
+                            DiagnosticLine("$provider source scope", scope.joinToString("\n"), true)
+                        }
                     }
                 }
             }
@@ -295,7 +326,7 @@ private fun DiagnosticLine(label: String, value: String, monospace: Boolean = fa
                 value,
                 fontFamily = if (monospace) FontFamily.Monospace else FontFamily.Default,
                 style = MaterialTheme.typography.bodySmall,
-                maxLines = if (monospace) 3 else 4,
+                maxLines = if (monospace) 8 else 4,
                 overflow = TextOverflow.Ellipsis,
             )
         }
