@@ -1,0 +1,136 @@
+name: P3 Audio Catalog Validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/p3-audio-catalog-validation.yml'
+      - 'compatibility/miyorare-audio-catalog-baseline.json'
+      - 'tools/validate_audio_catalog_baseline.py'
+      - 'tests/test_audio_catalog_baseline.py'
+      - 'docs/hiraukan-audio-catalog.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p3-audio-catalog-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate exact Miyorare catalog against exact Hiraukan runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact Source Pack control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          path: control-plane
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Test fail-closed P3 baseline contract
+        working-directory: control-plane
+        run: python3 -m unittest tests.test_audio_catalog_baseline
+
+      - name: Resolve exact cross-repository baseline
+        id: baseline
+        working-directory: control-plane
+        shell: bash
+        run: |
+          set -euo pipefail
+          baseline='compatibility/miyorare-audio-catalog-baseline.json'
+          miyorare="$(python3 tools/validate_audio_catalog_baseline.py --baseline "$baseline" --print-miyorare-commit)"
+          hiraukan="$(python3 tools/validate_audio_catalog_baseline.py --baseline "$baseline" --print-hiraukan-commit)"
+          [[ "$miyorare" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$hiraukan" =~ ^[0-9a-f]{40}$ ]]
+          echo "miyorare=$miyorare" >> "$GITHUB_OUTPUT"
+          echo "hiraukan=$hiraukan" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact Miyorare Audio Pack candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Noirero/Miyorare
+          ref: ${{ steps.baseline.outputs.miyorare }}
+          path: miyorare
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout exact Hiraukan runtime baseline
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Noirero/Hiraukan
+          ref: ${{ steps.baseline.outputs.hiraukan }}
+          path: hiraukan
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable checkout identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C miyorare rev-parse HEAD)" = '${{ steps.baseline.outputs.miyorare }}'
+          test "$(git -C hiraukan rev-parse HEAD)" = '${{ steps.baseline.outputs.hiraukan }}'
+
+      - name: Validate Miyorare catalog against bundled Hiraukan source ids
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 miyorare/extensions/miyorare-audio/tools/validate_pack.py \
+            miyorare/extensions/miyorare-audio/pack.json \
+            --hiraukan-dir hiraukan
+          python3 -m unittest discover \
+            -s miyorare/extensions/miyorare-audio/tests \
+            -p 'test_*.py'
+
+      - name: Verify all six audio extension runtimes are bundled
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          provider = Path('hiraukan/lib/src/extensions/audio_extension_provider.dart').read_text(encoding='utf-8')
+          markers = {
+              'miyorare.audio.asmr_one': 'AsmrOneAudioExtension(',
+              'miyorare.audio.hentai_asmr': 'createHentaiAsmrAudioExtension()',
+              'miyorare.audio.japanese_asmr': 'createJapaneseAsmrAudioExtension()',
+              'miyorare.audio.asmr18': 'createAsmr18AudioExtension()',
+              'miyorare.audio.ero_voice': 'createEroVoiceAudioExtension()',
+              'miyorare.audio.asmr_hentai_net': 'createAsmrHentaiNetAudioExtension()',
+          }
+          missing = [runtime_id for runtime_id, marker in markers.items() if marker not in provider]
+          if missing:
+              raise SystemExit(f'Hiraukan runtime provider is missing bundled audio runtimes: {missing}')
+          PY
+
+      - name: Confirm production promotion gate remains fail-closed
+        working-directory: control-plane
+        shell: bash
+        run: |
+          set -euo pipefail
+          if python3 tools/validate_audio_catalog_baseline.py \
+              --baseline compatibility/miyorare-audio-catalog-baseline.json \
+              --require-release-eligible; then
+            echo '::error::P3 baseline unexpectedly became release-eligible without owner/device promotion evidence.'
+            exit 1
+          fi
+          echo 'P3 candidate is structurally valid and intentionally release-blocked.'
+
+      - name: Summary
+        working-directory: control-plane
+        shell: bash
+        run: |
+          python3 tools/validate_audio_catalog_baseline.py \
+            --baseline compatibility/miyorare-audio-catalog-baseline.json \
+            >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo
+            echo '- Exact Miyorare Audio Pack candidate was validated.'
+            echo '- Exact Hiraukan beta runtime set was cross-checked.'
+            echo '- This CI does not substitute for real-device validation.'
+            echo '- Stable release integration remains blocked until the baseline becomes ELIGIBLE.'
+          } >> "$GITHUB_STEP_SUMMARY"
