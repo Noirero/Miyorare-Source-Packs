@@ -5,9 +5,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
+
+TOOLS_DIR = Path(__file__).resolve().parent
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
+from parser_family_plan import execution_plan
 
 
 class HarnessReportError(ValueError):
@@ -30,6 +36,11 @@ def parse_source_mapping(raw: str) -> tuple[str, str]:
     if not canonical_id or not test_class:
         raise HarnessReportError("--source canonicalId and testClass must be non-empty")
     return canonical_id, test_class
+
+
+def family_mappings(registry: dict[str, Any], families: dict[str, Any], provider: str) -> list[tuple[str, str]]:
+    """Use the same validated ACTIVE plan for execution and evidence normalization."""
+    return [(row["canonicalId"], row["testClass"]) for row in execution_plan(families, registry, provider)["include"]]
 
 
 def _registry_ids(registry: dict[str, Any]) -> set[str]:
@@ -142,14 +153,17 @@ def main() -> int:
     parser.add_argument("--registry", default="compatibility/source-registry.json")
     parser.add_argument("--results-dir", type=Path, required=True)
     parser.add_argument("--provider", required=True)
-    parser.add_argument("--source", action="append", default=[])
+    mappings = parser.add_mutually_exclusive_group(required=True)
+    mappings.add_argument("--source", action="append", default=[])
+    mappings.add_argument("--families", help="Derive all ACTIVE provider mappings from the validated family plan")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
     try:
         registry = load_json(args.registry)
         junit = read_junit_results(args.results_dir)
-        mappings = [parse_source_mapping(raw) for raw in args.source]
+        mappings = (family_mappings(registry, load_json(args.families), args.provider) if args.families
+                    else [parse_source_mapping(raw) for raw in args.source])
         report = build_report(registry, junit, args.provider, mappings)
         rendered = json.dumps(report, indent=2, sort_keys=True)
         print(rendered)

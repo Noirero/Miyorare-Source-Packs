@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -275,10 +276,30 @@ def execution_plan(
     }
 
 
+def validate_harness_files(plan: dict[str, Any], registry: dict[str, Any], root: Path) -> None:
+    """A declared class must exist in the harness installed by the provider jobs."""
+    for row in execution_plan(plan, registry)["include"]:
+        package, _, name = row["testClass"].rpartition(".")
+        directory = root / row["provider"]
+        files = ([directory / f"{name}.kt"] if row["provider"] == "keiyoushi"
+                 else sorted(directory.glob("*.kt")))
+        matches = []
+        for path in files:
+            if not path.is_file():
+                continue
+            content = path.read_text(encoding="utf-8")
+            if (re.search(r"(?m)^package\s+" + re.escape(package) + r"\s*$", content)
+                    and re.search(r"\bclass\s+" + re.escape(name) + r"\b", content)):
+                matches.append(path)
+        if len(matches) != 1:
+            raise ParserFamilyPlanError(f"{row['canonicalId']}@{row['provider']}: expected one installed harness for {row['testClass']}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--registry", default="compatibility/source-registry.json")
     parser.add_argument("--families", default="compatibility/parser-families.json")
+    parser.add_argument("--harness-root", type=Path, help="Defaults to the harness directory beside --families")
     sub = parser.add_subparsers(dest="command", required=True)
 
     validate = sub.add_parser("validate", help="validate ACTIVE registry coverage and family execution metadata")
@@ -303,6 +324,7 @@ def main() -> int:
     args = build_parser().parse_args()
     registry = load_json(args.registry)
     families = load_json(args.families)
+    validate_harness_files(families, registry, args.harness_root or Path(args.families).parent / "harness")
     if args.command == "validate":
         _emit(validate_plan(families, registry), args.output)
         return 0
