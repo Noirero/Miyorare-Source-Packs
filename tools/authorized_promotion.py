@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Fail-closed registry promotion using an exact approve-only authorization receipt.
 
-This tool is the only promotion path intended for the approve-only lifecycle. It mutates only
-provider upstreamBase/lastKnownGood after verifying an authorization receipt produced by
-approval_state.authorize_promotion. It never signs, releases, or publishes.
+The provider registry tracks the upstream reference baseline used by Compatibility Farm and
+Source Pack semantic adaptation. A scoped authorization may advance that provider reference only
+after its immutable pending candidate/sourceScope is revalidated. Source-level LKG mutation is
+owned by the scoped consumer and is deliberately not performed here.
 """
 from __future__ import annotations
 
@@ -92,8 +93,6 @@ def validate_authorization(
     approved_by = authorization.get("approvedBy")
     if not isinstance(approved_by, str) or not approved_by.strip():
         raise AuthorizedPromotionError("authorization approvedBy is required")
-    # Scoped receipts require the authoritative staged identity at the consumption
-    # boundary, not merely a caller-provided list or a well-formed digest.
     if "sourceScope" in authorization or source_scope is not None or (pending is not None and "sourceScope" in pending):
         if pending is None:
             raise AuthorizedPromotionError("scoped authorization requires pending candidate identity")
@@ -113,14 +112,18 @@ def validate_authorization(
 
 
 def apply_authorized_promotion(
-    registry: dict[str, Any],
-    authorization: dict[str, Any],
-    provider: str,
-    commit: str,
+    registry: dict[str, Any], authorization: dict[str, Any], provider: str, commit: str,
+    source_scope: dict[str, list[str]] | None = None,
+    pending: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    if "sourceScope" in authorization:
-        raise AuthorizedPromotionError("scoped authorization cannot use provider-wide promotion")
-    validate_authorization(authorization, provider, commit)
+    scoped = "sourceScope" in authorization
+    if scoped:
+        validate_authorization(authorization, provider, commit, source_scope, pending)
+    else:
+        if source_scope is not None or pending is not None:
+            raise AuthorizedPromotionError("legacy provider-wide authorization cannot consume sourceScope")
+        validate_authorization(authorization, provider, commit)
+
     providers = registry.get("providers")
     if not isinstance(providers, dict):
         raise AuthorizedPromotionError("registry.providers must be an object")
@@ -154,6 +157,7 @@ def apply_authorized_promotion(
         "gateFingerprint": authorization["gateFingerprint"],
         "evidenceBinding": deepcopy(authorization["evidenceBinding"]),
         "publishEligible": False,
+        **({"sourceScope": deepcopy(authorization["sourceScope"])} if scoped else {}),
     }
     return updated, receipt
 
@@ -164,6 +168,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--authorization", required=True, type=Path)
     parser.add_argument("--provider", required=True)
     parser.add_argument("--commit", required=True)
+    parser.add_argument("--source-scope", type=Path, help="Exact evidence-derived scope JSON; required for scoped authorization")
+    parser.add_argument("--pending", type=Path, help="Authoritative pending candidate identity; required for scoped authorization")
     parser.add_argument("--receipt", required=True, type=Path)
     return parser
 
@@ -171,11 +177,16 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     try:
+        authorization = load_json(args.authorization)
+        scoped = "sourceScope" in authorization
+        if scoped and (args.source_scope is None or args.pending is None):
+            raise AuthorizedPromotionError("scoped authorization requires --source-scope and --pending")
+        if not scoped and (args.source_scope is not None or args.pending is not None):
+            raise AuthorizedPromotionError("legacy provider-wide authorization cannot consume sourceScope")
         updated, receipt = apply_authorized_promotion(
-            load_json(args.registry),
-            load_json(args.authorization),
-            args.provider,
-            args.commit.lower(),
+            load_json(args.registry), authorization, args.provider, args.commit.lower(),
+            load_json(args.source_scope) if args.source_scope is not None else None,
+            load_json(args.pending) if args.pending is not None else None,
         )
         save_json(args.registry, updated)
         args.receipt.parent.mkdir(parents=True, exist_ok=True)
