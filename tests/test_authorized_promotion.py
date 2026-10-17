@@ -107,5 +107,76 @@ class AuthorizedPromotionTests(unittest.TestCase):
             M.apply_authorized_promotion(promoted, replay, "uma", B)
 
 
+class ScopedAuthorizationTests(unittest.TestCase):
+    def setUp(self):
+        from tests.test_approval_state import M as approval, scoped_pending, registry as approval_registry
+        self.pending = scoped_pending()
+        self.scope = deepcopy(self.pending["sourceScope"])
+        proof = approval.approve_pending(self.pending, self.pending["candidateSetId"], "Noirero")
+        self.auth = approval.authorize_promotion(approval_registry(), self.pending, proof, "uma", B, self.scope)
+
+    def test_exact_scoped_authorization_validates(self):
+        M.validate_authorization(self.auth, "uma", B, self.scope, self.pending)
+
+    def test_scoped_receipt_cannot_advance_provider_wide_lkg(self):
+        original = registry()
+        with self.assertRaisesRegex(M.AuthorizedPromotionError, "provider-wide"):
+            M.apply_authorized_promotion(original, self.auth, "uma", B)
+        self.assertEqual(registry(), original)
+
+    def test_missing_authoritative_identity_or_requested_scope_rejects(self):
+        with self.assertRaisesRegex(M.AuthorizedPromotionError, "pending candidate identity"):
+            M.validate_authorization(self.auth, "uma", B, self.scope)
+        with self.assertRaisesRegex(M.AuthorizedPromotionError, "sourceScope"):
+            M.validate_authorization(self.auth, "uma", B, pending=self.pending)
+
+    def test_authorization_scope_add_remove_swap_and_strip_reject(self):
+        for scope in ({"uma": ["SOURCE_A", "SOURCE_B", "SOURCE_C"]},
+                      {"uma": ["SOURCE_A"]}, {"uma": ["SOURCE_A", "SOURCE_C"]},
+                      {"keiyoushi": ["SOURCE_A", "SOURCE_B"]}, None):
+            with self.subTest(scope=scope):
+                changed = deepcopy(self.auth)
+                if scope is None:
+                    del changed["sourceScope"]
+                else:
+                    changed["sourceScope"] = scope
+                with self.assertRaisesRegex(M.AuthorizedPromotionError, "sourceScope"):
+                    M.validate_authorization(changed, "uma", B, self.scope, self.pending)
+                with self.assertRaisesRegex(M.AuthorizedPromotionError, "sourceScope"):
+                    M.validate_authorization(self.auth, "uma", B, scope, self.pending)
+
+    def test_foreign_candidate_or_scope_authorization_rejects(self):
+        from tests.test_approval_state import M as approval, scoped_pending, registry as approval_registry, plan, gate, evidence
+        other_gate = gate()
+        other_gate["sourceScope"] = self.scope
+        other_plan = plan()
+        other_plan["providers"]["uma"]["candidate"] = "d" * 40
+        other_candidate = approval.build_pending(approval_registry(), other_plan, other_gate, evidence())
+        for other in (scoped_pending(["SOURCE_C"]), other_candidate):
+            proof = approval.approve_pending(other, other["candidateSetId"], "Noirero")
+            commit = other["providers"]["uma"]["candidate"]
+            auth = approval.authorize_promotion(approval_registry(), other, proof, "uma", commit, other["sourceScope"])
+            with self.assertRaises(M.AuthorizedPromotionError):
+                M.validate_authorization(auth, "uma", B, self.scope, self.pending)
+
+    def test_authorization_identity_evidence_and_current_mismatch_reject(self):
+        for key, value in (("candidateSetId", "9" * 64), ("gateFingerprint", "9" * 64),
+                           ("expectedCurrent", "9" * 40), ("commit", "9" * 40),
+                           ("provider", "keiyoushi"), ("publishEligible", True)):
+            with self.subTest(key=key):
+                changed = deepcopy(self.auth)
+                changed[key] = value
+                with self.assertRaises(M.AuthorizedPromotionError):
+                    M.validate_authorization(changed, "uma", B, self.scope, self.pending)
+        changed = deepcopy(self.auth)
+        changed["evidenceBinding"]["gateSha256"] = "9" * 64
+        with self.assertRaisesRegex(M.AuthorizedPromotionError, "evidenceBinding"):
+            M.validate_authorization(changed, "uma", B, self.scope, self.pending)
+
+    def test_legacy_authorization_cannot_be_used_as_scoped(self):
+        with self.assertRaisesRegex(M.AuthorizedPromotionError, "sourceScope"):
+            M.validate_authorization(authorization(), "uma", B, self.scope, self.pending)
+
+
 if __name__ == "__main__":
     unittest.main()

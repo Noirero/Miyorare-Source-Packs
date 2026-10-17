@@ -67,6 +67,18 @@ def pending():
 
 
 class CandidateLifecycleTests(unittest.TestCase):
+    def test_scoped_identity_is_preserved_without_advancing_active_state(self):
+        from tests.test_approval_state import scoped_pending
+        staged = scoped_pending()
+        original = status()
+        updated = M.stage_waiting(original, staged)
+        self.assertEqual(staged, updated["approvalCandidate"])
+        self.assertEqual(staged["sourceScope"], updated["providers"]["uma"]["candidate"]["sourceScope"])
+        for key in ("activeCommit", "lastKnownGood", "healthyHistory", "runtimeHealth", "recoveryState"):
+            self.assertEqual(original["providers"]["uma"][key], updated["providers"]["uma"][key])
+        updated["providers"]["uma"]["candidate"]["sourceScope"]["uma"].append("SOURCE_C")
+        self.assertEqual(staged, updated["approvalCandidate"])
+
     def test_stage_waiting_preserves_active_runtime_and_lkg(self):
         original = status()
         staged = pending()

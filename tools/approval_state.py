@@ -51,6 +51,26 @@ def _digest64(value: Any, name: str) -> str:
     return value.lower()
 
 
+def validate_source_scope(value: Any, providers: dict[str, Any]) -> dict[str, list[str]]:
+    """Canonical provider/source membership; absence alone means legacy provider-wide.
+
+    Callers must obtain this scope from authoritative gate evidence. This function
+    validates identity, not source compatibility or eligibility.
+    """
+    if not isinstance(value, dict) or not value or set(value) != set(providers):
+        raise ApprovalStateError("sourceScope must cover exactly the candidate providers")
+    normalized = {}
+    for provider, sources in sorted(value.items()):
+        if not isinstance(sources, list) or not sources:
+            raise ApprovalStateError("sourceScope provider membership must be a non-empty list")
+        if any(not isinstance(source, str) or not source or source != source.strip() for source in sources):
+            raise ApprovalStateError("sourceScope source IDs must be non-empty strings without surrounding whitespace")
+        if len(set(sources)) != len(sources):
+            raise ApprovalStateError("sourceScope must not contain duplicate source IDs")
+        normalized[provider] = sorted(sources)
+    return normalized
+
+
 def validate_evidence_binding(binding: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(binding, dict):
         raise ApprovalStateError("evidence binding must be an object")
@@ -143,6 +163,8 @@ def build_pending(
         "gateFingerprint": gate_fingerprint,
         "evidenceBinding": binding,
     }
+    if "sourceScope" in gate:
+        identity["sourceScope"] = validate_source_scope(gate["sourceScope"], candidates)
     candidate_set_id = _digest(identity)
     return {
         "schemaVersion": 1,
@@ -154,6 +176,7 @@ def build_pending(
         "providers": candidates,
         "ownerActionRequired": False,
         "publishEligible": False,
+        **({"sourceScope": deepcopy(identity["sourceScope"])} if "sourceScope" in identity else {}),
     }
 
 
@@ -183,13 +206,17 @@ def validate_pending(pending: dict[str, Any]) -> None:
     if not isinstance(gate_fingerprint, str) or not HEX64.fullmatch(gate_fingerprint):
         raise ApprovalStateError("pending gateFingerprint must be a SHA-256 digest")
     binding = validate_evidence_binding(pending.get("evidenceBinding"))
-    expected_id = _digest(
-        {
-            "providers": identity_providers,
-            "gateFingerprint": gate_fingerprint,
-            "evidenceBinding": binding,
-        }
-    )
+    identity = {
+        "providers": identity_providers,
+        "gateFingerprint": gate_fingerprint,
+        "evidenceBinding": binding,
+    }
+    if "sourceScope" in pending:
+        scope = validate_source_scope(pending["sourceScope"], providers)
+        if scope != pending["sourceScope"]:
+            raise ApprovalStateError("pending sourceScope must be canonical")
+        identity["sourceScope"] = scope
+    expected_id = _digest(identity)
     if candidate_set_id != expected_id:
         raise ApprovalStateError("pending candidateSetId does not match candidate contents or evidence")
 
@@ -212,6 +239,7 @@ def approve_pending(pending: dict[str, Any], candidate_set_id: str, actor: str) 
             provider: item["candidate"] for provider, item in sorted(pending["providers"].items())
         },
         "publishEligible": False,
+        **({"sourceScope": deepcopy(pending["sourceScope"])} if "sourceScope" in pending else {}),
     }
 
 
@@ -221,6 +249,7 @@ def authorize_promotion(
     approval: dict[str, Any],
     provider: str,
     commit: str,
+    source_scope: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     validate_pending(pending)
     if approval.get("schemaVersion") != 1 or approval.get("approvalState") != "APPROVED":
@@ -233,6 +262,14 @@ def authorize_promotion(
         raise ApprovalStateError("approval gate fingerprint does not match pending candidate")
     if approval.get("evidenceBinding") != pending["evidenceBinding"]:
         raise ApprovalStateError("approval evidence binding does not match pending candidate")
+    if ("sourceScope" in approval) != ("sourceScope" in pending) or approval.get("sourceScope") != pending.get("sourceScope"):
+        raise ApprovalStateError("approval sourceScope does not match pending candidate")
+    if "sourceScope" in pending:
+        requested_scope = validate_source_scope(source_scope, pending["providers"])
+        if requested_scope != pending["sourceScope"]:
+            raise ApprovalStateError("requested sourceScope does not match approved sourceScope")
+    elif source_scope is not None:
+        raise ApprovalStateError("legacy provider-wide approval cannot authorize sourceScope")
     approved_by = approval.get("approvedBy")
     if not isinstance(approved_by, str) or not approved_by:
         raise ApprovalStateError("approval proof is missing approvedBy")
@@ -266,6 +303,7 @@ def authorize_promotion(
         "gateFingerprint": pending["gateFingerprint"],
         "evidenceBinding": deepcopy(pending["evidenceBinding"]),
         "publishEligible": False,
+        **({"sourceScope": deepcopy(pending["sourceScope"])} if "sourceScope" in pending else {}),
     }
 
 
@@ -294,6 +332,7 @@ def build_parser() -> argparse.ArgumentParser:
     authorize.add_argument("--approval", required=True)
     authorize.add_argument("--provider", required=True)
     authorize.add_argument("--commit", required=True)
+    authorize.add_argument("--source-scope", type=Path, help="Exact evidence-derived scope JSON; required for scoped candidates")
     authorize.add_argument("--output", required=True, type=Path)
     return parser
 
@@ -312,7 +351,8 @@ def main() -> int:
             value = approve_pending(load_json(args.pending), args.candidate_set_id, args.actor)
         elif args.command == "authorize":
             value = authorize_promotion(
-                load_json(args.registry), load_json(args.pending), load_json(args.approval), args.provider, args.commit
+                load_json(args.registry), load_json(args.pending), load_json(args.approval), args.provider, args.commit,
+                load_json(args.source_scope) if args.source_scope is not None else None,
             )
         else:
             raise AssertionError(args.command)

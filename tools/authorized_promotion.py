@@ -10,9 +10,16 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
+
+TOOLS_DIR = Path(__file__).resolve().parent
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
+
+from approval_state import ApprovalStateError, validate_pending, validate_source_scope
 
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
@@ -60,7 +67,11 @@ def _validate_evidence_binding(value: Any) -> dict[str, Any]:
     }
 
 
-def validate_authorization(authorization: dict[str, Any], provider: str, commit: str) -> None:
+def validate_authorization(
+    authorization: dict[str, Any], provider: str, commit: str,
+    source_scope: dict[str, list[str]] | None = None,
+    pending: dict[str, Any] | None = None,
+) -> None:
     if authorization.get("schemaVersion") != 1:
         raise AuthorizedPromotionError("authorization schemaVersion must be 1")
     if authorization.get("authorized") is not True:
@@ -81,6 +92,24 @@ def validate_authorization(authorization: dict[str, Any], provider: str, commit:
     approved_by = authorization.get("approvedBy")
     if not isinstance(approved_by, str) or not approved_by.strip():
         raise AuthorizedPromotionError("authorization approvedBy is required")
+    # Scoped receipts require the authoritative staged identity at the consumption
+    # boundary, not merely a caller-provided list or a well-formed digest.
+    if "sourceScope" in authorization or source_scope is not None or (pending is not None and "sourceScope" in pending):
+        if pending is None:
+            raise AuthorizedPromotionError("scoped authorization requires pending candidate identity")
+        try:
+            validate_pending(pending)
+            requested_scope = validate_source_scope(source_scope, pending["providers"])
+        except ApprovalStateError as exc:
+            raise AuthorizedPromotionError(str(exc)) from exc
+        if "sourceScope" not in pending or requested_scope != pending["sourceScope"] or authorization.get("sourceScope") != pending["sourceScope"]:
+            raise AuthorizedPromotionError("authorization sourceScope does not match requested/pending sourceScope")
+        for key in ("candidateSetId", "gateFingerprint", "evidenceBinding"):
+            if authorization.get(key) != pending[key]:
+                raise AuthorizedPromotionError(f"authorization {key} does not match pending candidate")
+        candidate = pending["providers"].get(provider)
+        if not isinstance(candidate, dict) or candidate["candidate"] != authorized_commit or candidate["current"] != authorization.get("expectedCurrent"):
+            raise AuthorizedPromotionError("authorization candidate/current does not match pending provider")
 
 
 def apply_authorized_promotion(
@@ -89,6 +118,8 @@ def apply_authorized_promotion(
     provider: str,
     commit: str,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    if "sourceScope" in authorization:
+        raise AuthorizedPromotionError("scoped authorization cannot use provider-wide promotion")
     validate_authorization(authorization, provider, commit)
     providers = registry.get("providers")
     if not isinstance(providers, dict):
