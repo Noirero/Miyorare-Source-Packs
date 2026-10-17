@@ -7,7 +7,9 @@ on:
       - '.github/workflows/p3-audio-catalog-validation.yml'
       - 'compatibility/miyorare-audio-catalog-baseline.json'
       - 'tools/validate_audio_catalog_baseline.py'
+      - 'tools/validate_audio_runtime_contract.py'
       - 'tests/test_audio_catalog_baseline.py'
+      - 'tests/test_audio_runtime_contract.py'
       - 'docs/hiraukan-audio-catalog.md'
   workflow_dispatch:
 
@@ -32,9 +34,11 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Test fail-closed P3 baseline contract
+      - name: Test fail-closed P3 contracts
         working-directory: control-plane
-        run: python3 -m unittest tests.test_audio_catalog_baseline
+        run: |
+          python3 -m unittest tests.test_audio_catalog_baseline
+          python3 -m unittest tests.test_audio_runtime_contract
 
       - name: Resolve exact cross-repository baseline
         id: baseline
@@ -75,7 +79,7 @@ jobs:
           test "$(git -C miyorare rev-parse HEAD)" = '${{ steps.baseline.outputs.miyorare }}'
           test "$(git -C hiraukan rev-parse HEAD)" = '${{ steps.baseline.outputs.hiraukan }}'
 
-      - name: Validate Miyorare catalog against bundled Hiraukan source ids
+      - name: Validate Miyorare Audio Pack schema and bundled runtime ids
         shell: bash
         run: |
           set -euo pipefail
@@ -86,7 +90,16 @@ jobs:
             -s miyorare/extensions/miyorare-audio/tests \
             -p 'test_*.py'
 
-      - name: Verify all six audio extension runtimes are bundled
+      - name: Cross-check exact Hiraukan runtime manifests and capabilities
+        working-directory: control-plane
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/validate_audio_runtime_contract.py \
+            --catalog ../miyorare/extensions/miyorare-audio/pack.json \
+            --hiraukan-dir ../hiraukan
+
+      - name: Verify all six audio extension runtimes are registered
         shell: bash
         run: |
           set -euo pipefail
@@ -115,10 +128,10 @@ jobs:
           if python3 tools/validate_audio_catalog_baseline.py \
               --baseline compatibility/miyorare-audio-catalog-baseline.json \
               --require-release-eligible; then
-            echo '::error::P3 baseline unexpectedly became release-eligible without owner/device promotion evidence.'
+            echo '::error::P3 baseline unexpectedly became release-eligible before final Miyorare beta promotion.'
             exit 1
           fi
-          echo 'P3 candidate is structurally valid and intentionally release-blocked.'
+          echo 'P3 candidate is structurally valid and intentionally release-blocked pending final Miyorare beta promotion.'
 
       - name: Summary
         working-directory: control-plane
@@ -130,7 +143,7 @@ jobs:
           {
             echo
             echo '- Exact Miyorare Audio Pack candidate was validated.'
-            echo '- Exact Hiraukan beta runtime set was cross-checked.'
-            echo '- This CI does not substitute for real-device validation.'
-            echo '- Stable release integration remains blocked until the baseline becomes ELIGIBLE.'
+            echo '- Exact Hiraukan beta runtime IDs, manifests and capabilities were cross-checked.'
+            echo '- Real-device validation is deferred by explicit owner decision and this CI does not claim device evidence.'
+            echo '- Stable release integration remains fail-closed until the final Miyorare beta Audio Pack authority is promoted.'
           } >> "$GITHUB_STEP_SUMMARY"
