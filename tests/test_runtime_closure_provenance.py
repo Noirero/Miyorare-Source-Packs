@@ -1,6 +1,7 @@
+import inspect
 import unittest
 
-from tools.runtime_closure_provenance import derive_paths, executed_project_roots, exercised_classes
+from tools.runtime_closure_provenance import build_proof, derive_paths, executed_project_roots, exercised_classes
 
 
 class RuntimeClosureProvenanceTest(unittest.TestCase):
@@ -44,6 +45,12 @@ class RuntimeClosureProvenanceTest(unittest.TestCase):
 
     def test_failed_execution_claims_no_change_classes(self):
         self.assertEqual([], exercised_classes("src/en/aquamanga", ["gradle.properties"], False))
+
+    def test_proof_carries_exact_base_revision_for_farm_aggregation(self):
+        source = inspect.getsource(build_proof)
+        self.assertIn('"baseRevision": base', source)
+        self.assertIn('"candidateRevision": candidate', source)
+        self.assertIn('"runtimeClosureRevision": candidate', source)
 
 
 if __name__ == "__main__":
