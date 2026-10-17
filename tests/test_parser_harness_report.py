@@ -33,7 +33,9 @@ class ParserHarnessReportTests(unittest.TestCase):
         self.assertTrue(report["parserExecution"])
         self.assertEqual(report["suiteStatus"], "PASS")
         self.assertEqual(report["coverage"]["parserExecuted"], 1)
-        self.assertEqual(report["coverage"]["totalRegistered"], 12)
+        # Inventory enrollment expanded the registry beyond the original seed-12.
+        # A partial report must still count every registered identity.
+        self.assertEqual(report["coverage"]["totalRegistered"], len(self.registry["sources"]))
         self.assertFalse(report["candidatePass"])
         self.assertFalse(report["publishEligible"])
         self.assertFalse(report["ownerActionRequired"])

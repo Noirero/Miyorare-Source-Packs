@@ -256,22 +256,18 @@ jobs:
       - name: Execute all UMA real parser memberships
         id: parser-tests
         continue-on-error: true
-        working-directory: _upstream/uma
+        shell: bash
         run: |
-          chmod +x gradlew
-          ./gradlew test \
-            --tests compatibilityfarm.KomikuParserHarnessTest \
-            --tests compatibilityfarm.ShinigamiParserHarnessTest \
-            --tests compatibilityfarm.WeebCentralAuthParserHarnessTest \
-            --tests compatibilityfarm.KiryuuNatsuParserHarnessTest \
-            --tests compatibilityfarm.AquaReaderMadaraParserHarnessTest \
-            --tests compatibilityfarm.BatcaveParserHarnessTest \
-            --tests compatibilityfarm.AsuraScansParserHarnessTest \
-            --tests compatibilityfarm.BacamiParserHarnessTest \
-            --tests compatibilityfarm.LikeMangaParserHarnessBehaviorTest \
-            --tests compatibilityfarm.MangaPillParserHarnessTest \
-            --tests compatibilityfarm.TheMangaParserHarnessTest \
-            --no-daemon
+          set -euo pipefail
+          python3 tools/parser_family_plan.py plan --provider uma --output build/parser-plan-uma.json
+          python3 - <<'PYTEST'
+          import json, subprocess
+          from pathlib import Path
+          plan = json.loads(Path('build/parser-plan-uma.json').read_text())
+          tests = [arg for row in plan['include'] for arg in ('--tests', row['testClass'])]
+          assert tests, 'ACTIVE parser plan must not be empty'
+          subprocess.run(['bash', './gradlew', 'test', *tests, '--no-daemon'], cwd='_upstream/uma', check=True)
+          PYTEST
 
       - name: Normalize UMA parser evidence
         id: report
@@ -282,17 +278,7 @@ jobs:
           --registry compatibility/source-registry.json
           --results-dir _upstream/uma/build/test-results/test
           --provider uma
-          --source miyorare:miyorare-id:KOMIKU=compatibilityfarm.KomikuParserHarnessTest
-          --source miyorare:miyorare-id:SHINIGAMI=compatibilityfarm.ShinigamiParserHarnessTest
-          --source miyorare:miyorare-en:WEEBCENTRAL=compatibilityfarm.WeebCentralAuthParserHarnessTest
-          --source miyorare:miyorare-id:KIRYUU=compatibilityfarm.KiryuuNatsuParserHarnessTest
-          --source miyorare:miyorare-en:AQUAMANGA=compatibilityfarm.AquaReaderMadaraParserHarnessTest
-          --source miyorare:miyorare-en:BATCAVE=compatibilityfarm.BatcaveParserHarnessTest
-          --source miyorare:miyorare-en:ASURASCANS=compatibilityfarm.AsuraScansParserHarnessTest
-          --source miyorare:miyorare-id:BACAMI=compatibilityfarm.BacamiParserHarnessTest
-          --source miyorare:miyorare-en:LIKEMANGA=compatibilityfarm.LikeMangaParserHarnessBehaviorTest
-          --source miyorare:miyorare-en:MANGAPILL=compatibilityfarm.MangaPillParserHarnessTest
-          --source miyorare:miyorare-id:THEMANGA=compatibilityfarm.TheMangaParserHarnessTest
+          --families compatibility/parser-families.json
           --output build/real-parser-harness-uma-report.json
 
       - name: Upload UMA evidence
@@ -386,15 +372,18 @@ jobs:
       - name: Execute Gekkoushi real parser families
         id: parser-tests
         continue-on-error: true
-        working-directory: _upstream/gekkoushi
+        shell: bash
         run: |
-          chmod +x gradlew
-          ./gradlew test \
-            --tests compatibilityfarm.DoujinDesuParserHarnessTest \
-            --tests compatibilityfarm.ShinigamiGekkoushiParserHarnessTest \
-            --tests compatibilityfarm.BatCaveGekkoushiParserHarnessTest \
-            --tests compatibilityfarm.AsuraScansGekkoushiParserHarnessTest \
-            --no-daemon
+          set -euo pipefail
+          python3 tools/parser_family_plan.py plan --provider gekkoushi --output build/parser-plan-gekkoushi.json
+          python3 - <<'PYTEST'
+          import json, subprocess
+          from pathlib import Path
+          plan = json.loads(Path('build/parser-plan-gekkoushi.json').read_text())
+          tests = [arg for row in plan['include'] for arg in ('--tests', row['testClass'])]
+          assert tests, 'ACTIVE parser plan must not be empty'
+          subprocess.run(['bash', './gradlew', 'test', *tests, '--no-daemon'], cwd='_upstream/gekkoushi', check=True)
+          PYTEST
 
       - name: Normalize Gekkoushi parser evidence
         id: report
@@ -405,10 +394,7 @@ jobs:
           --registry compatibility/source-registry.json
           --results-dir _upstream/gekkoushi/build/test-results/test
           --provider gekkoushi
-          --source miyorare:miyorare-id:DOUJINDESU=compatibilityfarm.DoujinDesuParserHarnessTest
-          --source miyorare:miyorare-id:SHINIGAMI=compatibilityfarm.ShinigamiGekkoushiParserHarnessTest
-          --source miyorare:miyorare-en:BATCAVE=compatibilityfarm.BatCaveGekkoushiParserHarnessTest
-          --source miyorare:miyorare-en:ASURASCANS=compatibilityfarm.AsuraScansGekkoushiParserHarnessTest
+          --families compatibility/parser-families.json
           --output build/real-parser-harness-gekkoushi-report.json
 
       - name: Upload Gekkoushi evidence
@@ -476,6 +462,7 @@ jobs:
           MODULE: ${{ matrix.module }}
           TEST_CLASS: ${{ matrix.testClass }}
           RUNTIME_PROFILE: ${{ matrix.runtimeProfile }}
+          RUNNER: ${{ matrix.runner }}
         run: |
           set -euo pipefail
           module="_upstream/keiyoushi/$MODULE"
@@ -490,6 +477,22 @@ jobs:
             cp -R "$profile/." "$module/compatibility-farm-test/"
           fi
           cp -R compatibility/harness/keiyoushi/resources/. "$module/compatibility-farm-resources/compatibility-farm/"
+          if [[ "$RUNNER" == "android-gradle-live-test" ]]; then
+            lib_version="$(sed -n 's/.*libVersion[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$module/build.gradle.kts" | head -n 1)"
+            case "$lib_version" in
+              1.4) test_dep='testImplementation(libs.tachiyomi.lib.v14)' ;;
+              1.6) test_dep='testImplementation(libs.tachiyomi.lib.v16)' ;;
+              *) echo "Unsupported Keiyoushi libVersion: $lib_version" >&2; exit 1 ;;
+            esac
+            printf '\ndependencies { %s }\n' "$test_dep" >> "$module/build.gradle.kts"
+            assets="$module/compatibility-farm-resources/assets"
+            mkdir -p "$assets"
+            theme="$(sed -n 's/.*theme[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$module/build.gradle.kts" | head -n 1)"
+            if [[ -n "$theme" && -d "_upstream/keiyoushi/lib-multisrc/$theme/assets" ]]; then
+              cp -R "_upstream/keiyoushi/lib-multisrc/$theme/assets/." "$assets/"
+            fi
+            if [[ -d "$module/assets" ]]; then cp -R "$module/assets/." "$assets/"; fi
+          fi
           cat >> "$module/build.gradle.kts" <<'EOF'
 
           // Compatibility Farm test-only wiring. Disposable pinned checkout only.
