@@ -180,6 +180,8 @@ private fun ReportsScreen(onClose: () -> Unit) {
 
                 item(key = "release") { ReleaseStateReport(snapshot) }
             }
+
+            item(key = "audio-catalog") { P3AudioCatalogReport() }
         }
 
         SourceLabBottomBar(
