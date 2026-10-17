@@ -318,9 +318,11 @@ Verified history relevant to this plan:
 - That exact post-PR-#85 state was already released as official Source Lab v1.2.13 before this Backend Alignment work began.
 - The original continuity-plan commit `d2e6bdede8e387f200ea0b96cf552819c3546415` touched `source-lab/**`; the historical Stable Release workflow treated every such push as a release trigger and automatically published official immutable v1.2.14. This was an unintended workflow side effect discovered during SL13-A audit, not a completed Backend Alignment release.
 - The owner explicitly approved retargeting this Backend Alignment parent release to **v1.2.15**.
-- CHILD-A2 changed Stable Release at `c9c19fc7df752e651a275ad9319cdb566120f751` so release is `workflow_dispatch` only and requires an explicit version. A subsequent branch-state check showed no new Stable Release run from that push.
-- Backend Source Pack `main` was `e20015393591d22398aa623b227e17afe26fc19d` at the SL13-A audit checkpoint, with P1/P2/P3 complete.
-- Compatibility Farm authority was `955f2ede6ddb2ae4f61f46074bacb937f68fc14f` at the SL13-A audit checkpoint.
+- CHILD-A2 changed Stable Release at `c9c19fc7df752e651a275ad9319cdb566120f751` so release is `workflow_dispatch` only and requires an explicit version. Subsequent branch writes did not trigger Stable Release.
+- CHILD-A1 aligned Manual Run Farm at `c80e137d0f4f477e677d3454520a30d590db4c33`: explicit provider + expected candidate, exact Keiyoushi runtime-evidence run when required, fresh-snapshot stale-candidate rejection, recovery target UI, and focused contract tests.
+- CHILD-A1 exact-head Source Lab CI run `39048352150` completed successfully, including unit tests, debug lint, and debug assembly.
+- Backend Source Pack `main` remained `e20015393591d22398aa623b227e17afe26fc19d` at the SL13-A exit audit.
+- Compatibility Farm authority remained `955f2ede6ddb2ae4f61f46074bacb937f68fc14f` at the SL13-A exit audit.
 
 These SHAs are historical checkpoint evidence, not permanent assumptions. Refresh exact repository/backend state before every write and before every phase exit audit.
 
@@ -330,13 +332,13 @@ These SHAs are historical checkpoint evidence, not permanent assumptions. Refres
 CURRENT CHECKPOINT
 Parent goal: Source Lab v1.2.15 Backend Alignment Release
 Phase: SL13-A
-Phase state: BLOCKED_BY_CHILD
-Active child: CHILD-A1 — Manual Run Farm backend-contract alignment
-Child state: ACTIVE
-Return target: Finish CHILD-A1 exact-head validation, then RETURN to SL13-A and perform the SL13-A final baseline/change-surface exit audit.
-Last verified repository state: source-lab-owner-access-temp @ c9c19fc7df752e651a275ad9319cdb566120f751 before the CHILD-A1 atomic implementation commit
+Phase state: CLOSED
+Active child: NONE
+Child state: NONE
+Return target: SL13-A exit condition is satisfied. The next parent task is SL13-B targeted pre-change audit; do not implement SL13-B until its current exact authority/change surface is refreshed.
+Last verified repository state: source-lab-owner-access-temp @ c80e137d0f4f477e677d3454520a30d590db4c33 before this closure-record commit; refresh exact head before the next write
 Last verified backend authority: main @ e20015393591d22398aa623b227e17afe26fc19d; compatibility-farm-foundation @ 955f2ede6ddb2ae4f61f46074bacb937f68fc14f
-Last verified evidence: CHILD-A2 CLOSED/VERIFIED; Stable Release is explicit-only. CHILD-A1 audit proved app RUN_FARM contract drift while APPROVE/PROMOTE/SIGN/PUBLISH/Approve Ready Sources still match backend.
+Last verified evidence: CHILD-A2 CLOSED/VERIFIED; CHILD-A1 CLOSED/VERIFIED by exact-head CI run 39048352150; cumulative SL13-A diff/self-audit found only the explicit release gate, continuity ledger, Manual Farm contract/UI, and focused tests; no Farm/LKG/backend state was mutated.
 Next parent phase after closure: SL13-B
-Notes: Phase IDs SL13-* remain stable continuity identifiers. Do not start SL13-B until CHILD-A1 closes and SL13-A exit condition is satisfied.
+Notes: Stable Release is explicit workflow_dispatch-only and requires an explicit version. Phase IDs SL13-* remain stable continuity identifiers. Stop here until SL13-B is explicitly started.
 ```
