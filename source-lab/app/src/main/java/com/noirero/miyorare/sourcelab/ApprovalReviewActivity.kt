@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -94,6 +93,40 @@ internal data class ProviderComparisonSummary(
     val htmlUrl: String,
 )
 
+internal data class CandidateAuthoritySummary(
+    val label: String,
+    val baselineMatches: Boolean?,
+    val automationBaselineMatches: Boolean?,
+    val liveMatchesLocked: Boolean?,
+    val liveCandidate: String?,
+)
+
+internal fun resolveCandidateAuthority(
+    providerState: LiveProviderState?,
+    refs: LiveCandidateProvider,
+    live: LiveAutomationCandidate?,
+): CandidateAuthoritySummary {
+    val baselineMatches = providerState?.let {
+        if (it.activeCommit.isBlank() || it.lastKnownGood.isBlank()) null
+        else it.activeCommit == refs.current && it.lastKnownGood == refs.current
+    }
+    val automationBaselineMatches = live?.current?.takeIf { it.isNotBlank() }?.let { it == refs.current }
+    val liveMatchesLocked = live?.candidate?.takeIf { it.isNotBlank() }?.let { it == refs.candidate }
+    val label = when {
+        baselineMatches == false || automationBaselineMatches == false -> "BASELINE DRIFT"
+        liveMatchesLocked == false -> "LOCKED · UPSTREAM MOVED"
+        liveMatchesLocked == true -> "LOCKED · LIVE MATCH"
+        else -> "LOCKED · LIVE UNKNOWN"
+    }
+    return CandidateAuthoritySummary(
+        label = label,
+        baselineMatches = baselineMatches,
+        automationBaselineMatches = automationBaselineMatches,
+        liveMatchesLocked = liveMatchesLocked,
+        liveCandidate = live?.candidate?.takeIf { it.isNotBlank() },
+    )
+}
+
 @Composable
 private fun ApprovalReviewScreen(onClose: () -> Unit) {
     val context = LocalContext.current
@@ -114,8 +147,6 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
             return
         }
 
-        // Candidate evidence is public/read-only. Render it immediately instead
-        // of hiding the whole review behind Owner authorization.
         val previousCandidateId = ui.snapshot?.approvalCandidate?.candidateSetId
         val candidate = snapshot.approvalCandidate
         ui = ui.copy(
@@ -158,7 +189,7 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
                     return@launch
                 }
                 val comparisonResult = runCatching {
-                    ProviderComparisonRepository.load(candidate)
+                    ProviderComparisonRepository.load(candidate, snapshot.farmCommit)
                 }
                 ui = ui.copy(
                     comparisons = comparisonResult.getOrDefault(emptyMap()),
@@ -184,10 +215,10 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "This starts the real APPROVE → PROMOTE → SIGN → PUBLISH pipeline for the live candidate.",
+                        "This starts the real APPROVE → PROMOTE → SIGN → PUBLISH pipeline for the locked candidate.",
                     )
                     Text(
-                        "Each stage reloads live state and the backend revalidates exact evidence and prerequisite runs. Source Lab signing material is not stored in the APK.",
+                        "Each stage reloads live state and the backend revalidates exact evidence, expected baseline, source scope, and prerequisite runs. Source Lab signing material is not stored in the APK.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -238,7 +269,7 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
         item(key = "header") {
             SourceLabTopBar(
                 title = "Test Result",
-                subtitle = "Candidate review · current vs candidate evidence",
+                subtitle = "Candidate review · locked authority vs live upstream",
                 onBack = onClose,
                 trailing = {
                     SourceLabIconButton(
@@ -304,7 +335,7 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
                         SourceLabStatusBadge("NO CANDIDATE", SourceLabTone.NEUTRAL)
                         Text("No candidate is waiting for approval.", fontWeight = FontWeight.Bold)
                         Text(
-                            "Run Compatibility Farm from the dashboard to evaluate current upstream state. A review screen appears only when the backend stages a real candidate.",
+                            "Compatibility Farm has not staged a locked approval candidate in the current exact Farm snapshot.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -312,7 +343,7 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
             }
         }
 
-        if (candidate != null) {
+        if (candidate != null && snapshot != null) {
             item(key = "summary") {
                 CandidateSummaryCard(candidate, approval)
             }
@@ -331,13 +362,31 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
                 }
             }
 
+            item(key = "snapshot-authority") {
+                SourceLabCard(tone = SourceLabTone.ACCENT) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("Exact Farm Snapshot", fontWeight = FontWeight.Bold)
+                        Text(
+                            snapshot.farmCommit,
+                            fontFamily = FontFamily.Monospace,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Text(
+                            "Approval refs, provider authority, source scope, and automation refs below come from this one immutable Farm commit.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
             item(key = "versions-title") {
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Version Comparison", fontWeight = FontWeight.Bold)
+                    Text("Candidate Authority", fontWeight = FontWeight.Bold)
                     if (ui.comparing) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -347,7 +396,7 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
                     }
                 }
                 Text(
-                    "Diff metadata is loaded on demand. Large patch content is opened in GitHub instead of being preloaded into the dashboard.",
+                    "Expected LKG and locked candidate are approval authority. Live upstream may move afterward without changing the locked candidate.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -357,6 +406,8 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
                 ProviderComparisonCard(
                     provider = entry.key,
                     refs = entry.value,
+                    providerState = snapshot.providers.firstOrNull { it.id == entry.key },
+                    liveCandidate = snapshot.automation?.candidates?.get(entry.key),
                     comparison = ui.comparisons[entry.key],
                     comparing = ui.comparing,
                     onOpenDiff = { url ->
@@ -371,13 +422,17 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             SourceLabStatusBadge("DIFF METADATA UNAVAILABLE", SourceLabTone.WARNING)
                             Text(
-                                "Provider refs remain authoritative and visible. Comparison summary could not be loaded: $error",
+                                "Locked provider refs remain authoritative and visible. Comparison summary could not be loaded: $error",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
                 }
+            }
+
+            item(key = "scope") {
+                CandidateScopeCard(candidate)
             }
 
             item(key = "evidence") {
@@ -395,7 +450,7 @@ private fun ApprovalReviewScreen(onClose: () -> Unit) {
                         )
                         Text(
                             if (available) {
-                                "The live candidate and Owner capability satisfy the client-side prerequisites. The backend will revalidate everything before mutation."
+                                "The locked candidate and Owner capability satisfy client-side prerequisites. The backend still revalidates baseline, evidence and source scope before mutation."
                             } else {
                                 "Approval is unavailable: ${approval?.reason ?: ui.error ?: "OWNER_CONTROL_UNRESOLVED"}"
                             },
@@ -453,7 +508,7 @@ private fun CandidateSummaryCard(
             )
             Text(
                 if (waiting) {
-                    "A real candidate passed the Farm gate. Approval remains locked until the live Owner capability is available."
+                    "A locked candidate passed the Farm gate. Approval remains locked until the live Owner capability is available."
                 } else {
                     "The backend candidate state is shown exactly as returned."
                 },
@@ -462,6 +517,7 @@ private fun CandidateSummaryCard(
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 CandidateMetric("Providers", candidate.providers.size.toString(), Modifier.weight(1f))
+                CandidateMetric("Scoped sources", candidate.sourceScope.values.sumOf { it.size }.toString(), Modifier.weight(1f))
                 CandidateMetric("Repair evidence", candidate.evidenceBinding.repairEvidenceCount.toString(), Modifier.weight(1f))
             }
             Text(
@@ -484,9 +540,9 @@ private fun CandidateSummaryCard(
 @Composable
 private fun CandidateMetric(label: String, value: String, modifier: Modifier = Modifier) {
     Surface(modifier = modifier, shape = RoundedCornerShape(12.dp), color = SourceLabSurface) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -495,10 +551,19 @@ private fun CandidateMetric(label: String, value: String, modifier: Modifier = M
 private fun ProviderComparisonCard(
     provider: String,
     refs: LiveCandidateProvider,
+    providerState: LiveProviderState?,
+    liveCandidate: LiveAutomationCandidate?,
     comparison: ProviderComparisonSummary?,
     comparing: Boolean,
     onOpenDiff: (String) -> Unit,
 ) {
+    val authority = resolveCandidateAuthority(providerState, refs, liveCandidate)
+    val authorityTone = when (authority.label) {
+        "BASELINE DRIFT" -> SourceLabTone.WARNING
+        "LOCKED · LIVE MATCH" -> SourceLabTone.GOOD
+        "LOCKED · UPSTREAM MOVED" -> SourceLabTone.ACCENT
+        else -> SourceLabTone.NEUTRAL
+    }
     SourceLabCard {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Row(
@@ -507,18 +572,31 @@ private fun ProviderComparisonCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(providerReviewName(provider), fontWeight = FontWeight.Bold)
-                when {
-                    comparison != null -> SourceLabStatusBadge(
-                        comparison.status.replace('_', ' ').uppercase(),
-                        if (comparison.behindBy == 0) SourceLabTone.ACCENT else SourceLabTone.WARNING,
-                    )
-                    comparing -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    else -> SourceLabStatusBadge("REFS ONLY", SourceLabTone.NEUTRAL)
-                }
+                SourceLabStatusBadge(authority.label, authorityTone)
             }
 
-            VersionRef("Current", refs.current)
-            VersionRef("Candidate", refs.candidate)
+            VersionRef("Expected LKG", refs.current)
+            VersionRef("Locked candidate", refs.candidate)
+            providerState?.let {
+                VersionRef("Active commit", it.activeCommit)
+                if (it.lastKnownGood != it.activeCommit || it.lastKnownGood != refs.current) {
+                    VersionRef("Current LKG", it.lastKnownGood)
+                }
+            }
+            authority.liveCandidate?.let { live ->
+                if (live != refs.candidate) VersionRef("Live upstream", live)
+            }
+
+            Text(
+                when (authority.label) {
+                    "BASELINE DRIFT" -> "The current provider/LKG baseline no longer matches the candidate's expected baseline. Backend revalidation must decide whether approval is still valid."
+                    "LOCKED · UPSTREAM MOVED" -> "Upstream has moved since this candidate was locked. The locked candidate remains the approval identity; the newer upstream ref is informational."
+                    "LOCKED · LIVE MATCH" -> "The locked candidate still matches the current live upstream candidate and expected baseline."
+                    else -> "The locked candidate is authoritative; a live upstream ref is not available in this snapshot."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
             if (comparison != null) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -527,14 +605,58 @@ private fun ProviderComparisonCard(
                     CompactMetric("+ / -", "+${comparison.additions} / -${comparison.deletions}", Modifier.weight(1f))
                 }
                 Text(
-                    "Ahead ${comparison.aheadBy} · Behind ${comparison.behindBy}",
+                    "Expected LKG → locked candidate · Ahead ${comparison.aheadBy} · Behind ${comparison.behindBy}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 OutlinedButton(
                     onClick = { onOpenDiff(comparison.htmlUrl) },
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text("View Diff on GitHub") }
+                ) { Text("View Locked Diff on GitHub") }
+            } else if (comparing) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.size(6.dp))
+                    Text("Loading locked diff metadata", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CandidateScopeCard(candidate: LiveApprovalCandidate) {
+    SourceLabCard(tone = if (candidate.sourceScope.isEmpty()) SourceLabTone.NEUTRAL else SourceLabTone.ACCENT) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("Scoped Approval", fontWeight = FontWeight.Bold)
+            if (candidate.sourceScope.isEmpty()) {
+                SourceLabStatusBadge("NO EXPLICIT SCOPE", SourceLabTone.NEUTRAL)
+                Text(
+                    "This candidate does not expose sourceScope. No scoped membership is inferred by the APK.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                SourceLabStatusBadge("EXACT SOURCE SCOPE", SourceLabTone.ACCENT)
+                candidate.sourceScope.forEach { (provider, sourceIds) ->
+                    Text(
+                        "${providerReviewName(provider)} · ${sourceIds.size} source${if (sourceIds.size == 1) "" else "s"}",
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    sourceIds.forEach { sourceId ->
+                        Text(
+                            sourceId,
+                            fontFamily = FontFamily.Monospace,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                Text(
+                    "Promotion must preserve this exact scope. Sources outside it are not implied to be approved.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -580,7 +702,7 @@ private fun CandidateEvidenceCard(candidate: LiveApprovalCandidate) {
                 SourceLabStatusBadge("BOUND", SourceLabTone.ACCENT)
             }
             Text(
-                "The live candidate carries Farm, gate and repair evidence bindings. Full hashes remain available in Diagnostics instead of crowding this review screen.",
+                "The locked candidate carries Farm, gate and repair evidence bindings. Full hashes remain available in Diagnostics instead of crowding this review screen.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -597,7 +719,7 @@ private fun CandidateEvidenceCard(candidate: LiveApprovalCandidate) {
                 )
             }
             Text(
-                "Screenshot comparison is not shown because the current live candidate state does not expose screenshot artifacts to the APK. No placeholder result is fabricated.",
+                "Screenshot comparison is not shown because the current candidate authority does not expose screenshot artifacts to the APK. No placeholder result is fabricated.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -609,19 +731,21 @@ internal object ProviderComparisonRepository {
     private const val sourceRepo = "Noirero/Miyorare-Source-Packs"
     private const val apiAccept = "application/vnd.github+json"
 
-    suspend fun load(candidate: LiveApprovalCandidate): Map<String, ProviderComparisonSummary> =
-        withContext(Dispatchers.IO) {
-            val repositories = loadProviderRepositories()
-            coroutineScope {
-                candidate.providers.map { (provider, refs) ->
-                    async {
-                        val repository = repositories[provider]
-                            ?: error("Provider repository is not declared for $provider")
-                        provider to loadProviderComparison(provider, repository, refs)
-                    }
-                }.awaitAll().toMap()
-            }
+    suspend fun load(
+        candidate: LiveApprovalCandidate,
+        farmCommit: String,
+    ): Map<String, ProviderComparisonSummary> = withContext(Dispatchers.IO) {
+        val repositories = loadProviderRepositories(farmCommit)
+        coroutineScope {
+            candidate.providers.map { (provider, refs) ->
+                async {
+                    val repository = repositories[provider]
+                        ?: error("Provider repository is not declared for $provider")
+                    provider to loadProviderComparison(provider, repository, refs)
+                }
+            }.awaitAll().toMap()
         }
+    }
 
     internal fun parseComparison(
         provider: String,
@@ -659,8 +783,8 @@ internal object ProviderComparisonRepository {
         )
     }
 
-    private fun loadProviderRepositories(): Map<String, String> {
-        val url = "https://raw.githubusercontent.com/$sourceRepo/${SourceLabRepository.farmBranch}/upstream/registry.json"
+    private fun loadProviderRepositories(farmCommit: String): Map<String, String> {
+        val url = SourceLabRepository.farmRawUrl(farmCommit, "upstream/registry.json")
         val root = JSONObject(fetchText(url))
         val providers = root.getJSONObject("providers")
         return providers.keys().asSequence().associateWith { provider ->
