@@ -173,6 +173,7 @@ class BatCaveAndroidWebViewEvidenceTests(unittest.TestCase):
         self.assertIn("p2-batcave-evidence.json", workflow)
         self.assertIn("platforms;android-37.0", workflow)
         self.assertIn("system-images;android-35;google_apis;x86_64", workflow)
+        self.assertIn("timeout 180 adb wait-for-device", workflow)
         self.assertIn("if: always() && steps.android_probe.outcome != 'skipped'", workflow)
         self.assertNotIn("android sdk install --canary", workflow)
         self.assertNotIn("compatibility-farm-foundation", workflow)
