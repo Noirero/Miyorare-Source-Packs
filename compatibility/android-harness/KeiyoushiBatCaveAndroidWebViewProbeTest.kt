@@ -1,5 +1,6 @@
 package org.koitharu.kotatsu.p2
 
+import android.util.Log
 import android.webkit.CookieManager
 import android.webkit.WebView
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -134,12 +135,18 @@ class KeiyoushiBatCaveAndroidWebViewProbeTest {
                 .put("webView", webViewJson)
                 .put("error", error ?: JSONObject.NULL)
 
+            val compactEvidence = evidence.toString()
             evidenceFile.writeText(evidence.toString(2) + "\n")
+            Log.i(EVIDENCE_LOG_TAG, compactEvidence)
 
             if (packageName.isNotEmpty()) {
                 MihonExtensionLoader.uninstallPrivateExtension(context, packageName)
             }
             apkFile.delete()
         }
+    }
+
+    private companion object {
+        const val EVIDENCE_LOG_TAG = "P2_BATCAVE_EVIDENCE"
     }
 }
