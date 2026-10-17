@@ -1,6 +1,6 @@
-# Miyorare Source Lab v1.2.13 — Continuity Plan
+# Miyorare Source Lab v1.2.15 — Continuity Plan
 
-Status: **CURRENT / CONTINUITY AUTHORITY FOR SOURCE LAB v1.2.13**
+Status: **CURRENT / CONTINUITY AUTHORITY FOR SOURCE LAB v1.2.15**
 
 This document exists to prevent long-running Source Lab work from drifting when a phase discovers bugs, dependencies, side work, interrupted sessions, model changes, or repository state changes.
 
@@ -8,22 +8,22 @@ It is intentionally concise. It is **not** a large progress tracker and must not
 
 ## 1. Authority and precedence
 
-For Source Lab v1.2.13 work, use this precedence:
+For Source Lab v1.2.15 work, use this precedence:
 
 1. Latest explicit owner instruction.
 2. Applicable Miyorare Source Pack governing documents and engineering protocol.
-3. This file as the continuity authority for the v1.2.13 parent goal, phase order, scope locks, return targets, and resume checkpoint.
+3. This file as the continuity authority for the v1.2.15 parent goal, phase order, scope locks, return targets, and resume checkpoint.
 4. Repository state and exact-head evidence for implementation facts.
 
-Repository state remains source of truth for code, commits, PRs, workflow runs, and live contracts. This plan does not override newer repository evidence.
+Repository state remains source of truth for code, commits, PRs, workflow runs, releases, and live contracts. This plan does not override newer repository evidence.
 
 If a newer explicit owner decision changes this plan, update this file deliberately. Do not silently reinterpret the parent goal or phase acceptance criteria during implementation.
 
 ## 2. Parent goal — LOCKED
 
-**Produce Miyorare Source Lab v1.2.13 as a targeted Backend Alignment Release for the Source Pack backend after P1, P2, and P3, without a broad UI redesign and without moving repository/CI automation onto the phone.**
+**Produce Miyorare Source Lab v1.2.15 as a targeted Backend Alignment Release for the Source Pack backend after P1, P2, and P3, without a broad UI redesign and without moving repository/CI automation onto the phone.**
 
-v1.2.13 must keep Source Lab as an Android owner/viewer console over authoritative repository and CI state. The phone must not become a required component of normal Source Pack maintenance.
+v1.2.15 must keep Source Lab as an Android owner/viewer console over authoritative repository and CI state. The phone must not become a required component of normal Source Pack maintenance.
 
 Core invariants that must survive every phase:
 
@@ -36,7 +36,8 @@ Core invariants that must survive every phase:
 - operational health, compatibility evidence, and release eligibility are not collapsed into one meaning;
 - last-known-good and exact candidate identity are not weakened for UI convenience;
 - P2 evidence is produced by authoritative CI/runtime lanes, not made dependent on the phone;
-- P3 Audio Catalog remains a catalog/release contract and is not folded into Compatibility Farm source counts.
+- P3 Audio Catalog remains a catalog/release contract and is not folded into Compatibility Farm source counts;
+- official Source Lab release publication is an explicit owner-triggered action, never a side effect of an ordinary branch push.
 
 ## 3. Locked phase sequence
 
@@ -44,32 +45,38 @@ The normal parent sequence is:
 
 **SL13-A → SL13-B → SL13-C → SL13-D → SL13-E → SL13-F**
 
+The `SL13-*` identifiers are intentionally retained as stable continuity IDs from the original plan. The owner retargeted the release identity from v1.2.13 to v1.2.15 after repository evidence proved v1.2.13 already existed and a historical push-trigger hazard produced v1.2.14. Renaming phase IDs would make continuity worse, so their IDs stay stable while the parent release target is v1.2.15.
+
 A phase may temporarily spawn dependency/child work. Closing a child does **not** advance the parent sequence. After the child is verified, work returns to the parent phase that spawned it.
 
 ### SL13-A — Baseline and known fixes
 
 **Goal**
 
-Establish the exact v1.2.13 application baseline from the current Source Lab branch and preserve the already-merged publish-recovery correction as part of the new release foundation.
+Establish the exact v1.2.15 application baseline from the current Source Lab branch, preserve the already-merged publish-recovery correction, close baseline contract drift discovered by audit, and prove the branch is safe to use for later alignment work.
 
 **Must include**
 
-- refresh the exact `source-lab-owner-access-temp` state before implementation;
+- refresh exact `source-lab-owner-access-temp` state before implementation;
 - use the post-PR-#85 Source Lab state as the application baseline unless newer repository evidence requires adaptation;
 - verify the `Resume Publish` / publish-recovery behavior is present and not regressed;
+- make official Source Lab Stable Release explicit/manual-only so ordinary `source-lab/**` pushes cannot publish a new official APK;
+- align Manual Run Farm with the current backend contract: exact provider, exact expected candidate, and exact Keiyoushi runtime-evidence run when required;
+- reload authoritative Farm state and reject stale manual-recovery candidate identity immediately before dispatch;
 - inspect current backend `main` contracts needed by later phases;
-- identify exact files/contracts to be touched before code changes.
+- identify exact files/contracts to be touched before later phase code changes.
 
 **Must not include**
 
 - broad UI redesign;
-- P2 runtime-evidence UI implementation;
+- P1 authority presentation implementation beyond what is required to repair the Manual Run Farm contract;
+- P2 runtime-evidence viewer implementation;
 - P3 Audio Catalog UI implementation;
 - unrelated Source Lab cleanup merely because it is nearby.
 
 **Exit condition**
 
-The exact application baseline, exact backend authority, known publish-recovery fix, and intended v1.2.13 change surface are verified with no unresolved baseline ambiguity.
+The exact application baseline, exact backend authority, publish-recovery fix, explicit-only stable-release gate, Manual Run Farm contract, and intended v1.2.15 change surface are verified with no unresolved baseline ambiguity; exact-head Source Lab CI is green and ordinary branch pushes are proven not to trigger Stable Release.
 
 ### SL13-B — P1 backend authority alignment
 
@@ -165,7 +172,7 @@ Reduce future backend/app semantic drift by adding focused compatibility validat
 - identify the Source Lab-consumed backend contracts that can drift;
 - add focused compatibility fixtures/tests for those contracts;
 - fail closed on unsupported authority-critical schema changes instead of silently presenting misleading state;
-- cover at least the P1 authority/candidate-lock contract plus the P2/P3 data consumed by v1.2.13;
+- cover at least the P1 authority/candidate-lock contract plus the P2/P3 data consumed by v1.2.15;
 - keep validation targeted and maintainable rather than creating a duplicate backend implementation inside Android tests.
 
 **Must not include**
@@ -176,23 +183,23 @@ Reduce future backend/app semantic drift by adding focused compatibility validat
 
 **Exit condition**
 
-A relevant backend contract drift that would make v1.2.13 semantically unsafe is detectable by focused CI/tests before release.
+A relevant backend contract drift that would make v1.2.15 semantically unsafe is detectable by focused CI/tests before release.
 
-### SL13-F — Final audit and v1.2.13 release preparation
+### SL13-F — Final audit and v1.2.15 release preparation
 
 **Goal**
 
-Prove the completed v1.2.13 change set is coherent, regression-safe, and ready for owner release authorization.
+Prove the completed v1.2.15 change set is coherent, regression-safe, and ready for owner release authorization.
 
 **Must include**
 
 - refresh exact repository state;
-- full diff/self-audit across all v1.2.13 changes;
+- full diff/self-audit across all v1.2.15 changes;
 - regression review of Viewer mode, Owner authorization, capability gating, Farm dashboard, Sources, Approval Review, Reports, Diagnostics, Settings, manual recovery, and publish recovery;
 - verify P1/P2/P3 presentation against exact current backend authorities;
 - run exact-head Source Lab tests/lint/build/relevant CI;
-- verify version/changelog/docs as appropriate for v1.2.13;
-- verify produced APK identity/signing/release path using the existing official Source Lab release process;
+- verify version/changelog/docs as appropriate for v1.2.15;
+- verify produced APK identity/signing/release path using the explicit official Source Lab release process;
 - stop at READY FOR OWNER RELEASE/MERGE AUTHORIZATION where an explicit owner authorization is required.
 
 **Must not include**
@@ -203,7 +210,7 @@ Prove the completed v1.2.13 change set is coherent, regression-safe, and ready f
 
 **Exit condition**
 
-All intended v1.2.13 scope is closed, exact-head CI is green, post-CI self-audit is clean, no unresolved in-scope blocker remains, and the release is ready for the owner's explicit final action where required.
+All intended v1.2.15 scope is closed, exact-head CI is green, post-CI self-audit is clean, no unresolved in-scope blocker remains, and the release is ready for the owner's explicit final action where required.
 
 ## 4. Scope-lock rule
 
@@ -243,12 +250,12 @@ A child may have children. Every nested child returns to its immediate parent fi
 
 ## 6. Finding classification
 
-Every material finding discovered during v1.2.13 work must be classified as one of:
+Every material finding discovered during v1.2.15 work must be classified as one of:
 
 - **IN-SCOPE** — directly part of the active phase contract.
 - **DEPENDENCY / CHILD** — must be solved for the active phase to satisfy its exit condition.
-- **FOLLOW-UP** — worthwhile, but not required to close the active phase or v1.2.13 parent goal.
-- **UNRELATED** — outside this work; do not modify it as part of v1.2.13.
+- **FOLLOW-UP** — worthwhile, but not required to close the active phase or v1.2.15 parent goal.
+- **UNRELATED** — outside this work; do not modify it as part of v1.2.15.
 
 `FOLLOW-UP` and `UNRELATED` findings must not be pulled into the active implementation without an explicit owner scope change.
 
@@ -287,7 +294,7 @@ Use this shape:
 
 ```text
 CURRENT CHECKPOINT
-Parent goal: Source Lab v1.2.13 Backend Alignment Release
+Parent goal: Source Lab v1.2.15 Backend Alignment Release
 Phase: SL13-X
 Phase state: NOT_STARTED | ACTIVE | BLOCKED_BY_CHILD | READY_FOR_EXIT_AUDIT | CLOSED
 Active child: NONE | CHILD-...
@@ -302,31 +309,34 @@ Notes: <only continuity-critical notes>
 
 The checkpoint records continuity, not every completed subtask.
 
-## 10. Initial baseline at plan creation
+## 10. Historical baseline and retarget decision
 
-Observed before this plan was written:
+Verified history relevant to this plan:
 
-- Source Lab working branch: `source-lab-owner-access-temp`.
-- Source Lab application baseline before the plan commit: `7cca36bbfc6c1a5bdaca31c49bdea3ee36bc0253`.
-- That baseline already contains merged PR #85 publish-recovery UI behavior.
-- v1.2.12 release source predates PR #85 and therefore must not be used as the v1.2.13 implementation baseline by itself.
-- Backend Source Pack had completed P1, P2, and P3 before this plan was approved.
+- Source Lab v1.2.12 was released from `f661f0bfc312a6e1990f438066e35f0a61cbf6bf`.
+- PR #85 publish-recovery UI was merged afterward, producing application baseline `7cca36bbfc6c1a5bdaca31c49bdea3ee36bc0253`.
+- That exact post-PR-#85 state was already released as official Source Lab v1.2.13 before this Backend Alignment work began.
+- The original continuity-plan commit `d2e6bdede8e387f200ea0b96cf552819c3546415` touched `source-lab/**`; the historical Stable Release workflow treated every such push as a release trigger and automatically published official immutable v1.2.14. This was an unintended workflow side effect discovered during SL13-A audit, not a completed Backend Alignment release.
+- The owner explicitly approved retargeting this Backend Alignment parent release to **v1.2.15**.
+- CHILD-A2 changed Stable Release at `c9c19fc7df752e651a275ad9319cdb566120f751` so release is `workflow_dispatch` only and requires an explicit version. A subsequent branch-state check showed no new Stable Release run from that push.
+- Backend Source Pack `main` was `e20015393591d22398aa623b227e17afe26fc19d` at the SL13-A audit checkpoint, with P1/P2/P3 complete.
+- Compatibility Farm authority was `955f2ede6ddb2ae4f61f46074bacb937f68fc14f` at the SL13-A audit checkpoint.
 
-These SHAs are historical baseline observations, not permanent assumptions. Refresh exact repository/backend state before every write and before every phase exit audit.
+These SHAs are historical checkpoint evidence, not permanent assumptions. Refresh exact repository/backend state before every write and before every phase exit audit.
 
 ## 11. CURRENT CHECKPOINT
 
 ```text
 CURRENT CHECKPOINT
-Parent goal: Source Lab v1.2.13 Backend Alignment Release
+Parent goal: Source Lab v1.2.15 Backend Alignment Release
 Phase: SL13-A
-Phase state: ACTIVE
-Active child: NONE
-Child state: NONE
-Return target: Establish and verify the exact v1.2.13 baseline and change surface before application code changes.
-Last verified repository state: source-lab-owner-access-temp @ 7cca36bbfc6c1a5bdaca31c49bdea3ee36bc0253 before this plan commit; REFRESH_REQUIRED before next write
-Last verified backend authority: REFRESH_REQUIRED before SL13-A implementation
-Last verified evidence: PR #85 publish-recovery fix is present in the baseline; plan file was the only intended new artifact at this checkpoint
+Phase state: BLOCKED_BY_CHILD
+Active child: CHILD-A1 — Manual Run Farm backend-contract alignment
+Child state: ACTIVE
+Return target: Finish CHILD-A1 exact-head validation, then RETURN to SL13-A and perform the SL13-A final baseline/change-surface exit audit.
+Last verified repository state: source-lab-owner-access-temp @ c9c19fc7df752e651a275ad9319cdb566120f751 before the CHILD-A1 atomic implementation commit
+Last verified backend authority: main @ e20015393591d22398aa623b227e17afe26fc19d; compatibility-farm-foundation @ 955f2ede6ddb2ae4f61f46074bacb937f68fc14f
+Last verified evidence: CHILD-A2 CLOSED/VERIFIED; Stable Release is explicit-only. CHILD-A1 audit proved app RUN_FARM contract drift while APPROVE/PROMOTE/SIGN/PUBLISH/Approve Ready Sources still match backend.
 Next parent phase after closure: SL13-B
-Notes: Do not implement SL13-B/C/D/E/F until SL13-A exit condition is satisfied. Any blocker discovered in SL13-A becomes a child and must return to SL13-A after closure.
+Notes: Phase IDs SL13-* remain stable continuity identifiers. Do not start SL13-B until CHILD-A1 closes and SL13-A exit condition is satisfied.
 ```

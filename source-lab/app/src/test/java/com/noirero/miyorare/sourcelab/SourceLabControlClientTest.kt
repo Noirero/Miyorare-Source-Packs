@@ -1,7 +1,9 @@
 package com.noirero.miyorare.sourcelab
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 class SourceLabControlClientTest {
@@ -13,10 +15,10 @@ class SourceLabControlClientTest {
     )
 
     @Test
-    fun freshCycleOnlyAllowsRunFarm() {
+    fun freshCycleWithLiveRecoveryCandidateAllowsRunFarm() {
         val actions = SourceLabControlClient.buildAvailability(
             session = sessionWithAllCapabilities(),
-            snapshot = snapshot(),
+            snapshot = snapshot(automation = automationCandidate("uma", "3".repeat(40), "4".repeat(40))),
             approvalRunId = null,
             signingRunId = null,
             publishRunId = null,
@@ -26,6 +28,125 @@ class SourceLabControlClientTest {
         assertFalse(actions.getValue(SourceLabControlAction.PROMOTE).available)
         assertFalse(actions.getValue(SourceLabControlAction.SIGN).available)
         assertFalse(actions.getValue(SourceLabControlAction.PUBLISH).available)
+    }
+
+    @Test
+    fun noLiveRecoveryCandidateFailsClosed() {
+        val actions = SourceLabControlClient.buildAvailability(
+            session = sessionWithAllCapabilities(),
+            snapshot = snapshot(),
+            approvalRunId = null,
+            signingRunId = null,
+            publishRunId = null,
+        )
+        assertFalse(actions.getValue(SourceLabControlAction.RUN_FARM).available)
+        assertEquals("NO_RECOVERY_CANDIDATE", actions.getValue(SourceLabControlAction.RUN_FARM).reason)
+    }
+
+    @Test
+    fun farmRecoveryTargetsUseOnlyExactChangedProviderCandidates() {
+        val snapshot = snapshot(
+            automation = LiveAutomationState(
+                state = "IDLE",
+                reason = "TEST",
+                ownerActionRequired = false,
+                workflowRunId = null,
+                candidates = mapOf(
+                    "uma" to LiveAutomationCandidate("1".repeat(40), "2".repeat(40)),
+                    "keiyoushi" to LiveAutomationCandidate("3".repeat(40), "4".repeat(40)),
+                    "gekkoushi" to LiveAutomationCandidate("5".repeat(40), "5".repeat(40)),
+                    "unknown" to LiveAutomationCandidate("6".repeat(40), "7".repeat(40)),
+                ),
+            ),
+        )
+
+        val targets = SourceLabControlClient.farmRecoveryTargets(snapshot)
+        assertEquals(listOf("keiyoushi", "uma"), targets.map { it.provider })
+        assertEquals("4".repeat(40), targets[0].candidate)
+        assertEquals("2".repeat(40), targets[1].candidate)
+    }
+
+    @Test
+    fun nonKeiyoushiRecoveryDispatchMatchesBackendInputsAndRunTitle() {
+        val candidate = "4".repeat(40)
+        val snapshot = snapshot(automation = automationCandidate("uma", "3".repeat(40), candidate))
+        val spec = SourceLabControlClient.buildFarmRecoveryDispatchSpec(
+            snapshot = snapshot,
+            request = SourceLabFarmRecoveryRequest(provider = "uma", expectedCandidate = candidate),
+            requestId = "a".repeat(32),
+        )
+
+        assertEquals("source-lab-run-farm.yml", spec.workflow)
+        assertEquals("Source Lab run farm ${"a".repeat(32)} (uma)", spec.title)
+        assertEquals(
+            mapOf(
+                "request_id" to "a".repeat(32),
+                "provider" to "uma",
+                "expected_candidate" to candidate,
+            ),
+            spec.inputs,
+        )
+    }
+
+    @Test
+    fun keiyoushiRecoveryRequiresAndBindsExactRuntimeEvidenceRun() {
+        val candidate = "4".repeat(40)
+        val snapshot = snapshot(automation = automationCandidate("keiyoushi", "3".repeat(40), candidate))
+
+        assertControlReason("RUNTIME_EVIDENCE_RUN_ID_REQUIRED") {
+            SourceLabControlClient.buildFarmRecoveryDispatchSpec(
+                snapshot = snapshot,
+                request = SourceLabFarmRecoveryRequest(provider = "keiyoushi", expectedCandidate = candidate),
+                requestId = "b".repeat(32),
+            )
+        }
+
+        val spec = SourceLabControlClient.buildFarmRecoveryDispatchSpec(
+            snapshot = snapshot,
+            request = SourceLabFarmRecoveryRequest(
+                provider = "keiyoushi",
+                expectedCandidate = candidate,
+                runtimeEvidenceRunId = 39020361429L,
+            ),
+            requestId = "b".repeat(32),
+        )
+        assertEquals("39020361429", spec.inputs["runtime_evidence_run_id"])
+        assertEquals(candidate, spec.inputs["expected_candidate"])
+        assertEquals("keiyoushi", spec.inputs["provider"])
+    }
+
+    @Test
+    fun changedCandidateIsRejectedBeforeDispatch() {
+        val snapshot = snapshot(
+            automation = automationCandidate("uma", "3".repeat(40), "5".repeat(40)),
+        )
+        assertControlReason("EXPECTED_CANDIDATE_CHANGED") {
+            SourceLabControlClient.buildFarmRecoveryDispatchSpec(
+                snapshot = snapshot,
+                request = SourceLabFarmRecoveryRequest(
+                    provider = "uma",
+                    expectedCandidate = "4".repeat(40),
+                ),
+                requestId = "c".repeat(32),
+            )
+        }
+    }
+
+    @Test
+    fun runtimeEvidenceCannotBeAttachedToAnotherProvider() {
+        val candidate = "4".repeat(40)
+        val snapshot = snapshot(automation = automationCandidate("uma", "3".repeat(40), candidate))
+        assertControlReason("RUNTIME_EVIDENCE_NOT_APPLICABLE") {
+            SourceLabControlClient.buildFarmRecoveryDispatchSpec(
+                snapshot = snapshot,
+                request = SourceLabFarmRecoveryRequest(
+                    provider = "uma",
+                    expectedCandidate = candidate,
+                    runtimeEvidenceRunId = 99L,
+                ),
+                requestId = "d".repeat(32),
+            )
+        }
     }
 
     @Test
@@ -159,7 +280,7 @@ class SourceLabControlClientTest {
     }
 
     @Test
-    fun publishedCycleAllowsNextFarmAndBlocksReplay() {
+    fun publishedCycleAllowsNextFarmOnlyWhenNewCandidateExists() {
         val promotion = promotion()
         val published = LivePublishState(
             candidateSetId = promotion.candidateSetId,
@@ -173,7 +294,11 @@ class SourceLabControlClientTest {
         )
         val actions = SourceLabControlClient.buildAvailability(
             session = sessionWithAllCapabilities(),
-            snapshot = snapshot(promotion = promotion, published = published),
+            snapshot = snapshot(
+                promotion = promotion,
+                published = published,
+                automation = automationCandidate("uma", "4".repeat(40), "5".repeat(40)),
+            ),
             approvalRunId = null,
             signingRunId = 202L,
             publishRunId = 303L,
@@ -201,6 +326,24 @@ class SourceLabControlClientTest {
         assertFalse(actions.getValue(SourceLabControlAction.PUBLISH).available)
     }
 
+    private fun assertControlReason(expected: String, block: () -> Unit) {
+        try {
+            block()
+            fail("Expected SourceLabControlException: $expected")
+        } catch (error: SourceLabControlException) {
+            assertEquals(expected, error.reason)
+        }
+    }
+
+    private fun automationCandidate(provider: String, current: String, candidate: String) =
+        LiveAutomationState(
+            state = "IDLE",
+            reason = "TEST",
+            ownerActionRequired = false,
+            workflowRunId = null,
+            candidates = mapOf(provider to LiveAutomationCandidate(current, candidate)),
+        )
+
     private fun candidate() = LiveApprovalCandidate(
         candidateSetId = "1".repeat(64),
         state = "WAITING_FOR_APPROVAL",
@@ -225,6 +368,7 @@ class SourceLabControlClientTest {
         promotion: LivePromotionState? = null,
         published: LivePublishState? = null,
         pendingWorker: LivePendingWorkerState? = null,
+        automation: LiveAutomationState? = null,
     ) = LiveFarmSnapshot(
         sources = emptyList(),
         providers = emptyList(),
@@ -236,6 +380,7 @@ class SourceLabControlClientTest {
         targetSize = 12,
         branch = SourceLabRepository.farmBranch,
         retrievedAtEpochMs = 0L,
+        automation = automation,
         pendingWorker = pendingWorker,
     )
 

@@ -40,6 +40,24 @@ internal data class SourceLabApprovalPipelineResult(
     val publishRunId: Long,
 )
 
+internal data class SourceLabFarmRecoveryTarget(
+    val provider: String,
+    val current: String,
+    val candidate: String,
+)
+
+internal data class SourceLabFarmRecoveryRequest(
+    val provider: String,
+    val expectedCandidate: String,
+    val runtimeEvidenceRunId: Long? = null,
+)
+
+internal data class SourceLabFarmDispatchSpec(
+    val workflow: String,
+    val title: String,
+    val inputs: Map<String, String>,
+)
+
 internal class SourceLabControlException(
     val reason: String,
 ) : RuntimeException(reason)
@@ -51,6 +69,9 @@ internal object SourceLabControlClient {
     private const val pollIntervalMs = 5_000L
     private const val maxPolls = 1_500
     private const val ownerContextExpirySkewSeconds = 60L
+    private val exactCommitRegex = Regex("^[0-9a-f]{40}$")
+    private val exactRequestIdRegex = Regex("^[0-9a-f]{32}$")
+    private val farmProviderOrder = listOf("keiyoushi", "uma", "gekkoushi")
 
     @Volatile
     private var cachedOwnerContext: OwnerContext? = null
@@ -105,6 +126,94 @@ internal object SourceLabControlClient {
             signingRunId = null,
             publishRunId = null,
         ).getValue(SourceLabControlAction.RUN_FARM)
+    }
+
+    internal fun farmRecoveryTargets(snapshot: LiveFarmSnapshot): List<SourceLabFarmRecoveryTarget> {
+        val candidates = snapshot.automation?.candidates.orEmpty()
+        return farmProviderOrder.mapNotNull { provider ->
+            val candidate = candidates[provider] ?: return@mapNotNull null
+            if (!exactCommitRegex.matches(candidate.current)) return@mapNotNull null
+            if (!exactCommitRegex.matches(candidate.candidate)) return@mapNotNull null
+            if (candidate.current == candidate.candidate) return@mapNotNull null
+            SourceLabFarmRecoveryTarget(
+                provider = provider,
+                current = candidate.current,
+                candidate = candidate.candidate,
+            )
+        }
+    }
+
+    internal fun buildFarmRecoveryDispatchSpec(
+        snapshot: LiveFarmSnapshot,
+        request: SourceLabFarmRecoveryRequest,
+        requestId: String,
+    ): SourceLabFarmDispatchSpec {
+        if (!exactRequestIdRegex.matches(requestId)) {
+            throw SourceLabControlException("RECOVERY_REQUEST_ID_INVALID")
+        }
+        if (request.provider !in farmProviderOrder) {
+            throw SourceLabControlException("RECOVERY_PROVIDER_UNSUPPORTED")
+        }
+        if (!exactCommitRegex.matches(request.expectedCandidate)) {
+            throw SourceLabControlException("EXPECTED_CANDIDATE_INVALID")
+        }
+        val target = farmRecoveryTargets(snapshot).firstOrNull { it.provider == request.provider }
+            ?: throw SourceLabControlException("RECOVERY_TARGET_NOT_LIVE")
+        if (target.candidate != request.expectedCandidate) {
+            throw SourceLabControlException("EXPECTED_CANDIDATE_CHANGED")
+        }
+
+        val inputs = linkedMapOf(
+            "request_id" to requestId,
+            "provider" to request.provider,
+            "expected_candidate" to request.expectedCandidate,
+        )
+        if (request.provider == "keiyoushi") {
+            val runtimeRunId = request.runtimeEvidenceRunId?.takeIf { it > 0L }
+                ?: throw SourceLabControlException("RUNTIME_EVIDENCE_RUN_ID_REQUIRED")
+            inputs["runtime_evidence_run_id"] = runtimeRunId.toString()
+        } else if (request.runtimeEvidenceRunId != null) {
+            throw SourceLabControlException("RUNTIME_EVIDENCE_NOT_APPLICABLE")
+        }
+
+        return SourceLabFarmDispatchSpec(
+            workflow = "source-lab-run-farm.yml",
+            title = "Source Lab run farm $requestId (${request.provider})",
+            inputs = inputs,
+        )
+    }
+
+    /**
+     * Executes manual Farm recovery against a freshly reloaded authoritative
+     * snapshot. The UI selection is only a request; exact candidate identity is
+     * revalidated immediately before dispatch and the backend remains the final
+     * candidate-lock/evidence authority.
+     */
+    suspend fun runFarm(
+        context: Context,
+        request: SourceLabFarmRecoveryRequest,
+    ): SourceLabActionResult = withContext(Dispatchers.IO) {
+        val owner = refreshOwnerContext(context, forceRefresh = true)
+        val freshSnapshot = SourceLabRepository.loadSnapshot()
+        val availability = buildAvailability(
+            session = owner.session,
+            snapshot = freshSnapshot,
+            approvalRunId = null,
+            signingRunId = null,
+            publishRunId = null,
+        ).getValue(SourceLabControlAction.RUN_FARM)
+        if (!availability.available) throw SourceLabControlException(availability.reason)
+
+        val spec = buildFarmRecoveryDispatchSpec(
+            snapshot = freshSnapshot,
+            request = request,
+            requestId = randomHex(16),
+        )
+        dispatchAndWait(
+            owner.token,
+            SourceLabControlAction.RUN_FARM,
+            ControlRequest(spec.workflow, spec.title, spec.inputs),
+        )
     }
 
     /**
@@ -242,12 +351,17 @@ internal object SourceLabControlClient {
         context: Context,
         snapshot: LiveFarmSnapshot,
         action: SourceLabControlAction,
-    ): SourceLabActionResult = executeInternal(
-        context = context,
-        snapshot = snapshot,
-        action = action,
-        forceOwnerRefresh = true,
-    )
+    ): SourceLabActionResult {
+        if (action == SourceLabControlAction.RUN_FARM) {
+            throw SourceLabControlException("RUN_FARM_EXPLICIT_TARGET_REQUIRED")
+        }
+        return executeInternal(
+            context = context,
+            snapshot = snapshot,
+            action = action,
+            forceOwnerRefresh = true,
+        )
+    }
 
     private suspend fun executeInternal(
         context: Context,
@@ -257,6 +371,9 @@ internal object SourceLabControlClient {
     ): SourceLabActionResult = withContext(Dispatchers.IO) {
         if (action == SourceLabControlAction.ADD_TO_FARM) {
             throw SourceLabControlException("SOURCE_DETAIL_REQUIRED")
+        }
+        if (action == SourceLabControlAction.RUN_FARM) {
+            throw SourceLabControlException("RUN_FARM_EXPLICIT_TARGET_REQUIRED")
         }
         // Standalone mutations force a fresh proof. A multi-stage pipeline can
         // reuse only an unexpired proof established by its first mutation.
@@ -282,14 +399,7 @@ internal object SourceLabControlClient {
         if (!availability.available) throw SourceLabControlException(availability.reason)
 
         val request = when (action) {
-            SourceLabControlAction.RUN_FARM -> {
-                val requestId = randomHex(16)
-                ControlRequest(
-                    workflow = "source-lab-run-farm.yml",
-                    title = "Source Lab run farm $requestId",
-                    inputs = mapOf("request_id" to requestId),
-                )
-            }
+            SourceLabControlAction.RUN_FARM -> throw SourceLabControlException("RUN_FARM_EXPLICIT_TARGET_REQUIRED")
             SourceLabControlAction.APPROVE -> {
                 val candidate = snapshot.approvalCandidate
                     ?: throw SourceLabControlException("NO_LIVE_APPROVAL_CANDIDATE")
@@ -375,6 +485,7 @@ internal object SourceLabControlClient {
             ?: when {
                 candidate != null -> "RESOLVE_LIVE_CANDIDATE_FIRST"
                 promotion != null && !publishedCurrentPromotion -> "FINISH_SIGN_AND_PUBLISH_FIRST"
+                farmRecoveryTargets(snapshot).isEmpty() -> "NO_RECOVERY_CANDIDATE"
                 else -> "AVAILABLE"
             }
         val approveReason = capability(SourceLabControlAction.APPROVE)

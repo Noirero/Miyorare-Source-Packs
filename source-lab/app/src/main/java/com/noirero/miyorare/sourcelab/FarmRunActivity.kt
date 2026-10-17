@@ -26,6 +26,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -118,6 +119,8 @@ private fun FarmRunScreen(onClose: () -> Unit) {
     var clockEpochMs by remember { mutableStateOf(System.currentTimeMillis()) }
     var confirmStart by remember { mutableStateOf(false) }
     var dispatchLocked by rememberSaveable { mutableStateOf(false) }
+    var selectedProvider by rememberSaveable { mutableStateOf<String?>(null) }
+    var runtimeEvidenceRunIdText by rememberSaveable { mutableStateOf("") }
 
     suspend fun loadReadyState() {
         try {
@@ -128,6 +131,11 @@ private fun FarmRunScreen(onClose: () -> Unit) {
                 availabilityReason = "CHECKING_FARM_SNAPSHOT",
             )
             val snapshot = withContext(Dispatchers.IO) { SourceLabRepository.loadSnapshot() }
+            val targets = SourceLabControlClient.farmRecoveryTargets(snapshot)
+            if (targets.none { it.provider == selectedProvider }) {
+                selectedProvider = targets.singleOrNull()?.provider
+                if (selectedProvider != "keiyoushi") runtimeEvidenceRunIdText = ""
+            }
             ui = ui.copy(
                 snapshot = snapshot,
                 availabilityReason = "CHECKING_OWNER_AND_BACKEND",
@@ -186,6 +194,27 @@ private fun FarmRunScreen(onClose: () -> Unit) {
             loadReadyState()
             return
         }
+        val target = SourceLabControlClient.farmRecoveryTargets(snapshot)
+            .firstOrNull { it.provider == selectedProvider }
+            ?: run {
+                ui = ui.copy(error = "RECOVERY_TARGET_SELECTION_REQUIRED")
+                return
+            }
+        val runtimeEvidenceRunId = if (target.provider == "keiyoushi") {
+            runtimeEvidenceRunIdText.trim().toLongOrNull()?.takeIf { it > 0L }
+                ?: run {
+                    ui = ui.copy(error = "RUNTIME_EVIDENCE_RUN_ID_REQUIRED")
+                    return
+                }
+        } else {
+            null
+        }
+        val request = SourceLabFarmRecoveryRequest(
+            provider = target.provider,
+            expectedCandidate = target.candidate,
+            runtimeEvidenceRunId = runtimeEvidenceRunId,
+        )
+
         dispatchLocked = true
         confirmStart = false
         val startedAt = System.currentTimeMillis()
@@ -213,9 +242,6 @@ private fun FarmRunScreen(onClose: () -> Unit) {
         var monitorJob: Job? = null
         var clockJob: Job? = null
         try {
-            val availability = SourceLabControlClient.resolveRunFarmAvailability(context, snapshot)
-            if (!availability.available) throw SourceLabControlException(availability.reason)
-
             clockJob = scope.launch {
                 while (isActive && ui.phase in setOf(FarmRunPhase.PREPARING, FarmRunPhase.RUNNING)) {
                     clockEpochMs = System.currentTimeMillis()
@@ -251,7 +277,9 @@ private fun FarmRunScreen(onClose: () -> Unit) {
                 }
             }
 
-            val result = SourceLabControlClient.execute(context, snapshot, SourceLabControlAction.RUN_FARM)
+            // SourceLabControlClient.runFarm reloads the authoritative snapshot
+            // and revalidates exact provider/candidate immediately before write.
+            val result = SourceLabControlClient.runFarm(context, request)
             monitorJob?.cancel()
             val finalProgress = monitorToken?.let { token ->
                 runCatching {
@@ -344,18 +372,44 @@ private fun FarmRunScreen(onClose: () -> Unit) {
         }
     }
 
-    if (confirmStart) {
+    val recoveryTargets = ui.snapshot?.let(SourceLabControlClient::farmRecoveryTargets).orEmpty()
+    val selectedTarget = recoveryTargets.firstOrNull { it.provider == selectedProvider }
+    val runtimeEvidenceRunId = runtimeEvidenceRunIdText.trim().toLongOrNull()?.takeIf { it > 0L }
+    val selectionReady = selectedTarget != null &&
+        (selectedTarget.provider != "keiyoushi" || runtimeEvidenceRunId != null)
+    val canDispatchRecovery = ui.canStart && !dispatchLocked && selectionReady
+
+    if (confirmStart && selectedTarget != null) {
         AlertDialog(
             onDismissRequest = { if (ui.phase == FarmRunPhase.READY) confirmStart = false },
             title = { Text("Run Compatibility Farm manually?", fontWeight = FontWeight.Bold) },
             text = {
-                Text(
-                    "This is a recovery-only action. Routine upstream changes should be handled by the autonomous Candidate Farm. Continue only when diagnostics or recovery requires a manual Farm run.",
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "This is a recovery-only action. Routine upstream changes should be handled by the autonomous Candidate Farm. Continue only when diagnostics or recovery requires a manual Farm run.",
+                    )
+                    Text(
+                        "${providerDisplayName(selectedTarget.provider)} · ${shortRunRef(selectedTarget.current)} → ${shortRunRef(selectedTarget.candidate)}",
+                        fontFamily = FontFamily.Monospace,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    if (selectedTarget.provider == "keiyoushi") {
+                        Text(
+                            "Runtime evidence run · ${runtimeEvidenceRunId ?: "required"}",
+                            fontFamily = FontFamily.Monospace,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    Text(
+                        "The app will reload live Farm state immediately before dispatch. Any candidate drift is rejected fail-closed.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             },
             confirmButton = {
                 Button(
-                    enabled = ui.canStart && !dispatchLocked,
+                    enabled = canDispatchRecovery,
                     onClick = { scope.launch { executeRecoveryFarm() } },
                 ) { Text("Start Recovery Farm") }
             },
@@ -408,17 +462,81 @@ private fun FarmRunScreen(onClose: () -> Unit) {
         }
 
         if (ui.phase == FarmRunPhase.READY) {
+            item(key = "recovery-target") {
+                SourceLabCard {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Text("Recovery target", fontWeight = FontWeight.Bold)
+                        if (recoveryTargets.isEmpty()) {
+                            Text(
+                                "No exact upstream candidate is currently available for manual recovery.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            Text(
+                                "Select the exact provider candidate to replay. Source Lab will not infer or replace the selected candidate at dispatch time.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            recoveryTargets.forEach { target ->
+                                OutlinedButton(
+                                    onClick = {
+                                        selectedProvider = target.provider
+                                        if (target.provider != "keiyoushi") runtimeEvidenceRunIdText = ""
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Column(Modifier.fillMaxWidth()) {
+                                        Text(
+                                            providerDisplayName(target.provider) +
+                                                if (selectedProvider == target.provider) " · SELECTED" else "",
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                        Text(
+                                            "${shortRunRef(target.current)} → ${shortRunRef(target.candidate)}",
+                                            fontFamily = FontFamily.Monospace,
+                                            style = MaterialTheme.typography.bodySmall,
+                                        )
+                                    }
+                                }
+                            }
+                            if (selectedTarget?.provider == "keiyoushi") {
+                                OutlinedTextField(
+                                    value = runtimeEvidenceRunIdText,
+                                    onValueChange = { value ->
+                                        runtimeEvidenceRunIdText = value.filter(Char::isDigit)
+                                    },
+                                    label = { Text("Runtime evidence run ID") },
+                                    supportingText = {
+                                        Text("Required exact prior Keiyoushi runtime-closure evidence run. Source Lab never guesses this ID.")
+                                    },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             item(key = "manual-start") {
                 SourceLabPrimaryButton(
                     text = "Start Manual Recovery Farm",
                     onClick = { confirmStart = true },
-                    enabled = ui.canStart && !dispatchLocked,
+                    enabled = canDispatchRecovery,
                     modifier = Modifier.fillMaxWidth(),
                     icon = SourceLabIconKind.TEST,
                 )
-                if (!ui.canStart || dispatchLocked) {
+                if (!ui.canStart || dispatchLocked || !selectionReady) {
+                    val reason = when {
+                        !ui.canStart -> ui.availabilityReason
+                        dispatchLocked -> "EXISTING_RECOVERY_RUN_ACTIVE"
+                        selectedTarget == null -> "SELECT_EXACT_PROVIDER_CANDIDATE"
+                        selectedTarget.provider == "keiyoushi" && runtimeEvidenceRunId == null -> "RUNTIME_EVIDENCE_RUN_ID_REQUIRED"
+                        else -> "RECOVERY_SELECTION_INCOMPLETE"
+                    }
                     Text(
-                        "Manual run unavailable · ${ui.availabilityReason}",
+                        "Manual run unavailable · $reason",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
