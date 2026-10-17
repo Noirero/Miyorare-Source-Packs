@@ -325,6 +325,7 @@ Verified history relevant to this plan:
 - Compatibility Farm authority remained `955f2ede6ddb2ae4f61f46074bacb937f68fc14f` at the SL13-A exit audit.
 - CHILD-B1 pinned Source Lab Farm authority reads to one exact Compatibility Farm commit before loading registry, status, and pending-worker state; exact-head Source Lab CI run `39049949271` completed successfully at `4cded9bd04d266a78b2f4b58bd5cbcdc96188a77`.
 - SL13-C added a read-only BATCAVE P2 evidence viewer over authoritative GitHub Actions job logs. It validates exact run/candidate/Miyorare/bound-proof provenance, exposes extension install/load, live request/result, System WebView, `__guard_trust`, protected-path proof, and infrastructure-blocked state, and fails closed when evidence is unavailable or inconsistent. Exact-head Source Lab CI run `39061852772` succeeded at `4d1b0d9d8f35a8c75bc25a45673fd6d28fc25d33`.
+- SL13-D added a read-only P3 Miyorare Audio Catalog report. It pins Source Pack `main` to one exact commit, validates the durable P3 baseline fail-closed, reads the exact pinned Miyorare catalog, requires the exact six builtin runtime bindings, displays the exact Hiraukan runtime authority, and keeps owner-deferred device validation separate from release eligibility. Exact-head Source Lab CI run `39063267660` succeeded at `0f4f572be679efa38eb21d3b61c4bc6501c28860`.
 
 These SHAs are historical checkpoint evidence, not permanent assumptions. Refresh exact repository/backend state before every write and before every phase exit audit.
 
@@ -333,14 +334,14 @@ These SHAs are historical checkpoint evidence, not permanent assumptions. Refres
 ```text
 CURRENT CHECKPOINT
 Parent goal: Source Lab v1.2.15 Backend Alignment Release
-Phase: SL13-C
+Phase: SL13-D
 Phase state: CLOSED
 Active child: NONE
 Child state: CLOSED
-Return target: SL13-C exit condition is satisfied. The next parent task is SL13-D targeted pre-change audit; refresh the current P3 Audio Catalog authority and Source Lab change surface before implementation.
-Last verified repository state: source-lab-owner-access-temp @ 4d1b0d9d8f35a8c75bc25a45673fd6d28fc25d33 before this closure-record commit; refresh exact head before the next write
-Last verified backend authority: main @ e20015393591d22398aa623b227e17afe26fc19d; compatibility-farm-foundation @ 563c043c03fd1aad566a0e71c00a1de4ae1b1983
-Last verified evidence: SL13-C reads authoritative BATCAVE P2 evidence from GitHub Actions without Owner authentication, validates exact provenance fail-closed, and presents runtime PASS separately from DLE Guard protected-path proof. Current evidence remains extension install/load success, live request success with 10 results, System WebView available, `__guard_trust` not observed, androidWebViewExecutionProven=false, infrastructureBlocked=true. Exact-head Source Lab CI run 39061852772 succeeded at 4d1b0d9d8f35a8c75bc25a45673fd6d28fc25d33; cumulative SL13-C diff touched only Source Lab app/test files and did not mutate backend/Farm/LKG/approval/promotion state.
-Next parent phase after closure: SL13-D
-Notes: Viewer path remains read-only. If CI logs expire or the P2 contract drifts, Source Lab shows evidence unavailable and infers no protected-path success. Stable Release remains explicit workflow_dispatch-only. Stop here until SL13-D is explicitly started.
+Return target: SL13-D exit condition is satisfied. The next parent task is SL13-E targeted pre-change audit; refresh all Source Lab-consumed P1/P2/P3 contracts before adding compatibility guards.
+Last verified repository state: source-lab-owner-access-temp @ 0f4f572be679efa38eb21d3b61c4bc6501c28860 before this closure-record commit; refresh exact head before the next write
+Last verified backend authority: main @ e20015393591d22398aa623b227e17afe26fc19d; compatibility-farm-foundation @ c200dba0e3b5590330f323e1add907bde09696ad (autonomous Farm movement, not mutated by SL13-D)
+Last verified evidence: SL13-D reads the durable P3 baseline from one exact Source Pack main commit, validates exact Miyorare/Hiraukan authorities plus exact six builtin runtime IDs fail-closed, and presents the Audio Catalog as a separate Reports card. Device validation remains DEFERRED_BY_OWNER / validated=false / not required for release while release eligibility remains ELIGIBLE. Cumulative SL13-D implementation touched only four Source Lab app/test files; Reports added only the separate catalog hook, LiveFarmSnapshot/Farm metrics/backend state were not changed. Exact-head Source Lab CI run 39063267660 succeeded at 0f4f572be679efa38eb21d3b61c4bc6501c28860.
+Next parent phase after closure: SL13-E
+Notes: P3 Audio Catalog remains separate from Compatibility Farm and the manga/Tsuki builder baseline. Source Lab does not duplicate the full Hiraukan runtime-manifest validator; authoritative P3 CI remains responsible for cross-repository runtime capability validation. Stable Release remains explicit workflow_dispatch-only. Stop here until SL13-E is explicitly started.
 ```
