@@ -23,6 +23,7 @@ EXPECTED_RUNTIME_IDS = {
     "miyorare.audio.ero_voice",
     "miyorare.audio.asmr_hentai_net",
 }
+DEVICE_STATES = {"REQUIRED", "VALIDATED", "DEFERRED_BY_OWNER"}
 
 
 class BaselineError(ValueError):
@@ -76,27 +77,50 @@ def validate_data(data: dict[str, Any], *, require_release_eligible: bool = Fals
     if set(runtime_ids) != EXPECTED_RUNTIME_IDS:
         raise BaselineError("expectedRuntimeIds does not match the six Hiraukan audio runtimes")
 
+    device = _mapping(data.get("deviceValidation"), "deviceValidation")
+    device_state = device.get("state")
+    required_for_release = device.get("requiredForRelease")
+    device_validated = device.get("validated")
+    note = device.get("note")
+    if device_state not in DEVICE_STATES:
+        raise BaselineError("unsupported deviceValidation.state")
+    if not isinstance(required_for_release, bool) or not isinstance(device_validated, bool):
+        raise BaselineError("device validation flags must be boolean")
+    if not isinstance(note, str) or not note.strip():
+        raise BaselineError("deviceValidation.note is required")
+    if device_state == "VALIDATED" and not device_validated:
+        raise BaselineError("VALIDATED device state requires validated=true")
+    if device_state == "DEFERRED_BY_OWNER":
+        if required_for_release or device_validated:
+            raise BaselineError("DEFERRED_BY_OWNER must be non-required and must not claim validation")
+    if device_state == "REQUIRED" and not required_for_release:
+        raise BaselineError("REQUIRED device state must remain a release requirement")
+
     eligibility = _mapping(data.get("releaseEligibility"), "releaseEligibility")
     state = eligibility.get("state")
-    device_validated = eligibility.get("realDeviceValidated")
     beta_merged = eligibility.get("miyorareBetaMerged")
     reason = eligibility.get("reason")
     if state not in {"BLOCKED", "ELIGIBLE"}:
         raise BaselineError("releaseEligibility.state must be BLOCKED or ELIGIBLE")
-    if not isinstance(device_validated, bool) or not isinstance(beta_merged, bool):
-        raise BaselineError("release eligibility evidence flags must be boolean")
+    if not isinstance(beta_merged, bool):
+        raise BaselineError("releaseEligibility.miyorareBetaMerged must be boolean")
     if not isinstance(reason, str) or not reason.strip():
         raise BaselineError("releaseEligibility.reason is required")
-    if state == "ELIGIBLE" and not (device_validated and beta_merged):
-        raise BaselineError("ELIGIBLE requires real-device validation and final Miyorare beta merge")
-    if state == "BLOCKED" and device_validated and beta_merged:
-        raise BaselineError("BLOCKED cannot retain both promotion gates as satisfied")
+    if state == "ELIGIBLE" and not beta_merged:
+        raise BaselineError("ELIGIBLE requires final Miyorare beta merge")
+    if required_for_release and not device_validated and state == "ELIGIBLE":
+        raise BaselineError("ELIGIBLE cannot bypass required real-device validation")
+    if state == "BLOCKED" and beta_merged and (not required_for_release or device_validated):
+        raise BaselineError("BLOCKED has no remaining declared release gate")
     if require_release_eligible and state != "ELIGIBLE":
         raise BaselineError(f"audio catalog release remains blocked: {reason}")
 
     return {
         "miyorareCommit": miyorare_commit,
         "hiraukanCommit": hiraukan_commit,
+        "deviceValidation": device_state,
+        "deviceValidationRequiredForRelease": required_for_release,
+        "deviceValidated": device_validated,
         "releaseEligibility": state,
         "releaseEligibilityReason": reason,
     }
