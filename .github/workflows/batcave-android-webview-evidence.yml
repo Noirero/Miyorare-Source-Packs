@@ -86,12 +86,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          android sdk install --canary platforms/android-37
           sdkmanager \
             'platform-tools' \
             'emulator' \
-            'platforms;android-37' \
             'system-images;android-35;google_apis;x86_64'
+          test -d "$ANDROID_HOME/platforms/android-37"
+          test -d "$ANDROID_HOME/system-images/android-35/google_apis/x86_64"
 
       - name: Build exact BATCAVE APK and runtime-closure provenance
         shell: bash
@@ -175,7 +176,7 @@ jobs:
           ) 2>&1 | tee build/miyorare-android.log
 
       - name: Collect machine-readable Android evidence
-        if: always()
+        if: always() && steps.android_probe.outcome != 'skipped'
         shell: bash
         run: |
           set -euo pipefail
