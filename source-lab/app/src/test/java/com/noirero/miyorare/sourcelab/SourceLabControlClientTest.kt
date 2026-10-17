@@ -353,6 +353,7 @@ class SourceLabControlClientTest {
         ),
         evidenceBinding = evidence,
         publishEligible = false,
+        sourceScope = emptyMap(),
     )
 
     private fun promotion() = LivePromotionState(
@@ -361,6 +362,7 @@ class SourceLabControlClientTest {
         providers = mapOf("uma" to "4".repeat(40)),
         evidenceBinding = evidence,
         publishEligible = false,
+        sourceScope = emptyMap(),
     )
 
     private fun snapshot(
@@ -379,6 +381,7 @@ class SourceLabControlClientTest {
         cohort = "seed-12",
         targetSize = 12,
         branch = SourceLabRepository.farmBranch,
+        farmCommit = "f".repeat(40),
         retrievedAtEpochMs = 0L,
         automation = automation,
         pendingWorker = pendingWorker,
