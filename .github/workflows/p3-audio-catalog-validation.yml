@@ -123,18 +123,38 @@ jobs:
               raise SystemExit(f'Hiraukan runtime provider is missing bundled audio runtimes: {missing}')
           PY
 
-      - name: Confirm production promotion gate remains fail-closed
+      - name: Verify production gate matches declared P3 eligibility
         working-directory: control-plane
         shell: bash
         run: |
           set -euo pipefail
-          if python3 tools/validate_audio_catalog_baseline.py \
-              --baseline compatibility/miyorare-audio-catalog-baseline.json \
-              --require-release-eligible; then
-            echo '::error::P3 baseline unexpectedly became release-eligible before final Miyorare beta promotion.'
-            exit 1
-          fi
-          echo 'P3 candidate is structurally valid and intentionally release-blocked pending final Miyorare beta promotion.'
+          baseline='compatibility/miyorare-audio-catalog-baseline.json'
+          state="$(python3 - <<'PY'
+          import json
+          print(json.load(open('compatibility/miyorare-audio-catalog-baseline.json', encoding='utf-8'))['releaseEligibility']['state'])
+          PY
+          )"
+          case "$state" in
+            BLOCKED)
+              if python3 tools/validate_audio_catalog_baseline.py \
+                  --baseline "$baseline" \
+                  --require-release-eligible; then
+                echo '::error::P3 BLOCKED baseline unexpectedly passed the production release gate.'
+                exit 1
+              fi
+              echo 'P3 candidate is structurally valid and intentionally release-blocked.'
+              ;;
+            ELIGIBLE)
+              python3 tools/validate_audio_catalog_baseline.py \
+                --baseline "$baseline" \
+                --require-release-eligible
+              echo 'P3 baseline is structurally valid and release-eligible.'
+              ;;
+            *)
+              echo "::error::Unsupported P3 release eligibility state: $state"
+              exit 1
+              ;;
+          esac
 
       - name: Summary
         working-directory: control-plane
@@ -148,5 +168,5 @@ jobs:
             echo '- Exact Miyorare Audio Pack candidate was validated.'
             echo '- Exact Hiraukan beta runtime IDs, manifests and capabilities were cross-checked.'
             echo '- Real-device validation is deferred by explicit owner decision and this CI does not claim device evidence.'
-            echo '- Stable release integration remains fail-closed until the final Miyorare beta Audio Pack authority is promoted.'
+            echo '- Stable release sealing follows the explicit releaseEligibility state and fails closed while BLOCKED.'
           } >> "$GITHUB_STEP_SUMMARY"
