@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/p3-audio-catalog-validation.yml'
+      - '.github/workflows/source-pack-release-seal.yml'
       - 'compatibility/miyorare-audio-catalog-baseline.json'
       - 'tools/validate_audio_catalog_baseline.py'
       - 'tools/validate_audio_runtime_contract.py'
       - 'tests/test_audio_catalog_baseline.py'
       - 'tests/test_audio_runtime_contract.py'
+      - 'tests/test_audio_release_seal_integration.py'
       - 'docs/hiraukan-audio-catalog.md'
   workflow_dispatch:
 
@@ -39,6 +41,7 @@ jobs:
         run: |
           python3 -m unittest tests.test_audio_catalog_baseline
           python3 -m unittest tests.test_audio_runtime_contract
+          python3 -m unittest tests.test_audio_release_seal_integration
 
       - name: Resolve exact cross-repository baseline
         id: baseline
