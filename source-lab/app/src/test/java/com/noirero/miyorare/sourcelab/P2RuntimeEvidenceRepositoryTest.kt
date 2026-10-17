@@ -78,10 +78,23 @@ class P2RuntimeEvidenceRepositoryTest {
         )
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun unsupportedBoundEvidenceSchemaFailsClosed() {
+        P2RuntimeEvidenceRepository.parseBatcaveJobLog(
+            logText = buildLog(
+                proven = false,
+                trustObserved = false,
+                boundSchemaVersion = 2,
+            ),
+            expectedRunId = runId,
+        )
+    }
+
     private fun buildLog(
         proven: Boolean,
         trustObserved: Boolean,
         boundCandidate: String = candidate,
+        boundSchemaVersion: Int = 1,
     ): String {
         val probe = JSONObject()
             .put("schema", 1)
@@ -109,7 +122,7 @@ class P2RuntimeEvidenceRepositoryTest {
             .put("error", JSONObject.NULL)
 
         val boundEvidence = JSONObject()
-            .put("schemaVersion", 1)
+            .put("schemaVersion", boundSchemaVersion)
             .put("runtime", "miyorare-android-instrumentation")
             .put("miyorareRevision", miyorare)
             .put("candidateRevision", boundCandidate)

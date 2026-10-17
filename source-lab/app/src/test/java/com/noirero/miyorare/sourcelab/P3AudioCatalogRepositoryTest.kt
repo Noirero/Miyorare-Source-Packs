@@ -47,6 +47,20 @@ class P3AudioCatalogRepositoryTest {
     }
 
     @Test(expected = IllegalArgumentException::class)
+    fun unsupportedBaselineSchemaFailsClosed() {
+        val baseline = validBaseline().put("schemaVersion", 2)
+
+        P3AudioCatalogRepository.parseBaseline(baseline, sourcePackCommit)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun unsupportedCatalogSchemaFailsClosed() {
+        val catalog = validCatalog().put("schemaVersion", 2)
+
+        P3AudioCatalogRepository.parseCatalog(catalog, runtimeIds)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
     fun eligibleBaselineCannotBypassRequiredDeviceValidation() {
         val baseline = validBaseline()
         baseline.getJSONObject("deviceValidation")
