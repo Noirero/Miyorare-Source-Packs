@@ -151,7 +151,9 @@ internal object SourceLabRepository {
         }
 
         val registry = registryJob.await()
+        requireSupportedSourceRegistry(registry)
         val status = statusJob.await()
+        requireSupportedFarmStatus(status)
 
         val scope = registry.getJSONObject("scope")
         val sourceArray = registry.getJSONArray("sources")
@@ -204,6 +206,14 @@ internal object SourceLabRepository {
         return commit
     }
 
+    internal fun requireSupportedSourceRegistry(root: JSONObject) {
+        require(root.optInt("schemaVersion", -1) == 1) { "SOURCE_REGISTRY_SCHEMA_UNSUPPORTED" }
+    }
+
+    internal fun requireSupportedFarmStatus(root: JSONObject) {
+        require(root.optInt("schema", -1) == 3) { "FARM_STATUS_SCHEMA_UNSUPPORTED" }
+    }
+
     internal fun farmRawUrl(commit: String, path: String): String {
         require(gitCommitPattern.matches(commit)) { "FARM_COMMIT_INVALID" }
         require(path.isNotBlank() && !path.startsWith('/') && path.split('/').none { it == ".." }) {
@@ -241,6 +251,11 @@ internal object SourceLabRepository {
         parseFarmBranchHead(JSONObject(fetchText("$apiBase/branches/$farmBranch")))
 
     private fun JSONObject.toApprovalCandidate(): LiveApprovalCandidate {
+        val gateFingerprint = (opt("gateFingerprint") as? String)
+            ?.takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("APPROVAL_CANDIDATE_GATE_FINGERPRINT_REQUIRED")
+        val publishEligible = opt("publishEligible") as? Boolean
+            ?: throw IllegalArgumentException("APPROVAL_CANDIDATE_PUBLISH_ELIGIBLE_REQUIRED")
         val providerObject = getJSONObject("providers")
         val providerMap = providerObject.keys().asSequence().associateWith { provider ->
             val item = providerObject.getJSONObject(provider)
@@ -252,11 +267,11 @@ internal object SourceLabRepository {
         return LiveApprovalCandidate(
             candidateSetId = getString("candidateSetId"),
             state = getString("state"),
-            gateFingerprint = optString("gateFingerprint"),
+            gateFingerprint = gateFingerprint,
             providers = providerMap.toSortedMap(),
             evidenceBinding = getJSONObject("evidenceBinding").toEvidenceBinding(),
-            publishEligible = optBoolean("publishEligible", false),
-            sourceScope = readSourceScope(),
+            publishEligible = publishEligible,
+            sourceScope = readSourceScope(required = true),
         )
     }
 
@@ -275,8 +290,12 @@ internal object SourceLabRepository {
         )
     }
 
-    private fun JSONObject.readSourceScope(): Map<String, List<String>> {
-        val scope = optJSONObject("sourceScope") ?: return emptyMap()
+    private fun JSONObject.readSourceScope(required: Boolean = false): Map<String, List<String>> {
+        val scope = optJSONObject("sourceScope")
+        if (scope == null) {
+            require(!required) { "APPROVAL_CANDIDATE_SOURCE_SCOPE_REQUIRED" }
+            return emptyMap()
+        }
         return scope.keys().asSequence().associateWith { provider ->
             val values = scope.getJSONArray(provider)
             buildList {

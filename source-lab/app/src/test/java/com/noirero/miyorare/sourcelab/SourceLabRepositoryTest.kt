@@ -24,6 +24,34 @@ class SourceLabRepositoryTest {
     }
 
     @Test
+    fun acceptsSupportedSourceRegistrySchema() {
+        SourceLabRepository.requireSupportedSourceRegistry(
+            JSONObject("""{"schemaVersion":1}"""),
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsUnsupportedSourceRegistrySchema() {
+        SourceLabRepository.requireSupportedSourceRegistry(
+            JSONObject("""{"schemaVersion":2}"""),
+        )
+    }
+
+    @Test
+    fun acceptsSupportedFarmStatusSchema() {
+        SourceLabRepository.requireSupportedFarmStatus(
+            JSONObject("""{"schema":3}"""),
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsUnsupportedFarmStatusSchema() {
+        SourceLabRepository.requireSupportedFarmStatus(
+            JSONObject("""{"schema":4}"""),
+        )
+    }
+
+    @Test
     fun farmAuthorityUrlsArePinnedToExactCommit() {
         val sha = "b".repeat(40)
         val registry = SourceLabRepository.farmRawUrl(sha, "compatibility/source-registry.json")
@@ -83,31 +111,7 @@ class SourceLabRepositoryTest {
         val current = "d".repeat(40)
         val locked = "e".repeat(40)
         val candidate = SourceLabRepository.parseApprovalCandidate(
-            JSONObject(
-                """
-                {
-                  "candidateSetId": "${"f".repeat(64)}",
-                  "state": "WAITING_FOR_APPROVAL",
-                  "gateFingerprint": "gate-fingerprint",
-                  "providers": {
-                    "keiyoushi": {"current": "$current", "candidate": "$locked"}
-                  },
-                  "evidenceBinding": {
-                    "farmEvidenceSha256": "farm",
-                    "gateSha256": "gate",
-                    "repairEvidenceSha256": "repair",
-                    "repairEvidenceCount": 0
-                  },
-                  "publishEligible": false,
-                  "sourceScope": {
-                    "keiyoushi": [
-                      "miyorare:miyorare-en:AQUAMANGA",
-                      "miyorare:miyorare-id:BACAMI"
-                    ]
-                  }
-                }
-                """.trimIndent(),
-            ),
+            validApprovalCandidate(current, locked),
         )
 
         assertEquals(current, candidate.providers.getValue("keiyoushi").current)
@@ -115,6 +119,62 @@ class SourceLabRepositoryTest {
         assertEquals(
             listOf("miyorare:miyorare-en:AQUAMANGA", "miyorare:miyorare-id:BACAMI"),
             candidate.sourceScope.getValue("keiyoushi"),
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun approvalCandidateRejectsMissingGateFingerprint() {
+        val root = validApprovalCandidate("d".repeat(40), "e".repeat(40))
+        root.remove("gateFingerprint")
+
+        SourceLabRepository.parseApprovalCandidate(root)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun approvalCandidateRejectsBlankGateFingerprint() {
+        val root = validApprovalCandidate("d".repeat(40), "e".repeat(40))
+        root.put("gateFingerprint", "")
+
+        SourceLabRepository.parseApprovalCandidate(root)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun approvalCandidateRejectsMissingPublishEligible() {
+        val root = validApprovalCandidate("d".repeat(40), "e".repeat(40))
+        root.remove("publishEligible")
+
+        SourceLabRepository.parseApprovalCandidate(root)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun approvalCandidateRejectsNonBooleanPublishEligible() {
+        val root = validApprovalCandidate("d".repeat(40), "e".repeat(40))
+        root.put("publishEligible", "false")
+
+        SourceLabRepository.parseApprovalCandidate(root)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun approvalCandidateRejectsMissingSourceScope() {
+        val root = validApprovalCandidate("d".repeat(40), "e".repeat(40))
+        root.remove("sourceScope")
+
+        SourceLabRepository.parseApprovalCandidate(root)
+    }
+
+    @Test
+    fun pendingWorkerAcceptsSupportedSchema() {
+        val state = SourceLabRepository.parsePendingWorkerState(
+            JSONObject("""{"schemaVersion":2,"sources":{}}"""),
+        )
+
+        assertEquals(2, state.schemaVersion)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun pendingWorkerRejectsUnsupportedSchema() {
+        SourceLabRepository.parsePendingWorkerState(
+            JSONObject("""{"schemaVersion":3,"sources":{}}"""),
         )
     }
 
@@ -140,4 +200,31 @@ class SourceLabRepositoryTest {
         assertEquals(promoted, promotion.providers.getValue("keiyoushi"))
         assertEquals(listOf("miyorare:miyorare-id:KIRYUU"), promotion.sourceScope.getValue("keiyoushi"))
     }
+
+    private fun validApprovalCandidate(current: String, locked: String): JSONObject =
+        JSONObject(
+            """
+            {
+              "candidateSetId": "${"f".repeat(64)}",
+              "state": "WAITING_FOR_APPROVAL",
+              "gateFingerprint": "gate-fingerprint",
+              "providers": {
+                "keiyoushi": {"current": "$current", "candidate": "$locked"}
+              },
+              "evidenceBinding": {
+                "farmEvidenceSha256": "farm",
+                "gateSha256": "gate",
+                "repairEvidenceSha256": "repair",
+                "repairEvidenceCount": 0
+              },
+              "publishEligible": false,
+              "sourceScope": {
+                "keiyoushi": [
+                  "miyorare:miyorare-en:AQUAMANGA",
+                  "miyorare:miyorare-id:BACAMI"
+                ]
+              }
+            }
+            """.trimIndent(),
+        )
 }
