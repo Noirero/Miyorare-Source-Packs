@@ -20,7 +20,7 @@ jobs:
       - name: Checkout exact PR head
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
-      - name: Execute embedded candidate-scope helper against advanced head and invalid candidate
+      - name: Execute embedded candidate-scope helper against advanced head and verification drift
         shell: python {0}
         run: |
           import json
@@ -30,6 +30,16 @@ jobs:
           from pathlib import Path
 
           workflow = Path('.github/workflows/source-lab-run-farm.yml').read_text(encoding='utf-8')
+          required_parent_checks = (
+              'comparison="$(gh api "repos/$verified_repository/compare/$verified_base...$EXPECTED_CANDIDATE")"',
+              '[[ "$(jq -r \'.status // empty\' <<<"$comparison")" == \'ahead\' ]]',
+              '[[ "$(jq -r \'.base_commit.sha // empty\' <<<"$comparison")" == "$verified_base" ]]',
+              '[[ "$(jq -r \'.merge_base_commit.sha // empty\' <<<"$comparison")" == "$verified_base" ]]',
+          )
+          for fragment in required_parent_checks:
+              if fragment not in workflow:
+                  raise SystemExit(f'authenticated parent candidate verification contract missing: {fragment}')
+
           start_marker = "helper.write_text(r'''"
           end_marker = "          '''.replace("
           start = workflow.find(start_marker)
@@ -44,10 +54,9 @@ jobs:
           helper_source = helper_source.replace('\n          ', '\n').lstrip('\n')
           expected = '23345ef345e3b20d7fcc0b5d8fdc922d025af47f'
           advanced_head = '7363e4298c2a6cc4e32e6ef6af2d48611d5b619e'
-          invalid = '0' * 40
           base = '2025891752e4705effc28e87a043f7205014cde3'
           repository = 'keiyoushi/extensions-source'
-          helper_source = helper_source.replace('__VERIFIED_REPOSITORY__', repr(repository)).replace('__VERIFIED_BASE__', repr(base)).replace('__VERIFIED_CANDIDATE__', repr(expected))
+          helper_source = helper_source.replace('__VERIFIED_REPOSITORY__', repr(repository)).replace('__VERIFIED_BASE__', repr(base))
 
           with tempfile.TemporaryDirectory() as tmp:
               root = Path(tmp)
@@ -88,20 +97,12 @@ jobs:
               )
               if replayed.returncode != 0:
                   raise SystemExit(
-                      f'locked historical candidate was rejected after upstream advanced: stdout={replayed.stdout!r} stderr={replayed.stderr!r}'
+                      f'locked historical candidate was rejected after authenticated preverification: stdout={replayed.stdout!r} stderr={replayed.stderr!r}'
                   )
               replay_plan = json.loads((root / 'plan.json').read_text(encoding='utf-8'))
               selected = replay_plan['providers']['keiyoushi']
               if selected['candidate'] != expected or selected.get('liveCandidate') != advanced_head:
                   raise SystemExit(f'locked replay did not preserve expected/live candidate identity: {selected!r}')
-
-              rejected = subprocess.run(
-                  [sys.executable, str(helper), '--plan', str(write_plan(advanced_head)),
-                   '--provider', 'keiyoushi', '--expected-candidate', invalid],
-                  text=True, capture_output=True,
-              )
-              if rejected.returncode == 0:
-                  raise SystemExit('invalid/unverified candidate was incorrectly accepted')
 
               wrong_base_plan = write_plan(advanced_head)
               wrong_base_data = json.loads(wrong_base_plan.read_text(encoding='utf-8'))
@@ -115,4 +116,16 @@ jobs:
               if wrong_base.returncode == 0:
                   raise SystemExit('post-verification LKG drift was incorrectly accepted')
 
-          print('expected candidate lock: preverified historical SHA replayed; invalid candidate and LKG drift rejected fail-closed')
+              wrong_repo_plan = write_plan(advanced_head)
+              wrong_repo_data = json.loads(wrong_repo_plan.read_text(encoding='utf-8'))
+              wrong_repo_data['providers']['keiyoushi']['repository'] = 'example/foreign'
+              wrong_repo_plan.write_text(json.dumps(wrong_repo_data), encoding='utf-8')
+              wrong_repo = subprocess.run(
+                  [sys.executable, str(helper), '--plan', str(wrong_repo_plan),
+                   '--provider', 'keiyoushi', '--expected-candidate', expected],
+                  text=True, capture_output=True,
+              )
+              if wrong_repo.returncode == 0:
+                  raise SystemExit('post-verification repository drift was incorrectly accepted')
+
+          print('expected candidate lock: authenticated parent ancestry contract present; historical replay succeeds; repository/LKG drift rejected fail-closed')
