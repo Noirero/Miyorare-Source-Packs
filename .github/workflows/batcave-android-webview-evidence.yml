@@ -93,6 +93,7 @@ jobs:
             'system-images;android-35;google_apis;x86_64'
           test -d "$ANDROID_HOME/platforms/android-37.0"
           test -d "$ANDROID_HOME/system-images/android-35/google_apis/x86_64"
+          test -x "$ANDROID_HOME/emulator/emulator"
 
       - name: Build exact BATCAVE APK and runtime-closure provenance
         shell: bash
@@ -135,7 +136,7 @@ jobs:
             --force \
             --name p2-batcave \
             --package 'system-images;android-35;google_apis;x86_64'
-          nohup emulator \
+          nohup "$ANDROID_HOME/emulator/emulator" \
             -avd p2-batcave \
             -no-window \
             -gpu swiftshader_indirect \
