@@ -21,6 +21,8 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
       - name: Execute embedded candidate-scope helper against advanced head and invalid candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: python {0}
         run: |
           import json
