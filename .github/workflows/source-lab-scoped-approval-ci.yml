@@ -32,7 +32,10 @@ jobs:
           workflow=.github/workflows/source-lab-stage-scoped-approval.yml
           grep -F "workflows: [\"Source Lab Run Farm\"]" "$workflow"
           grep -F "github.event.workflow_run.conclusion == 'success'" "$workflow"
-          grep -F "[[ \"\$current_main\" == \"\$RUN_SHA\" ]]" "$workflow"
+          grep -F 'compare/$RUN_SHA...$current_main' "$workflow"
+          grep -F "merge_base_commit.sha' <<<\"\$comparison\")\" == \"\$RUN_SHA\"" "$workflow"
+          grep -F 'ref: ${{ steps.guard.outputs.control_sha }}' "$workflow"
+          grep -F 'main moved during scoped staging' "$workflow"
           grep -F 'source_lab_scoped_approval.py' "$workflow"
           grep -F 'approval_evidence.py' "$workflow"
           grep -F 'approval_state.py stage' "$workflow"

@@ -24,7 +24,8 @@ jobs:
       RUN_SHA: ${{ github.event.workflow_run.head_sha }}
       EXPECTED_OWNER_ID: '149634319'
     steps:
-      - name: Fail closed on exact owner-triggered main run
+      - name: Fail closed on owner-triggered main run and trusted control ancestry
+        id: guard
         shell: bash
         run: |
           set -euo pipefail
@@ -36,7 +37,11 @@ jobs:
           [[ "$(jq -r '.actor.id' <<<"$run")" == "$EXPECTED_OWNER_ID" ]]
           [[ "$(jq -r '.head_sha' <<<"$run")" == "$RUN_SHA" ]]
           current_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
-          [[ "$current_main" == "$RUN_SHA" ]] || { echo '::error::main moved after Farm; refusing stale stage'; exit 1; }
+          comparison="$(gh api "repos/$GITHUB_REPOSITORY/compare/$RUN_SHA...$current_main")"
+          [[ "$(jq -r '.status' <<<"$comparison")" == identical || "$(jq -r '.status' <<<"$comparison")" == ahead ]] || { echo '::error::Farm head is not an ancestor of current main'; exit 1; }
+          [[ "$(jq -r '.base_commit.sha' <<<"$comparison")" == "$RUN_SHA" ]]
+          [[ "$(jq -r '.merge_base_commit.sha' <<<"$comparison")" == "$RUN_SHA" ]]
+          echo "control_sha=$current_main" >> "$GITHUB_OUTPUT"
 
       - name: Download immutable Farm evidence
         shell: bash
@@ -63,10 +68,10 @@ jobs:
           [[ -n "$handoff" ]]
           jq '.plan' "$handoff" > build/sync-plan.json
 
-      - name: Checkout exact control plane and Farm foundation
+      - name: Checkout exact current control plane and Farm foundation
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ steps.guard.outputs.control_sha }}
           path: control
           persist-credentials: false
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -79,6 +84,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          [[ "$(git -C control rev-parse HEAD)" == "${{ steps.guard.outputs.control_sha }}" ]]
           expected_foundation="$(jq -r '.foundationSha' build/run-farm-receipt.json)"
           expected_candidate="$(jq -r '.expectedCandidate' build/run-farm-receipt.json)"
           [[ "$(git -C farm rev-parse HEAD)" == "$expected_foundation" ]]
@@ -114,10 +120,13 @@ jobs:
           PY
           python3 farm/tools/candidate_lifecycle.py stage --status farm/upstream/status.json --pending build/pending-approval.json
 
-      - name: Refuse stale foundation and commit only candidate metadata
+      - name: Refuse stale control or foundation and commit only candidate metadata
         shell: bash
         run: |
           set -euo pipefail
+          control_sha="${{ steps.guard.outputs.control_sha }}"
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          [[ "$current_main" == "$control_sha" ]] || { echo '::error::main moved during scoped staging'; exit 1; }
           expected_foundation="$(jq -r '.foundationSha' build/run-farm-receipt.json)"
           remote="$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')"
           [[ "$remote" == "$expected_foundation" ]] || { echo '::error::Compatibility Farm moved after evidence capture'; exit 1; }
