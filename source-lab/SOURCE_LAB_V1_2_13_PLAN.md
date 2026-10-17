@@ -1,0 +1,332 @@
+# Miyorare Source Lab v1.2.13 — Continuity Plan
+
+Status: **CURRENT / CONTINUITY AUTHORITY FOR SOURCE LAB v1.2.13**
+
+This document exists to prevent long-running Source Lab work from drifting when a phase discovers bugs, dependencies, side work, interrupted sessions, model changes, or repository state changes.
+
+It is intentionally concise. It is **not** a large progress tracker and must not be expanded into a continuously rewritten task checklist.
+
+## 1. Authority and precedence
+
+For Source Lab v1.2.13 work, use this precedence:
+
+1. Latest explicit owner instruction.
+2. Applicable Miyorare Source Pack governing documents and engineering protocol.
+3. This file as the continuity authority for the v1.2.13 parent goal, phase order, scope locks, return targets, and resume checkpoint.
+4. Repository state and exact-head evidence for implementation facts.
+
+Repository state remains source of truth for code, commits, PRs, workflow runs, and live contracts. This plan does not override newer repository evidence.
+
+If a newer explicit owner decision changes this plan, update this file deliberately. Do not silently reinterpret the parent goal or phase acceptance criteria during implementation.
+
+## 2. Parent goal — LOCKED
+
+**Produce Miyorare Source Lab v1.2.13 as a targeted Backend Alignment Release for the Source Pack backend after P1, P2, and P3, without a broad UI redesign and without moving repository/CI automation onto the phone.**
+
+v1.2.13 must keep Source Lab as an Android owner/viewer console over authoritative repository and CI state. The phone must not become a required component of normal Source Pack maintenance.
+
+Core invariants that must survive every phase:
+
+- repository/CI/backend state remains authoritative;
+- Viewer paths remain read-only;
+- owner identity and backend capability remain separate gates;
+- mutation remains capability-specific and fail-closed;
+- no GitHub client secret, private key, signing key, keystore secret, or equivalent release secret is embedded in the APK;
+- PASS is not PROMOTED;
+- operational health, compatibility evidence, and release eligibility are not collapsed into one meaning;
+- last-known-good and exact candidate identity are not weakened for UI convenience;
+- P2 evidence is produced by authoritative CI/runtime lanes, not made dependent on the phone;
+- P3 Audio Catalog remains a catalog/release contract and is not folded into Compatibility Farm source counts.
+
+## 3. Locked phase sequence
+
+The normal parent sequence is:
+
+**SL13-A → SL13-B → SL13-C → SL13-D → SL13-E → SL13-F**
+
+A phase may temporarily spawn dependency/child work. Closing a child does **not** advance the parent sequence. After the child is verified, work returns to the parent phase that spawned it.
+
+### SL13-A — Baseline and known fixes
+
+**Goal**
+
+Establish the exact v1.2.13 application baseline from the current Source Lab branch and preserve the already-merged publish-recovery correction as part of the new release foundation.
+
+**Must include**
+
+- refresh the exact `source-lab-owner-access-temp` state before implementation;
+- use the post-PR-#85 Source Lab state as the application baseline unless newer repository evidence requires adaptation;
+- verify the `Resume Publish` / publish-recovery behavior is present and not regressed;
+- inspect current backend `main` contracts needed by later phases;
+- identify exact files/contracts to be touched before code changes.
+
+**Must not include**
+
+- broad UI redesign;
+- P2 runtime-evidence UI implementation;
+- P3 Audio Catalog UI implementation;
+- unrelated Source Lab cleanup merely because it is nearby.
+
+**Exit condition**
+
+The exact application baseline, exact backend authority, known publish-recovery fix, and intended v1.2.13 change surface are verified with no unresolved baseline ambiguity.
+
+### SL13-B — P1 backend authority alignment
+
+**Goal**
+
+Make Source Lab represent current P1 operational authority correctly and make candidate-lock/scoped-approval state understandable without weakening backend authority.
+
+**Must include**
+
+- clearly distinguish operational health, compatibility evidence, and release eligibility;
+- surface active commit and last-known-good where useful;
+- surface release eligibility and reason where useful;
+- represent locked candidate separately from live/newer upstream candidate when both exist;
+- represent expected LKG / baseline identity needed to understand candidate-lock safety;
+- represent source scope for scoped approval/promotion where the backend exposes it;
+- preserve evidence binding / exact-candidate review semantics;
+- expose stale/drift/lock reasons rather than replacing them with generic success/failure wording;
+- add or update parser/contract tests needed for the current P1 schemas.
+
+**Must not include**
+
+- P2 Android/WebView runtime-evidence UI;
+- P3 Audio Catalog UI;
+- changing backend approval/promotion semantics merely to simplify the Android UI;
+- merging operational health and compatibility proof into one status badge.
+
+**Exit condition**
+
+Source Lab reads and presents current P1 authority without semantic misrepresentation; candidate-lock and scoped-approval states are tested; exact-head validation is green; full self-audit finds no authority regression.
+
+### SL13-C — P2 runtime evidence viewer
+
+**Goal**
+
+Allow Source Lab to explain authoritative runtime evidence produced by P2, beginning with BATCAVE, without making the phone an evidence-producing requirement.
+
+**Must include**
+
+- read authoritative P2 runtime-evidence state from repository/CI-backed data;
+- show extension/runtime load result when available;
+- show live request/result evidence when available;
+- show Android/System WebView availability/evidence when available;
+- distinguish WebView availability from proven DLE Guard execution;
+- show challenge/trust evidence such as the `/_c` / `__guard_trust` path only when actually observed;
+- preserve fail-closed states such as `androidWebViewExecutionProven=false` / infrastructure blocked when proof is incomplete;
+- provide a useful Source Detail or diagnostics presentation without overcrowding the main Farm dashboard.
+
+**Must not include**
+
+- synthesizing a BATCAVE challenge;
+- interpreting WebView installation/availability as proof that the protected path executed;
+- requiring a physical phone or Source Lab APK to generate P2 release evidence;
+- automatically reclassifying BATCAVE from HELD without authoritative evidence.
+
+**Exit condition**
+
+P2 evidence can be inspected accurately in Source Lab, incomplete evidence remains visibly incomplete/fail-closed, and backend semantics are preserved by tests and exact-head validation.
+
+### SL13-D — P3 release catalog viewer
+
+**Goal**
+
+Expose the P3 Miyorare Audio Catalog authority as release/catalog information without contaminating Compatibility Farm source counts or lifecycle semantics.
+
+**Must include**
+
+- display the final Miyorare Audio Catalog authority when available;
+- display exact Miyorare catalog commit and exact Hiraukan runtime authority;
+- display the six expected builtin runtime identities/count in a useful form;
+- display release eligibility and reason;
+- display owner-deferred device validation accurately as deferred, not as passed device evidence;
+- keep catalog/release information in Reports, release assets, diagnostics, or another clearly separate catalog surface.
+
+**Must not include**
+
+- adding the six audio runtimes to `In Farm`, Ready/Held/Retry/Approved source metrics;
+- treating `DEFERRED_BY_OWNER` as device validation success;
+- introducing downloadable unsigned executable audio-extension delivery;
+- coupling P3 Audio Catalog back to the manga builder baseline.
+
+**Exit condition**
+
+Source Lab accurately displays the P3 catalog/release authority, the Compatibility Farm model remains separate, and exact-head tests/self-audit confirm no contract contamination.
+
+### SL13-E — Backend/App contract compatibility guard
+
+**Goal**
+
+Reduce future backend/app semantic drift by adding focused compatibility validation between Source Lab parsers/presentation contracts and current backend schemas/authorities.
+
+**Must include**
+
+- identify the Source Lab-consumed backend contracts that can drift;
+- add focused compatibility fixtures/tests for those contracts;
+- fail closed on unsupported authority-critical schema changes instead of silently presenting misleading state;
+- cover at least the P1 authority/candidate-lock contract plus the P2/P3 data consumed by v1.2.13;
+- keep validation targeted and maintainable rather than creating a duplicate backend implementation inside Android tests.
+
+**Must not include**
+
+- a giant duplicated model of the whole Source Pack repository;
+- broad unrelated CI refactors;
+- making Source Lab CI responsible for backend mutation.
+
+**Exit condition**
+
+A relevant backend contract drift that would make v1.2.13 semantically unsafe is detectable by focused CI/tests before release.
+
+### SL13-F — Final audit and v1.2.13 release preparation
+
+**Goal**
+
+Prove the completed v1.2.13 change set is coherent, regression-safe, and ready for owner release authorization.
+
+**Must include**
+
+- refresh exact repository state;
+- full diff/self-audit across all v1.2.13 changes;
+- regression review of Viewer mode, Owner authorization, capability gating, Farm dashboard, Sources, Approval Review, Reports, Diagnostics, Settings, manual recovery, and publish recovery;
+- verify P1/P2/P3 presentation against exact current backend authorities;
+- run exact-head Source Lab tests/lint/build/relevant CI;
+- verify version/changelog/docs as appropriate for v1.2.13;
+- verify produced APK identity/signing/release path using the existing official Source Lab release process;
+- stop at READY FOR OWNER RELEASE/MERGE AUTHORIZATION where an explicit owner authorization is required.
+
+**Must not include**
+
+- silently publishing/releasing/merging a privileged target without the required explicit owner authorization;
+- introducing unrelated feature work during final audit;
+- weakening a failing gate merely to finish the release.
+
+**Exit condition**
+
+All intended v1.2.13 scope is closed, exact-head CI is green, post-CI self-audit is clean, no unresolved in-scope blocker remains, and the release is ready for the owner's explicit final action where required.
+
+## 4. Scope-lock rule
+
+Before implementing a phase, its Goal / Must include / Must not include / Exit condition above is the locked contract.
+
+A newly discovered idea or problem does not automatically change that contract.
+
+If a finding would materially change the locked phase contract:
+
+1. stop before broadening the implementation;
+2. classify the finding;
+3. explain why the phase contract would need to change;
+4. obtain an explicit owner decision if the parent scope must change;
+5. update this plan deliberately before continuing under the new scope.
+
+Do not silently finish a phase with a materially different meaning from the phase originally approved.
+
+## 5. Child-problem return rule — mandatory
+
+**FIX CHILD PROBLEMS, THEN RETURN TO THE PARENT GOAL.**
+
+When the active phase discovers a blocker/dependency:
+
+1. record the parent phase;
+2. classify the blocker as `DEPENDENCY / CHILD`;
+3. solve the smallest safe child scope;
+4. validate the child at exact repository state;
+5. mark the child closed;
+6. return to the recorded parent phase and its original exit condition;
+7. do not advance to another parent phase until that exit condition is satisfied.
+
+Example:
+
+`SL13-B → CHILD-B1 parser bug → CHILD-B1.1 concurrency bug → close B1.1 → close B1 → RETURN SL13-B → finish SL13-B → SL13-C`
+
+A child may have children. Every nested child returns to its immediate parent first. Side work must never become the new roadmap merely because it was the most recent task discussed.
+
+## 6. Finding classification
+
+Every material finding discovered during v1.2.13 work must be classified as one of:
+
+- **IN-SCOPE** — directly part of the active phase contract.
+- **DEPENDENCY / CHILD** — must be solved for the active phase to satisfy its exit condition.
+- **FOLLOW-UP** — worthwhile, but not required to close the active phase or v1.2.13 parent goal.
+- **UNRELATED** — outside this work; do not modify it as part of v1.2.13.
+
+`FOLLOW-UP` and `UNRELATED` findings must not be pulled into the active implementation without an explicit owner scope change.
+
+## 7. Next-work rule
+
+The next engineering task is **not** determined merely by the last chat message, most recent bug, newest idea, or most recently edited file.
+
+The next task is determined by:
+
+1. latest explicit owner instruction;
+2. the active child return target, if a child is open;
+3. otherwise the active phase exit condition;
+4. otherwise the next phase in the locked SL13 sequence.
+
+If chat history, model memory, a handover note, or an implementation suggestion conflicts with the current repository evidence or this continuity sequence, refresh repository state and reconcile before writing.
+
+## 8. Resume / recovery protocol
+
+After interruption, model change, usage limit, or a later conversation:
+
+1. read this file first;
+2. read the `CURRENT CHECKPOINT` below;
+3. refresh actual branch/PR/backend state;
+4. treat repository state as truth if it moved after the checkpoint;
+5. recover the active phase/child from the checkpoint;
+6. continue from that point without restarting a broad audit unless repository movement invalidates prior evidence;
+7. after a child closes, return to its recorded parent target.
+
+Do not infer continuation from chat recency alone.
+
+## 9. Checkpoint format
+
+Keep the checkpoint short. Do not turn it into a large progress checklist.
+
+Use this shape:
+
+```text
+CURRENT CHECKPOINT
+Parent goal: Source Lab v1.2.13 Backend Alignment Release
+Phase: SL13-X
+Phase state: NOT_STARTED | ACTIVE | BLOCKED_BY_CHILD | READY_FOR_EXIT_AUDIT | CLOSED
+Active child: NONE | CHILD-...
+Child state: NONE | ACTIVE | CLOSED
+Return target: <the exact parent goal/exit condition to resume>
+Last verified repository state: <branch/ref + SHA or REFRESH_REQUIRED>
+Last verified backend authority: <ref + SHA or REFRESH_REQUIRED>
+Last verified evidence: <short factual checkpoint>
+Next parent phase after closure: SL13-Y | NONE
+Notes: <only continuity-critical notes>
+```
+
+The checkpoint records continuity, not every completed subtask.
+
+## 10. Initial baseline at plan creation
+
+Observed before this plan was written:
+
+- Source Lab working branch: `source-lab-owner-access-temp`.
+- Source Lab application baseline before the plan commit: `7cca36bbfc6c1a5bdaca31c49bdea3ee36bc0253`.
+- That baseline already contains merged PR #85 publish-recovery UI behavior.
+- v1.2.12 release source predates PR #85 and therefore must not be used as the v1.2.13 implementation baseline by itself.
+- Backend Source Pack had completed P1, P2, and P3 before this plan was approved.
+
+These SHAs are historical baseline observations, not permanent assumptions. Refresh exact repository/backend state before every write and before every phase exit audit.
+
+## 11. CURRENT CHECKPOINT
+
+```text
+CURRENT CHECKPOINT
+Parent goal: Source Lab v1.2.13 Backend Alignment Release
+Phase: SL13-A
+Phase state: ACTIVE
+Active child: NONE
+Child state: NONE
+Return target: Establish and verify the exact v1.2.13 baseline and change surface before application code changes.
+Last verified repository state: source-lab-owner-access-temp @ 7cca36bbfc6c1a5bdaca31c49bdea3ee36bc0253 before this plan commit; REFRESH_REQUIRED before next write
+Last verified backend authority: REFRESH_REQUIRED before SL13-A implementation
+Last verified evidence: PR #85 publish-recovery fix is present in the baseline; plan file was the only intended new artifact at this checkpoint
+Next parent phase after closure: SL13-B
+Notes: Do not implement SL13-B/C/D/E/F until SL13-A exit condition is satisfied. Any blocker discovered in SL13-A becomes a child and must return to SL13-A after closure.
+```
