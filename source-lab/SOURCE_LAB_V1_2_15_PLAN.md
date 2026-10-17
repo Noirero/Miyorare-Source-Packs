@@ -333,13 +333,13 @@ These SHAs are historical checkpoint evidence, not permanent assumptions. Refres
 CURRENT CHECKPOINT
 Parent goal: Source Lab v1.2.15 Backend Alignment Release
 Phase: SL13-B
-Phase state: ACTIVE
+Phase state: CLOSED
 Active child: NONE
 Child state: CLOSED
-Return target: SL13-B P1 backend authority alignment. Continue from the completed targeted pre-change audit/change surface; do not restart a broad audit unless repository movement invalidates it.
-Last verified repository state: source-lab-owner-access-temp @ 4cded9bd04d266a78b2f4b58bd5cbcdc96188a77 before this closure-record commit; refresh exact head before the next write
+Return target: SL13-B exit condition is satisfied. The next parent task is SL13-C targeted pre-change audit; do not implement SL13-C until current P2 authority and application change surface are refreshed.
+Last verified repository state: source-lab-owner-access-temp @ 0a05f6d3020f7ce13187880f0091ebdaf4739228 before this closure-record commit; refresh exact head before the next write
 Last verified backend authority: main @ e20015393591d22398aa623b227e17afe26fc19d; compatibility-farm-foundation @ 955f2ede6ddb2ae4f61f46074bacb937f68fc14f
-Last verified evidence: CHILD-B1 CLOSED/VERIFIED. SourceLabRepository now resolves the mutable Farm branch once and pins source-registry.json, upstream/status.json, and pending-worker-state.json to that immutable commit. Focused pinning tests were added; exact-head Source Lab CI run 39049949271 succeeded. SL13-B semantic implementation has not started yet.
+Last verified evidence: CHILD-B1 CLOSED/VERIFIED. SL13-B now separates operational health from release eligibility, exposes active/LKG authority, expected LKG vs locked candidate vs live upstream, preserves exact sourceScope/evidence binding, and presents authority in Approval Review, Reports, and Diagnostics. CHILD-B2 fixture drift was repaired; exact-head Source Lab CI run 39051738991 succeeded at 0a05f6d3020f7ce13187880f0091ebdaf4739228. Cumulative SL13-B diff touched only seven Source Lab app/test files; no backend/Farm/LKG/P2/P3 state was mutated.
 Next parent phase after closure: SL13-C
-Notes: Return to SL13-B now. The audited SL13-B change surface remains provider release eligibility/reason, candidate lock/live-upstream correlation, sourceScope, and targeted presentation/tests; P2/P3 remain out of scope.
+Notes: Stable Release remains explicit workflow_dispatch-only; the final implementation head produced only Source Lab CI, not Stable Release. P2/P3 remain untouched. Stop here until SL13-C is explicitly started.
 ```
