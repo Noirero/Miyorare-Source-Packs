@@ -1,18 +1,11 @@
 name: Source Lab Stable Release
 
 on:
-  push:
-    branches:
-      - source-lab-owner-access-temp
-    paths:
-      - 'source-lab/**'
-      - '.github/workflows/source-lab-stable-release.yml'
   workflow_dispatch:
     inputs:
       version_name:
-        description: Optional official Source Lab version (for example 0.1.5). Leave blank to auto-increment the latest Source Lab patch version.
-        required: false
-        default: ''
+        description: Exact official Source Lab version to release (for example 1.2.15).
+        required: true
         type: string
       github_client_id:
         description: Optional public GitHub App Client ID override. Leave blank to use the official Source Lab Client ID embedded in source.
@@ -36,6 +29,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
+      - name: Refuse non-explicit release events
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = 'workflow_dispatch'
+
       - name: Checkout trusted Source Lab branch
         uses: actions/checkout@v4
         with:
@@ -119,30 +118,10 @@ jobs:
           DISPATCH_VERSION: ${{ inputs.version_name }}
         run: |
           set -euo pipefail
-          VERSION_NAME="${DISPATCH_VERSION:-}"
-
-          if [ -z "$VERSION_NAME" ]; then
-            LATEST_VERSION="$(
-              git ls-remote --tags origin 'refs/tags/source-lab-v*' \
-                | awk '{print $2}' \
-                | grep -v '\^{}$' \
-                | sed -n 's#refs/tags/source-lab-v##p' \
-                | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
-                | sort -V \
-                | tail -n 1 \
-                || true
-            )"
-            if [ -z "$LATEST_VERSION" ]; then
-              VERSION_NAME="0.1.0"
-            else
-              IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST_VERSION"
-              VERSION_NAME="${MAJOR}.${MINOR}.$((PATCH + 1))"
-            fi
-            echo "Auto-selected Source Lab version $VERSION_NAME"
-          fi
+          VERSION_NAME="$(printf '%s' "${DISPATCH_VERSION:-}" | xargs)"
 
           if [[ ! "$VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9._-]+)?$ ]]; then
-            echo "::error::Invalid Source Lab version: $VERSION_NAME"
+            echo "::error::Invalid or missing explicit Source Lab version: $VERSION_NAME"
             exit 1
           fi
 
