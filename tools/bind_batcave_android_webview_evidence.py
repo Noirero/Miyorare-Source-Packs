@@ -67,8 +67,11 @@ def _probe_matches(
 
 def android_webview_proven(probe: dict[str, Any]) -> bool:
     webview = probe.get("webView")
+    run_id = probe.get("workflowRunId")
     return (
         isinstance(webview, dict)
+        and isinstance(run_id, int)
+        and run_id > 0
         and probe.get("extensionInstallSucceeded") is True
         and probe.get("extensionLoadSucceeded") is True
         and probe.get("sourceName") == "BatCave"
@@ -124,7 +127,7 @@ def bind(
     proof["infrastructureBlocked"] = not positive
 
     if positive:
-        run_id = probe.get("workflowRunId")
+        run_id = probe["workflowRunId"]
         proof["evidenceId"] = f"github-run:{run_id}:{CANONICAL}:android-webview"
 
     return out
