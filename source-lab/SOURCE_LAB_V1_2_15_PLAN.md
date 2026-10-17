@@ -324,6 +324,7 @@ Verified history relevant to this plan:
 - Backend Source Pack `main` remained `e20015393591d22398aa623b227e17afe26fc19d` at the SL13-A exit audit.
 - Compatibility Farm authority remained `955f2ede6ddb2ae4f61f46074bacb937f68fc14f` at the SL13-A exit audit.
 - CHILD-B1 pinned Source Lab Farm authority reads to one exact Compatibility Farm commit before loading registry, status, and pending-worker state; exact-head Source Lab CI run `39049949271` completed successfully at `4cded9bd04d266a78b2f4b58bd5cbcdc96188a77`.
+- SL13-C added a read-only BATCAVE P2 evidence viewer over authoritative GitHub Actions job logs. It validates exact run/candidate/Miyorare/bound-proof provenance, exposes extension install/load, live request/result, System WebView, `__guard_trust`, protected-path proof, and infrastructure-blocked state, and fails closed when evidence is unavailable or inconsistent. Exact-head Source Lab CI run `39061852772` succeeded at `4d1b0d9d8f35a8c75bc25a45673fd6d28fc25d33`.
 
 These SHAs are historical checkpoint evidence, not permanent assumptions. Refresh exact repository/backend state before every write and before every phase exit audit.
 
@@ -332,14 +333,14 @@ These SHAs are historical checkpoint evidence, not permanent assumptions. Refres
 ```text
 CURRENT CHECKPOINT
 Parent goal: Source Lab v1.2.15 Backend Alignment Release
-Phase: SL13-B
+Phase: SL13-C
 Phase state: CLOSED
 Active child: NONE
 Child state: CLOSED
-Return target: SL13-B exit condition is satisfied. The next parent task is SL13-C targeted pre-change audit; do not implement SL13-C until current P2 authority and application change surface are refreshed.
-Last verified repository state: source-lab-owner-access-temp @ 0a05f6d3020f7ce13187880f0091ebdaf4739228 before this closure-record commit; refresh exact head before the next write
-Last verified backend authority: main @ e20015393591d22398aa623b227e17afe26fc19d; compatibility-farm-foundation @ 955f2ede6ddb2ae4f61f46074bacb937f68fc14f
-Last verified evidence: CHILD-B1 CLOSED/VERIFIED. SL13-B now separates operational health from release eligibility, exposes active/LKG authority, expected LKG vs locked candidate vs live upstream, preserves exact sourceScope/evidence binding, and presents authority in Approval Review, Reports, and Diagnostics. CHILD-B2 fixture drift was repaired; exact-head Source Lab CI run 39051738991 succeeded at 0a05f6d3020f7ce13187880f0091ebdaf4739228. Cumulative SL13-B diff touched only seven Source Lab app/test files; no backend/Farm/LKG/P2/P3 state was mutated.
-Next parent phase after closure: SL13-C
-Notes: Stable Release remains explicit workflow_dispatch-only; the final implementation head produced only Source Lab CI, not Stable Release. P2/P3 remain untouched. Stop here until SL13-C is explicitly started.
+Return target: SL13-C exit condition is satisfied. The next parent task is SL13-D targeted pre-change audit; refresh the current P3 Audio Catalog authority and Source Lab change surface before implementation.
+Last verified repository state: source-lab-owner-access-temp @ 4d1b0d9d8f35a8c75bc25a45673fd6d28fc25d33 before this closure-record commit; refresh exact head before the next write
+Last verified backend authority: main @ e20015393591d22398aa623b227e17afe26fc19d; compatibility-farm-foundation @ 563c043c03fd1aad566a0e71c00a1de4ae1b1983
+Last verified evidence: SL13-C reads authoritative BATCAVE P2 evidence from GitHub Actions without Owner authentication, validates exact provenance fail-closed, and presents runtime PASS separately from DLE Guard protected-path proof. Current evidence remains extension install/load success, live request success with 10 results, System WebView available, `__guard_trust` not observed, androidWebViewExecutionProven=false, infrastructureBlocked=true. Exact-head Source Lab CI run 39061852772 succeeded at 4d1b0d9d8f35a8c75bc25a45673fd6d28fc25d33; cumulative SL13-C diff touched only Source Lab app/test files and did not mutate backend/Farm/LKG/approval/promotion state.
+Next parent phase after closure: SL13-D
+Notes: Viewer path remains read-only. If CI logs expire or the P2 contract drifts, Source Lab shows evidence unavailable and infers no protected-path success. Stable Release remains explicit workflow_dispatch-only. Stop here until SL13-D is explicitly started.
 ```
