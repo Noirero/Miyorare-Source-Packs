@@ -123,25 +123,26 @@ internal object SourceLabRepository {
     const val farmBranch = "compatibility-farm-foundation"
 
     private const val repository = "Noirero/Miyorare-Source-Packs"
-    private const val rawBase =
-        "https://raw.githubusercontent.com/$repository/$farmBranch"
     private const val apiBase = "https://api.github.com/repos/$repository"
+    private val gitCommitPattern = Regex("^[0-9a-f]{40}$")
 
     suspend fun loadSnapshot(): LiveFarmSnapshot = coroutineScope {
-        // These resources are independent. Fetching them in parallel keeps the
-        // dashboard bounded by the slowest GitHub request instead of the sum of
-        // four network round-trips.
+        // Resolve the mutable Farm branch exactly once. Every Farm authority file
+        // below is then read from that immutable commit so a branch movement cannot
+        // mix registry/status/worker state from different generations.
+        val farmCommit = async(Dispatchers.IO) { loadFarmBranchHead() }.await()
+
         val registryJob = async(Dispatchers.IO) {
-            JSONObject(fetchText("$rawBase/compatibility/source-registry.json"))
+            JSONObject(fetchText(farmRawUrl(farmCommit, "compatibility/source-registry.json")))
         }
         val statusJob = async(Dispatchers.IO) {
-            JSONObject(fetchText("$rawBase/upstream/status.json"))
+            JSONObject(fetchText(farmRawUrl(farmCommit, "upstream/status.json")))
         }
         val recentRunsJob = async(Dispatchers.IO) {
             runCatching { loadRecentFarmRuns() }.getOrDefault(emptyList())
         }
         val pendingWorkerJob = async(Dispatchers.IO) {
-            runCatching { loadPendingWorkerState() }.getOrNull()
+            runCatching { loadPendingWorkerState(farmCommit) }.getOrNull()
         }
 
         val registry = registryJob.await()
@@ -204,6 +205,23 @@ internal object SourceLabRepository {
             pendingWorker = pendingWorkerJob.await(),
         )
     }
+
+    internal fun parseFarmBranchHead(root: JSONObject): String {
+        val commit = root.getJSONObject("commit").getString("sha").lowercase()
+        require(gitCommitPattern.matches(commit)) { "FARM_BRANCH_HEAD_INVALID" }
+        return commit
+    }
+
+    internal fun farmRawUrl(commit: String, path: String): String {
+        require(gitCommitPattern.matches(commit)) { "FARM_COMMIT_INVALID" }
+        require(path.isNotBlank() && !path.startsWith('/') && path.split('/').none { it == ".." }) {
+            "FARM_PATH_INVALID"
+        }
+        return "https://raw.githubusercontent.com/$repository/$commit/$path"
+    }
+
+    private fun loadFarmBranchHead(): String =
+        parseFarmBranchHead(JSONObject(fetchText("$apiBase/branches/$farmBranch")))
 
     private fun JSONObject.toApprovalCandidate(): LiveApprovalCandidate {
         val providerObject = getJSONObject("providers")
@@ -318,8 +336,10 @@ internal object SourceLabRepository {
         )
     }
 
-    private fun loadPendingWorkerState(): LivePendingWorkerState =
-        parsePendingWorkerState(JSONObject(fetchText("$rawBase/automation/pending-worker-state.json")))
+    private fun loadPendingWorkerState(farmCommit: String): LivePendingWorkerState =
+        parsePendingWorkerState(
+            JSONObject(fetchText(farmRawUrl(farmCommit, "automation/pending-worker-state.json"))),
+        )
 
     private fun loadRecentFarmRuns(): List<LiveFarmRun> {
         val url = "$apiBase/actions/workflows/source-lab-auto-farm.yml/runs?branch=main&per_page=5"
