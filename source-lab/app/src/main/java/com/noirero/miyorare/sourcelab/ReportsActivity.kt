@@ -18,14 +18,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -191,8 +188,6 @@ private fun ReportsScreen(onClose: () -> Unit) {
             modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 14.dp, vertical = 10.dp),
         )
     }
-
-
 }
 
 @Composable
@@ -215,6 +210,12 @@ private fun FarmReportSummary(snapshot: LiveFarmSnapshot) {
                 ReportMetric("Providers", snapshot.providers.size.toString(), Modifier.weight(1f))
                 ReportMetric("Candidate", if (snapshot.approvalCandidate != null) "1" else "0", Modifier.weight(1f))
             }
+            Text(
+                "Snapshot ${shortReportRef(snapshot.farmCommit)} · ${snapshot.branch}",
+                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             latest?.let {
                 Text(
                     "Latest run #${it.runNumber} · ${it.title}",
@@ -241,35 +242,62 @@ private fun ReportMetric(label: String, value: String, modifier: Modifier = Modi
 @Composable
 private fun ProviderHealthReport(providers: List<LiveProviderState>) {
     SourceLabCard {
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Text("Provider Health", fontWeight = FontWeight.Bold)
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Provider Authority", fontWeight = FontWeight.Bold)
+            Text(
+                "Operational health and release eligibility are independent backend facts.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             if (providers.isEmpty()) {
                 Text("No provider state available.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 providers.forEach { provider ->
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(reportProviderName(provider.id), fontWeight = FontWeight.SemiBold)
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(reportProviderName(provider.id), fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    provider.updateState.replace('_', ' '),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                SourceLabStatusBadge(
+                                    "HEALTH ${provider.runtimeHealth.uppercase().replace('_', ' ')}",
+                                    providerHealthTone(provider.runtimeHealth),
+                                )
+                                SourceLabStatusBadge(
+                                    provider.releaseEligibility.uppercase().replace('_', ' '),
+                                    releaseEligibilityTone(provider.releaseEligibility),
+                                )
+                            }
+                        }
+                        Text(
+                            "Active ${shortReportRef(provider.activeCommit)} · LKG ${shortReportRef(provider.lastKnownGood)}",
+                            fontFamily = FontFamily.Monospace,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        provider.reason?.let {
                             Text(
-                                provider.updateState.replace('_', ' '),
-                                style = MaterialTheme.typography.bodySmall,
+                                "Operational reason · ${it.replace('_', ' ')}",
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        val health = provider.runtimeHealth.uppercase()
-                        SourceLabStatusBadge(
-                            health.replace('_', ' '),
-                            when (health) {
-                                "HEALTHY", "PASS", "READY" -> SourceLabTone.GOOD
-                                "BROKEN", "FAILED", "FAIL" -> SourceLabTone.ERROR
-                                "DEGRADED", "HELD", "REVIEW" -> SourceLabTone.WARNING
-                                else -> SourceLabTone.NEUTRAL
-                            },
-                        )
+                        provider.releaseEligibilityReason?.let {
+                            Text(
+                                "Eligibility reason · ${it.replace('_', ' ')}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }
@@ -319,6 +347,15 @@ private fun ReleaseStateReport(snapshot: LiveFarmSnapshot) {
                     fontFamily = FontFamily.Monospace,
                     style = MaterialTheme.typography.bodySmall,
                 )
+                if (promotion.sourceScope.isNotEmpty()) {
+                    promotion.sourceScope.forEach { (provider, sourceIds) ->
+                        Text(
+                            "${reportProviderName(provider)} scope · ${sourceIds.size} source${if (sourceIds.size == 1) "" else "s"}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             } ?: Text("No promotion state available.", color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             snapshot.lastPublish?.let { publish ->
@@ -333,15 +370,36 @@ private fun ReleaseStateReport(snapshot: LiveFarmSnapshot) {
             } ?: Text("No published Source Pack state available.", color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             snapshot.approvalCandidate?.let { candidate ->
-                Text("Live candidate", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                Text("Locked approval candidate", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
                 Text(
                     "${shortReportRef(candidate.candidateSetId)} · ${candidate.state.replace('_', ' ')}",
                     fontFamily = FontFamily.Monospace,
                     style = MaterialTheme.typography.bodySmall,
                 )
+                if (candidate.sourceScope.isNotEmpty()) {
+                    Text(
+                        "Scoped sources · ${candidate.sourceScope.values.sumOf { it.size }}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
+}
+
+private fun providerHealthTone(value: String): SourceLabTone = when (value.uppercase()) {
+    "HEALTHY", "PASS", "READY" -> SourceLabTone.GOOD
+    "BROKEN", "FAILED", "FAIL" -> SourceLabTone.ERROR
+    "DEGRADED", "HELD", "REVIEW" -> SourceLabTone.WARNING
+    else -> SourceLabTone.NEUTRAL
+}
+
+private fun releaseEligibilityTone(value: String): SourceLabTone = when (value.uppercase()) {
+    "ELIGIBLE" -> SourceLabTone.GOOD
+    "INELIGIBLE", "BLOCKED" -> SourceLabTone.ERROR
+    "HELD", "REVIEW", "PENDING" -> SourceLabTone.WARNING
+    else -> SourceLabTone.NEUTRAL
 }
 
 private fun reportRunLabel(run: LiveFarmRun): String =
