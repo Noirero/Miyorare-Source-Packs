@@ -323,6 +323,7 @@ Verified history relevant to this plan:
 - CHILD-A1 exact-head Source Lab CI run `39048352150` completed successfully, including unit tests, debug lint, and debug assembly.
 - Backend Source Pack `main` remained `e20015393591d22398aa623b227e17afe26fc19d` at the SL13-A exit audit.
 - Compatibility Farm authority remained `955f2ede6ddb2ae4f61f46074bacb937f68fc14f` at the SL13-A exit audit.
+- CHILD-B1 pinned Source Lab Farm authority reads to one exact Compatibility Farm commit before loading registry, status, and pending-worker state; exact-head Source Lab CI run `39049949271` completed successfully at `4cded9bd04d266a78b2f4b58bd5cbcdc96188a77`.
 
 These SHAs are historical checkpoint evidence, not permanent assumptions. Refresh exact repository/backend state before every write and before every phase exit audit.
 
@@ -331,14 +332,14 @@ These SHAs are historical checkpoint evidence, not permanent assumptions. Refres
 ```text
 CURRENT CHECKPOINT
 Parent goal: Source Lab v1.2.15 Backend Alignment Release
-Phase: SL13-A
-Phase state: CLOSED
+Phase: SL13-B
+Phase state: ACTIVE
 Active child: NONE
-Child state: NONE
-Return target: SL13-A exit condition is satisfied. The next parent task is SL13-B targeted pre-change audit; do not implement SL13-B until its current exact authority/change surface is refreshed.
-Last verified repository state: source-lab-owner-access-temp @ c80e137d0f4f477e677d3454520a30d590db4c33 before this closure-record commit; refresh exact head before the next write
+Child state: CLOSED
+Return target: SL13-B P1 backend authority alignment. Continue from the completed targeted pre-change audit/change surface; do not restart a broad audit unless repository movement invalidates it.
+Last verified repository state: source-lab-owner-access-temp @ 4cded9bd04d266a78b2f4b58bd5cbcdc96188a77 before this closure-record commit; refresh exact head before the next write
 Last verified backend authority: main @ e20015393591d22398aa623b227e17afe26fc19d; compatibility-farm-foundation @ 955f2ede6ddb2ae4f61f46074bacb937f68fc14f
-Last verified evidence: CHILD-A2 CLOSED/VERIFIED; CHILD-A1 CLOSED/VERIFIED by exact-head CI run 39048352150; cumulative SL13-A diff/self-audit found only the explicit release gate, continuity ledger, Manual Farm contract/UI, and focused tests; no Farm/LKG/backend state was mutated.
-Next parent phase after closure: SL13-B
-Notes: Stable Release is explicit workflow_dispatch-only and requires an explicit version. Phase IDs SL13-* remain stable continuity identifiers. Stop here until SL13-B is explicitly started.
+Last verified evidence: CHILD-B1 CLOSED/VERIFIED. SourceLabRepository now resolves the mutable Farm branch once and pins source-registry.json, upstream/status.json, and pending-worker-state.json to that immutable commit. Focused pinning tests were added; exact-head Source Lab CI run 39049949271 succeeded. SL13-B semantic implementation has not started yet.
+Next parent phase after closure: SL13-C
+Notes: Return to SL13-B now. The audited SL13-B change surface remains provider release eligibility/reason, candidate lock/live-upstream correlation, sourceScope, and targeted presentation/tests; P2/P3 remain out of scope.
 ```
