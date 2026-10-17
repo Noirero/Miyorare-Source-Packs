@@ -15,33 +15,17 @@ CANDIDATE_SET = "c" * 64
 
 
 def registry():
-    return {
-        "schema": 1,
-        "providers": {
-            "uma": {
-                "upstreamBase": A,
-                "lastKnownGood": A,
-            }
-        },
-    }
+    return {"schema": 1, "providers": {"uma": {"upstreamBase": A, "lastKnownGood": A}}}
 
 
 def authorization(**overrides):
     value = {
-        "schemaVersion": 1,
-        "authorized": True,
-        "maintenanceMode": "APPROVE_ONLY",
-        "candidateSetId": CANDIDATE_SET,
-        "provider": "uma",
-        "expectedCurrent": A,
-        "commit": B,
-        "approvedBy": "Noirero",
-        "gateFingerprint": "d" * 64,
+        "schemaVersion": 1, "authorized": True, "maintenanceMode": "APPROVE_ONLY",
+        "candidateSetId": CANDIDATE_SET, "provider": "uma", "expectedCurrent": A,
+        "commit": B, "approvedBy": "Noirero", "gateFingerprint": "d" * 64,
         "evidenceBinding": {
-            "schemaVersion": 1,
-            "farmEvidenceSha256": "1" * 64,
-            "gateSha256": "2" * 64,
-            "repairEvidenceSha256": "3" * 64,
+            "schemaVersion": 1, "farmEvidenceSha256": "1" * 64,
+            "gateSha256": "2" * 64, "repairEvidenceSha256": "3" * 64,
             "repairEvidenceCount": 2,
         },
         "publishEligible": False,
@@ -69,9 +53,8 @@ class AuthorizedPromotionTests(unittest.TestCase):
             M.apply_authorized_promotion(registry(), authorization(provider="keiyoushi"), "uma", B)
 
     def test_candidate_sha_mismatch_is_rejected(self):
-        other = "d" * 40
         with self.assertRaisesRegex(M.AuthorizedPromotionError, "does not match authorization"):
-            M.apply_authorized_promotion(registry(), authorization(), "uma", other)
+            M.apply_authorized_promotion(registry(), authorization(), "uma", "d" * 40)
 
     def test_expected_lkg_change_is_rejected_as_stale(self):
         changed = registry()
@@ -102,9 +85,8 @@ class AuthorizedPromotionTests(unittest.TestCase):
         promoted = registry()
         promoted["providers"]["uma"]["lastKnownGood"] = B
         promoted["providers"]["uma"]["upstreamBase"] = B
-        replay = authorization(expectedCurrent=B)
         with self.assertRaisesRegex(M.AuthorizedPromotionError, "replay rejected"):
-            M.apply_authorized_promotion(promoted, replay, "uma", B)
+            M.apply_authorized_promotion(promoted, authorization(expectedCurrent=B), "uma", B)
 
 
 class ScopedAuthorizationTests(unittest.TestCase):
@@ -118,17 +100,23 @@ class ScopedAuthorizationTests(unittest.TestCase):
     def test_exact_scoped_authorization_validates(self):
         M.validate_authorization(self.auth, "uma", B, self.scope, self.pending)
 
-    def test_scoped_receipt_cannot_advance_provider_wide_lkg(self):
-        original = registry()
-        with self.assertRaisesRegex(M.AuthorizedPromotionError, "provider-wide"):
-            M.apply_authorized_promotion(original, self.auth, "uma", B)
-        self.assertEqual(registry(), original)
+    def test_exact_scoped_authorization_advances_reference_and_preserves_scope(self):
+        updated, receipt = M.apply_authorized_promotion(
+            registry(), self.auth, "uma", B, self.scope, self.pending
+        )
+        self.assertEqual(B, updated["providers"]["uma"]["lastKnownGood"])
+        self.assertEqual(B, updated["providers"]["uma"]["upstreamBase"])
+        self.assertEqual(self.scope, receipt["sourceScope"])
+        self.assertEqual(A, receipt["previousLastKnownGood"])
+        self.assertFalse(receipt["publishEligible"])
 
-    def test_missing_authoritative_identity_or_requested_scope_rejects(self):
+    def test_scoped_promotion_requires_authoritative_identity_and_scope(self):
         with self.assertRaisesRegex(M.AuthorizedPromotionError, "pending candidate identity"):
             M.validate_authorization(self.auth, "uma", B, self.scope)
         with self.assertRaisesRegex(M.AuthorizedPromotionError, "sourceScope"):
             M.validate_authorization(self.auth, "uma", B, pending=self.pending)
+        with self.assertRaises(M.AuthorizedPromotionError):
+            M.apply_authorized_promotion(registry(), self.auth, "uma", B)
 
     def test_authorization_scope_add_remove_swap_and_strip_reject(self):
         for scope in ({"uma": ["SOURCE_A", "SOURCE_B", "SOURCE_C"]},
@@ -176,6 +164,8 @@ class ScopedAuthorizationTests(unittest.TestCase):
     def test_legacy_authorization_cannot_be_used_as_scoped(self):
         with self.assertRaisesRegex(M.AuthorizedPromotionError, "sourceScope"):
             M.validate_authorization(authorization(), "uma", B, self.scope, self.pending)
+        with self.assertRaisesRegex(M.AuthorizedPromotionError, "legacy provider-wide"):
+            M.apply_authorized_promotion(registry(), authorization(), "uma", B, self.scope, self.pending)
 
 
 if __name__ == "__main__":
