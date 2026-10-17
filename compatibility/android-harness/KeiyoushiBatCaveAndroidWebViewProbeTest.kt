@@ -37,6 +37,7 @@ class KeiyoushiBatCaveAndroidWebViewProbeTest {
     @Test
     fun probeExactBatCaveRuntime() = runBlocking {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val testContext = instrumentation.context
         val context = instrumentation.targetContext
         val args = InstrumentationRegistry.getArguments()
         val candidate = requireNotNull(args.getString("p2Candidate"))
@@ -47,7 +48,7 @@ class KeiyoushiBatCaveAndroidWebViewProbeTest {
         val providerHost = "batcave.biz"
         val evidenceFile = File(context.filesDir, "p2-batcave-evidence.json")
         val apkFile = File(context.cacheDir, "p2-batcave.apk")
-        context.assets.open("p2/batcave.apk").use { input ->
+        testContext.assets.open("p2/batcave.apk").use { input ->
             apkFile.outputStream().use(input::copyTo)
         }
 
