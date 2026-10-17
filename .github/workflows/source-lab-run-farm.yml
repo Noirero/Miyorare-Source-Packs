@@ -93,6 +93,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          case "$SELECTED_PROVIDER" in
+            keiyoushi) expected_repository='keiyoushi/extensions-source' ;;
+            uma) expected_repository='InvalidDavid/UMA' ;;
+            gekkoushi) expected_repository='Gekkoushi/plugin-source' ;;
+            *) echo '::error::invalid provider scope'; exit 1 ;;
+          esac
+          verified_repository="$(jq -r --arg provider "$SELECTED_PROVIDER" '.providers[$provider].repository // empty' intake-branch/upstream/registry.json)"
+          verified_base="$(jq -r --arg provider "$SELECTED_PROVIDER" '.providers[$provider].lastKnownGood // empty' intake-branch/upstream/registry.json)"
+          [[ "$verified_repository" == "$expected_repository" ]]
+          [[ "$verified_base" =~ ^[0-9a-f]{40}$ ]]
+          comparison="$(gh api "repos/$verified_repository/compare/$verified_base...$EXPECTED_CANDIDATE")"
+          [[ "$(jq -r '.status // empty' <<<"$comparison")" == 'ahead' ]]
+          [[ "$(jq -r '.base_commit.sha // empty' <<<"$comparison")" == "$verified_base" ]]
+          [[ "$(jq -r '.merge_base_commit.sha // empty' <<<"$comparison")" == "$verified_base" ]]
+          export VERIFIED_REPOSITORY="$verified_repository"
+          export VERIFIED_BASE="$verified_base"
+
           python3 - <<'PY'
           import os
           import shutil
@@ -101,27 +118,22 @@ jobs:
           root = Path('intake-branch')
           provider = os.environ['SELECTED_PROVIDER']
           expected_candidate = os.environ['EXPECTED_CANDIDATE']
+          verified_repository = os.environ['VERIFIED_REPOSITORY']
+          verified_base = os.environ['VERIFIED_BASE']
           if provider not in {'keiyoushi', 'uma', 'gekkoushi'}:
               raise SystemExit('invalid provider scope')
 
           original = root / 'tools/upstream_sync.py'
           impl = root / 'tools/upstream_sync_impl.py'
           helper = root / 'tools/source_lab_scope_plan.py'
-          workflow = root / '.github/workflows/upstream-sync.yml'
           if not original.is_file():
               raise SystemExit('authoritative upstream sync helper is missing')
-          if not workflow.is_file():
-              raise SystemExit('authoritative upstream sync workflow is missing')
           shutil.copy2(original, impl)
 
           helper.write_text(r'''#!/usr/bin/env python3
           import argparse
           import json
-          import os
           import re
-          import urllib.error
-          import urllib.parse
-          import urllib.request
           from pathlib import Path
 
           PROVIDERS = ('keiyoushi', 'uma', 'gekkoushi')
@@ -131,6 +143,8 @@ jobs:
               'uma': 'InvalidDavid/UMA',
               'gekkoushi': 'Gekkoushi/plugin-source',
           }
+          VERIFIED_REPOSITORY = __VERIFIED_REPOSITORY__
+          VERIFIED_BASE = __VERIFIED_BASE__
 
           parser = argparse.ArgumentParser()
           parser.add_argument('--plan', required=True, type=Path)
@@ -151,38 +165,16 @@ jobs:
           repository = selected.get('repository')
           if repository != EXPECTED_REPOSITORIES[args.provider]:
               raise SystemExit('selected provider repository identity mismatch')
+          if repository != VERIFIED_REPOSITORY:
+              raise SystemExit('selected provider repository changed after authenticated verification')
           base = selected.get('lastKnownGood')
           if not isinstance(base, str) or not HEX40.fullmatch(base):
               raise SystemExit('selected provider LKG is invalid')
+          if base != VERIFIED_BASE:
+              raise SystemExit('selected provider LKG changed after authenticated verification')
 
           live_candidate = selected.get('candidate')
           if live_candidate != args.expected_candidate:
-              token = os.environ.get('GH_TOKEN')
-              if not token:
-                  raise SystemExit('authenticated GitHub token is required for locked candidate verification')
-              quoted_base = urllib.parse.quote(base, safe='')
-              quoted_candidate = urllib.parse.quote(args.expected_candidate, safe='')
-              compare_url = f'https://api.github.com/repos/{repository}/compare/{quoted_base}...{quoted_candidate}'
-              request = urllib.request.Request(compare_url, headers={
-                  'Accept': 'application/vnd.github+json',
-                  'Authorization': f'Bearer {token}',
-                  'User-Agent': 'miyorare-source-lab',
-                  'X-GitHub-Api-Version': '2022-11-28',
-              })
-              try:
-                  with urllib.request.urlopen(request, timeout=30) as response:
-                      comparison = json.load(response)
-              except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
-                  raise SystemExit(f'locked candidate could not be verified in upstream history: {exc}') from exc
-              if comparison.get('status') != 'ahead':
-                  raise SystemExit(
-                      f'locked candidate is not a descendant of LKG: expected={args.expected_candidate!r}, '
-                      f'status={comparison.get("status")!r}'
-                  )
-              if comparison.get('base_commit', {}).get('sha') != base:
-                  raise SystemExit('locked candidate comparison base mismatch')
-              if comparison.get('merge_base_commit', {}).get('sha') != base:
-                  raise SystemExit('locked candidate does not preserve the exact LKG ancestry boundary')
               selected['liveCandidate'] = live_candidate
               selected['candidate'] = args.expected_candidate
               selected['state'] = 'candidate'
@@ -202,19 +194,7 @@ jobs:
                       out.write(f"{prefix}_CURRENT={item['lastKnownGood']}\n")
                       out.write(f"{prefix}_CANDIDATE={item['candidate']}\n")
                       out.write(f"{prefix}_CHANGED={'true' if item['changed'] else 'false'}\n")
-          ''', encoding='utf-8')
-
-          workflow_text = workflow.read_text(encoding='utf-8')
-          plan_step = "      - name: Resolve upstream heads\n        id: plan\n        run: |\n"
-          if workflow_text.count(plan_step) != 1:
-              raise SystemExit('authoritative upstream sync plan step shape changed')
-          github_token_expression = '$' + '{{ github.token }}'
-          workflow_text = workflow_text.replace(
-              plan_step,
-              "      - name: Resolve upstream heads\n        id: plan\n        env:\n          GH_TOKEN: " + github_token_expression + "\n        run: |\n",
-              1,
-          )
-          workflow.write_text(workflow_text, encoding='utf-8')
+          '''.replace('__VERIFIED_REPOSITORY__', repr(verified_repository)).replace('__VERIFIED_BASE__', repr(verified_base)), encoding='utf-8')
 
           wrapper = r'''#!/usr/bin/env python3
           import os
@@ -267,7 +247,7 @@ jobs:
 
           git -C intake-branch config user.name github-actions[bot]
           git -C intake-branch config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git -C intake-branch add .github/workflows/upstream-sync.yml tools/upstream_sync.py tools/upstream_sync_impl.py tools/source_lab_scope_plan.py
+          git -C intake-branch add tools/upstream_sync.py tools/upstream_sync_impl.py tools/source_lab_scope_plan.py
           git -C intake-branch commit -m "Scope manual Source Lab intake to $SELECTED_PROVIDER"
           git -C intake-branch push origin "HEAD:$TEMP_BRANCH"
           scoped_sha="$(git -C intake-branch rev-parse HEAD)"
