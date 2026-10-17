@@ -326,6 +326,7 @@ Verified history relevant to this plan:
 - CHILD-B1 pinned Source Lab Farm authority reads to one exact Compatibility Farm commit before loading registry, status, and pending-worker state; exact-head Source Lab CI run `39049949271` completed successfully at `4cded9bd04d266a78b2f4b58bd5cbcdc96188a77`.
 - SL13-C added a read-only BATCAVE P2 evidence viewer over authoritative GitHub Actions job logs. It validates exact run/candidate/Miyorare/bound-proof provenance, exposes extension install/load, live request/result, System WebView, `__guard_trust`, protected-path proof, and infrastructure-blocked state, and fails closed when evidence is unavailable or inconsistent. Exact-head Source Lab CI run `39061852772` succeeded at `4d1b0d9d8f35a8c75bc25a45673fd6d28fc25d33`.
 - SL13-D added a read-only P3 Miyorare Audio Catalog report. It pins Source Pack `main` to one exact commit, validates the durable P3 baseline fail-closed, reads the exact pinned Miyorare catalog, requires the exact six builtin runtime bindings, displays the exact Hiraukan runtime authority, and keeps owner-deferred device validation separate from release eligibility. Exact-head Source Lab CI run `39063267660` succeeded at `0f4f572be679efa38eb21d3b61c4bc6501c28860`.
+- SL13-E added focused backend/app contract guards without duplicating backend execution semantics. P1 now rejects unsupported Source Registry/Farm status schemas and approval candidates missing authority-critical gate fingerprint, publish eligibility, or source scope; existing pending-worker schema enforcement remains fail-closed. P2/P3 production parsers remain unchanged and their existing schema guards are now covered by explicit unsupported-schema regression tests. Exact-head Source Lab CI run `39066281515` succeeded at `f57171ca6204565a9ae93391828df86f10b509c7` with unit tests, debug lint, debug assembly, and internal APK verification all successful.
 
 These SHAs are historical checkpoint evidence, not permanent assumptions. Refresh exact repository/backend state before every write and before every phase exit audit.
 
@@ -334,14 +335,14 @@ These SHAs are historical checkpoint evidence, not permanent assumptions. Refres
 ```text
 CURRENT CHECKPOINT
 Parent goal: Source Lab v1.2.15 Backend Alignment Release
-Phase: SL13-D
+Phase: SL13-E
 Phase state: CLOSED
 Active child: NONE
 Child state: CLOSED
-Return target: SL13-D exit condition is satisfied. The next parent task is SL13-E targeted pre-change audit; refresh all Source Lab-consumed P1/P2/P3 contracts before adding compatibility guards.
-Last verified repository state: source-lab-owner-access-temp @ 0f4f572be679efa38eb21d3b61c4bc6501c28860 before this closure-record commit; refresh exact head before the next write
-Last verified backend authority: main @ e20015393591d22398aa623b227e17afe26fc19d; compatibility-farm-foundation @ c200dba0e3b5590330f323e1add907bde09696ad (autonomous Farm movement, not mutated by SL13-D)
-Last verified evidence: SL13-D reads the durable P3 baseline from one exact Source Pack main commit, validates exact Miyorare/Hiraukan authorities plus exact six builtin runtime IDs fail-closed, and presents the Audio Catalog as a separate Reports card. Device validation remains DEFERRED_BY_OWNER / validated=false / not required for release while release eligibility remains ELIGIBLE. Cumulative SL13-D implementation touched only four Source Lab app/test files; Reports added only the separate catalog hook, LiveFarmSnapshot/Farm metrics/backend state were not changed. Exact-head Source Lab CI run 39063267660 succeeded at 0f4f572be679efa38eb21d3b61c4bc6501c28860.
-Next parent phase after closure: SL13-E
-Notes: P3 Audio Catalog remains separate from Compatibility Farm and the manga/Tsuki builder baseline. Source Lab does not duplicate the full Hiraukan runtime-manifest validator; authoritative P3 CI remains responsible for cross-repository runtime capability validation. Stable Release remains explicit workflow_dispatch-only. Stop here until SL13-E is explicitly started.
+Return target: SL13-E exit condition is satisfied. Do not start SL13-F without a newer explicit owner authorization; when authorized, begin with an exact-state refresh and the locked SL13-F final-audit/release-preparation scope.
+Last verified repository state: source-lab-owner-access-temp @ f57171ca6204565a9ae93391828df86f10b509c7 before this closure-record commit; refresh exact head before any later write
+Last verified backend authority: main @ e20015393591d22398aa623b227e17afe26fc19d; compatibility-farm-foundation @ c200dba0e3b5590330f323e1add907bde09696ad (autonomous Farm authority, not mutated by SL13-E)
+Last verified evidence: Cumulative SL13-E implementation from ceef82778aa960d4fe6de7c9be0f44af67a754aa to f57171ca6204565a9ae93391828df86f10b509c7 touches only SourceLabRepository plus focused P1/P2/P3 unit tests. P1 root schemas and approval-candidate authority fields fail closed on unsupported/missing contract data; pending-worker schema 2 enforcement remains intact; P2/P3 production code is unchanged while explicit schema-drift tests exercise their existing fail-closed guards. Exact-head Source Lab CI run 39066281515 succeeded, including :app:testDebugUnitTest, :app:lintDebug, :app:assembleDebug and internal APK verification.
+Next parent phase after closure: SL13-F
+Notes: SL13-E did not mutate backend/Farm authority and did not start or publish a Source Lab stable release. Stable Release remains explicit workflow_dispatch-only. SL13-F and Source Lab v1.2.15 release remain NOT STARTED / NOT AUTHORIZED by this checkpoint.
 ```
