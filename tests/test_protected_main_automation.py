@@ -39,6 +39,7 @@ class ProtectedMainAutomationTests(unittest.TestCase):
     def test_auto_farm_isolates_provider_candidates_and_suppresses_exact_held_sha(self) -> None:
         auto = workflow("source-lab-auto-farm.yml")
         self.assertIn("selected_provider", auto)
+        self.assertIn("provider: ${{ needs.probe.outputs.selected_provider }}", auto)
         self.assertIn("source_lab_scope_plan.py", auto)
         self.assertIn("upstream_sync_impl.py", auto)
         self.assertIn("shutil.copy2(original, impl)", auto)
