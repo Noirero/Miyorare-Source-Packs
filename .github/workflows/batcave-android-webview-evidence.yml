@@ -1,0 +1,235 @@
+name: P2 BATCAVE Android WebView Evidence
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/batcave-android-webview-evidence.yml'
+      - 'compatibility/android-harness/KeiyoushiBatCaveAndroidWebViewProbeTest.kt'
+      - 'tools/bind_batcave_android_webview_evidence.py'
+      - 'tools/runtime_closure_provenance.py'
+      - 'tests/test_batcave_android_webview_evidence.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p2-batcave-android-webview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-webview-evidence:
+    name: Execute exact BATCAVE runtime in Miyorare Android WebView
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      KEIYOUSHI_BASE: 2025891752e4705effc28e87a043f7205014cde3
+      KEIYOUSHI_CANDIDATE: 23345ef345e3b20d7fcc0b5d8fdc922d025af47f
+      MIYORARE_REVISION: 812cfd2567afa9b5517ce639620b002271a09c95
+      BATCAVE_CANONICAL: miyorare:miyorare-en:BATCAVE
+      BATCAVE_MODULE: src/en/batcave
+      DEBUG_APPLICATION_ID: org.noirero.miyorare.debug
+
+    steps:
+      - name: Checkout exact Source Pack control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          path: control-plane
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout exact Miyorare Android host
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Noirero/Miyorare
+          ref: 812cfd2567afa9b5517ce639620b002271a09c95
+          path: miyorare
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout exact Keiyoushi candidate with baseline history
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: keiyoushi/extensions-source
+          ref: 23345ef345e3b20d7fcc0b5d8fdc922d025af47f
+          path: keiyoushi
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify immutable runtime envelope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C miyorare rev-parse HEAD)" = "$MIYORARE_REVISION"
+          test "$(git -C keiyoushi rev-parse HEAD)" = "$KEIYOUSHI_CANDIDATE"
+          git -C keiyoushi cat-file -e "$KEIYOUSHI_BASE^{commit}"
+          test "$BATCAVE_CANONICAL" = 'miyorare:miyorare-en:BATCAVE'
+          test "$BATCAVE_MODULE" = 'src/en/batcave'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94a8
+        with:
+          cache-provider: basic
+          cache-read-only: true
+
+      - name: Set up Android SDK tools
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          packages: platform-tools
+
+      - name: Install exact Android compile and emulator SDKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager \
+            'platform-tools' \
+            'emulator' \
+            'platforms;android-37' \
+            'system-images;android-35;google_apis;x86_64'
+
+      - name: Build exact BATCAVE APK and runtime-closure provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x keiyoushi/gradlew
+          mkdir -p build
+          (
+            cd keiyoushi
+            ./gradlew :src:en:batcave:assembleDebug --no-daemon --stacktrace
+          ) 2>&1 | tee build/batcave-gradle.log
+
+          python3 control-plane/tools/runtime_closure_provenance.py \
+            --repo keiyoushi \
+            --base "$KEIYOUSHI_BASE" \
+            --candidate "$KEIYOUSHI_CANDIDATE" \
+            --module "$BATCAVE_MODULE" \
+            --canonical "$BATCAVE_CANONICAL" \
+            --gradle-log build/batcave-gradle.log \
+            --webview true \
+            --job-status success \
+            --run-id "$GITHUB_RUN_ID" \
+            --output build/batcave-runtime-proof.json
+
+          apk="$(find keiyoushi/src/en/batcave/build/outputs/apk -type f -name '*.apk' -print -quit)"
+          test -n "$apk"
+          test -s "$apk"
+          mkdir -p miyorare/app/src/androidTest/assets/p2
+          mkdir -p miyorare/app/src/androidTest/kotlin/org/koitharu/kotatsu/p2
+          cp "$apk" miyorare/app/src/androidTest/assets/p2/batcave.apk
+          cp control-plane/compatibility/android-harness/KeiyoushiBatCaveAndroidWebViewProbeTest.kt \
+            miyorare/app/src/androidTest/kotlin/org/koitharu/kotatsu/p2/KeiyoushiBatCaveAndroidWebViewProbeTest.kt
+
+      - name: Boot isolated Android 15 emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo chmod 666 /dev/kvm || true
+          echo no | avdmanager create avd \
+            --force \
+            --name p2-batcave \
+            --package 'system-images;android-35;google_apis;x86_64'
+          nohup emulator \
+            -avd p2-batcave \
+            -no-window \
+            -gpu swiftshader_indirect \
+            -noaudio \
+            -no-boot-anim \
+            -no-snapshot \
+            -camera-back none \
+            > build/emulator.log 2>&1 &
+          adb wait-for-device
+          booted=''
+          for _ in $(seq 1 120); do
+            booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
+            [[ "$booted" == '1' ]] && break
+            sleep 5
+          done
+          [[ "$booted" == '1' ]]
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb shell cmd webviewupdate getCurrentWebViewPackage || true
+
+      - name: Execute production Miyorare extension runtime probe
+        id: android_probe
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x miyorare/gradlew
+          (
+            cd miyorare
+            ./gradlew :app:connectedDebugAndroidTest \
+              --no-daemon \
+              --stacktrace \
+              -Pandroid.testInstrumentationRunnerArguments.class=org.koitharu.kotatsu.p2.KeiyoushiBatCaveAndroidWebViewProbeTest \
+              -Pandroid.testInstrumentationRunnerArguments.p2Candidate="$KEIYOUSHI_CANDIDATE" \
+              -Pandroid.testInstrumentationRunnerArguments.p2MiyorareRevision="$MIYORARE_REVISION" \
+              -Pandroid.testInstrumentationRunnerArguments.p2WorkflowRunId="$GITHUB_RUN_ID"
+          ) 2>&1 | tee build/miyorare-android.log
+
+      - name: Collect machine-readable Android evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          adb exec-out run-as "$DEBUG_APPLICATION_ID" \
+            cat files/p2-batcave-evidence.json \
+            > build/p2-batcave-evidence.json
+          test -s build/p2-batcave-evidence.json
+          python3 -m json.tool build/p2-batcave-evidence.json
+          if [[ '${{ steps.android_probe.outcome }}' != 'success' ]]; then
+            echo '::warning::Android instrumentation reported failure after evidence collection; evidence remains fail-closed unless all proof requirements are met.'
+          fi
+
+      - name: Bind Android WebView evidence without weakening the gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control-plane/tools/bind_batcave_android_webview_evidence.py \
+            --runtime-proof build/batcave-runtime-proof.json \
+            --probe build/p2-batcave-evidence.json \
+            --base "$KEIYOUSHI_BASE" \
+            --candidate "$KEIYOUSHI_CANDIDATE" \
+            --miyorare-revision "$MIYORARE_REVISION" \
+            --output build/batcave-runtime-proof-android.json
+
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build/batcave-runtime-proof-android.json').read_text(encoding='utf-8'))
+          proof = report['proofs'][0]
+          proven = proof.get('androidWebViewExecutionProven') is True
+          print('## P2 BATCAVE Android/WebView Evidence')
+          print(f"- candidate: `{proof.get('candidateRevision')}`")
+          print(f"- Android WebView execution proven: **{str(proven).lower()}**")
+          print(f"- infrastructure blocked: **{str(proof.get('infrastructureBlocked') is True).lower()}**")
+          print('- No Farm, approval, promotion, LKG, or release state was mutated.')
+          PY
+
+      - name: Upload P2 evidence bundle
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: p2-batcave-android-webview-evidence-${{ github.run_id }}
+          path: |
+            build/batcave-gradle.log
+            build/batcave-runtime-proof.json
+            build/p2-batcave-evidence.json
+            build/batcave-runtime-proof-android.json
+            build/miyorare-android.log
+            build/emulator.log
+            miyorare/app/build/reports/androidTests/connected/
+            miyorare/app/build/outputs/androidTest-results/connected/
+          if-no-files-found: warn
+          retention-days: 30
