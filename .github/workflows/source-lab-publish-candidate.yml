@@ -12,6 +12,16 @@ on:
         description: Exact successful Source Lab signing workflow run
         required: true
         type: number
+      recovery_authorization_run_id:
+        description: Original Owner-authorized failed Publish run for automated recovery
+        required: false
+        default: 0
+        type: number
+      recovery_attempt:
+        description: Bounded automated recovery attempt number; zero means direct Owner Publish
+        required: false
+        default: 0
+        type: number
 permissions:
   actions: write
   attestations: read
@@ -29,19 +39,102 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       EXPECTED_OWNER_ID: '149634319'
+      EXPECTED_AUTOMATION_ID: '41898282'
       CANDIDATE_SET_ID: ${{ inputs.candidate_set_id }}
       SIGNING_RUN_ID: ${{ inputs.signing_run_id }}
+      RECOVERY_AUTHORIZATION_RUN_ID: ${{ inputs.recovery_authorization_run_id }}
+      RECOVERY_ATTEMPT: ${{ inputs.recovery_attempt }}
     steps:
       - name: Fail closed on caller and request
+        id: caller
         shell: bash
         run: |
           set -euo pipefail
           [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
           [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
           [[ "$GITHUB_REF" == "refs/heads/main" ]]
-          [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
           [[ "$CANDIDATE_SET_ID" =~ ^[0-9a-f]{64}$ ]]
           [[ "$SIGNING_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$RECOVERY_AUTHORIZATION_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$RECOVERY_ATTEMPT" =~ ^[0-9]+$ ]]
+          if [[ "$RECOVERY_ATTEMPT" == "0" ]]; then
+            [[ "$RECOVERY_AUTHORIZATION_RUN_ID" == "0" ]]
+            [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+            echo "mode=owner" >> "$GITHUB_OUTPUT"
+            echo "authorization_run_id=$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
+          else
+            [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_AUTOMATION_ID" ]]
+            (( RECOVERY_AUTHORIZATION_RUN_ID > 0 ))
+            (( RECOVERY_ATTEMPT >= 1 && RECOVERY_ATTEMPT <= 2 ))
+            echo "mode=recovery" >> "$GITHUB_OUTPUT"
+            echo "authorization_run_id=$RECOVERY_AUTHORIZATION_RUN_ID" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify exact automated recovery authorization
+        id: recovery-auth
+        if: steps.caller.outputs.mode == 'recovery'
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RECOVERY_AUTHORIZATION_RUN_ID" > "$RUNNER_TEMP/authorization-run.json"
+          git clone --depth 1 --branch compatibility-farm-foundation \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "$RUNNER_TEMP/recovery-farm"
+          python3 - "$RUNNER_TEMP/authorization-run.json" "$RUNNER_TEMP/recovery-farm/upstream/status.json" <<'PY'
+          import json, os, sys
+          authorization = json.load(open(sys.argv[1], encoding="utf-8"))
+          status = json.load(open(sys.argv[2], encoding="utf-8"))
+          candidate = os.environ["CANDIDATE_SET_ID"]
+          signing_run_id = int(os.environ["SIGNING_RUN_ID"])
+          authorization_run_id = int(os.environ["RECOVERY_AUTHORIZATION_RUN_ID"])
+          recovery_attempt = int(os.environ["RECOVERY_ATTEMPT"])
+
+          expected = {
+              "event": "workflow_dispatch",
+              "head_branch": "main",
+              "conclusion": "failure",
+              "path": ".github/workflows/source-lab-publish-candidate.yml",
+              "display_title": f"Source Lab publish {candidate}",
+          }
+          for key, value in expected.items():
+              if authorization.get(key) != value:
+                  raise SystemExit(f"recovery authorization run {key} mismatch: {authorization.get(key)!r}")
+          if authorization.get("status") != "completed":
+              raise SystemExit("recovery authorization run is not completed")
+          if authorization.get("id") != authorization_run_id:
+              raise SystemExit("recovery authorization run ID mismatch")
+          if str(authorization.get("actor", {}).get("id")) != os.environ["EXPECTED_OWNER_ID"]:
+              raise SystemExit("recovery authorization run was not Owner-authorized")
+
+          if status.get("schema") != 3:
+              raise SystemExit("unexpected live Farm status schema")
+          promotion = status.get("lastPromotion")
+          published = status.get("lastPublish")
+          failure = status.get("lastPublishFailure")
+          if not isinstance(promotion, dict) or promotion.get("candidateSetId") != candidate:
+              raise SystemExit("live promotion no longer matches automated recovery candidate")
+          if isinstance(published, dict) and published.get("candidateSetId") == candidate:
+              raise SystemExit("automated recovery candidate is already published")
+          if not isinstance(failure, dict) or failure.get("state") != "FAILED":
+              raise SystemExit("live publish failure authority is missing")
+          if failure.get("candidateSetId") != candidate:
+              raise SystemExit("live publish failure candidate mismatch")
+          if failure.get("signingRunId") != signing_run_id:
+              raise SystemExit("live publish failure signing run mismatch")
+          if failure.get("reason") != "PUBLISH_WORKFLOW_FAILED":
+              raise SystemExit("live publish failure reason is not recoverable")
+          live_authorization_run_id = failure.get("authorizationRunId", failure.get("publishRunId"))
+          if live_authorization_run_id != authorization_run_id:
+              raise SystemExit("live publish failure authorization run mismatch")
+          previous_recovery_attempt = failure.get("recoveryAttempt", 0)
+          if not isinstance(previous_recovery_attempt, int) or not 0 <= previous_recovery_attempt <= 2:
+              raise SystemExit("live publish recovery attempt is invalid")
+          if recovery_attempt != previous_recovery_attempt + 1:
+              raise SystemExit("automated publish recovery attempt is not the exact next attempt")
+          latest_publish_run_id = failure.get("publishRunId")
+          if not isinstance(latest_publish_run_id, int) or latest_publish_run_id <= 0:
+              raise SystemExit("live failed Publish run ID is invalid")
+          PY
 
       - name: Verify exact successful signing run
         shell: bash
@@ -182,11 +275,15 @@ jobs:
         env:
           TEMP_BRANCH: ${{ steps.release-ref.outputs.temp_branch }}
           FOUNDATION_COMMIT: ${{ steps.signature.outputs.foundation_commit }}
+          AUTHORIZATION_RUN_ID: ${{ steps.caller.outputs.authorization_run_id }}
         shell: bash
         run: |
           set -euo pipefail
           request_id="source-lab-${GITHUB_RUN_ID}-${CANDIDATE_SET_ID}"
           expected_title="Source Pack control $request_id"
+          controller_head="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          [[ "$controller_head" == "$GITHUB_SHA" ]] || { echo "main moved before signed release controller dispatch" >&2; exit 1; }
+          started_epoch="$(date -u +%s)"
           gh workflow run source-pack-autonomous-release.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref main \
@@ -196,25 +293,27 @@ jobs:
             -f release_ref="$TEMP_BRANCH" \
             -f foundation_commit="$FOUNDATION_COMMIT" \
             -f request_id="$request_id" \
-            -f request_run_id="$GITHUB_RUN_ID"
+            -f request_run_id="$GITHUB_RUN_ID" \
+            -f authorization_run_id="$AUTHORIZATION_RUN_ID"
 
           controller_run_id=""
           for _ in $(seq 1 90); do
-            controller_run_id="$(gh run list \
-              --repo "$GITHUB_REPOSITORY" \
-              --workflow source-pack-autonomous-release.yml \
-              --branch main \
-              --event workflow_dispatch \
-              --limit 100 \
-              --json databaseId,displayTitle \
-              --jq ".[] | select(.displayTitle == \"$expected_title\") | .databaseId" \
-              | head -n 1)"
+            payload="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/source-pack-autonomous-release.yml/runs?branch=main&event=workflow_dispatch&per_page=100")"
+            controller_run_id="$(jq -r \
+              --arg title "$expected_title" \
+              --arg sha "$controller_head" \
+              --argjson started "$started_epoch" \
+              --arg actor "$EXPECTED_AUTOMATION_ID" \
+              '[.workflow_runs[] |
+                select(.display_title == $title) |
+                select(.head_sha == $sha) |
+                select((.actor.id | tostring) == $actor) |
+                select((.created_at | fromdateiso8601) >= ($started - 5))] |
+                sort_by(.id) | last | .id // empty' <<<"$payload")"
             [[ -n "$controller_run_id" ]] && break
             sleep 2
           done
           [[ "$controller_run_id" =~ ^[0-9]+$ ]]
-          actual_title="$(gh run view "$controller_run_id" --repo "$GITHUB_REPOSITORY" --json displayTitle --jq '.displayTitle')"
-          [[ "$actual_title" == "$expected_title" ]]
           gh run watch "$controller_run_id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 20
           echo "run_id=$controller_run_id" >> "$GITHUB_OUTPUT"
 
@@ -231,6 +330,7 @@ jobs:
         env:
           FOUNDATION_COMMIT: ${{ steps.signature.outputs.foundation_commit }}
           CONTROLLER_RUN_ID: ${{ steps.controller.outputs.run_id }}
+          AUTHORIZATION_RUN_ID: ${{ steps.caller.outputs.authorization_run_id }}
         shell: bash
         run: |
           set -euo pipefail
@@ -251,6 +351,8 @@ jobs:
               raise SystemExit("controller result signing run mismatch")
           if result.get("controllerRunId") != int(os.environ["CONTROLLER_RUN_ID"]):
               raise SystemExit("controller run binding mismatch")
+          if result.get("authorizationRunId") != int(os.environ["AUTHORIZATION_RUN_ID"]):
+              raise SystemExit("controller authorization run binding mismatch")
           if result.get("foundationCommit") != os.environ["FOUNDATION_COMMIT"]:
               raise SystemExit("controller result Foundation commit mismatch")
           version = result.get("version")
@@ -263,6 +365,7 @@ jobs:
               "state": "PUBLISHED",
               "candidateSetId": signing["candidateSetId"],
               "signingRunId": signing["signingRunId"],
+              "authorizationRunId": int(os.environ["AUTHORIZATION_RUN_ID"]),
               "publishRunId": int(os.environ["GITHUB_RUN_ID"]),
               "controllerRunId": result["controllerRunId"],
               "releaseRunId": result["releaseRunId"],
@@ -342,16 +445,22 @@ jobs:
           done
 
       - name: Record failed publish cycle in live Farm status
-        if: failure()
+        if: >-
+          failure() &&
+          (steps.caller.outputs.mode == 'owner' || steps.recovery-auth.outcome == 'success')
+        env:
+          AUTHORIZATION_RUN_ID: ${{ steps.caller.outputs.authorization_run_id }}
         shell: bash
         run: |
           set -euo pipefail
           [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
           [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
           [[ "$GITHUB_REF" == "refs/heads/main" ]]
-          [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+          [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" || "$GITHUB_ACTOR_ID" == "$EXPECTED_AUTOMATION_ID" ]]
           [[ "$CANDIDATE_SET_ID" =~ ^[0-9a-f]{64}$ ]]
           [[ "$SIGNING_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$AUTHORIZATION_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$RECOVERY_ATTEMPT" =~ ^[0-9]+$ ]]
           rm -rf farm-failure
           git clone --branch compatibility-farm-foundation \
             "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" farm-failure
@@ -374,12 +483,15 @@ jobs:
           published = status.get("lastPublish")
           if isinstance(published, dict) and published.get("candidateSetId") == candidate:
               raise SystemExit(3)
+          recovery_attempt = int(os.environ["RECOVERY_ATTEMPT"])
           failure = {
               "schemaVersion": 1,
               "state": "FAILED",
               "candidateSetId": candidate,
               "signingRunId": int(os.environ["SIGNING_RUN_ID"]),
+              "authorizationRunId": int(os.environ["AUTHORIZATION_RUN_ID"]),
               "publishRunId": int(os.environ["GITHUB_RUN_ID"]),
+              "recoveryAttempt": recovery_attempt,
               "reason": "PUBLISH_WORKFLOW_FAILED",
               "recordedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
           }
@@ -387,9 +499,9 @@ jobs:
           automation = status.get("automation")
           if not isinstance(automation, dict):
               automation = {"schemaVersion": 2}
-          automation["state"] = "INFRASTRUCTURE_FAILURE"
-          automation["reason"] = "PUBLISH_PIPELINE_FAILED"
-          automation["ownerActionRequired"] = True
+          automation["state"] = "PUBLISHING" if recovery_attempt < 2 else "INFRASTRUCTURE_FAILURE"
+          automation["reason"] = "AUTOMATIC_PUBLISH_RECOVERY_PENDING" if recovery_attempt < 2 else "PUBLISH_PIPELINE_FAILED"
+          automation["ownerActionRequired"] = recovery_attempt >= 2
           automation["workflowRunId"] = int(os.environ["GITHUB_RUN_ID"])
           automation["updatedAt"] = failure["recordedAt"]
           status["automation"] = automation
