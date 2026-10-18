@@ -57,8 +57,8 @@
   },
   "automation": {
     "schemaVersion": 2,
-    "state": "ALL_GOOD",
-    "reason": "READY_SOURCE_APPROVAL_WINDOW",
+    "state": "HELD",
+    "reason": "CANDIDATE_FARM_GATE_FAILED",
     "candidates": {
       "gekkoushi": {
         "candidate": "12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67",
@@ -81,12 +81,20 @@
         "workflowRunId": 35253058989,
         "upstreamRunId": 35253087187,
         "recordedAt": "2026-09-17T17:41:48.451161Z"
+      },
+      "uma": {
+        "current": "52185ec4faada143f57dcfb41c6fa49aa346b4db",
+        "candidate": "f207e8ea5d04cefbc97f840865aff79cee110a5c",
+        "reason": "Run automatic exact provider Candidate Farm / Prepare exact live candidate / Build immutable candidate registry and parser plan",
+        "workflowRunId": 39152657446,
+        "upstreamRunId": 39152678215,
+        "recordedAt": "2026-10-18T18:14:29.501179Z"
       }
     },
     "ownerActionRequired": false,
-    "lastAttemptProvider": "keiyoushi",
-    "workflowRunId": 39136669375,
-    "updatedAt": "2026-10-18T14:35:32.699737Z"
+    "lastAttemptProvider": "uma",
+    "workflowRunId": 39152657446,
+    "updatedAt": "2026-10-18T18:14:29.501197Z"
   },
   "lastPromotion": {
     "schemaVersion": 1,
