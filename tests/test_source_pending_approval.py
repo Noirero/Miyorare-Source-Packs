@@ -16,6 +16,7 @@ SPEC.loader.exec_module(approval)
 
 
 SHA = "a" * 40
+NEW_SHA = "b" * 40
 
 
 def registry() -> dict:
@@ -106,9 +107,33 @@ class SourcePendingApprovalTest(unittest.TestCase):
 
     def test_plan_rejects_stale_provider_version(self) -> None:
         reg = registry()
-        reg["providerBaselines"]["uma"] = "b" * 40
+        reg["providerBaselines"]["uma"] = NEW_SHA
         with self.assertRaisesRegex(ValueError, "provider baseline moved"):
             approval.plan(reg, ready_state())
+
+    def test_revalidated_ready_can_advance_pending_source_to_current_baseline(self) -> None:
+        reg = registry()
+        reg["providerBaselines"]["uma"] = NEW_SHA
+        state = ready_state()
+        state["sources"]["miyorare:inventory-en:EXAMPLE"]["testedVersions"]["uma"] = NEW_SHA
+
+        plan = approval.plan(reg, state)
+        self.assertEqual(plan["count"], 1)
+        self.assertEqual(plan["sources"][0]["testedVersions"], {"uma": NEW_SHA})
+
+        updated_reg, _, receipt = approval.apply(
+            reg,
+            state,
+            copy.deepcopy(plan),
+            "Noirero:149634319",
+            "2026-09-18T01:00:00Z",
+            "999",
+        )
+        source = updated_reg["sources"][0]
+        self.assertEqual(source["currentVersion"], {"uma": NEW_SHA})
+        self.assertEqual(source["lastKnownGood"], {"uma": NEW_SHA})
+        self.assertIn(NEW_SHA, source["healthyHistory"])
+        self.assertEqual(receipt["count"], 1)
 
     def test_plan_rejects_fake_real_parser_gate(self) -> None:
         state = ready_state()
