@@ -90,7 +90,11 @@ jobs:
               ],
               'source-lab-auto-farm.yml': [
                   'publish_recovery_available',
+                  'publish_recovery_run_id',
                   'Resume exact failed provider publish',
+                  'MAX_PUBLISH_ATTEMPTS',
+                  'failed publish run was not Owner-authorized',
+                  'actions/runs/$PUBLISH_RUN_ID/rerun',
                   'source-lab-publish-candidate.yml',
                   'PUBLISH_RECOVERED_AUTOMATICALLY',
                   'lastPublishFailure',
