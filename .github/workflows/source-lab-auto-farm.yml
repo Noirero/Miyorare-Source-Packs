@@ -36,6 +36,7 @@ jobs:
       publish_recovery_available: ${{ steps.probe.outputs.publish_recovery_available }}
       publish_recovery_candidate: ${{ steps.probe.outputs.publish_recovery_candidate }}
       publish_recovery_signing_run_id: ${{ steps.probe.outputs.publish_recovery_signing_run_id }}
+      publish_recovery_run_id: ${{ steps.probe.outputs.publish_recovery_run_id }}
       ready_sources_waiting: ${{ steps.probe.outputs.ready_sources_waiting }}
       ready_sources_count: ${{ steps.probe.outputs.ready_sources_count }}
     env:
@@ -153,6 +154,7 @@ jobs:
           recovery_available = False
           recovery_candidate = ''
           recovery_signing_run_id = ''
+          recovery_publish_run_id = ''
           if (
               pipeline_state == 'publish_failed'
               and isinstance(promotion, dict)
@@ -161,16 +163,20 @@ jobs:
           ):
               candidate = publish_failure.get('candidateSetId')
               signing_run_id = publish_failure.get('signingRunId')
+              publish_run_id = publish_failure.get('publishRunId')
               if (
                   isinstance(candidate, str)
                   and len(candidate) == 64
                   and all(ch in '0123456789abcdef' for ch in candidate)
                   and isinstance(signing_run_id, int)
                   and signing_run_id > 0
+                  and isinstance(publish_run_id, int)
+                  and publish_run_id > 0
               ):
                   recovery_available = True
                   recovery_candidate = candidate
                   recovery_signing_run_id = str(signing_run_id)
+                  recovery_publish_run_id = str(publish_run_id)
 
           changed = bool(candidates)
           # Give the Owner a stable approval window for source onboarding.
@@ -191,6 +197,7 @@ jobs:
           print(f"publish_recovery_available={'true' if recovery_available else 'false'}")
           print(f"publish_recovery_candidate={recovery_candidate}")
           print(f"publish_recovery_signing_run_id={recovery_signing_run_id}")
+          print(f"publish_recovery_run_id={recovery_publish_run_id}")
           print(f"ready_sources_waiting={'true' if ready_sources_waiting else 'false'}")
           print(f"ready_sources_count={ready_sources_count}")
           print('candidates=' + json.dumps(candidates, separators=(',', ':'), sort_keys=True))
@@ -206,8 +213,11 @@ jobs:
     timeout-minutes: 125
     env:
       GH_TOKEN: ${{ github.token }}
+      EXPECTED_OWNER_ID: '149634319'
+      MAX_PUBLISH_ATTEMPTS: '3'
       CANDIDATE_SET_ID: ${{ needs.probe.outputs.publish_recovery_candidate }}
       SIGNING_RUN_ID: ${{ needs.probe.outputs.publish_recovery_signing_run_id }}
+      PUBLISH_RUN_ID: ${{ needs.probe.outputs.publish_recovery_run_id }}
     steps:
       - name: Validate exact recovery envelope
         shell: bash
@@ -217,41 +227,79 @@ jobs:
           [[ "$GITHUB_REF" == "refs/heads/main" ]]
           [[ "$CANDIDATE_SET_ID" =~ ^[0-9a-f]{64}$ ]]
           [[ "$SIGNING_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$PUBLISH_RUN_ID" =~ ^[0-9]+$ ]]
 
-      - name: Dispatch exact publish recovery
-        id: dispatch
+      - name: Validate exact failed Owner-authorized publish
+        id: validate
         shell: bash
         run: |
           set -euo pipefail
-          started_epoch="$(date -u +%s)"
-          gh workflow run source-lab-publish-candidate.yml             --repo "$GITHUB_REPOSITORY"             --ref main             -f candidate_set_id="$CANDIDATE_SET_ID"             -f signing_run_id="$SIGNING_RUN_ID"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLISH_RUN_ID" > "$RUNNER_TEMP/publish-run.json"
+          python3 - "$RUNNER_TEMP/publish-run.json" <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          import sys
 
-          publish_run_id=""
+          run = json.load(open(sys.argv[1], encoding='utf-8'))
+          expected = {
+              'event': 'workflow_dispatch',
+              'head_branch': 'main',
+              'conclusion': 'failure',
+              'path': '.github/workflows/source-lab-publish-candidate.yml',
+          }
+          for key, value in expected.items():
+              if run.get(key) != value:
+                  raise SystemExit(f"failed publish run {key} mismatch: {run.get(key)!r}")
+          if run.get('status') != 'completed':
+              raise SystemExit('failed publish run is not completed')
+          if str(run.get('actor', {}).get('id')) != os.environ['EXPECTED_OWNER_ID']:
+              raise SystemExit('failed publish run was not Owner-authorized')
+          if run.get('display_title') != f"Source Lab publish {os.environ['CANDIDATE_SET_ID']}":
+              raise SystemExit('failed publish candidate title mismatch')
+          attempt = run.get('run_attempt')
+          if not isinstance(attempt, int) or attempt < 1:
+              raise SystemExit('failed publish run attempt is invalid')
+          if attempt >= int(os.environ['MAX_PUBLISH_ATTEMPTS']):
+              raise SystemExit(f'automatic publish recovery retry limit reached at attempt {attempt}')
+          print(f'before_attempt={attempt}')
+          PY
+
+      - name: Rerun exact failed Owner-authorized publish
+        env:
+          BEFORE_ATTEMPT: ${{ steps.validate.outputs.before_attempt }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLISH_RUN_ID/rerun" >/dev/null
+
+          new_attempt=""
           for _ in $(seq 1 90); do
-            publish_run_id="$(gh run list               --repo "$GITHUB_REPOSITORY"               --workflow source-lab-publish-candidate.yml               --event workflow_dispatch               --limit 30               --json databaseId,displayTitle,createdAt               --jq "[.[] |
-                select(.displayTitle == \"Source Lab publish $CANDIDATE_SET_ID\") |
-                select((.createdAt | fromdateiso8601) >= ($started_epoch - 5))] |
-                sort_by(.databaseId) | last | .databaseId // empty")"
-            [[ -n "$publish_run_id" ]] && break
+            payload="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLISH_RUN_ID")"
+            attempt="$(jq -r '.run_attempt' <<<"$payload")"
+            status="$(jq -r '.status' <<<"$payload")"
+            if [[ "$attempt" =~ ^[0-9]+$ ]] && (( attempt > BEFORE_ATTEMPT )); then
+              new_attempt="$attempt"
+              echo "Publish recovery attempt $new_attempt started with status $status."
+              break
+            fi
             sleep 2
           done
-          [[ "$publish_run_id" =~ ^[0-9]+$ ]]
-          echo "publish_run_id=$publish_run_id" >> "$GITHUB_OUTPUT"
+          [[ "$new_attempt" =~ ^[0-9]+$ ]]
+          (( new_attempt == BEFORE_ATTEMPT + 1 ))
 
-      - name: Wait for exact publish recovery
-        env:
-          PUBLISH_RUN_ID: ${{ steps.dispatch.outputs.publish_run_id }}
-        shell: bash
-        run: |
-          set -euo pipefail
+          conclusion=""
           for _ in $(seq 1 720); do
-            status="$(gh run view "$PUBLISH_RUN_ID" --repo "$GITHUB_REPOSITORY" --json status --jq '.status')"
-            [[ "$status" == "completed" ]] && break
+            payload="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLISH_RUN_ID")"
+            attempt="$(jq -r '.run_attempt' <<<"$payload")"
+            status="$(jq -r '.status' <<<"$payload")"
+            if [[ "$attempt" == "$new_attempt" && "$status" == "completed" ]]; then
+              conclusion="$(jq -r '.conclusion' <<<"$payload")"
+              break
+            fi
             sleep 10
           done
-          conclusion="$(gh run view "$PUBLISH_RUN_ID" --repo "$GITHUB_REPOSITORY" --json conclusion --jq '.conclusion')"
           [[ "$conclusion" == "success" ]] || {
-            echo "Exact publish recovery failed: run $PUBLISH_RUN_ID ($conclusion)" >&2
+            echo "Exact automatic publish recovery failed: run $PUBLISH_RUN_ID attempt $new_attempt ($conclusion)" >&2
             exit 1
           }
 
