@@ -529,18 +529,20 @@ jobs:
           if gh release view "miyorare-sources-v$next" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then echo "Resolved release version already exists." >&2; exit 1; fi
           echo "version=$next" >> "$GITHUB_OUTPUT"
 
-      - name: Dispatch sole Source Pack publisher on exact signed ref
+      - name: Dispatch sole Source Pack publisher from current control plane with signed Farm snapshot
         id: dispatch
         env:
           VERSION: ${{ steps.version.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          [[ "$main_sha" == "$GITHUB_SHA" ]] || { echo "main moved since signed controller started; retry from current main." >&2; exit 1; }
           started_epoch="$(date -u +%s)"
-          gh workflow run release-source-packs.yml --repo "$GITHUB_REPOSITORY" --ref "$RELEASE_REF" -f version="$VERSION"
+          gh workflow run release-source-packs.yml --repo "$GITHUB_REPOSITORY" --ref main -f version="$VERSION" -f foundation_commit="$FOUNDATION_COMMIT" -f control_commit="$GITHUB_SHA"
           run_id=""
           for _ in $(seq 1 90); do
-            run_id="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow release-source-packs.yml --branch "$RELEASE_REF" --event workflow_dispatch --limit 30 --json databaseId,headSha,createdAt --jq "[.[] | select(.headSha == \"$FOUNDATION_COMMIT\") | select((.createdAt | fromdateiso8601) >= ($started_epoch - 5))] | sort_by(.databaseId) | last | .databaseId // empty")"
+            run_id="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow release-source-packs.yml --branch main --event workflow_dispatch --limit 30 --json databaseId,headSha,createdAt --jq "[.[] | select(.headSha == \"$GITHUB_SHA\") | select((.createdAt | fromdateiso8601) >= ($started_epoch - 5))] | sort_by(.databaseId) | last | .databaseId // empty")"
             [[ -n "$run_id" ]] && break
             sleep 2
           done

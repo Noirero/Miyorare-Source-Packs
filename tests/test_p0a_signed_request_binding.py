@@ -18,7 +18,9 @@ class P0ASignedRequestBindingTests(unittest.TestCase):
         self.assertIn('[[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" || "$GITHUB_ACTOR_ID" == "$EXPECTED_AUTOMATION_ID" ]]', controller)
         self.assertIn("Verify authorized Source Lab request run", controller)
         self.assertIn('"path": ".github/workflows/source-lab-publish-candidate.yml"', controller)
-        self.assertIn("Source Lab request run actor is not the authorized owner", controller)
+        self.assertIn("direct Owner Publish authorization run must equal request run", controller)
+        self.assertIn("automated recovery is not bound to the authorized Owner Publish", controller)
+        self.assertIn("Source Lab request run actor is neither Owner nor authorized automation", controller)
 
     def test_source_lab_controller_run_is_correlated_by_unique_request_id(self) -> None:
         source_lab = workflow("source-lab-publish-candidate.yml")
@@ -26,8 +28,11 @@ class P0ASignedRequestBindingTests(unittest.TestCase):
         self.assertIn('request_id="source-lab-${GITHUB_RUN_ID}-${CANDIDATE_SET_ID}"', source_lab)
         self.assertIn('-f request_id="$request_id"', source_lab)
         self.assertIn('-f request_run_id="$GITHUB_RUN_ID"', source_lab)
-        self.assertIn('select(.displayTitle == \\"$expected_title\\")', source_lab)
-        self.assertNotIn("started_epoch", source_lab)
+        self.assertIn('select(.display_title == $title)', source_lab)
+        self.assertIn('select(.head_sha == $sha)', source_lab)
+        self.assertIn('select((.actor.id | tostring) == $actor)', source_lab)
+        self.assertIn('select((.created_at | fromdateiso8601) >= ($started - 5))', source_lab)
+        self.assertIn('started_epoch="$(date -u +%s)"', source_lab)
         self.assertIn("run-name: Source Pack control ${{ inputs.request_id || github.run_id }}", controller)
         self.assertIn('[[ "$REQUEST_ID" == "source-lab-${REQUEST_RUN_ID}-${CANDIDATE_SET_ID}" ]]', controller)
 
