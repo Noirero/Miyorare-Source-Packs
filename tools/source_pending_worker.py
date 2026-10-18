@@ -57,6 +57,9 @@ def canonical_sources(registry: dict[str, Any]) -> list[dict[str, Any]]:
 def normalize_state(raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raw = {}
+    # Worker schema v1 only proved compile + reachability. Those READY/HELD
+    # decisions are not valid evidence for schema v2 real-parser onboarding,
+    # so migrate fail-closed by re-queuing every legacy entry from scratch.
     if raw.get("schemaVersion") != 2:
         return {"schemaVersion": 2, "sources": {}}
     sources = raw.get("sources")
@@ -465,6 +468,28 @@ def finalize_results(profile_results: dict[str, Any], parser_results: dict[str, 
             "heldProviders": sorted(provider for provider in expected if provider not in passed_providers),
         }
         evidence["gate"] = "REAL_PARSER_PASS" if has_pass else "REAL_PARSER_BLOCKED"
+        selected_profile_members = [
+            member
+            for member in memberships
+            if isinstance(member, dict) and member.get("provider") in passed_providers
+        ]
+        selected_families = [
+            str(member["family"])
+            for member in selected_profile_members
+            if isinstance(member.get("family"), str) and member.get("family")
+        ]
+        selected_auth_types = [
+            str(member["authType"])
+            for member in selected_profile_members
+            if isinstance(member.get("authType"), str) and member.get("authType") != "UNSUPPORTED"
+        ]
+        if has_pass:
+            row["adapterFamily"] = (
+                selected_families[0]
+                if selected_families and all(value == selected_families[0] for value in selected_families)
+                else ("multi-provider" if selected_families else "unclassified")
+            )
+            row["authType"] = _auth_type(selected_auth_types)
         row["state"] = outcome
         row["selectedProviders"] = sorted(passed_providers)
         row["evidence"] = evidence
