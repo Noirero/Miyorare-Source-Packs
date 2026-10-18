@@ -87,14 +87,27 @@ jobs:
                   'live provider baseline moved after signing',
                   'lastPublishFailure',
                   'PUBLISH_PIPELINE_FAILED',
+                  'recovery_authorization_run_id',
+                  'Verify exact automated recovery authorization',
+                  'EXPECTED_AUTOMATION_ID',
+                  'authorizationRunId',
+                  'recoveryAttempt',
+                  'created_at',
+                  'head_sha',
               ],
               'source-lab-auto-farm.yml': [
                   'publish_recovery_available',
                   'publish_recovery_run_id',
+                  'publish_recovery_authorization_run_id',
+                  'publish_recovery_attempt',
                   'Resume exact failed provider publish',
-                  'MAX_PUBLISH_ATTEMPTS',
-                  'failed publish run was not Owner-authorized',
-                  'actions/runs/$PUBLISH_RUN_ID/rerun',
+                  'MAX_RECOVERY_ATTEMPTS',
+                  'authorization run was not Owner-authorized',
+                  'Dispatch fresh current-main publish recovery',
+                  'recovery_authorization_run_id',
+                  'AUTOMATIC_PUBLISH_RECOVERY_PENDING',
+                  'created_at',
+                  'head_sha',
                   'source-lab-publish-candidate.yml',
                   'PUBLISH_RECOVERED_AUTOMATICALLY',
                   'lastPublishFailure',
@@ -175,9 +188,16 @@ jobs:
               'Dispatch sole Source Pack publisher on exact signed ref',
               'release-source-packs.yml',
               'source-pack-signed-release-',
+              'authorization_run_id',
+              'automated recovery is not bound to the authorized Owner Publish',
+              'authorizationRunId',
           ):
               if marker not in controller:
                   raise SystemExit(f'authoritative release controller missing signed-request marker: {marker}')
+
+          auto_farm = (root / 'source-lab-auto-farm.yml').read_text(encoding='utf-8')
+          if 'actions/runs/$PUBLISH_RUN_ID/rerun' in auto_farm:
+              raise SystemExit('auto farm must not recover Publish by rerunning a stale workflow snapshot')
 
           worker = Path('tools/source_pending_worker.py').read_text(encoding='utf-8')
           for marker in (
@@ -237,7 +257,6 @@ jobs:
               if marker not in harness:
                   raise SystemExit(f'source_live_parser_harness.py missing real-parser marker: {marker}')
 
-          auto_farm = (root / 'source-lab-auto-farm.yml').read_text(encoding='utf-8')
           for marker in ('lastPublishFailure', 'publish_failed', 'PUBLISH_PIPELINE_FAILED'):
               if marker not in auto_farm:
                   raise SystemExit(f'auto farm missing publish-failure lifecycle marker: {marker}')
