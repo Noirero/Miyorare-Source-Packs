@@ -78,6 +78,11 @@ class OwnerGateActivity : ComponentActivity() {
     }
 }
 
+internal fun revokeOwnerAuthorizationState() {
+    SourceLabControlClient.clearCachedOwnerContext()
+    SourceLabOwnerSessionStore.clear()
+}
+
 @Composable
 private fun OwnerGateScreen(
     operationScope: CoroutineScope,
@@ -199,6 +204,12 @@ private fun OwnerGateScreen(
             OwnerAuthorizationCard(
                 operationScope = operationScope,
                 onSessionChanged = { session ->
+                    if (session == null) {
+                        // Any failed, restarted, or explicitly forgotten Owner
+                        // flow must revoke both the process session and the
+                        // cached control token before the gate can continue.
+                        revokeOwnerAuthorizationState()
+                    }
                     authorizedSession = session
                 },
             )

@@ -10,7 +10,7 @@ import org.junit.Test
 class SourceLabOwnerSessionStoreTest {
     @After
     fun cleanup() {
-        SourceLabOwnerSessionStore.clear()
+        revokeOwnerAuthorizationState()
     }
 
     @Test
@@ -26,6 +26,21 @@ class SourceLabOwnerSessionStoreTest {
         SourceLabOwnerSessionStore.set(session)
         assertFalse(SourceLabOwnerSessionStore.isViewerModeRequested())
         assertNotNull(SourceLabOwnerSessionStore.get())
+    }
+
+    @Test
+    fun revokingOwnerAuthorizationClearsActiveProcessSession() {
+        val session = validOwnerSession()
+        SourceLabControlClient.acceptAuthorizedOwnerContext(
+            accessToken = "test-owner-token",
+            session = session,
+        )
+        assertNotNull(SourceLabOwnerSessionStore.get())
+
+        revokeOwnerAuthorizationState()
+
+        assertNull(SourceLabOwnerSessionStore.get())
+        assertFalse(SourceLabOwnerSessionStore.isViewerModeRequested())
     }
 
     private fun validOwnerSession() = OwnerAccessSession(
