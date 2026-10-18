@@ -7,6 +7,10 @@ on:
         description: 'Source pack version (for example 0.5.0)'
         required: true
         type: string
+      foundation_commit:
+        description: 'Exact signed Compatibility Farm commit (Source Lab signed releases only)'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -32,6 +36,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       SOURCE_VERSION: ${{ inputs.version }}
+      FOUNDATION_COMMIT_OVERRIDE: ${{ inputs.foundation_commit }}
 
     steps:
       - name: Checkout Source Packs registry
@@ -42,7 +47,7 @@ jobs:
       - name: Checkout authoritative Compatibility Farm head
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
-          ref: compatibility-farm-foundation
+          ref: ${{ inputs.foundation_commit || 'compatibility-farm-foundation' }}
           path: farm
           fetch-depth: 1
 
@@ -53,6 +58,10 @@ jobs:
           set -euo pipefail
           commit="$(git -C farm rev-parse HEAD)"
           [[ "$commit" =~ ^[0-9a-f]{40}$ ]]
+          if [[ -n "$FOUNDATION_COMMIT_OVERRIDE" && "$commit" != "$FOUNDATION_COMMIT_OVERRIDE" ]]; then
+            echo "::error::Checked-out Compatibility Farm does not match signed Foundation override."
+            exit 1
+          fi
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
       - name: Validate version release and tag immutability
