@@ -57,9 +57,6 @@ def canonical_sources(registry: dict[str, Any]) -> list[dict[str, Any]]:
 def normalize_state(raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raw = {}
-    # Worker schema v1 only proved compile + reachability. Those READY/HELD
-    # decisions are not valid evidence for schema v2 real-parser onboarding,
-    # so migrate fail-closed by re-queuing every legacy entry from scratch.
     if raw.get("schemaVersion") != 2:
         return {"schemaVersion": 2, "sources": {}}
     sources = raw.get("sources")
@@ -79,11 +76,15 @@ def state_entry(state: dict[str, Any], canonical_id: str) -> dict[str, Any]:
 def provider_baseline_binding(
     source: dict[str, Any],
     provider_baselines: dict[str, Any],
+    providers: list[str] | tuple[str, ...] | set[str] | None = None,
 ) -> dict[str, Any]:
-    providers = source.get("providers")
-    if not isinstance(providers, list) or not isinstance(provider_baselines, dict):
+    source_providers = source.get("providers")
+    if not isinstance(source_providers, list) or not isinstance(provider_baselines, dict):
         return {}
-    return {provider: provider_baselines.get(provider) for provider in providers}
+    selected = list(source_providers if providers is None else providers)
+    if not selected or any(provider not in source_providers for provider in selected):
+        return {}
+    return {provider: provider_baselines.get(provider) for provider in selected}
 
 
 def ready_evidence_is_stale(
@@ -94,11 +95,31 @@ def ready_evidence_is_stale(
     if worker_state.get("state") != READY:
         return False
     tested = worker_state.get("testedVersions")
-    current = provider_baseline_binding(source, provider_baselines)
-    if not isinstance(tested, dict) or not current:
+    if not isinstance(tested, dict) or not tested:
+        return True
+    current = provider_baseline_binding(source, provider_baselines, set(tested))
+    if set(current) != set(tested):
         return True
     if any(not isinstance(value, str) or len(value) != 40 for value in current.values()):
         return True
+    return tested != current
+
+
+def held_evidence_is_stale(
+    source: dict[str, Any],
+    worker_state: dict[str, Any],
+    provider_baselines: dict[str, Any],
+) -> bool:
+    if worker_state.get("state") != HELD:
+        return False
+    tested = worker_state.get("testedVersions")
+    if not isinstance(tested, dict) or not tested:
+        return False
+    current = provider_baseline_binding(source, provider_baselines, set(tested))
+    if set(current) != set(tested):
+        return True
+    if any(not isinstance(value, str) or len(value) != 40 for value in current.values()):
+        return False
     return tested != current
 
 
@@ -113,6 +134,27 @@ def invalidate_stale_ready(registry: dict[str, Any], state: dict[str, Any]) -> i
             continue
         entry = state_entry(state, str(source.get("canonicalId", "")))
         if not ready_evidence_is_stale(source, entry, provider_baselines):
+            continue
+        entry["state"] = RETRY
+        entry["approvalState"] = "NOT_READY"
+        entry["ownerActionRequired"] = False
+        entry["publishEligible"] = False
+        entry["revalidationReason"] = "PROVIDER_BASELINE_CHANGED"
+        invalidated += 1
+    return invalidated
+
+
+def invalidate_stale_held(registry: dict[str, Any], state: dict[str, Any]) -> int:
+    provider_baselines = registry.get("providerBaselines")
+    if not isinstance(provider_baselines, dict):
+        raise ValueError("registry.providerBaselines invalid")
+    invalidated = 0
+    for source in canonical_sources(registry):
+        enrollment = source.get("compatibilityEnrollment")
+        if not isinstance(enrollment, dict) or enrollment.get("state") != "PENDING":
+            continue
+        entry = state_entry(state, str(source.get("canonicalId", "")))
+        if not held_evidence_is_stale(source, entry, provider_baselines):
             continue
         entry["state"] = RETRY
         entry["approvalState"] = "NOT_READY"
@@ -145,6 +187,7 @@ def build_plan(registry: dict[str, Any], state: dict[str, Any], batch_size: int)
     if not isinstance(provider_baselines, dict):
         raise ValueError("registry.providerBaselines invalid")
     invalidated_ready = invalidate_stale_ready(registry, state)
+    invalidated_held = invalidate_stale_held(registry, state)
 
     rows: list[tuple[int, str, str, str, dict[str, Any]]] = []
     for source in canonical_sources(registry):
@@ -160,14 +203,8 @@ def build_plan(registry: dict[str, Any], state: dict[str, Any], batch_size: int)
         ))
     rows.sort(key=lambda item: item[:4])
 
-    retry_rows = [
-        row for row in rows
-        if state_entry(state, row[-1]["canonicalId"]).get("state") == RETRY
-    ]
-    fresh_rows = [
-        row for row in rows
-        if row not in retry_rows
-    ]
+    retry_rows = [row for row in rows if state_entry(state, row[-1]["canonicalId"]).get("state") == RETRY]
+    fresh_rows = [row for row in rows if row not in retry_rows]
 
     limit = max(1, batch_size)
     retry_budget = min(len(retry_rows), max(1, limit // 4))
@@ -202,12 +239,9 @@ def build_plan(registry: dict[str, Any], state: dict[str, Any], batch_size: int)
     return {
         "schemaVersion": 2,
         "batchSize": len(selected),
-        "retrySlots": sum(
-            1
-            for item in selected
-            if state_entry(state, item["canonicalId"]).get("state") == RETRY
-        ),
+        "retrySlots": sum(1 for item in selected if state_entry(state, item["canonicalId"]).get("state") == RETRY),
         "invalidatedReady": invalidated_ready,
+        "invalidatedHeld": invalidated_held,
         "items": selected,
     }
 
@@ -282,13 +316,18 @@ def evidence_digest(value: Any) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def _auth_type(values: list[str]) -> str:
+    return "FORM" if "FORM" in values else "TOKEN" if "TOKEN" in values else "COOKIE" if "COOKIE" in values else "NO_AUTH"
+
+
 def assess_plan(plan: dict[str, Any], roots: dict[str, Path], compile_results: dict[str, Any], timeout: float, fail_threshold: int) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     for item in plan.get("items", []):
         memberships: list[dict[str, Any]] = []
-        families: list[str] = []
-        auth_types: list[str] = []
+        passing_families: list[str] = []
+        passing_auth_types: list[str] = []
         failures: list[dict[str, Any]] = []
+        selected_providers: list[str] = []
         for provider in item["providers"]:
             identity = item["upstreamIdentities"].get(provider, {})
             exists, text, locator = read_provider_text(provider, identity, roots[provider])
@@ -304,7 +343,13 @@ def assess_plan(plan: dict[str, Any], roots: dict[str, Path], compile_results: d
                 else ({"reachable": False, "detail": "no-probe-host"} if not host else http_probe(host, timeout))
             )
             passed = exists and compile_ok and broken_reason is None and probe.get("reachable") is True
-            if not passed:
+            if passed:
+                selected_providers.append(provider)
+                if family:
+                    passing_families.append(family)
+                if auth_type != "UNSUPPORTED":
+                    passing_auth_types.append(auth_type)
+            else:
                 failures.append({
                     "provider": provider,
                     "locator": locator,
@@ -326,22 +371,56 @@ def assess_plan(plan: dict[str, Any], roots: dict[str, Path], compile_results: d
                 "upstreamBrokenReason": broken_reason,
                 "profilePass": passed,
             })
-            if family:
-                families.append(family)
-            if auth_type != "UNSUPPORTED":
-                auth_types.append(auth_type)
         attempts = int(item.get("attempts", 0) or 0) + 1
         hard_failure = any(failure.get("hardFailure") is True for failure in failures)
-        outcome = PROFILE if not failures else (HELD if hard_failure or attempts >= fail_threshold else RETRY)
-        family = families[0] if families and all(value == families[0] for value in families) else ("multi-provider" if families else "unclassified")
-        auth_type = "FORM" if "FORM" in auth_types else "TOKEN" if "TOKEN" in auth_types else "COOKIE" if "COOKIE" in auth_types else "NO_AUTH"
-        evidence = {"profile": {"memberships": memberships, "gate": "PASS" if outcome == PROFILE else "FAIL"}, "attempts": attempts}
-        results.append({"canonicalId": item["canonicalId"], "state": outcome, "attempts": attempts, "adapterFamily": family, "authType": auth_type, "evidence": evidence, "evidenceSha256": evidence_digest(evidence)})
+        outcome = PROFILE if selected_providers else (HELD if hard_failure or attempts >= fail_threshold else RETRY)
+        family = (
+            passing_families[0]
+            if passing_families and all(value == passing_families[0] for value in passing_families)
+            else ("multi-provider" if passing_families else "unclassified")
+        )
+        auth_type = _auth_type(passing_auth_types)
+        profile_gate = "PASS" if selected_providers else "FAIL"
+        evidence = {
+            "profile": {
+                "memberships": memberships,
+                "gate": profile_gate,
+                "selectedProviders": sorted(selected_providers),
+                "heldProviders": sorted(
+                    member["provider"] for member in memberships if member.get("profilePass") is not True
+                ),
+            },
+            "attempts": attempts,
+        }
+        results.append({
+            "canonicalId": item["canonicalId"],
+            "state": outcome,
+            "attempts": attempts,
+            "adapterFamily": family,
+            "authType": auth_type,
+            "selectedProviders": sorted(selected_providers),
+            "evidence": evidence,
+            "evidenceSha256": evidence_digest(evidence),
+        })
     return {"schemaVersion": 2, "results": results}
 
 
+def _parser_passed(result: dict[str, Any]) -> bool:
+    return (
+        result.get("status") == "PASS"
+        and result.get("parserExecution") is True
+        and result.get("detailsTraversal") is True
+        and result.get("chapterTraversal") is True
+        and result.get("pageExtraction") is True
+    )
+
+
 def finalize_results(profile_results: dict[str, Any], parser_results: dict[str, Any], fail_threshold: int) -> dict[str, Any]:
-    parser_map = {(row.get("canonicalId"), row.get("provider")): row for row in parser_results.get("results", []) if isinstance(row, dict)}
+    parser_map = {
+        (row.get("canonicalId"), row.get("provider")): row
+        for row in parser_results.get("results", [])
+        if isinstance(row, dict)
+    }
     finalized: list[dict[str, Any]] = []
     for profile in profile_results.get("results", []):
         row = dict(profile)
@@ -349,27 +428,45 @@ def finalize_results(profile_results: dict[str, Any], parser_results: dict[str, 
             finalized.append(row)
             continue
         memberships = row.get("evidence", {}).get("profile", {}).get("memberships", [])
-        expected = [member.get("provider") for member in memberships if isinstance(member, dict) and member.get("profilePass") is True]
+        expected = [
+            member.get("provider")
+            for member in memberships
+            if isinstance(member, dict) and member.get("profilePass") is True
+        ]
         parser_evidence: list[dict[str, Any]] = []
-        all_pass = bool(expected)
+        passed_providers: list[str] = []
         for provider in expected:
             result = parser_map.get((row.get("canonicalId"), provider))
             if result is None:
-                result = {"canonicalId": row.get("canonicalId"), "provider": provider, "status": "FAIL", "parserExecution": False, "reason": "PARSER_EVIDENCE_MISSING"}
+                result = {
+                    "canonicalId": row.get("canonicalId"),
+                    "provider": provider,
+                    "status": "FAIL",
+                    "parserExecution": False,
+                    "reason": "PARSER_EVIDENCE_MISSING",
+                }
             parser_evidence.append(result)
-            passed = result.get("status") == "PASS" and result.get("parserExecution") is True and result.get("detailsTraversal") is True and result.get("chapterTraversal") is True and result.get("pageExtraction") is True
-            all_pass = all_pass and passed
+            if _parser_passed(result):
+                passed_providers.append(provider)
         attempts = int(row.get("attempts", 0) or 0)
         hard_parser_failure = any(
             str(item.get("reason", "")).startswith("AUTH_REQUIRED:")
             for item in parser_evidence
             if isinstance(item, dict)
         )
-        outcome = READY if all_pass else (HELD if hard_parser_failure or attempts >= fail_threshold else RETRY)
+        has_pass = bool(passed_providers)
+        outcome = READY if has_pass else (HELD if hard_parser_failure or attempts >= fail_threshold else RETRY)
         evidence = dict(row.get("evidence", {}))
-        evidence["parser"] = {"executionMode": parser_results.get("executionMode", "real-live-parser"), "memberships": parser_evidence, "gate": "PASS" if all_pass else "FAIL"}
-        evidence["gate"] = "REAL_PARSER_PASS" if all_pass else "REAL_PARSER_BLOCKED"
+        evidence["parser"] = {
+            "executionMode": parser_results.get("executionMode", "real-live-parser"),
+            "memberships": parser_evidence,
+            "gate": "PASS" if has_pass else "FAIL",
+            "selectedProviders": sorted(passed_providers),
+            "heldProviders": sorted(provider for provider in expected if provider not in passed_providers),
+        }
+        evidence["gate"] = "REAL_PARSER_PASS" if has_pass else "REAL_PARSER_BLOCKED"
         row["state"] = outcome
+        row["selectedProviders"] = sorted(passed_providers)
         row["evidence"] = evidence
         row["evidenceSha256"] = evidence_digest(evidence)
         finalized.append(row)
@@ -395,13 +492,43 @@ def apply_results(registry: dict[str, Any], worker_state: dict[str, Any], result
         source = pending_sources[canonical_id]
         outcome = result["state"]
         summary[outcome] = summary.get(outcome, 0) + 1
-        tested_versions = provider_baseline_binding(source, provider_baselines)
-        if any(not isinstance(value, str) or len(value) != 40 for value in tested_versions.values()):
+        selected_providers = result.get("selectedProviders") if outcome == READY else source.get("providers")
+        if not isinstance(selected_providers, list) or not selected_providers:
+            raise ValueError(f"{canonical_id} has no provider binding for {outcome}")
+        tested_versions = provider_baseline_binding(source, provider_baselines, selected_providers)
+        if set(tested_versions) != set(selected_providers) or any(
+            not isinstance(value, str) or len(value) != 40 for value in tested_versions.values()
+        ):
             raise ValueError(f"{canonical_id} has invalid provider baseline binding")
-        state["sources"][canonical_id] = {"schemaVersion": 2, "state": outcome, "attempts": result["attempts"], "lastCheckedAt": checked_at, "workflowRunId": str(workflow_run_id), "evidenceSha256": result["evidenceSha256"], "testedVersions": tested_versions, "adapterFamily": result["adapterFamily"], "authType": result["authType"], "approvalState": "WAITING_FOR_APPROVAL" if outcome == READY else "NOT_READY", "ownerActionRequired": False, "publishEligible": False, "evidence": result["evidence"]}
+        state["sources"][canonical_id] = {
+            "schemaVersion": 2,
+            "state": outcome,
+            "attempts": result["attempts"],
+            "lastCheckedAt": checked_at,
+            "workflowRunId": str(workflow_run_id),
+            "evidenceSha256": result["evidenceSha256"],
+            "testedVersions": tested_versions,
+            "selectedProviders": sorted(selected_providers) if outcome == READY else [],
+            "adapterFamily": result["adapterFamily"],
+            "authType": result["authType"],
+            "approvalState": "WAITING_FOR_APPROVAL" if outcome == READY else "NOT_READY",
+            "ownerActionRequired": False,
+            "publishEligible": False,
+            "evidence": result["evidence"],
+        }
     state["updatedAt"] = checked_at
     state["lastWorkflowRunId"] = str(workflow_run_id)
-    return state, {"schemaVersion": 2, "processed": sum(summary.values()), "states": summary, "remainingPending": sum(1 for source in canonical_sources(registry) if source.get("compatibilityEnrollment", {}).get("state") == "PENDING" and eligible(source, state, provider_baselines))}
+    return state, {
+        "schemaVersion": 2,
+        "processed": sum(summary.values()),
+        "states": summary,
+        "remainingPending": sum(
+            1
+            for source in canonical_sources(registry)
+            if source.get("compatibilityEnrollment", {}).get("state") == "PENDING"
+            and eligible(source, state, provider_baselines)
+        ),
+    }
 
 
 def main() -> int:
@@ -446,7 +573,13 @@ def main() -> int:
         save(args.output, finalize_results(load(args.profile_results), load(args.parser_results), max(1, args.fail_threshold)))
     elif args.command == "apply":
         registry = load(args.registry)
-        state, summary = apply_results(registry, normalize_state(load(args.state, default={})), load(args.results), args.workflow_run_id, args.checked_at)
+        state, summary = apply_results(
+            registry,
+            normalize_state(load(args.state, default={})),
+            load(args.results),
+            args.workflow_run_id,
+            args.checked_at,
+        )
         save(args.state, state)
         save(args.summary, summary)
     return 0
