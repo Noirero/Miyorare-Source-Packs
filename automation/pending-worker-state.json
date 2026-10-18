@@ -1,5 +1,10 @@
 {
-  "lastWorkflowRunId": "36255413184",
+  "lastPromotionInvalidation": {
+    "candidateSetId": "786f42935a941860ca4f315522f6e0015ba9554190a6cf49c85ee6f901ee42b6",
+    "promotionRunId": 39020534587,
+    "sources": []
+  },
+  "lastWorkflowRunId": "39113778682",
   "schemaVersion": 2,
   "sources": {
     "miyorare:inventory-en:18PORNCOMIC": {
@@ -246,6 +251,71 @@
       },
       "workflowRunId": "35347751921"
     },
+    "miyorare:inventory-en:4PORNCOMIC": {
+      "adapterFamily": "keiyoushi-native",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:4PORNCOMIC",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.UnsatisfiedLinkError: no zstd-kmp in java.library.path: /usr/java/packages/lib:/usr/lib64:/lib64:/lib:/usr/lib:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/fourporncomic/src/testDebug/jniLibs:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/fourporncomic/src/test/jniLibs",
+              "failureType": "java.lang.UnsatisfiedLinkError",
+              "failures": 1,
+              "locator": "src/en/fourporncomic",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/fourporncomic/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_3b26b2f25952",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "keiyoushi-native",
+              "locator": "src/en/fourporncomic",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://4porncomic.com/"
+              },
+              "probeHost": "4porncomic.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "188abc5f5ac4a9bb21f2b82f61c266fcfaf824c0fc8016df49a05e185ca66f41",
+      "lastCheckedAt": "2026-10-18T10:06:42Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "39113778682"
+    },
     "miyorare:inventory-en:8MUSES": {
       "adapterFamily": "keiyoushi-native",
       "approvalState": "NOT_READY",
@@ -389,7 +459,7 @@
               "probeHost": "agrcomics.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Site is online but parser is broken — layout/API changed, needs rewrite"
+              "upstreamBrokenReason": "Site is online but parser is broken \u2014 layout/API changed, needs rewrite"
             }
           ]
         }
@@ -931,7 +1001,7 @@
               "probeHost": "anigliscans.xyz",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain parked — landing page only, no manga content"
+              "upstreamBrokenReason": "Domain parked \u2014 landing page only, no manga content"
             }
           ]
         }
@@ -1107,7 +1177,7 @@
               "probeHost": "anshscans.org",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Site is online but parser is broken — layout/API changed, needs rewrite"
+              "upstreamBrokenReason": "Site is online but parser is broken \u2014 layout/API changed, needs rewrite"
             }
           ]
         }
@@ -1319,7 +1389,7 @@
               "probeHost": "arcanescans.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Site is gone — root redirects to an unrelated domain"
+              "upstreamBrokenReason": "Site is gone \u2014 root redirects to an unrelated domain"
             }
           ]
         }
@@ -1722,7 +1792,7 @@
               "probeHost": "ascalonscans.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain hijacked — now serves a JS redirect to spam/ads"
+              "upstreamBrokenReason": "Domain hijacked \u2014 now serves a JS redirect to spam/ads"
             }
           ]
         }
@@ -1969,6 +2039,71 @@
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
       "workflowRunId": "35551791103"
+    },
+    "miyorare:inventory-en:ASTERSCANS": {
+      "adapterFamily": "keiyoushi-native",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:ASTERSCANS",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.UnsatisfiedLinkError: no zstd-kmp in java.library.path: /usr/java/packages/lib:/usr/lib64:/lib64:/lib:/usr/lib:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/asterscans/src/testDebug/jniLibs:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/asterscans/src/test/jniLibs",
+              "failureType": "java.lang.UnsatisfiedLinkError",
+              "failures": 1,
+              "locator": "src/en/asterscans",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/asterscans/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_0bf2c3e810f6",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "keiyoushi-native",
+              "locator": "src/en/asterscans",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://asterscans.com/"
+              },
+              "probeHost": "asterscans.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "852f19f500d5fa68af2f92253ba873f4eb990dc90eefaf316e755cc3ce33404e",
+      "lastCheckedAt": "2026-10-18T10:06:42Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "39113778682"
     },
     "miyorare:inventory-en:ASTRASCANS": {
       "adapterFamily": "manga-reader-plus-api",
@@ -2277,6 +2412,71 @@
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
       "workflowRunId": "35664690036"
+    },
+    "miyorare:inventory-en:AUNTMANHWA": {
+      "adapterFamily": "madara",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:AUNTMANHWA",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.UnsatisfiedLinkError: no zstd-kmp in java.library.path: /usr/java/packages/lib:/usr/lib64:/lib64:/lib:/usr/lib:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/auntmanhwa/src/testDebug/jniLibs:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/auntmanhwa/src/test/jniLibs",
+              "failureType": "java.lang.UnsatisfiedLinkError",
+              "failures": 1,
+              "locator": "src/en/auntmanhwa",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/auntmanhwa/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_75c344cbe29d",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/en/auntmanhwa",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://auntmanhwa.com/"
+              },
+              "probeHost": "auntmanhwa.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "6afcfe0cc2c77c7dc9889910aae4d81b0111dfae430c4097caf60bfd71867266",
+      "lastCheckedAt": "2026-10-18T10:06:42Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "39113778682"
     },
     "miyorare:inventory-en:AURORA": {
       "adapterFamily": "custom-paged-html",
@@ -2856,7 +3056,7 @@
               "probeHost": "bestmanhua.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Site is online but parser is broken — layout/API changed, needs rewrite"
+              "upstreamBrokenReason": "Site is online but parser is broken \u2014 layout/API changed, needs rewrite"
             }
           ]
         }
@@ -2895,7 +3095,7 @@
               "probeHost": "bibimanga.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain hijacked — now serves a JS redirect to spam/ads"
+              "upstreamBrokenReason": "Domain hijacked \u2014 now serves a JS redirect to spam/ads"
             }
           ]
         }
@@ -2934,7 +3134,7 @@
               "probeHost": "birdmanga.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain parked — landing page only, no manga content"
+              "upstreamBrokenReason": "Domain parked \u2014 landing page only, no manga content"
             }
           ]
         }
@@ -3170,7 +3370,7 @@
               "probeHost": "boyslove.me",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain hijacked — now serves a JS redirect to spam/ads"
+              "upstreamBrokenReason": "Domain hijacked \u2014 now serves a JS redirect to spam/ads"
             }
           ]
         }
@@ -3976,7 +4176,7 @@
               "probeHost": "coloredmanga.net",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Site is online but parser is broken — layout/API changed, needs rewrite"
+              "upstreamBrokenReason": "Site is online but parser is broken \u2014 layout/API changed, needs rewrite"
             }
           ]
         }
@@ -3995,10 +4195,10 @@
     "miyorare:inventory-en:COLORIZEDMANGAS": {
       "adapterFamily": "custom-paged-html",
       "approvalState": "WAITING_FOR_APPROVAL",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
+        "attempts": 2,
         "gate": "REAL_PARSER_PASS",
         "parser": {
           "executionMode": "real-live-parser",
@@ -4046,16 +4246,16 @@
           ]
         }
       },
-      "evidenceSha256": "d0a12e42a40e096b6247168003cc57ac89c8138a6eb11d98266a4548ae6913d5",
-      "lastCheckedAt": "2026-09-20T16:34:01Z",
+      "evidenceSha256": "97586bd6bc5da1bf30f32ee1c131516f94a3d1ce119ba5feae0f4947b9f1cb49",
+      "lastCheckedAt": "2026-10-18T10:06:42Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
       "state": "READY_FOR_APPROVAL",
       "testedVersions": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
-      "workflowRunId": "35522928493"
+      "workflowRunId": "39113778682"
     },
     "miyorare:inventory-en:COMIC1000": {
       "adapterFamily": "gekkoushi-native",
@@ -4080,7 +4280,7 @@
               "probeHost": "comic1000.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain hijacked — now serves a JS redirect to spam/ads"
+              "upstreamBrokenReason": "Domain hijacked \u2014 now serves a JS redirect to spam/ads"
             }
           ]
         }
@@ -4766,7 +4966,7 @@
               "probeHost": "constellarcomic.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain hijacked — now serves a JS redirect to spam/ads"
+              "upstreamBrokenReason": "Domain hijacked \u2014 now serves a JS redirect to spam/ads"
             }
           ]
         }
@@ -4870,7 +5070,7 @@
               "probeHost": "cosmic-scans.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Site is online but parser is broken — layout/API changed, needs rewrite"
+              "upstreamBrokenReason": "Site is online but parser is broken \u2014 layout/API changed, needs rewrite"
             }
           ]
         }
@@ -4909,7 +5109,7 @@
               "probeHost": "creepyscans.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain hijacked — now serves a JS redirect to spam/ads"
+              "upstreamBrokenReason": "Domain hijacked \u2014 now serves a JS redirect to spam/ads"
             }
           ]
         }
@@ -5480,7 +5680,7 @@
               "probeHost": "dark-scan.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain hijacked — now serves a JS redirect to spam/ads"
+              "upstreamBrokenReason": "Domain hijacked \u2014 now serves a JS redirect to spam/ads"
             }
           ]
         }
@@ -6328,7 +6528,7 @@
     },
     "miyorare:inventory-en:DOUJINS": {
       "adapterFamily": "custom-rest-json",
-      "approvalState": "WAITING_FOR_APPROVAL",
+      "approvalState": "NOT_READY",
       "attempts": 1,
       "authType": "NO_AUTH",
       "evidence": {
@@ -6384,8 +6584,9 @@
       "lastCheckedAt": "2026-09-22T17:24:48Z",
       "ownerActionRequired": false,
       "publishEligible": false,
+      "revalidationReason": "PROVIDER_BASELINE_CHANGED",
       "schemaVersion": 2,
-      "state": "READY_FOR_APPROVAL",
+      "state": "RETRY",
       "testedVersions": {
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
@@ -6685,7 +6886,7 @@
               "probeHost": "duckmanga.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain hijacked — now serves a JS redirect to spam/ads"
+              "upstreamBrokenReason": "Domain hijacked \u2014 now serves a JS redirect to spam/ads"
             }
           ]
         }
@@ -7097,7 +7298,7 @@
               "probeHost": "elarctoon.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Site is online but parser is broken — layout/API changed, needs rewrite"
+              "upstreamBrokenReason": "Site is online but parser is broken \u2014 layout/API changed, needs rewrite"
             }
           ]
         }
@@ -7266,7 +7467,7 @@
               "probeHost": "www.beinmanga.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain has no DNS records — site is gone"
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
             }
           ]
         }
@@ -7360,7 +7561,7 @@
               "probeHost": "en.huntersscan.xyz",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain has no DNS records — site is gone"
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
             }
           ]
         }
@@ -8482,7 +8683,7 @@
               "probeHost": "flixscans.org",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain hijacked — now serves a JS redirect to spam/ads"
+              "upstreamBrokenReason": "Domain hijacked \u2014 now serves a JS redirect to spam/ads"
             }
           ]
         }
@@ -8521,7 +8722,7 @@
               "probeHost": "freakcomic.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain hijacked — now serves a JS redirect to spam/ads"
+              "upstreamBrokenReason": "Domain hijacked \u2014 now serves a JS redirect to spam/ads"
             }
           ]
         }
@@ -8560,7 +8761,7 @@
               "probeHost": "freakscans.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Site is online but parser is broken — layout/API changed, needs rewrite"
+              "upstreamBrokenReason": "Site is online but parser is broken \u2014 layout/API changed, needs rewrite"
             }
           ]
         }
@@ -8599,7 +8800,7 @@
               "probeHost": "freecomiconline.me",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Site is gone — root redirects to an unrelated domain"
+              "upstreamBrokenReason": "Site is gone \u2014 root redirects to an unrelated domain"
             }
           ]
         }
@@ -8770,7 +8971,7 @@
               "probeHost": "freewebtooncoins.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Site is gone — root redirects to an unrelated domain"
+              "upstreamBrokenReason": "Site is gone \u2014 root redirects to an unrelated domain"
             }
           ]
         }
@@ -9694,7 +9895,7 @@
               "probeHost": "goodgirls.moe",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain has no DNS records — site is gone"
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
             }
           ]
         }
@@ -11201,7 +11402,7 @@
               "probeHost": "alceacomic.my.id",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain has no DNS records — site is gone"
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
             }
           ]
         }
@@ -11526,7 +11727,7 @@
               "probeHost": "www.asupankomik.my.id",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain has no DNS records — site is gone"
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
             }
           ]
         }
@@ -11808,7 +12009,7 @@
               "probeHost": "comic21.me",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain parked — landing page only, no manga content"
+              "upstreamBrokenReason": "Domain parked \u2014 landing page only, no manga content"
             }
           ]
         }
@@ -12651,7 +12852,7 @@
               "probeHost": "duniakomik.org",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain parked — landing page only, no manga content"
+              "upstreamBrokenReason": "Domain parked \u2014 landing page only, no manga content"
             }
           ]
         }
@@ -12756,7 +12957,7 @@
               "probeHost": "hensekai.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Site is online but parser is broken — layout/API changed, needs rewrite"
+              "upstreamBrokenReason": "Site is online but parser is broken \u2014 layout/API changed, needs rewrite"
             }
           ]
         }
@@ -12961,7 +13162,7 @@
               "probeHost": "hwago01.xyz",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain hijacked — now serves a JS redirect to spam/ads"
+              "upstreamBrokenReason": "Domain hijacked \u2014 now serves a JS redirect to spam/ads"
             },
             {
               "authType": "NO_AUTH",
@@ -13194,7 +13395,7 @@
               "probeHost": "indo18h.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Site is online but parser is broken — layout/API changed, needs rewrite"
+              "upstreamBrokenReason": "Site is online but parser is broken \u2014 layout/API changed, needs rewrite"
             }
           ]
         }
@@ -13712,7 +13913,7 @@
               "probeHost": "www.kishisan.site",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain has no DNS records — site is gone"
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
             }
           ]
         }
@@ -14059,7 +14260,7 @@
               "probeHost": "komikav.net",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Site is online but parser is broken — layout/API changed, needs rewrite"
+              "upstreamBrokenReason": "Site is online but parser is broken \u2014 layout/API changed, needs rewrite"
             }
           ]
         }
@@ -14446,7 +14647,7 @@
               "probeHost": "www.komikges.my.id",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain has no DNS records — site is gone"
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
             }
           ]
         }
@@ -14849,7 +15050,7 @@
               "probeHost": "komiklovers.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Cloudflare origin TLS error (5xx) — site misconfigured or dead"
+              "upstreamBrokenReason": "Cloudflare origin TLS error (5xx) \u2014 site misconfigured or dead"
             }
           ]
         }
@@ -14930,6 +15131,71 @@
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
       "workflowRunId": "36035196489"
+    },
+    "miyorare:inventory-id:KOMIKMU": {
+      "adapterFamily": "keiyoushi-native",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-id:KOMIKMU",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.UnsatisfiedLinkError: no zstd-kmp in java.library.path: /usr/java/packages/lib:/usr/lib64:/lib64:/lib:/usr/lib:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/komikmu/src/testDebug/jniLibs:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/komikmu/src/test/jniLibs",
+              "failureType": "java.lang.UnsatisfiedLinkError",
+              "failures": 1,
+              "locator": "src/id/komikmu",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/komikmu/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_e0d7972b6bcf",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "keiyoushi-native",
+              "locator": "src/id/komikmu",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://komikmu.top/"
+              },
+              "probeHost": "komikmu.top",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "bfc55f1b4e1259729312d25b74b6107a4d4739d179e561553a7f45717b3a27c0",
+      "lastCheckedAt": "2026-10-18T10:06:42Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "39113778682"
     },
     "miyorare:inventory-id:KOMIKNESIA": {
       "adapterFamily": "keiyoushi-native",
@@ -15084,7 +15350,7 @@
               "probeHost": "komikpix.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain hijacked — now serves a JS redirect to spam/ads"
+              "upstreamBrokenReason": "Domain hijacked \u2014 now serves a JS redirect to spam/ads"
             }
           ]
         }
@@ -15269,7 +15535,7 @@
               "probeHost": "komiksan.link",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain has no DNS records — site is gone"
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
             }
           ]
         }
@@ -15308,7 +15574,7 @@
               "probeHost": "komiksay.info",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain parked — landing page only, no manga content"
+              "upstreamBrokenReason": "Domain parked \u2014 landing page only, no manga content"
             }
           ]
         }
@@ -15928,12 +16194,12 @@
       "workflowRunId": "36255413184"
     },
     "miyorare:inventory-id:KUMOPOI": {
-      "adapterFamily": "keiyoushi-native",
+      "adapterFamily": "custom-rest-json",
       "approvalState": "NOT_READY",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
+        "attempts": 2,
         "gate": "REAL_PARSER_BLOCKED",
         "parser": {
           "executionMode": "real-live-parser",
@@ -15944,8 +16210,8 @@
               "chapterTraversal": false,
               "detailsTraversal": false,
               "errors": 0,
-              "failureMessage": "java.lang.UnsatisfiedLinkError: no zstd-kmp in java.library.path: /usr/java/packages/lib:/usr/lib64:/lib64:/lib:/usr/lib:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/kumopoi/src/testDebug/jniLibs:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/kumopoi/src/test/jniLibs",
-              "failureType": "java.lang.UnsatisfiedLinkError",
+              "failureMessage": "java.lang.ExceptionInInitializerError",
+              "failureType": "java.lang.ExceptionInInitializerError",
               "failures": 1,
               "locator": "src/id/kumopoi",
               "pageExtraction": false,
@@ -15966,14 +16232,14 @@
               "authType": "NO_AUTH",
               "compile": true,
               "exists": true,
-              "family": "keiyoushi-native",
+              "family": "custom-rest-json",
               "locator": "src/id/kumopoi",
               "probe": {
                 "httpStatus": 200,
                 "reachable": true,
-                "url": "https://kumopoi.org/"
+                "url": "https://beta.kumopoi.com/"
               },
-              "probeHost": "kumopoi.org",
+              "probeHost": "beta.kumopoi.com",
               "profilePass": true,
               "provider": "keiyoushi",
               "upstreamBrokenReason": null
@@ -15981,16 +16247,16 @@
           ]
         }
       },
-      "evidenceSha256": "4429c83d5519907d72734c560a38e3cadcd982b289c1bafdd9aee6d0dbad3661",
-      "lastCheckedAt": "2026-09-21T01:46:46Z",
+      "evidenceSha256": "812524baf56231cd63e4b3dc5e3e571c6e5bc7ca7ed8b53215b6d219a4dc2719",
+      "lastCheckedAt": "2026-10-18T10:06:42Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
       "state": "RETRY",
       "testedVersions": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
-      "workflowRunId": "35551791103"
+      "workflowRunId": "39113778682"
     },
     "miyorare:inventory-id:KUROMANGA": {
       "adapterFamily": "keiyoushi-native",
@@ -16055,7 +16321,7 @@
               "probeHost": "kyumik.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain parked — landing page only, no manga content"
+              "upstreamBrokenReason": "Domain parked \u2014 landing page only, no manga content"
             }
           ]
         }
@@ -16883,7 +17149,7 @@
               "probeHost": "mangaid.click",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain has no DNS records — site is gone"
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
             }
           ]
         }
@@ -17227,7 +17493,7 @@
               "probeHost": "mangashiro.me",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain parked — landing page only, no manga content"
+              "upstreamBrokenReason": "Domain parked \u2014 landing page only, no manga content"
             }
           ]
         }
@@ -17245,7 +17511,7 @@
     },
     "miyorare:inventory-id:MANGASUSU": {
       "adapterFamily": "custom-paged-html",
-      "approvalState": "WAITING_FOR_APPROVAL",
+      "approvalState": "NOT_READY",
       "attempts": 1,
       "authType": "NO_AUTH",
       "evidence": {
@@ -17301,8 +17567,9 @@
       "lastCheckedAt": "2026-09-22T12:43:30Z",
       "ownerActionRequired": false,
       "publishEligible": false,
+      "revalidationReason": "PROVIDER_BASELINE_CHANGED",
       "schemaVersion": 2,
-      "state": "READY_FOR_APPROVAL",
+      "state": "RETRY",
       "testedVersions": {
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
@@ -18028,7 +18295,7 @@
               "probeHost": "manhwablue.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Site is online but parser is broken — layout/API changed, needs rewrite"
+              "upstreamBrokenReason": "Site is online but parser is broken \u2014 layout/API changed, needs rewrite"
             }
           ]
         }
@@ -18308,7 +18575,7 @@
               "probeHost": "www.mikoroku.web.id",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain has no DNS records — site is gone"
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
             },
             {
               "authType": "NO_AUTH",
@@ -19325,7 +19592,7 @@
     },
     "miyorare:inventory-id:PRAMRAMADHAN": {
       "adapterFamily": "custom-paged-html",
-      "approvalState": "WAITING_FOR_APPROVAL",
+      "approvalState": "NOT_READY",
       "attempts": 1,
       "authType": "NO_AUTH",
       "evidence": {
@@ -19381,8 +19648,9 @@
       "lastCheckedAt": "2026-09-24T12:23:26Z",
       "ownerActionRequired": false,
       "publishEligible": false,
+      "revalidationReason": "PROVIDER_BASELINE_CHANGED",
       "schemaVersion": 2,
-      "state": "READY_FOR_APPROVAL",
+      "state": "RETRY",
       "testedVersions": {
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
@@ -19656,6 +19924,136 @@
         "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
       },
       "workflowRunId": "36035196489"
+    },
+    "miyorare:inventory-id:ROSYSCANS": {
+      "adapterFamily": "keiyoushi-native",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-id:ROSYSCANS",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.UnsatisfiedLinkError: no zstd-kmp in java.library.path: /usr/java/packages/lib:/usr/lib64:/lib64:/lib:/usr/lib:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/rosyscans/src/testDebug/jniLibs:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/rosyscans/src/test/jniLibs",
+              "failureType": "java.lang.UnsatisfiedLinkError",
+              "failures": 1,
+              "locator": "src/id/rosyscans",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/rosyscans/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_7a210f38450e",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "keiyoushi-native",
+              "locator": "src/id/rosyscans",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://rosyscans.com/"
+              },
+              "probeHost": "rosyscans.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "094c5de6f3863a2ff6769e6d1180a62d7b836ff9c11cee775fcfd27af6d06f33",
+      "lastCheckedAt": "2026-10-18T10:06:42Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "39113778682"
+    },
+    "miyorare:inventory-id:RYUKOMIK": {
+      "adapterFamily": "custom-rest-json",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-id:RYUKOMIK",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.ExceptionInInitializerError",
+              "failureType": "java.lang.ExceptionInInitializerError",
+              "failures": 1,
+              "locator": "src/id/ryukomik",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/ryukomik/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_eecaba581e28",
+              "tests": 1
+            }
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-rest-json",
+              "locator": "src/id/ryukomik",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://ryukomik.my.id/"
+              },
+              "probeHost": "ryukomik.my.id",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ]
+        }
+      },
+      "evidenceSha256": "5b6e55f6f09968d2de24b1f66babdf34faaed6539a11b694a1908848770ebe7e",
+      "lastCheckedAt": "2026-10-18T10:06:42Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "39113778682"
     },
     "miyorare:inventory-id:SASANGEYOU": {
       "adapterFamily": "keiyoushi-native",
@@ -20091,7 +20489,7 @@
               "probeHost": "sheakomik.com",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain parked — landing page only, no manga content"
+              "upstreamBrokenReason": "Domain parked \u2014 landing page only, no manga content"
             }
           ]
         }
@@ -20465,7 +20863,7 @@
               "probeHost": "siikomik.fun",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain has no DNS records — site is gone"
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
             },
             {
               "authType": "NO_AUTH",
@@ -21432,7 +21830,7 @@
               "probeHost": "worldmanhwas.zone",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain parked — landing page only, no manga content"
+              "upstreamBrokenReason": "Domain parked \u2014 landing page only, no manga content"
             }
           ]
         }
@@ -21638,7 +22036,7 @@
               "probeHost": "yubikiri.my.id",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain has no DNS records — site is gone"
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
             }
           ]
         }
@@ -21743,7 +22141,7 @@
               "probeHost": "www.yuramanga.my.id",
               "profilePass": false,
               "provider": "gekkoushi",
-              "upstreamBrokenReason": "Domain has no DNS records — site is gone"
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
             }
           ]
         }
@@ -21817,10 +22215,5 @@
       "workflowRunId": "36240024118"
     }
   },
-  "updatedAt": "2026-09-26T16:29:51Z",
-  "lastPromotionInvalidation": {
-    "promotionRunId": 39020534587,
-    "candidateSetId": "786f42935a941860ca4f315522f6e0015ba9554190a6cf49c85ee6f901ee42b6",
-    "sources": []
-  }
+  "updatedAt": "2026-10-18T10:06:42Z"
 }
