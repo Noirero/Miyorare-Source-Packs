@@ -492,7 +492,12 @@ def apply_results(registry: dict[str, Any], worker_state: dict[str, Any], result
         source = pending_sources[canonical_id]
         outcome = result["state"]
         summary[outcome] = summary.get(outcome, 0) + 1
-        selected_providers = result.get("selectedProviders") if outcome == READY else source.get("providers")
+        if outcome == READY:
+            selected_providers = result.get("selectedProviders")
+            if selected_providers is None:
+                selected_providers = source.get("providers")
+        else:
+            selected_providers = source.get("providers")
         if not isinstance(selected_providers, list) or not selected_providers:
             raise ValueError(f"{canonical_id} has no provider binding for {outcome}")
         tested_versions = provider_baseline_binding(source, provider_baselines, selected_providers)
