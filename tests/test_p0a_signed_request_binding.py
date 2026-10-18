@@ -31,6 +31,17 @@ class P0ASignedRequestBindingTests(unittest.TestCase):
         self.assertIn("run-name: Source Pack control ${{ inputs.request_id || github.run_id }}", controller)
         self.assertIn('[[ "$REQUEST_ID" == "source-lab-${REQUEST_RUN_ID}-${CANDIDATE_SET_ID}" ]]', controller)
 
+    def test_signed_release_reaps_stale_queued_publishers_but_keeps_fresh_runs_fail_closed(self) -> None:
+        controller = workflow("source-pack-autonomous-release.yml")
+        signed = controller.split("\n  signed_source_lab_release:\n", 1)[1]
+        self.assertIn("Clean stale queued releases and refuse duplicate active publisher", signed)
+        self.assertIn('stale_before="$((now_epoch - 21600))"', signed)
+        self.assertIn('gh run cancel "$run_id"', signed)
+        self.assertIn("status,databaseId,createdAt", signed)
+        self.assertIn('.status == \\"in_progress\\" or (.status == \\"queued\\"', signed)
+        self.assertIn("A fresh Source Pack publisher run is already queued/running.", signed)
+        self.assertNotIn("select(.status == \"queued\" or .status == \"in_progress\")", signed)
+
 
 if __name__ == "__main__":
     unittest.main()
