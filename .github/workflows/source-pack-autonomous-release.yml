@@ -481,12 +481,16 @@ jobs:
           ref_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$RELEASE_REF" --jq '.object.sha')"
           [[ "$ref_sha" == "$FOUNDATION_COMMIT" ]] || { echo "temporary release ref no longer points to the exact signed Foundation commit" >&2; exit 1; }
 
-      - name: Refuse duplicate active publisher
+      - name: Clean stale queued releases and refuse duplicate active publisher
         shell: bash
         run: |
           set -euo pipefail
-          active="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow release-source-packs.yml --limit 100 --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress")] | length')"
-          [[ "$active" == "0" ]] || { echo "A Source Pack publisher run is already active." >&2; exit 1; }
+          now_epoch="$(date -u +%s)"
+          stale_before="$((now_epoch - 21600))"
+          mapfile -t stale_queued < <(gh run list --repo "$GITHUB_REPOSITORY" --workflow release-source-packs.yml --limit 100 --json status,databaseId,createdAt --jq ".[] | select(.status == \"queued\") | select((.createdAt | fromdateiso8601) < $stale_before) | .databaseId")
+          for run_id in "${stale_queued[@]}"; do gh run cancel "$run_id" --repo "$GITHUB_REPOSITORY" || true; done
+          active="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow release-source-packs.yml --limit 100 --json status,databaseId,createdAt --jq "[.[] | select(.status == \"in_progress\" or (.status == \"queued\" and ((.createdAt | fromdateiso8601) >= $stale_before)))] | length")"
+          [[ "$active" == "0" ]] || { echo "A fresh Source Pack publisher run is already queued/running." >&2; exit 1; }
 
       - name: Allocate next immutable stable version
         id: version
