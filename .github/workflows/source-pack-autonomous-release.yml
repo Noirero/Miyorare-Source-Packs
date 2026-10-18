@@ -463,7 +463,7 @@ jobs:
                   raise SystemExit(f"signing run {key} mismatch: {run.get(key)!r}")
           if str(run.get("actor", {}).get("id")) != os.environ["EXPECTED_OWNER_ID"]:
               raise SystemExit("signing run actor mismatch")
-          if run.get("display_title") != f"Source Lab sign {os.environ['CANDIDATE_SET_ID']}":
+          if run.get("display_title") != f"Source Lab sign {os.environ['CANDIDATE_SET_ID']}" :
               raise SystemExit("signing run candidate title mismatch")
           PY
 
@@ -539,7 +539,7 @@ jobs:
           main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
           [[ "$main_sha" == "$GITHUB_SHA" ]] || { echo "main moved since signed controller started; retry from current main." >&2; exit 1; }
           started_epoch="$(date -u +%s)"
-          gh workflow run release-source-packs.yml --repo "$GITHUB_REPOSITORY" --ref main -f version="$VERSION" -f foundation_commit="$FOUNDATION_COMMIT"
+          gh workflow run release-source-packs.yml --repo "$GITHUB_REPOSITORY" --ref main -f version="$VERSION" -f foundation_commit="$FOUNDATION_COMMIT" -f control_commit="$GITHUB_SHA"
           run_id=""
           for _ in $(seq 1 90); do
             run_id="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow release-source-packs.yml --branch main --event workflow_dispatch --limit 30 --json databaseId,headSha,createdAt --jq "[.[] | select(.headSha == \"$GITHUB_SHA\") | select((.createdAt | fromdateiso8601) >= ($started_epoch - 5))] | sort_by(.databaseId) | last | .databaseId // empty")"
