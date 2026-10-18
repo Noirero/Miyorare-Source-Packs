@@ -57,8 +57,8 @@
   },
   "automation": {
     "schemaVersion": 2,
-    "state": "PUBLISHING",
-    "reason": "APPROVED_PIPELINE_IN_PROGRESS",
+    "state": "INFRASTRUCTURE_FAILURE",
+    "reason": "PUBLISH_PIPELINE_FAILED",
     "candidates": {
       "gekkoushi": {
         "candidate": "12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67",
@@ -83,10 +83,10 @@
         "recordedAt": "2026-09-17T17:41:48.451161Z"
       }
     },
-    "ownerActionRequired": false,
+    "ownerActionRequired": true,
     "lastAttemptProvider": "uma",
-    "workflowRunId": 39085076993,
-    "updatedAt": "2026-10-18T01:03:56.835377Z"
+    "workflowRunId": 39087271353,
+    "updatedAt": "2026-10-18T01:40:00.280189Z"
   },
   "lastPromotion": {
     "schemaVersion": 1,
@@ -130,5 +130,14 @@
     "state": "PUBLISHED",
     "tag": "miyorare-sources-v0.5.5",
     "version": "0.5.5"
+  },
+  "lastPublishFailure": {
+    "schemaVersion": 1,
+    "state": "FAILED",
+    "candidateSetId": "786f42935a941860ca4f315522f6e0015ba9554190a6cf49c85ee6f901ee42b6",
+    "signingRunId": 39084347963,
+    "publishRunId": 39087271353,
+    "reason": "PUBLISH_WORKFLOW_FAILED",
+    "recordedAt": "2026-10-18T01:40:00.280189Z"
   }
 }
