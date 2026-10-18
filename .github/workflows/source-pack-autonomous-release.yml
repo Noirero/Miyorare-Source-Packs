@@ -36,6 +36,10 @@ on:
         description: Exact Source Lab publish workflow run that issued the request
         required: false
         type: string
+      authorization_run_id:
+        description: Original Owner-authorized Source Lab Publish run for this signed request lineage
+        required: false
+        type: string
   schedule:
     - cron: '13,43 * * * *'
   push:
@@ -382,6 +386,7 @@ jobs:
       FOUNDATION_COMMIT: ${{ inputs.foundation_commit }}
       REQUEST_ID: ${{ inputs.request_id }}
       REQUEST_RUN_ID: ${{ inputs.request_run_id }}
+      AUTHORIZATION_RUN_ID: ${{ inputs.authorization_run_id }}
     steps:
       - name: Fail closed on signed release request
         shell: bash
@@ -393,6 +398,7 @@ jobs:
           [[ "$CANDIDATE_SET_ID" =~ ^[0-9a-f]{64}$ ]]
           [[ "$SIGNING_RUN_ID" =~ ^[0-9]+$ ]]
           [[ "$REQUEST_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$AUTHORIZATION_RUN_ID" =~ ^[0-9]+$ ]]
           [[ "$RELEASE_REF" =~ ^source-lab-publish-[0-9]+$ ]]
           [[ "$FOUNDATION_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           [[ "$REQUEST_ID" == "source-lab-${REQUEST_RUN_ID}-${CANDIDATE_SET_ID}" ]]
@@ -402,9 +408,11 @@ jobs:
         run: |
           set -euo pipefail
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$REQUEST_RUN_ID" > "$RUNNER_TEMP/request-run.json"
-          python3 - "$RUNNER_TEMP/request-run.json" <<'PY'
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$AUTHORIZATION_RUN_ID" > "$RUNNER_TEMP/authorization-run.json"
+          python3 - "$RUNNER_TEMP/request-run.json" "$RUNNER_TEMP/authorization-run.json" <<'PY'
           import json, os, sys
-          run = json.load(open(sys.argv[1], encoding="utf-8"))
+          request = json.load(open(sys.argv[1], encoding="utf-8"))
+          authorization = json.load(open(sys.argv[2], encoding="utf-8"))
           expected = {
               "event": "workflow_dispatch",
               "head_branch": "main",
@@ -412,14 +420,33 @@ jobs:
               "display_title": f"Source Lab publish {os.environ['CANDIDATE_SET_ID']}",
           }
           for key, value in expected.items():
-              if run.get(key) != value:
-                  raise SystemExit(f"Source Lab request run {key} mismatch: {run.get(key)!r}")
-          if str(run.get("id")) != os.environ["REQUEST_RUN_ID"]:
+              if request.get(key) != value:
+                  raise SystemExit(f"Source Lab request run {key} mismatch: {request.get(key)!r}")
+          if str(request.get("id")) != os.environ["REQUEST_RUN_ID"]:
               raise SystemExit("Source Lab request run ID mismatch")
-          if str(run.get("actor", {}).get("id")) != os.environ["EXPECTED_OWNER_ID"]:
-              raise SystemExit("Source Lab request run actor is not the authorized owner")
-          if run.get("status") != "in_progress":
-              raise SystemExit(f"Source Lab request run is not active: {run.get('status')!r}")
+          if request.get("status") != "in_progress":
+              raise SystemExit(f"Source Lab request run is not active: {request.get('status')!r}")
+
+          request_actor = str(request.get("actor", {}).get("id"))
+          if request_actor == os.environ["EXPECTED_OWNER_ID"]:
+              if os.environ["AUTHORIZATION_RUN_ID"] != os.environ["REQUEST_RUN_ID"]:
+                  raise SystemExit("direct Owner Publish authorization run must equal request run")
+              if authorization.get("id") != request.get("id"):
+                  raise SystemExit("direct Owner Publish authorization payload mismatch")
+          elif request_actor == os.environ["EXPECTED_AUTOMATION_ID"]:
+              if os.environ["AUTHORIZATION_RUN_ID"] == os.environ["REQUEST_RUN_ID"]:
+                  raise SystemExit("automated recovery must reference a distinct Owner authorization run")
+              for key, value in expected.items():
+                  if authorization.get(key) != value:
+                      raise SystemExit(f"Owner authorization run {key} mismatch: {authorization.get(key)!r}")
+              if authorization.get("status") != "completed" or authorization.get("conclusion") != "failure":
+                  raise SystemExit("Owner authorization run is not a completed failed Publish")
+              if str(authorization.get("id")) != os.environ["AUTHORIZATION_RUN_ID"]:
+                  raise SystemExit("Owner authorization run ID mismatch")
+              if str(authorization.get("actor", {}).get("id")) != os.environ["EXPECTED_OWNER_ID"]:
+                  raise SystemExit("automated recovery is not bound to the authorized Owner Publish")
+          else:
+              raise SystemExit("Source Lab request run actor is neither Owner nor authorized automation")
           PY
 
       - name: Verify exact successful signing run
@@ -538,6 +565,7 @@ jobs:
               "schemaVersion": 1,
               "requestId": os.environ["REQUEST_ID"],
               "requestRunId": int(os.environ["REQUEST_RUN_ID"]),
+              "authorizationRunId": int(os.environ["AUTHORIZATION_RUN_ID"]),
               "candidateSetId": os.environ["CANDIDATE_SET_ID"],
               "signingRunId": int(os.environ["SIGNING_RUN_ID"]),
               "controllerRunId": int(os.environ["GITHUB_RUN_ID"]),
