@@ -273,9 +273,11 @@ jobs:
                       continue
                   if source.get("compatibilityEnrollment", {}).get("state") != "PENDING":
                       continue
-                  current_versions = source.get("currentVersion", {})
                   providers = source.get("providers", [])
-                  expected = {provider: current_versions.get(provider) for provider in providers}
+                  expected = {
+                      provider: registry["providerBaselines"].get(provider)
+                      for provider in providers
+                  }
                   if entry.get("testedVersions") == expected:
                       continue
                   entry["state"] = "RETRY"
