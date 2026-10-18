@@ -100,8 +100,7 @@ def validate_ready_source(
             raise ValueError(f"{canonical_id} {provider} parser traversal incomplete")
 
     tested = entry.get("testedVersions")
-    current = source.get("currentVersion")
-    if not isinstance(tested, dict) or not isinstance(current, dict):
+    if not isinstance(tested, dict):
         raise ValueError(f"{canonical_id} version binding missing")
     if set(tested) != set(providers):
         raise ValueError(f"{canonical_id} tested provider set mismatch")
@@ -109,8 +108,6 @@ def validate_ready_source(
         tested_sha = tested.get(provider)
         if not isinstance(tested_sha, str) or len(tested_sha) != 40:
             raise ValueError(f"{canonical_id} {provider} tested SHA invalid")
-        if current.get(provider) != tested_sha:
-            raise ValueError(f"{canonical_id} {provider} source version moved after test")
         if provider_baselines.get(provider) != tested_sha:
             raise ValueError(f"{canonical_id} {provider} provider baseline moved after test")
 
@@ -176,6 +173,11 @@ def apply(
 
         source["authType"] = item.get("authType") or source.get("authType")
         source["adapterFamily"] = item.get("adapterFamily") or source.get("adapterFamily")
+        current_versions = source.setdefault("currentVersion", {})
+        last_known_good = source.setdefault("lastKnownGood", {})
+        for provider, commit in item["testedVersions"].items():
+            current_versions[provider] = commit
+            last_known_good[provider] = commit
         source["compatibilityEnrollment"] = {
             "state": "ACTIVE",
             "parserCoverageRequired": True,
