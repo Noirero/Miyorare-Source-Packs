@@ -11,6 +11,10 @@ on:
         description: 'Exact signed Compatibility Farm commit (Source Lab signed releases only)'
         required: false
         type: string
+      control_commit:
+        description: 'Exact release control-plane commit expected by the signed controller'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -37,8 +41,21 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       SOURCE_VERSION: ${{ inputs.version }}
       FOUNDATION_COMMIT_OVERRIDE: ${{ inputs.foundation_commit }}
+      CONTROL_COMMIT_OVERRIDE: ${{ inputs.control_commit }}
 
     steps:
+      - name: Validate requested release control commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$CONTROL_COMMIT_OVERRIDE" ]]; then
+            [[ "$CONTROL_COMMIT_OVERRIDE" =~ ^[0-9a-f]{40}$ ]]
+            [[ "$GITHUB_SHA" == "$CONTROL_COMMIT_OVERRIDE" ]] || {
+              echo "::error::Dispatched release workflow does not match the signed controller control-plane commit."
+              exit 1
+            }
+          fi
+
       - name: Checkout Source Packs registry
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
