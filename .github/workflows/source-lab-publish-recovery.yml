@@ -151,6 +151,7 @@ jobs:
           PY
 
       - name: Rerun exact Owner-authorized publish
+        id: rerun
         if: >-
           steps.target.outputs.available == 'true' &&
           steps.validate.outputs.retry == 'true'
@@ -199,19 +200,27 @@ jobs:
           AVAILABLE: ${{ steps.target.outputs.available }}
           CANDIDATE_SET_ID: ${{ steps.target.outputs.candidate_set_id }}
           PUBLISH_RUN_ID: ${{ steps.target.outputs.publish_run_id }}
+          VALIDATION_OUTCOME: ${{ steps.validate.outcome }}
           RETRY: ${{ steps.validate.outputs.retry }}
           BEFORE_ATTEMPT: ${{ steps.validate.outputs.before_attempt }}
+          RERUN_OUTCOME: ${{ steps.rerun.outcome }}
         shell: bash
         run: |
           {
             echo '## Source Lab publish recovery'
             if [[ "$AVAILABLE" != "true" ]]; then
               echo 'No exact failed signed provider publish is waiting for recovery.'
+            elif [[ "$VALIDATION_OUTCOME" != "success" ]]; then
+              echo 'Recovery target failed provenance validation; no rerun was authorized.'
+              echo "Candidate: $CANDIDATE_SET_ID"
             elif [[ "$RETRY" != "true" ]]; then
               echo "Recovery remains fail-closed: publish run $PUBLISH_RUN_ID reached the automatic retry limit after attempt $BEFORE_ATTEMPT."
               echo "Candidate: $CANDIDATE_SET_ID"
-            else
+            elif [[ "$RERUN_OUTCOME" == "success" ]]; then
               echo "Exact Owner-authorized publish run $PUBLISH_RUN_ID was recovered automatically."
+              echo "Candidate: $CANDIDATE_SET_ID"
+            else
+              echo "Automatic recovery was attempted for publish run $PUBLISH_RUN_ID but did not complete successfully."
               echo "Candidate: $CANDIDATE_SET_ID"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
