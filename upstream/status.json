@@ -57,8 +57,8 @@
   },
   "automation": {
     "schemaVersion": 2,
-    "state": "PUBLISHING",
-    "reason": "AUTOMATIC_PUBLISH_RECOVERY_PENDING",
+    "state": "ALL_GOOD",
+    "reason": "PUBLISH_COMPLETED",
     "candidates": {
       "gekkoushi": {
         "candidate": "12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67",
@@ -85,8 +85,8 @@
     },
     "ownerActionRequired": false,
     "lastAttemptProvider": "uma",
-    "workflowRunId": 39097539460,
-    "updatedAt": "2026-10-18T04:40:03.749900Z"
+    "workflowRunId": 39102206613,
+    "updatedAt": "2026-10-18T06:01:43.715891Z"
   },
   "lastPromotion": {
     "schemaVersion": 1,
@@ -118,28 +118,19 @@
   },
   "lastPublish": {
     "action": "PUBLISH",
-    "candidateSetId": "f48a54557e3a986166daa78dd4ff4ba38cd89bfa2ab7c05f90ac6fcfe6bb618c",
-    "foundationCommit": "c6089d8b3590f2a8b04de9f491551dd71d30bf56",
-    "providers": {
-      "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
-    },
-    "publishRunId": 35460611563,
-    "releaseRunId": 35460623773,
-    "schemaVersion": 1,
-    "signingRunId": 35302405007,
-    "state": "PUBLISHED",
-    "tag": "miyorare-sources-v0.5.5",
-    "version": "0.5.5"
-  },
-  "lastPublishFailure": {
-    "schemaVersion": 1,
-    "state": "FAILED",
-    "candidateSetId": "786f42935a941860ca4f315522f6e0015ba9554190a6cf49c85ee6f901ee42b6",
-    "signingRunId": 39084347963,
     "authorizationRunId": 39087271353,
-    "publishRunId": 39097551149,
-    "recoveryAttempt": 1,
-    "reason": "PUBLISH_WORKFLOW_FAILED",
-    "recordedAt": "2026-10-18T04:39:45.245806Z"
+    "candidateSetId": "786f42935a941860ca4f315522f6e0015ba9554190a6cf49c85ee6f901ee42b6",
+    "controllerRunId": 39102217319,
+    "foundationCommit": "bb49c76284a2dd7722629c80486476dfd6da0cae",
+    "providers": {
+      "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+    },
+    "publishRunId": 39102206613,
+    "releaseRunId": 39102231377,
+    "schemaVersion": 1,
+    "signingRunId": 39084347963,
+    "state": "PUBLISHED",
+    "tag": "miyorare-sources-v0.5.11",
+    "version": "0.5.11"
   }
 }
