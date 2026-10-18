@@ -9,7 +9,7 @@
       "commit": "cfc019928453a4650669d0514723360629c4af56"
     },
     "uma": {
-      "commit": "f207e8ea5d04cefbc97f840865aff79cee110a5c"
+      "commit": "08f814f7468835d9c9b465a9062aecc7ac142cdd"
     }
   },
   "schemaVersion": 1,
@@ -1415,6 +1415,22 @@
       }
     },
     {
+      "attentionReasons": [],
+      "canonicalId": "miyorare:inventory-all:MANGADOT",
+      "displayName": "MangaDot",
+      "identityConfidence": "exact-name",
+      "language": "all",
+      "needsAttention": false,
+      "providers": {
+        "uma": {
+          "available": true,
+          "displayName": "MangaDot",
+          "file": "src/main/kotlin/tsuki/site/all/MangaDot.kt",
+          "sourceName": "MANGADOTNET"
+        }
+      }
+    },
+    {
       "attentionReasons": [
         "duplicate-keiyoushi-identity"
       ],
@@ -1431,22 +1447,6 @@
           "module": "src/all/mangadotnet",
           "sourceId": 8991903341121926961,
           "sourceName": "MangaDot"
-        }
-      }
-    },
-    {
-      "attentionReasons": [],
-      "canonicalId": "miyorare:inventory-all:MANGADOTNET",
-      "displayName": "Mangadot.net",
-      "identityConfidence": "previous",
-      "language": "all",
-      "needsAttention": false,
-      "providers": {
-        "uma": {
-          "available": true,
-          "displayName": "Mangadot.net",
-          "file": "src/main/kotlin/tsuki/site/all/Mangadotnet.kt",
-          "sourceName": "MANGADOTNET"
         }
       }
     },
@@ -3002,6 +3002,12 @@
           "module": "src/ar/eshadow",
           "sourceId": 8617573161604126293,
           "sourceName": "EShadow"
+        },
+        "uma": {
+          "available": true,
+          "displayName": "EShadow",
+          "file": "src/main/kotlin/tsuki/site/ar/EShadow.kt",
+          "sourceName": "ESHADOW"
         }
       }
     },
@@ -3763,6 +3769,12 @@
           "module": "src/ar/mangatek",
           "sourceId": 1011491016492324749,
           "sourceName": "MangaTek"
+        },
+        "uma": {
+          "available": true,
+          "displayName": "MangaTek",
+          "file": "src/main/kotlin/tsuki/site/ar/MangaTek.kt",
+          "sourceName": "MANGATEK"
         }
       }
     },
@@ -4109,6 +4121,12 @@
           "sourceId": 8891921907305143070,
           "sourceName": "ProComic",
           "versionId": 2
+        },
+        "uma": {
+          "available": true,
+          "displayName": "ProComic",
+          "file": "src/main/kotlin/tsuki/site/ar/ProComic.kt",
+          "sourceName": "PROCOMIC"
         }
       }
     },
@@ -5621,6 +5639,12 @@
           "module": "src/en/athreascans",
           "sourceId": 427734044452073936,
           "sourceName": "Athrea Scans"
+        },
+        "uma": {
+          "available": true,
+          "displayName": "AthreaScans",
+          "file": "src/main/kotlin/tsuki/site/en/AthreaScans.kt",
+          "sourceName": "ATHREASCANS"
         }
       }
     },
@@ -6951,6 +6975,12 @@
           "sourceId": 7298341958704597260,
           "sourceName": "Drake Scans",
           "versionId": 3
+        },
+        "uma": {
+          "available": true,
+          "displayName": "DrakeScans",
+          "file": "src/main/kotlin/tsuki/site/en/DrakeScans.kt",
+          "sourceName": "DRAKESCANS"
         }
       }
     },
@@ -7743,6 +7773,12 @@
           "module": "src/en/suryascans",
           "sourceId": 1061713767402958340,
           "sourceName": "Genz Toons"
+        },
+        "uma": {
+          "available": true,
+          "displayName": "Genz Toons",
+          "file": "src/main/kotlin/tsuki/site/en/GenzToons.kt",
+          "sourceName": "GENZTOONS"
         }
       }
     },
@@ -8312,6 +8348,12 @@
           "sourceId": 2299981010822511979,
           "sourceName": "HentaiRead",
           "versionId": 2
+        },
+        "uma": {
+          "available": true,
+          "displayName": "HentaiRead",
+          "file": "src/main/kotlin/tsuki/site/en/nsfw/HentaiRead.kt",
+          "sourceName": "HENTAIREAD"
         }
       }
     },
@@ -8509,12 +8551,6 @@
           "available": true,
           "displayName": "HeyToon",
           "file": "src/main/kotlin/tsuki/site/en/HeyToonParser.kt",
-          "sourceName": "HEYTOON"
-        },
-        "uma": {
-          "available": true,
-          "displayName": "HeyToon",
-          "file": "src/main/kotlin/tsuki/site/en/nsfw/HeyToon.kt",
           "sourceName": "HEYTOON"
         }
       }
@@ -16598,6 +16634,12 @@
           "module": "src/en/heytoon",
           "sourceId": 5192468917881435636,
           "sourceName": "ToonHey"
+        },
+        "uma": {
+          "available": true,
+          "displayName": "ToonHey",
+          "file": "src/main/kotlin/tsuki/site/en/nsfw/ToonHey.kt",
+          "sourceName": "HEYTOON"
         }
       }
     },
@@ -18827,7 +18869,7 @@
       "attentionReasons": [],
       "canonicalId": "miyorare:inventory-es:ETERNALMANGAS",
       "displayName": "EternalMangas",
-      "identityConfidence": "exact-name",
+      "identityConfidence": "previous",
       "language": "es",
       "needsAttention": false,
       "providers": {
@@ -19351,7 +19393,7 @@
       "attentionReasons": [],
       "canonicalId": "miyorare:inventory-es:KUMANGA",
       "displayName": "Kumanga",
-      "identityConfidence": "exact-name",
+      "identityConfidence": "previous",
       "language": "es",
       "needsAttention": false,
       "providers": {
@@ -19698,6 +19740,12 @@
           "module": "src/es/lmtoonline",
           "sourceId": 7732736838916328250,
           "sourceName": "Lmtos"
+        },
+        "uma": {
+          "available": true,
+          "displayName": "Lmtos",
+          "file": "src/main/kotlin/tsuki/site/es/Lmtos.kt",
+          "sourceName": "LMTOS"
         }
       }
     },
@@ -20679,7 +20727,7 @@
       "attentionReasons": [],
       "canonicalId": "miyorare:inventory-es:RAKUENTRANSLATIONS",
       "displayName": "Rakuen Translations",
-      "identityConfidence": "exact-name",
+      "identityConfidence": "previous",
       "language": "es",
       "needsAttention": false,
       "providers": {
@@ -21037,7 +21085,7 @@
         "uma": {
           "available": true,
           "displayName": "Submanhwa",
-          "file": "src/main/kotlin/tsuki/site/es/Submanhwa.kt",
+          "file": "src/main/kotlin/tsuki/site/es/nsfw/Submanhwa.kt",
           "sourceName": "SUBMANHWA"
         }
       }
@@ -21847,6 +21895,12 @@
           "module": "src/fr/aniverse",
           "sourceId": 4821794959228633650,
           "sourceName": "Aniverse"
+        },
+        "uma": {
+          "available": true,
+          "displayName": "Aniverse",
+          "file": "src/main/kotlin/tsuki/site/fr/Aniverse.kt",
+          "sourceName": "RAIJINSCANS"
         }
       }
     },
@@ -23684,6 +23738,12 @@
           "sourceId": 8936307069044646761,
           "sourceName": "Poseidon Scans",
           "versionId": 2
+        },
+        "uma": {
+          "available": true,
+          "displayName": "Poseidon Scans",
+          "file": "src/main/kotlin/tsuki/site/fr/PoseidonScans.kt",
+          "sourceName": "POSEIDONSCANS"
         }
       }
     },
@@ -27584,6 +27644,22 @@
     },
     {
       "attentionReasons": [],
+      "canonicalId": "miyorare:inventory-id:THRIVEMOE",
+      "displayName": "Thrive.moe",
+      "identityConfidence": "exact-name",
+      "language": "id",
+      "needsAttention": false,
+      "providers": {
+        "uma": {
+          "available": true,
+          "displayName": "Thrive.moe",
+          "file": "src/main/kotlin/tsuki/site/id/ThriveMoe.kt",
+          "sourceName": "THRIVEMOE"
+        }
+      }
+    },
+    {
+      "attentionReasons": [],
       "canonicalId": "miyorare:inventory-id:TOONCUBUS",
       "displayName": "Tooncubus",
       "identityConfidence": "explicit",
@@ -30246,7 +30322,7 @@
       "attentionReasons": [],
       "canonicalId": "miyorare:inventory-ja:MIURAW",
       "displayName": "MiuRaw",
-      "identityConfidence": "exact-name",
+      "identityConfidence": "previous",
       "language": "ja",
       "needsAttention": false,
       "providers": {
@@ -45182,14 +45258,12 @@
       }
     },
     {
-      "attentionReasons": [
-        "ambiguous-automatic-identity"
-      ],
+      "attentionReasons": [],
       "canonicalId": "miyorare:inventory-zh:UNKNOWN:KEIYOUSHI-FED5557A40",
       "displayName": "嬉皮漫畫",
-      "identityConfidence": "ambiguous",
+      "identityConfidence": "previous",
       "language": "zh",
-      "needsAttention": true,
+      "needsAttention": false,
       "providers": {
         "keiyoushi": {
           "available": true,
@@ -45611,8 +45685,8 @@
     }
   ],
   "stats": {
-    "allSources": 2488,
-    "needsAttention": 2,
-    "providerMappings": 2966
+    "allSources": 2489,
+    "needsAttention": 1,
+    "providerMappings": 2977
   }
 }
