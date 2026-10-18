@@ -47,6 +47,50 @@ def source_map(registry: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return result
 
 
+def _full_parser_pass(item: dict[str, Any]) -> bool:
+    return (
+        item.get("status") == "PASS"
+        and item.get("parserExecution") is True
+        and item.get("detailsTraversal") is True
+        and item.get("chapterTraversal") is True
+        and item.get("pageExtraction") is True
+    )
+
+
+def _held_provider_rows(
+    source_providers: list[str],
+    selected: set[str],
+    profile_memberships: list[dict[str, Any]],
+    parser_memberships: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    profile_by_provider = {
+        item.get("provider"): item
+        for item in profile_memberships
+        if isinstance(item, dict) and isinstance(item.get("provider"), str)
+    }
+    parser_by_provider = {
+        item.get("provider"): item
+        for item in parser_memberships
+        if isinstance(item, dict) and isinstance(item.get("provider"), str)
+    }
+    held: list[dict[str, Any]] = []
+    for provider in source_providers:
+        if provider in selected:
+            continue
+        profile = profile_by_provider.get(provider, {})
+        parser = parser_by_provider.get(provider, {})
+        reason = profile.get("upstreamBrokenReason") or parser.get("reason")
+        if not reason:
+            if profile.get("profilePass") is not True:
+                reason = "PROFILE_NOT_USABLE"
+            elif parser and not _full_parser_pass(parser):
+                reason = "REAL_PARSER_NOT_USABLE"
+            else:
+                reason = "PROVIDER_NOT_SELECTED"
+        held.append({"provider": provider, "state": "HELD", "reason": str(reason)})
+    return held
+
+
 def validate_ready_source(
     source: dict[str, Any],
     entry: dict[str, Any],
@@ -69,53 +113,80 @@ def validate_ready_source(
     if evidence.get("gate") != REAL_PASS:
         raise ValueError(f"{canonical_id} did not pass real-parser gate")
 
+    source_providers = source.get("providers")
+    if not isinstance(source_providers, list) or not source_providers:
+        raise ValueError(f"{canonical_id} providers invalid")
+    source_provider_set = set(source_providers)
+
+    profile = evidence.get("profile")
+    if not isinstance(profile, dict):
+        raise ValueError(f"{canonical_id} profile evidence missing")
+    profile_memberships = profile.get("memberships")
+    if not isinstance(profile_memberships, list) or not profile_memberships:
+        raise ValueError(f"{canonical_id} profile memberships missing")
+    profile_by_provider: dict[str, dict[str, Any]] = {}
+    for item in profile_memberships:
+        if not isinstance(item, dict) or not isinstance(item.get("provider"), str):
+            raise ValueError(f"{canonical_id} profile membership invalid")
+        profile_by_provider[item["provider"]] = item
+    if set(profile_by_provider) != source_provider_set:
+        raise ValueError(f"{canonical_id} profile coverage does not match provider mappings")
+
     parser = evidence.get("parser")
     if not isinstance(parser, dict) or parser.get("gate") != "PASS":
         raise ValueError(f"{canonical_id} parser evidence is not PASS")
-    memberships = parser.get("memberships")
-    if not isinstance(memberships, list) or not memberships:
+    parser_memberships = parser.get("memberships")
+    if not isinstance(parser_memberships, list) or not parser_memberships:
         raise ValueError(f"{canonical_id} has no parser memberships")
-
-    providers = source.get("providers")
-    if not isinstance(providers, list) or not providers:
-        raise ValueError(f"{canonical_id} providers invalid")
-    by_provider: dict[str, dict[str, Any]] = {}
-    for item in memberships:
+    parser_by_provider: dict[str, dict[str, Any]] = {}
+    for item in parser_memberships:
         if not isinstance(item, dict) or not isinstance(item.get("provider"), str):
             raise ValueError(f"{canonical_id} parser membership invalid")
-        by_provider[item["provider"]] = item
-    if set(by_provider) != set(providers):
-        raise ValueError(f"{canonical_id} parser coverage does not match provider mappings")
-
-    for provider in providers:
-        item = by_provider[provider]
-        passed = (
-            item.get("status") == "PASS"
-            and item.get("parserExecution") is True
-            and item.get("detailsTraversal") is True
-            and item.get("chapterTraversal") is True
-            and item.get("pageExtraction") is True
-        )
-        if not passed:
-            raise ValueError(f"{canonical_id} {provider} parser traversal incomplete")
+        parser_by_provider[item["provider"]] = item
+    if not set(parser_by_provider).issubset(source_provider_set):
+        raise ValueError(f"{canonical_id} parser evidence contains unknown provider")
 
     tested = entry.get("testedVersions")
-    if not isinstance(tested, dict):
+    if not isinstance(tested, dict) or not tested:
         raise ValueError(f"{canonical_id} version binding missing")
-    if set(tested) != set(providers):
+    selected = entry.get("selectedProviders")
+    if selected is None:
+        selected = sorted(tested)
+    if not isinstance(selected, list) or not selected:
+        raise ValueError(f"{canonical_id} selected provider binding missing")
+    selected_set = set(selected)
+    if len(selected_set) != len(selected):
+        raise ValueError(f"{canonical_id} selected provider binding has duplicates")
+    if not selected_set.issubset(source_provider_set):
+        raise ValueError(f"{canonical_id} selected provider is not mapped")
+    if set(tested) != selected_set:
         raise ValueError(f"{canonical_id} tested provider set mismatch")
-    for provider in providers:
+
+    for provider in selected:
+        profile_item = profile_by_provider[provider]
+        if profile_item.get("profilePass") is not True:
+            raise ValueError(f"{canonical_id} {provider} profile did not pass")
+        parser_item = parser_by_provider.get(provider)
+        if parser_item is None or not _full_parser_pass(parser_item):
+            raise ValueError(f"{canonical_id} {provider} parser traversal incomplete")
         tested_sha = tested.get(provider)
         if not isinstance(tested_sha, str) or len(tested_sha) != 40:
             raise ValueError(f"{canonical_id} {provider} tested SHA invalid")
         if provider_baselines.get(provider) != tested_sha:
             raise ValueError(f"{canonical_id} {provider} provider baseline moved after test")
 
+    held_providers = _held_provider_rows(
+        source_providers,
+        selected_set,
+        profile_memberships,
+        parser_memberships,
+    )
     return {
         "canonicalId": canonical_id,
         "language": source.get("language"),
-        "providers": sorted(providers),
-        "testedVersions": {provider: tested[provider] for provider in sorted(providers)},
+        "providers": sorted(selected_set),
+        "heldProviders": held_providers,
+        "testedVersions": {provider: tested[provider] for provider in sorted(selected_set)},
         "workerRunId": str(entry.get("workflowRunId", "")),
         "evidenceSha256": entry["evidenceSha256"],
         "adapterFamily": entry.get("adapterFamily"),
@@ -170,14 +241,25 @@ def apply(
         canonical_id = item["canonicalId"]
         source = sources[canonical_id]
         entry = state_sources[canonical_id]
+        active_providers = item["providers"]
+        original_providers = list(source.get("providers", []))
+        original_identities = source.get("upstreamIdentities")
+        if isinstance(original_identities, dict):
+            if any(provider not in original_identities for provider in active_providers):
+                raise ValueError(f"{canonical_id} selected provider identity missing")
+        elif set(active_providers) != set(original_providers):
+            raise ValueError(f"{canonical_id} cannot narrow providers without upstream identities")
 
         source["authType"] = item.get("authType") or source.get("authType")
         source["adapterFamily"] = item.get("adapterFamily") or source.get("adapterFamily")
-        current_versions = source.setdefault("currentVersion", {})
-        last_known_good = source.setdefault("lastKnownGood", {})
-        for provider, commit in item["testedVersions"].items():
-            current_versions[provider] = commit
-            last_known_good[provider] = commit
+        source["providers"] = list(active_providers)
+        if isinstance(original_identities, dict):
+            source["upstreamIdentities"] = {
+                provider: original_identities[provider]
+                for provider in active_providers
+            }
+        source["currentVersion"] = dict(item["testedVersions"])
+        source["lastKnownGood"] = dict(item["testedVersions"])
         source["compatibilityEnrollment"] = {
             "state": "ACTIVE",
             "parserCoverageRequired": True,
@@ -200,6 +282,8 @@ def apply(
             "approvalRunId": str(approval_run_id),
             "workerRunId": item["workerRunId"],
             "evidenceSha256": item["evidenceSha256"],
+            "activeProviders": list(active_providers),
+            "heldProviders": item["heldProviders"],
             "testedVersions": item["testedVersions"],
         }
 

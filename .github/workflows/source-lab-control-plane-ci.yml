@@ -329,3 +329,4 @@ jobs:
           set -euo pipefail
           python3 -m py_compile tools/source_pending_approval.py
           python3 tests/test_source_pending_approval.py
+          python3 tests/test_multi_provider_partial_onboarding.py
