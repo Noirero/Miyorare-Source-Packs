@@ -30,11 +30,12 @@ class P0AReleaseAuthorityTests(unittest.TestCase):
         self.assertIn("release_mode=source_lab_signed", source_lab)
         self.assertIn("source-pack-signed-release-${{ inputs.candidate_set_id }}", source_lab)
         self.assertIn("source_lab_signed", controller)
-        self.assertIn("Dispatch sole Source Pack publisher on exact signed ref", controller)
+        self.assertIn("Dispatch sole Source Pack publisher from current control plane with signed Farm snapshot", controller)
 
     def test_source_lab_exact_commit_security_is_preserved_end_to_end(self) -> None:
         source_lab = workflow("source-lab-publish-candidate.yml")
         controller = workflow("source-pack-autonomous-release.yml")
+        release = workflow("release-source-packs.yml")
         source_lab_required = (
             "gh attestation verify",
             "foundationCommit",
@@ -49,11 +50,22 @@ class P0AReleaseAuthorityTests(unittest.TestCase):
             "gh attestation verify build/source-lab-signing-manifest.json",
             "requested Foundation commit differs from signed receipt",
             "temporary release ref no longer points to the exact signed Foundation commit",
-            '--ref "$RELEASE_REF"',
-            'select(.headSha == \\"$FOUNDATION_COMMIT\\")',
+            '--ref main -f version="$VERSION" -f foundation_commit="$FOUNDATION_COMMIT" -f control_commit="$GITHUB_SHA"',
+            'select(.headSha == \\"$GITHUB_SHA\\")',
+            '[[ "$main_sha" == "$GITHUB_SHA" ]]',
         )
         for marker in controller_required:
             self.assertIn(marker, controller)
+        self.assertNotIn('--ref "$RELEASE_REF" -f version="$VERSION"', controller)
+        release_required = (
+            "FOUNDATION_COMMIT_OVERRIDE: ${{ inputs.foundation_commit }}",
+            "CONTROL_COMMIT_OVERRIDE: ${{ inputs.control_commit }}",
+            "ref: ${{ inputs.foundation_commit || 'compatibility-farm-foundation' }}",
+            "Checked-out Compatibility Farm does not match signed Foundation override.",
+            "Dispatched release workflow does not match the signed controller control-plane commit.",
+        )
+        for marker in release_required:
+            self.assertIn(marker, release)
 
     def test_stable_version_allocation_is_not_duplicated_in_source_lab(self) -> None:
         source_lab = workflow("source-lab-publish-candidate.yml")
