@@ -45,6 +45,11 @@ class GitHubOwnerAuthenticationTest {
     }
 
     @Test
+    fun `github device code clipboard preserves separator`() {
+        assertEquals("WDJB-MJHT", githubDeviceCodeForClipboard("WDJB-MJHT"))
+    }
+
+    @Test
     fun `expiring device token response keeps refresh token metadata`() {
         val now = 1_800_000_000L
         val credential = GitHubOwnerAuthentication.parseTokenCredentialResponse(

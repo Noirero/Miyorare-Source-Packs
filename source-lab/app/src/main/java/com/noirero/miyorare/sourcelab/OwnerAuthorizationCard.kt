@@ -427,8 +427,10 @@ private fun AuthorizationProgress(label: String) {
     }
 }
 
+internal fun githubDeviceCodeForClipboard(userCode: String): String = userCode.trim()
+
 private fun copyUserCodeForPaste(context: Context, userCode: String) {
-    val pasteFriendlyCode = userCode.filter(Char::isLetterOrDigit).uppercase()
+    val pasteFriendlyCode = githubDeviceCodeForClipboard(userCode)
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     clipboard.setPrimaryClip(ClipData.newPlainText("GitHub device code", pasteFriendlyCode))
 }
