@@ -65,7 +65,10 @@ def normalize_state(raw: Any) -> dict[str, Any]:
     sources = raw.get("sources")
     if not isinstance(sources, dict):
         sources = {}
-    return {"schemaVersion": 2, "sources": sources}
+    normalized = dict(raw)
+    normalized["schemaVersion"] = 2
+    normalized["sources"] = sources
+    return normalized
 
 
 def state_entry(state: dict[str, Any], canonical_id: str) -> dict[str, Any]:
@@ -73,25 +76,58 @@ def state_entry(state: dict[str, Any], canonical_id: str) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def current_version_binding(source: dict[str, Any]) -> dict[str, Any]:
+def provider_baseline_binding(
+    source: dict[str, Any],
+    provider_baselines: dict[str, Any],
+) -> dict[str, Any]:
     providers = source.get("providers")
-    current = source.get("currentVersion")
-    if not isinstance(providers, list) or not isinstance(current, dict):
+    if not isinstance(providers, list) or not isinstance(provider_baselines, dict):
         return {}
-    return {provider: current.get(provider) for provider in providers}
+    return {provider: provider_baselines.get(provider) for provider in providers}
 
 
-def ready_evidence_is_stale(source: dict[str, Any], worker_state: dict[str, Any]) -> bool:
+def ready_evidence_is_stale(
+    source: dict[str, Any],
+    worker_state: dict[str, Any],
+    provider_baselines: dict[str, Any],
+) -> bool:
     if worker_state.get("state") != READY:
         return False
     tested = worker_state.get("testedVersions")
-    current = current_version_binding(source)
+    current = provider_baseline_binding(source, provider_baselines)
     if not isinstance(tested, dict) or not current:
+        return True
+    if any(not isinstance(value, str) or len(value) != 40 for value in current.values()):
         return True
     return tested != current
 
 
-def eligible(source: dict[str, Any], state: dict[str, Any]) -> bool:
+def invalidate_stale_ready(registry: dict[str, Any], state: dict[str, Any]) -> int:
+    provider_baselines = registry.get("providerBaselines")
+    if not isinstance(provider_baselines, dict):
+        raise ValueError("registry.providerBaselines invalid")
+    invalidated = 0
+    for source in canonical_sources(registry):
+        enrollment = source.get("compatibilityEnrollment")
+        if not isinstance(enrollment, dict) or enrollment.get("state") != "PENDING":
+            continue
+        entry = state_entry(state, str(source.get("canonicalId", "")))
+        if not ready_evidence_is_stale(source, entry, provider_baselines):
+            continue
+        entry["state"] = RETRY
+        entry["approvalState"] = "NOT_READY"
+        entry["ownerActionRequired"] = False
+        entry["publishEligible"] = False
+        entry["revalidationReason"] = "PROVIDER_BASELINE_CHANGED"
+        invalidated += 1
+    return invalidated
+
+
+def eligible(
+    source: dict[str, Any],
+    state: dict[str, Any],
+    provider_baselines: dict[str, Any],
+) -> bool:
     enrollment = source.get("compatibilityEnrollment")
     if not isinstance(enrollment, dict) or enrollment.get("state") != "PENDING":
         return False
@@ -100,14 +136,19 @@ def eligible(source: dict[str, Any], state: dict[str, Any]) -> bool:
     if status in {HELD, "APPROVED"}:
         return False
     if status == READY:
-        return ready_evidence_is_stale(source, worker_state)
+        return ready_evidence_is_stale(source, worker_state, provider_baselines)
     return True
 
 
 def build_plan(registry: dict[str, Any], state: dict[str, Any], batch_size: int) -> dict[str, Any]:
+    provider_baselines = registry.get("providerBaselines")
+    if not isinstance(provider_baselines, dict):
+        raise ValueError("registry.providerBaselines invalid")
+    invalidated_ready = invalidate_stale_ready(registry, state)
+
     rows: list[tuple[int, str, str, str, dict[str, Any]]] = []
     for source in canonical_sources(registry):
-        if not eligible(source, state):
+        if not eligible(source, state, provider_baselines):
             continue
         worker_state = state_entry(state, source["canonicalId"])
         rows.append((
@@ -121,13 +162,7 @@ def build_plan(registry: dict[str, Any], state: dict[str, Any], batch_size: int)
 
     retry_rows = [
         row for row in rows
-        if (
-            state_entry(state, row[-1]["canonicalId"]).get("state") == RETRY
-            or ready_evidence_is_stale(
-                row[-1],
-                state_entry(state, row[-1]["canonicalId"]),
-            )
-        )
+        if state_entry(state, row[-1]["canonicalId"]).get("state") == RETRY
     ]
     fresh_rows = [
         row for row in rows
@@ -170,14 +205,9 @@ def build_plan(registry: dict[str, Any], state: dict[str, Any], batch_size: int)
         "retrySlots": sum(
             1
             for item in selected
-            if (
-                state_entry(state, item["canonicalId"]).get("state") == RETRY
-                or ready_evidence_is_stale(
-                    next(source for source in canonical_sources(registry) if source["canonicalId"] == item["canonicalId"]),
-                    state_entry(state, item["canonicalId"]),
-                )
-            )
+            if state_entry(state, item["canonicalId"]).get("state") == RETRY
         ),
+        "invalidatedReady": invalidated_ready,
         "items": selected,
     }
 
@@ -354,6 +384,9 @@ def apply_results(registry: dict[str, Any], worker_state: dict[str, Any], result
     }
     valid_ids = set(pending_sources)
     state = normalize_state(worker_state)
+    provider_baselines = registry.get("providerBaselines")
+    if not isinstance(provider_baselines, dict):
+        raise ValueError("registry.providerBaselines invalid")
     summary = {READY: 0, RETRY: 0, HELD: 0, PROFILE: 0}
     for result in results.get("results", []):
         canonical_id = result.get("canonicalId")
@@ -362,16 +395,13 @@ def apply_results(registry: dict[str, Any], worker_state: dict[str, Any], result
         source = pending_sources[canonical_id]
         outcome = result["state"]
         summary[outcome] = summary.get(outcome, 0) + 1
-        tested_versions = {
-            provider: source.get("currentVersion", {}).get(provider)
-            for provider in source.get("providers", [])
-        }
+        tested_versions = provider_baseline_binding(source, provider_baselines)
         if any(not isinstance(value, str) or len(value) != 40 for value in tested_versions.values()):
-            raise ValueError(f"{canonical_id} has invalid provider version binding")
+            raise ValueError(f"{canonical_id} has invalid provider baseline binding")
         state["sources"][canonical_id] = {"schemaVersion": 2, "state": outcome, "attempts": result["attempts"], "lastCheckedAt": checked_at, "workflowRunId": str(workflow_run_id), "evidenceSha256": result["evidenceSha256"], "testedVersions": tested_versions, "adapterFamily": result["adapterFamily"], "authType": result["authType"], "approvalState": "WAITING_FOR_APPROVAL" if outcome == READY else "NOT_READY", "ownerActionRequired": False, "publishEligible": False, "evidence": result["evidence"]}
     state["updatedAt"] = checked_at
     state["lastWorkflowRunId"] = str(workflow_run_id)
-    return state, {"schemaVersion": 2, "processed": sum(summary.values()), "states": summary, "remainingPending": sum(1 for source in canonical_sources(registry) if source.get("compatibilityEnrollment", {}).get("state") == "PENDING" and eligible(source, state))}
+    return state, {"schemaVersion": 2, "processed": sum(summary.values()), "states": summary, "remainingPending": sum(1 for source in canonical_sources(registry) if source.get("compatibilityEnrollment", {}).get("state") == "PENDING" and eligible(source, state, provider_baselines))}
 
 
 def main() -> int:
@@ -404,7 +434,11 @@ def main() -> int:
     apply_parser.add_argument("--summary", required=True)
     args = parser.parse_args()
     if args.command == "plan":
-        save(args.output, build_plan(load(args.registry), normalize_state(load(args.state, default={})), args.batch_size))
+        registry = load(args.registry)
+        state = normalize_state(load(args.state, default={}))
+        plan = build_plan(registry, state, args.batch_size)
+        save(args.state, state)
+        save(args.output, plan)
     elif args.command == "assess":
         roots = {provider: Path(getattr(args, f"{provider}_root")).resolve() for provider in PROVIDERS}
         save(args.output, assess_plan(load(args.plan), roots, load(args.compile_results), args.timeout, max(1, args.fail_threshold)))
