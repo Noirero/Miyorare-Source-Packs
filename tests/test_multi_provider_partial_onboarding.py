@@ -221,6 +221,73 @@ class MultiProviderPartialOnboardingTest(unittest.TestCase):
         self.assertEqual(updated_state["sources"][CANONICAL]["state"], approval.APPROVED)
         self.assertEqual(receipt["count"], 1)
 
+    def test_parser_subset_rebinds_metadata_to_surviving_provider(self) -> None:
+        evidence = {
+            "profile": {
+                "gate": "PASS",
+                "memberships": [
+                    {
+                        "provider": "gekkoushi",
+                        "profilePass": True,
+                        "family": "madara",
+                        "authType": "FORM",
+                    },
+                    {
+                        "provider": "keiyoushi",
+                        "profilePass": True,
+                        "family": "keiyoushi-native",
+                        "authType": "NO_AUTH",
+                    },
+                ],
+            },
+            "attempts": 1,
+        }
+        profile = {
+            "results": [{
+                "canonicalId": CANONICAL,
+                "state": worker.PROFILE,
+                "attempts": 1,
+                "adapterFamily": "multi-provider",
+                "authType": "FORM",
+                "selectedProviders": ["gekkoushi", "keiyoushi"],
+                "evidence": evidence,
+                "evidenceSha256": worker.evidence_digest(evidence),
+            }],
+        }
+
+        final = worker.finalize_results(
+            profile,
+            {
+                "executionMode": "real-live-parser",
+                "results": [
+                    {
+                        "canonicalId": CANONICAL,
+                        "provider": "gekkoushi",
+                        "status": "FAIL",
+                        "parserExecution": True,
+                        "detailsTraversal": False,
+                        "chapterTraversal": False,
+                        "pageExtraction": False,
+                    },
+                    {
+                        "canonicalId": CANONICAL,
+                        "provider": "keiyoushi",
+                        "status": "PASS",
+                        "parserExecution": True,
+                        "detailsTraversal": True,
+                        "chapterTraversal": True,
+                        "pageExtraction": True,
+                    },
+                ],
+            },
+            3,
+        )["results"][0]
+
+        self.assertEqual(final["state"], worker.READY)
+        self.assertEqual(final["selectedProviders"], ["keiyoushi"])
+        self.assertEqual(final["adapterFamily"], "keiyoushi-native")
+        self.assertEqual(final["authType"], "NO_AUTH")
+
 
 if __name__ == "__main__":
     unittest.main()
