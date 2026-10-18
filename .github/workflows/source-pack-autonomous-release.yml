@@ -463,7 +463,7 @@ jobs:
                   raise SystemExit(f"signing run {key} mismatch: {run.get(key)!r}")
           if str(run.get("actor", {}).get("id")) != os.environ["EXPECTED_OWNER_ID"]:
               raise SystemExit("signing run actor mismatch")
-          if run.get("display_title") != f"Source Lab sign {os.environ['CANDIDATE_SET_ID']}" :
+          if run.get("display_title") != f"Source Lab sign {os.environ['CANDIDATE_SET_ID']}":
               raise SystemExit("signing run candidate title mismatch")
           PY
 
