@@ -1,31 +1,31 @@
 {
   "action": "APPROVE_READY_SOURCES",
-  "approvalRunId": "35487428595",
-  "approvedAt": "2026-09-20T03:46:11Z",
+  "approvalRunId": "39145921964",
+  "approvedAt": "2026-10-18T16:38:38Z",
   "approvedBy": "Noirero:149634319",
-  "count": 12,
+  "count": 17,
   "publishEligible": false,
   "schemaVersion": 1,
   "sources": [
     {
-      "adapterFamily": "madara",
+      "adapterFamily": "custom-paged-html",
       "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-en:APCOMICS",
-      "evidenceSha256": "18ba3f59137551496bb7cf03306b63f67ffa58084fe372bd64e68ca77c0d92c5",
+      "canonicalId": "miyorare:inventory-en:COLORIZEDMANGAS",
+      "evidenceSha256": "97586bd6bc5da1bf30f32ee1c131516f94a3d1ce119ba5feae0f4947b9f1cb49",
       "language": "en",
       "providers": [
         "keiyoushi"
       ],
       "testedVersions": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
-      "workerRunId": "35347751921"
+      "workerRunId": "39113778682"
     },
     {
       "adapterFamily": "gekkoushi-native",
       "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-en:BANANASCANCOM",
-      "evidenceSha256": "719f1c8cdd9c890365db1e96a7915c4d65c9d263d9285e02e71cc1a52fe2c99e",
+      "canonicalId": "miyorare:inventory-en:DANKEFURSLESEN",
+      "evidenceSha256": "0c2f7bd227d6c2fa453359bffe91c87b0d1599bd48433b863d6d9731f636a61d",
       "language": "en",
       "providers": [
         "gekkoushi"
@@ -33,55 +33,215 @@
       "testedVersions": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
-      "workerRunId": "35445829611"
-    },
-    {
-      "adapterFamily": "custom-rest-json",
-      "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-en:CHIKARI",
-      "evidenceSha256": "f85645ed6496d4a38725ebd596900d217c4a8a8bade8dcdc5361cfb1b7d01d8d",
-      "language": "en",
-      "providers": [
-        "uma"
-      ],
-      "testedVersions": {
-        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
-      },
-      "workerRunId": "35482060886"
-    },
-    {
-      "adapterFamily": "custom-rest-json",
-      "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-id:ALAWALE",
-      "evidenceSha256": "d6fd5bdc1b1fcd9349190cd9ab26a33915798aa5249208c0da41bdb488818ce9",
-      "language": "id",
-      "providers": [
-        "uma"
-      ],
-      "testedVersions": {
-        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
-      },
-      "workerRunId": "35347751921"
-    },
-    {
-      "adapterFamily": "custom-rest-json",
-      "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-id:BACAKOMIKPICS",
-      "evidenceSha256": "ccc60dec68ceb58ae9ace9d6482c92ddb7ccf2063c448536650ccd1902c51d23",
-      "language": "id",
-      "providers": [
-        "uma"
-      ],
-      "testedVersions": {
-        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
-      },
-      "workerRunId": "35435010785"
+      "workerRunId": "35645599659"
     },
     {
       "adapterFamily": "custom-paged-html",
       "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-id:CGBUM",
-      "evidenceSha256": "a942121a97b4bb0482aef869cb9988cb76cef22f96ebc5dab3f99cccbbe9a059",
+      "canonicalId": "miyorare:inventory-en:DEMONICSCANS",
+      "evidenceSha256": "f2c37965a3b8b1617e8b91f705cac6e81661e3528a083e1b1779dcef13516171",
+      "language": "en",
+      "providers": [
+        "gekkoushi",
+        "uma"
+      ],
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "workerRunId": "35696514175"
+    },
+    {
+      "adapterFamily": "multi-provider",
+      "authType": "NO_AUTH",
+      "canonicalId": "miyorare:inventory-en:ENTHUNDERSCANS",
+      "evidenceSha256": "8d83c1fd32b086d06d6f8339c6654054e834ecf9fdd2a06f17485b9d0d61b797",
+      "language": "en",
+      "providers": [
+        "gekkoushi",
+        "uma"
+      ],
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "workerRunId": "35894046923"
+    },
+    {
+      "adapterFamily": "madara",
+      "authType": "NO_AUTH",
+      "canonicalId": "miyorare:inventory-en:GDSCANS",
+      "evidenceSha256": "bbfc3d57847daacf070cee6a80cba6e53b6b589b5b76a5f77d35d243a91a911a",
+      "language": "en",
+      "providers": [
+        "gekkoushi"
+      ],
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workerRunId": "36122765287"
+    },
+    {
+      "adapterFamily": "gekkoushi-native",
+      "authType": "NO_AUTH",
+      "canonicalId": "miyorare:inventory-en:GENZTOON",
+      "evidenceSha256": "712e41499ea7dba40e1def9cf28c4500866ec417778a9876aeceedd8eb7ab27d",
+      "language": "en",
+      "providers": [
+        "gekkoushi"
+      ],
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workerRunId": "36153242920"
+    },
+    {
+      "adapterFamily": "madara",
+      "authType": "NO_AUTH",
+      "canonicalId": "miyorare:inventory-en:GRABBER",
+      "evidenceSha256": "156f7ca94818f6b083cd62fc9fb622aa8c2ff694aa2811fc17f0114df7a4a329",
+      "language": "en",
+      "providers": [
+        "gekkoushi"
+      ],
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workerRunId": "36198521749"
+    },
+    {
+      "adapterFamily": "gekkoushi-native",
+      "authType": "NO_AUTH",
+      "canonicalId": "miyorare:inventory-en:GUYACUBARI",
+      "evidenceSha256": "c7beb492fbbed9e2c7e51bcb887db73d691c76daee692f5bc5e28e7ad7147f91",
+      "language": "en",
+      "providers": [
+        "gekkoushi"
+      ],
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workerRunId": "36224408846"
+    },
+    {
+      "adapterFamily": "manga-reader-plus-api",
+      "authType": "NO_AUTH",
+      "canonicalId": "miyorare:inventory-en:HENTAI20",
+      "evidenceSha256": "6105a07dcff43a70d35ccbd4bdd2df7381a9b9e013572989c9607c1f4261ed0e",
+      "language": "en",
+      "providers": [
+        "gekkoushi"
+      ],
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workerRunId": "36255413184"
+    },
+    {
+      "adapterFamily": "custom-rest-json",
+      "authType": "NO_AUTH",
+      "canonicalId": "miyorare:inventory-en:HENTAI2READ",
+      "evidenceSha256": "c361a865c1e558b27ac8bccc7e7311797744e9241bd7cdfef5049ac07ca12f6c",
+      "language": "en",
+      "providers": [
+        "gekkoushi"
+      ],
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workerRunId": "36255413184"
+    },
+    {
+      "adapterFamily": "manga-reader-plus-api",
+      "authType": "NO_AUTH",
+      "canonicalId": "miyorare:inventory-id:KOMIKINDOORG",
+      "evidenceSha256": "70fe132cb7dfdd23819c337f6b0ea6c42740389a6521a49320db7f04ab3c91d0",
+      "language": "id",
+      "providers": [
+        "gekkoushi"
+      ],
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workerRunId": "35495853103"
+    },
+    {
+      "adapterFamily": "manga-reader-plus-api",
+      "authType": "NO_AUTH",
+      "canonicalId": "miyorare:inventory-id:KOMIKLOKAL",
+      "evidenceSha256": "7e057db1b05fdc29803035a36a591c606ccd548b20faf8a90deddc1bb9c5a53c",
+      "language": "id",
+      "providers": [
+        "gekkoushi"
+      ],
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workerRunId": "35495853103"
+    },
+    {
+      "adapterFamily": "manga-reader-plus-api",
+      "authType": "NO_AUTH",
+      "canonicalId": "miyorare:inventory-id:KOMIKU",
+      "evidenceSha256": "a80091045474ce7ae38f5ab97d405d0b9d42640460300436d0195b3b21971e32",
+      "language": "id",
+      "providers": [
+        "gekkoushi"
+      ],
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workerRunId": "35544983745"
+    },
+    {
+      "adapterFamily": "custom-paged-html",
+      "authType": "NO_AUTH",
+      "canonicalId": "miyorare:inventory-id:MAIDID",
+      "evidenceSha256": "4a993c006a14661d7271948bb4afa786876ed1cf3a20a79d2e62258bc306f05d",
+      "language": "id",
+      "providers": [
+        "gekkoushi"
+      ],
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workerRunId": "35645599659"
+    },
+    {
+      "adapterFamily": "multi-provider",
+      "authType": "NO_AUTH",
+      "canonicalId": "miyorare:inventory-id:MANGASUSUKU",
+      "evidenceSha256": "fb53343c5cf431851321d93adc69fcf3a5fe5e7879f05ee52f3ecf55934279a9",
+      "language": "id",
+      "providers": [
+        "gekkoushi",
+        "uma"
+      ],
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "workerRunId": "35759876471"
+    },
+    {
+      "adapterFamily": "manga-reader-plus-api",
+      "authType": "NO_AUTH",
+      "canonicalId": "miyorare:inventory-id:MANHWALISTORG",
+      "evidenceSha256": "47781434fdf0f9c8d1dec44328428c3ce19c36261f29d312c8c9b7e9b226e255",
+      "language": "id",
+      "providers": [
+        "gekkoushi"
+      ],
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workerRunId": "35806744950"
+    },
+    {
+      "adapterFamily": "uma-native",
+      "authType": "NO_AUTH",
+      "canonicalId": "miyorare:inventory-id:SASANGEYOUNET",
+      "evidenceSha256": "080eed13a0f29a36b582dabe251e9f5156153b3af419f7523d153c8e1fe53798",
       "language": "id",
       "providers": [
         "uma"
@@ -89,109 +249,30 @@
       "testedVersions": {
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
-      "workerRunId": "35456153973"
-    },
-    {
-      "adapterFamily": "manga-reader-plus-api",
-      "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-id:DOJING",
-      "evidenceSha256": "f2c6cc565720cddf52f38b533de0b66e248deaace43f780a6fbb501706917188",
-      "language": "id",
-      "providers": [
-        "gekkoushi"
-      ],
-      "testedVersions": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
-      },
-      "workerRunId": "35372314288"
-    },
-    {
-      "adapterFamily": "natsu",
-      "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-id:KIRYUU",
-      "evidenceSha256": "9e10cf25a17b0c1a16d288b6c861aa090b57b78e7bb49e6ab7e5dd1a68a869ad",
-      "language": "id",
-      "providers": [
-        "gekkoushi"
-      ],
-      "testedVersions": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
-      },
-      "workerRunId": "35456153973"
-    },
-    {
-      "adapterFamily": "manga-reader-plus-api",
-      "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-id:KOFISCANS",
-      "evidenceSha256": "107a5e80ed208596dfd0761f9a9a2d0bb05720ea24318ff75fc4c806765a172d",
-      "language": "id",
-      "providers": [
-        "gekkoushi"
-      ],
-      "testedVersions": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
-      },
-      "workerRunId": "35464001903"
-    },
-    {
-      "adapterFamily": "manga-reader-plus-api",
-      "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-id:KOMBATCH",
-      "evidenceSha256": "10c58f708eb4be9c895fb4d10cae27031132e7facc0ee5cf93fc7dc995535414",
-      "language": "id",
-      "providers": [
-        "gekkoushi"
-      ],
-      "testedVersions": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
-      },
-      "workerRunId": "35464001903"
-    },
-    {
-      "adapterFamily": "manga-reader-plus-api",
-      "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-id:KOMIKCINTA",
-      "evidenceSha256": "8ec61d21318b6b21a0463c371c160d0b258b501dbd54da6092d7a50b5e74b350",
-      "language": "id",
-      "providers": [
-        "gekkoushi"
-      ],
-      "testedVersions": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
-      },
-      "workerRunId": "35471414285"
-    },
-    {
-      "adapterFamily": "manga-reader-plus-api",
-      "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-id:KOMIKDEWASAONLINE",
-      "evidenceSha256": "60e5306f6bb5afae22df9c320c6ad41a2d3ded31e65c3c8c2e55c815f47d7f5a",
-      "language": "id",
-      "providers": [
-        "gekkoushi"
-      ],
-      "testedVersions": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
-      },
-      "workerRunId": "35476652144"
+      "workerRunId": "36057273768"
     }
   ],
   "state": "APPROVED",
   "summary": {
-    "approved": 12,
+    "approved": 17,
     "canonicalIds": [
-      "miyorare:inventory-en:APCOMICS",
-      "miyorare:inventory-en:BANANASCANCOM",
-      "miyorare:inventory-en:CHIKARI",
-      "miyorare:inventory-id:ALAWALE",
-      "miyorare:inventory-id:BACAKOMIKPICS",
-      "miyorare:inventory-id:CGBUM",
-      "miyorare:inventory-id:DOJING",
-      "miyorare:inventory-id:KIRYUU",
-      "miyorare:inventory-id:KOFISCANS",
-      "miyorare:inventory-id:KOMBATCH",
-      "miyorare:inventory-id:KOMIKCINTA",
-      "miyorare:inventory-id:KOMIKDEWASAONLINE"
+      "miyorare:inventory-en:COLORIZEDMANGAS",
+      "miyorare:inventory-en:DANKEFURSLESEN",
+      "miyorare:inventory-en:DEMONICSCANS",
+      "miyorare:inventory-en:ENTHUNDERSCANS",
+      "miyorare:inventory-en:GDSCANS",
+      "miyorare:inventory-en:GENZTOON",
+      "miyorare:inventory-en:GRABBER",
+      "miyorare:inventory-en:GUYACUBARI",
+      "miyorare:inventory-en:HENTAI20",
+      "miyorare:inventory-en:HENTAI2READ",
+      "miyorare:inventory-id:KOMIKINDOORG",
+      "miyorare:inventory-id:KOMIKLOKAL",
+      "miyorare:inventory-id:KOMIKU",
+      "miyorare:inventory-id:MAIDID",
+      "miyorare:inventory-id:MANGASUSUKU",
+      "miyorare:inventory-id:MANHWALISTORG",
+      "miyorare:inventory-id:SASANGEYOUNET"
     ],
     "schemaVersion": 1
   }
