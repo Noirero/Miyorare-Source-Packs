@@ -4948,21 +4948,25 @@
     "miyorare:inventory-en:COMIX": {
       "adapterFamily": "multi-provider",
       "approvalState": "NOT_READY",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
+        "attempts": 2,
         "gate": "REAL_PARSER_BLOCKED",
         "parser": {
           "executionMode": "real-live-parser",
           "gate": "FAIL",
+          "heldProviders": [
+            "gekkoushi",
+            "keiyoushi"
+          ],
           "memberships": [
             {
               "canonicalId": "miyorare:inventory-en:COMIX",
               "chapterTraversal": false,
               "detailsTraversal": false,
               "errors": 0,
-              "failureMessage": "org.opentest4j.AssertionFailedError: live browse returned no manga; lastFailure=NotFoundException ==> expected: <true> but was: <false>",
+              "failureMessage": "org.opentest4j.AssertionFailedError: live browse returned no manga; lastFailure=HttpStatusException ==> expected: <true> but was: <false>",
               "failureType": "org.opentest4j.AssertionFailedError",
               "failures": 1,
               "fqcn": "tsuki.site.en.comix.Comix",
@@ -4978,26 +4982,20 @@
             },
             {
               "canonicalId": "miyorare:inventory-en:COMIX",
-              "chapterTraversal": false,
-              "detailsTraversal": false,
-              "errors": 0,
-              "failureMessage": "java.lang.ExceptionInInitializerError",
-              "failureType": "java.lang.ExceptionInInitializerError",
-              "failures": 1,
               "locator": "src/en/comix",
-              "pageExtraction": false,
-              "parserExecution": true,
+              "parserExecution": false,
               "provider": "keiyoushi",
+              "reason": "JUNIT_SUITE_MISSING",
               "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/comix/build/test-results/testDebugUnitTest",
-              "skipped": 0,
               "status": "FAIL",
-              "testClass": "compatibilityfarm.AutoLive_keiyoushi_82c86bff8b2a",
-              "tests": 1
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_82c86bff8b2a"
             }
-          ]
+          ],
+          "selectedProviders": []
         },
         "profile": {
           "gate": "PASS",
+          "heldProviders": [],
           "memberships": [
             {
               "authType": "NO_AUTH",
@@ -5006,7 +5004,8 @@
               "family": "custom-rest-json",
               "locator": "src/main/kotlin/tsuki/site/en/comix/Comix.kt",
               "probe": {
-                "httpStatus": 200,
+                "detail": "http-403",
+                "httpStatus": 403,
                 "reachable": true,
                 "url": "https://comix.to/"
               },
@@ -5022,7 +5021,8 @@
               "family": "custom-paged-form-api",
               "locator": "src/en/comix",
               "probe": {
-                "httpStatus": 200,
+                "detail": "http-403",
+                "httpStatus": 403,
                 "reachable": true,
                 "url": "https://comix.to/"
               },
@@ -5031,20 +5031,25 @@
               "provider": "keiyoushi",
               "upstreamBrokenReason": null
             }
+          ],
+          "selectedProviders": [
+            "gekkoushi",
+            "keiyoushi"
           ]
         }
       },
-      "evidenceSha256": "e43ce8cb9a799fb1fba6e7547297e7476e1985118e69129803cd86f7cb31bbb9",
-      "lastCheckedAt": "2026-09-20T23:37:19Z",
+      "evidenceSha256": "8053a60ba524cfef675167d3a64b646c09f316b6830d4bfb1341ad8c9d63a2ac",
+      "lastCheckedAt": "2026-10-19T02:29:25Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
+      "selectedProviders": [],
       "state": "RETRY",
       "testedVersions": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
-      "workflowRunId": "35544983745"
+      "workflowRunId": "39185136786"
     },
     "miyorare:inventory-en:COMIZ": {
       "adapterFamily": "madara",
@@ -12309,6 +12314,517 @@
       },
       "workflowRunId": "39185136786"
     },
+    "miyorare:inventory-en:HENTAIWEBTOON": {
+      "adapterFamily": "unclassified",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "heldProviders": [
+            "gekkoushi"
+          ],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/HentaiWebtoon.kt",
+              "probe": {
+                "detail": "URLError",
+                "reachable": false,
+                "url": "https://hentaiwebtoon.com/"
+              },
+              "probeHost": "hentaiwebtoon.com",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": []
+        }
+      },
+      "evidenceSha256": "ee5dc47168c3e68f746ec753b349244dba8677437ef455d0cb355e921e96f996",
+      "lastCheckedAt": "2026-10-19T02:29:25Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "39185136786"
+    },
+    "miyorare:inventory-en:HENTAIXCOMIC": {
+      "adapterFamily": "madara",
+      "approvalState": "WAITING_FOR_APPROVAL",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_PASS",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "PASS",
+          "heldProviders": [
+            "keiyoushi"
+          ],
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:HENTAIXCOMIC",
+              "chapterTraversal": true,
+              "detailsTraversal": true,
+              "errors": 0,
+              "failureMessage": null,
+              "failureType": null,
+              "failures": 0,
+              "fqcn": "tsuki.site.madara.en.HentaixComic",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/HentaixComic.kt",
+              "pageExtraction": true,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "PASS",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_0eef3a6be0aa",
+              "tests": 1
+            },
+            {
+              "canonicalId": "miyorare:inventory-en:HENTAIXCOMIC",
+              "locator": "src/en/hentaixcomic",
+              "parserExecution": false,
+              "provider": "keiyoushi",
+              "reason": "JUNIT_SUITE_MISSING",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/hentaixcomic/build/test-results/testDebugUnitTest",
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_9d0581aa1c08"
+            },
+            {
+              "canonicalId": "miyorare:inventory-en:HENTAIXCOMIC",
+              "chapterTraversal": true,
+              "detailsTraversal": true,
+              "errors": 0,
+              "failureMessage": null,
+              "failureType": null,
+              "failures": 0,
+              "fqcn": "tsuki.site.en.nsfw.HentaixComic",
+              "locator": "src/main/kotlin/tsuki/site/en/nsfw/HentaiXComic.kt",
+              "pageExtraction": true,
+              "parserExecution": true,
+              "provider": "uma",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/uma/build/test-results/test",
+              "skipped": 0,
+              "status": "PASS",
+              "testClass": "compatibilityfarm.AutoLive_uma_5c23fa8a7b0c",
+              "tests": 1
+            }
+          ],
+          "selectedProviders": [
+            "gekkoushi",
+            "uma"
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "heldProviders": [],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/HentaixComic.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://hentaixcomic.com/"
+              },
+              "probeHost": "hentaixcomic.com",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            },
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/en/hentaixcomic",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://hentaixcomic.com/"
+              },
+              "probeHost": "hentaixcomic.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            },
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/en/nsfw/HentaiXComic.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://hentaixcomic.com/"
+              },
+              "probeHost": "hentaixcomic.com",
+              "profilePass": true,
+              "provider": "uma",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": [
+            "gekkoushi",
+            "keiyoushi",
+            "uma"
+          ]
+        }
+      },
+      "evidenceSha256": "f00984da76e7c13a4f83953c3db2baa8333bf75571ecf43cb414768b02e3cbc4",
+      "lastCheckedAt": "2026-10-19T02:29:25Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "selectedProviders": [
+        "gekkoushi",
+        "uma"
+      ],
+      "state": "READY_FOR_APPROVAL",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "workflowRunId": "39185136786"
+    },
+    "miyorare:inventory-en:HENTAIXDICKGIRL": {
+      "adapterFamily": "madara",
+      "approvalState": "WAITING_FOR_APPROVAL",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_PASS",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "PASS",
+          "heldProviders": [
+            "keiyoushi"
+          ],
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:HENTAIXDICKGIRL",
+              "chapterTraversal": true,
+              "detailsTraversal": true,
+              "errors": 0,
+              "failureMessage": null,
+              "failureType": null,
+              "failures": 0,
+              "fqcn": "tsuki.site.madara.en.Hentaixdickgirl",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/Hentaixdickgirl.kt",
+              "pageExtraction": true,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "PASS",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_4291766ee045",
+              "tests": 1
+            },
+            {
+              "canonicalId": "miyorare:inventory-en:HENTAIXDICKGIRL",
+              "locator": "src/en/hentaixdickgirl",
+              "parserExecution": false,
+              "provider": "keiyoushi",
+              "reason": "JUNIT_SUITE_MISSING",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/hentaixdickgirl/build/test-results/testDebugUnitTest",
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_5c82e34bc7c8"
+            }
+          ],
+          "selectedProviders": [
+            "gekkoushi"
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "heldProviders": [],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/Hentaixdickgirl.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://hentaixdickgirl.com/"
+              },
+              "probeHost": "hentaixdickgirl.com",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            },
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/en/hentaixdickgirl",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://hentaixdickgirl.com/"
+              },
+              "probeHost": "hentaixdickgirl.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": [
+            "gekkoushi",
+            "keiyoushi"
+          ]
+        }
+      },
+      "evidenceSha256": "44d652707ddfced8f957b445196c1986270b64c2f7b8a9d0b642591aaa6eb1a2",
+      "lastCheckedAt": "2026-10-19T02:29:25Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "selectedProviders": [
+        "gekkoushi"
+      ],
+      "state": "READY_FOR_APPROVAL",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "39185136786"
+    },
+    "miyorare:inventory-en:HENTAIXYURI": {
+      "adapterFamily": "madara",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "heldProviders": [
+            "gekkoushi",
+            "keiyoushi"
+          ],
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:HENTAIXYURI",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "org.jsoup.HttpStatusException: . Status=400, URL=[https://hentaixyuri.com/wp-admin/admin-ajax.php]",
+              "failureType": "org.jsoup.HttpStatusException",
+              "failures": 1,
+              "fqcn": "tsuki.site.madara.en.HentaixYuri",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/HentaixYuri.kt",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_d18d90bfa1d7",
+              "tests": 1
+            },
+            {
+              "canonicalId": "miyorare:inventory-en:HENTAIXYURI",
+              "locator": "src/en/hentaixyuri",
+              "parserExecution": false,
+              "provider": "keiyoushi",
+              "reason": "JUNIT_SUITE_MISSING",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/hentaixyuri/build/test-results/testDebugUnitTest",
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_b55aa7806755"
+            }
+          ],
+          "selectedProviders": []
+        },
+        "profile": {
+          "gate": "PASS",
+          "heldProviders": [],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/HentaixYuri.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://hentaixyuri.com/"
+              },
+              "probeHost": "hentaixyuri.com",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            },
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/en/hentaixyuri",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://hentaixyuri.com/"
+              },
+              "probeHost": "hentaixyuri.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": [
+            "gekkoushi",
+            "keiyoushi"
+          ]
+        }
+      },
+      "evidenceSha256": "99971ba2aa68066904e84cbe3057e8a5b9f73a9aecec313c8fc5edd3c3761bc7",
+      "lastCheckedAt": "2026-10-19T02:29:25Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "39185136786"
+    },
+    "miyorare:inventory-en:HENTALK": {
+      "adapterFamily": "unclassified",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "heldProviders": [
+            "gekkoushi"
+          ],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-rest-json",
+              "locator": "src/main/kotlin/tsuki/site/en/Hentalk.kt",
+              "probe": {
+                "detail": "URLError",
+                "reachable": false,
+                "url": "https://fakku.cc/"
+              },
+              "probeHost": "fakku.cc",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": []
+        }
+      },
+      "evidenceSha256": "3fe24c23b17c502f7ca0291c2d7f8f5b8f119d5b11789d3bd91e5d1d773515f6",
+      "lastCheckedAt": "2026-10-19T02:29:25Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "39185136786"
+    },
+    "miyorare:inventory-en:HENTARA": {
+      "adapterFamily": "custom-rest-json",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "heldProviders": [
+            "keiyoushi"
+          ],
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:HENTARA",
+              "locator": "src/en/hentara",
+              "parserExecution": false,
+              "provider": "keiyoushi",
+              "reason": "JUNIT_SUITE_MISSING",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/hentara/build/test-results/testDebugUnitTest",
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_014b3b246d9a"
+            }
+          ],
+          "selectedProviders": []
+        },
+        "profile": {
+          "gate": "PASS",
+          "heldProviders": [],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-rest-json",
+              "locator": "src/en/hentara",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://hentara.com/"
+              },
+              "probeHost": "hentara.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": [
+            "keiyoushi"
+          ]
+        }
+      },
+      "evidenceSha256": "8bd851fc2e2849fd7dec350e8ff95abe37f26c1619e9b4e925ea90f14b5db827",
+      "lastCheckedAt": "2026-10-19T02:29:25Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "39185136786"
+    },
     "miyorare:inventory-id:AARLAS": {
       "adapterFamily": "keiyoushi-native",
       "approvalState": "NOT_READY",
@@ -17690,16 +18206,19 @@
       "workflowRunId": "39185136786"
     },
     "miyorare:inventory-id:LIANSCANS": {
-      "adapterFamily": "multi-provider",
-      "approvalState": "NOT_READY",
-      "attempts": 1,
+      "adapterFamily": "manga-reader-plus-api",
+      "approvalState": "WAITING_FOR_APPROVAL",
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
-        "gate": "REAL_PARSER_BLOCKED",
+        "attempts": 2,
+        "gate": "REAL_PARSER_PASS",
         "parser": {
           "executionMode": "real-live-parser",
-          "gate": "FAIL",
+          "gate": "PASS",
+          "heldProviders": [
+            "keiyoushi"
+          ],
           "memberships": [
             {
               "canonicalId": "miyorare:inventory-id:LIANSCANS",
@@ -17738,10 +18257,14 @@
               "testClass": "compatibilityfarm.AutoLive_keiyoushi_7117a212c2e1",
               "tests": 1
             }
+          ],
+          "selectedProviders": [
+            "gekkoushi"
           ]
         },
         "profile": {
           "gate": "PASS",
+          "heldProviders": [],
           "memberships": [
             {
               "authType": "NO_AUTH",
@@ -17775,20 +18298,26 @@
               "provider": "keiyoushi",
               "upstreamBrokenReason": null
             }
+          ],
+          "selectedProviders": [
+            "gekkoushi",
+            "keiyoushi"
           ]
         }
       },
-      "evidenceSha256": "a52d475e6959dcc7427396968c744fd24a9152dcf34679055dc0cd48075198d6",
-      "lastCheckedAt": "2026-09-21T14:21:41Z",
+      "evidenceSha256": "44524136e776f89627ac6071d65cbb2163f9421ff554777d9f0d8425cbbe452c",
+      "lastCheckedAt": "2026-10-19T02:29:25Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
-      "state": "RETRY",
+      "selectedProviders": [
+        "gekkoushi"
+      ],
+      "state": "READY_FOR_APPROVAL",
       "testedVersions": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
-      "workflowRunId": "35611060443"
+      "workflowRunId": "39185136786"
     },
     "miyorare:inventory-id:LINEWEBTOONSINDONESIAN": {
       "adapterFamily": "custom-rest-json",
@@ -23606,5 +24135,5 @@
       "workflowRunId": "36240024118"
     }
   },
-  "updatedAt": "2026-10-19T02:22:10Z"
+  "updatedAt": "2026-10-19T02:29:25Z"
 }
