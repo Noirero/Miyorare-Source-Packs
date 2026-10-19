@@ -1,0 +1,377 @@
+name: Source Lab A3 Gekkoushi Isolation Canary
+run-name: Source Lab A3 Gekkoushi Isolation Canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      foundation_sha:
+        description: Exact compatibility-farm-foundation SHA to audit
+        required: true
+        type: string
+        default: 'dc7f9cfd11ea13b37902ee1d4653cbedd0901f0a'
+      candidate_sha:
+        description: Exact Gekkoushi candidate SHA to exercise
+        required: true
+        type: string
+        default: '12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67'
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: source-lab-a3-gekkoushi-isolation-canary
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Build exact Gekkoushi membership matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      membership_count: ${{ steps.plan.outputs.membership_count }}
+    env:
+      EXPECTED_OWNER_ID: '149634319'
+      FOUNDATION_SHA: ${{ inputs.foundation_sha }}
+      CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+    steps:
+      - name: Validate owner-only immutable inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+          [[ "$FOUNDATION_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+      - name: Checkout exact Compatibility Farm foundation
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ inputs.foundation_sha }}
+          fetch-depth: 1
+
+      - name: Refuse stale foundation or mismatched Gekkoushi candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$FOUNDATION_SHA" ]]
+          remote="$(git ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')"
+          [[ "$remote" == "$FOUNDATION_SHA" ]] || {
+            echo "::error::Compatibility Farm moved: expected $FOUNDATION_SHA, current $remote"
+            exit 1
+          }
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          status = json.loads(Path('upstream/status.json').read_text(encoding='utf-8'))
+          provider = status['providers']['gekkoushi']
+          automation = status.get('automation', {})
+          candidate = automation.get('candidates', {}).get('gekkoushi', {})
+          expected = os.environ['CANDIDATE_SHA']
+          if provider.get('activeCommit') != provider.get('lastKnownGood'):
+              raise SystemExit('Gekkoushi active commit is not LKG; refusing canary')
+          if candidate.get('candidate') != expected:
+              raise SystemExit(
+                  f"Gekkoushi candidate changed: expected {expected}, observed {candidate.get('candidate')}"
+              )
+          if candidate.get('current') != provider.get('lastKnownGood'):
+              raise SystemExit('Gekkoushi candidate baseline no longer matches LKG')
+          PY
+
+      - name: Build ACTIVE-only Gekkoushi parser matrix
+        id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          python3 tools/parser_family_plan.py \
+            --registry compatibility/source-registry.json \
+            --families compatibility/parser-families.json \
+            validate \
+            --output build/parser-family-validation.json
+          python3 tools/parser_family_plan.py \
+            --registry compatibility/source-registry.json \
+            --families compatibility/parser-families.json \
+            plan --provider gekkoushi \
+            --output build/parser-plan-gekkoushi.json
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          plan = json.loads(Path('build/parser-plan-gekkoushi.json').read_text(encoding='utf-8'))
+          include = plan.get('include', [])
+          if len(include) < 2:
+              raise SystemExit('Gekkoushi isolation canary requires at least two ACTIVE memberships')
+          print('matrix=' + json.dumps({'include': include}, separators=(',', ':')))
+          print('membership_count=' + str(len(include)))
+          PY
+
+      - name: Upload immutable canary plan
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: source-lab-a3-gekkoushi-plan-${{ github.run_id }}
+          path: |
+            build/parser-family-validation.json
+            build/parser-plan-gekkoushi.json
+          if-no-files-found: error
+          retention-days: 30
+
+  membership:
+    name: Gekkoushi ${{ matrix.familyId }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    env:
+      FOUNDATION_SHA: ${{ inputs.foundation_sha }}
+      CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+      CANONICAL_ID: ${{ matrix.canonicalId }}
+      FAMILY_ID: ${{ matrix.familyId }}
+      TEST_CLASS: ${{ matrix.testClass }}
+      REPAIR_RECIPES_JSON: ${{ toJson(matrix.repairRecipes) }}
+    steps:
+      - name: Checkout exact Compatibility Farm foundation
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ inputs.foundation_sha }}
+          path: farm
+          fetch-depth: 1
+
+      - name: Checkout exact Gekkoushi candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ inputs.candidate_sha }}
+          path: upstream
+          fetch-depth: 1
+
+      - name: Set up Java 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+
+      - name: Install only the selected Gekkoushi harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git -C farm rev-parse HEAD)" == "$FOUNDATION_SHA" ]]
+          [[ "$(git -C upstream rev-parse HEAD)" == "$CANDIDATE_SHA" ]]
+          if [[ -d upstream/src/test ]]; then
+            mv upstream/src/test upstream/_compatibility-upstream-tests
+          fi
+          mkdir -p upstream/src/test/kotlin/compatibilityfarm
+          mkdir -p upstream/src/test/resources/compatibility-farm/shinigami
+          harness="${TEST_CLASS##*.}.kt"
+          test -f "farm/compatibility/harness/gekkoushi/$harness"
+          cp "farm/compatibility/harness/gekkoushi/$harness" upstream/src/test/kotlin/compatibilityfarm/
+          cp farm/compatibility/harness/uma/DeterministicMangaLoaderContext.kt upstream/src/test/kotlin/compatibilityfarm/
+          cp -R farm/compatibility/harness/gekkoushi/resources/. upstream/src/test/resources/compatibility-farm/
+          cp -R farm/compatibility/harness/uma/resources/shinigami/. upstream/src/test/resources/compatibility-farm/shinigami/
+
+      - name: Apply only selected membership repair recipes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p farm/build
+          count="$(jq 'length' <<<"$REPAIR_RECIPES_JSON")"
+          if [[ "$count" == 0 ]]; then
+            exit 0
+          fi
+          [[ "$count" == 1 ]]
+          [[ "$(jq -r '.[0]' <<<"$REPAIR_RECIPES_JSON")" == 'forward-parser-request-headers-to-http-get' ]]
+          case "$CANONICAL_ID" in
+            miyorare:miyorare-id:SHINIGAMI)
+              target='src/main/kotlin/tsuki/site/id/Shinigami.kt'
+              ;;
+            miyorare:miyorare-en:BATCAVE)
+              target='src/main/kotlin/tsuki/site/en/BatCave.kt'
+              ;;
+            *)
+              echo "::error::Unsupported repair-bearing Gekkoushi membership: $CANONICAL_ID"
+              exit 1
+              ;;
+          esac
+          python3 farm/tools/repair_engine.py \
+            --recipes farm/compatibility/repair-recipes.json \
+            --recipe forward-parser-request-headers-to-http-get \
+            --provider gekkoushi \
+            --canonical-id "$CANONICAL_ID" \
+            --root upstream \
+            --path "$target" \
+            --output "farm/build/repair-$FAMILY_ID.json"
+
+      - name: Execute exactly one Gekkoushi real parser membership
+        id: parser
+        continue-on-error: true
+        working-directory: upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew test --tests "$TEST_CLASS" --no-daemon
+
+      - name: Normalize PASS or parser FAIL as isolated evidence
+        id: report
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p farm/build
+          set +e
+          python3 farm/tools/parser_harness_report.py \
+            --registry farm/compatibility/source-registry.json \
+            --results-dir upstream/build/test-results/test \
+            --provider gekkoushi \
+            --source "$CANONICAL_ID=$TEST_CLASS" \
+            --output "farm/build/real-parser-harness-$FAMILY_ID-report.json"
+          rc=$?
+          set -e
+          case "$rc" in
+            0|2) ;;
+            *) echo "::error::Could not normalize isolated parser evidence (rc=$rc)"; exit "$rc" ;;
+          esac
+          echo "report_rc=$rc" >> "$GITHUB_OUTPUT"
+
+      - name: Validate isolated evidence receipt
+        if: always()
+        env:
+          PARSER_OUTCOME: ${{ steps.parser.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${{ steps.report.outcome }}" == success ]]
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path('farm/build') / f"real-parser-harness-{os.environ['FAMILY_ID']}-report.json"
+          report = json.loads(path.read_text(encoding='utf-8'))
+          results = report.get('results')
+          if not isinstance(results, list) or len(results) != 1:
+              raise SystemExit('isolated report must contain exactly one membership')
+          result = results[0]
+          if result.get('canonicalId') != os.environ['CANONICAL_ID']:
+              raise SystemExit('isolated report canonicalId mismatch')
+          if result.get('provider') != 'gekkoushi' or result.get('parserExecution') is not True:
+              raise SystemExit('isolated report is not real Gekkoushi parser evidence')
+          status = result.get('status')
+          if status not in {'PASS', 'FAIL'}:
+              raise SystemExit('isolated parser status must be PASS or FAIL')
+          parser_outcome = os.environ['PARSER_OUTCOME']
+          if status == 'PASS' and parser_outcome != 'success':
+              raise SystemExit('PASS evidence cannot come from a failed parser step')
+          if status == 'FAIL' and parser_outcome == 'success':
+              raise SystemExit('FAIL evidence unexpectedly came from a successful parser step')
+          PY
+
+      - name: Upload per-membership canary evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: source-lab-a3-gekkoushi-${{ matrix.familyId }}-${{ github.run_id }}
+          path: |
+            farm/build/real-parser-harness-${{ matrix.familyId }}-report.json
+            farm/build/repair-${{ matrix.familyId }}.json
+            upstream/build/test-results/test/*.xml
+          if-no-files-found: warn
+          retention-days: 30
+
+  aggregate:
+    name: Prove Gekkoushi source isolation
+    needs: [prepare, membership]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXPECTED_MEMBERSHIPS: ${{ needs.prepare.outputs.membership_count }}
+      CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+    steps:
+      - name: Checkout exact Compatibility Farm foundation
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ inputs.foundation_sha }}
+          path: farm
+          fetch-depth: 1
+
+      - name: Download all available isolated evidence
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          pattern: source-lab-a3-gekkoushi-*-${{ github.run_id }}
+          path: build/evidence
+          merge-multiple: true
+
+      - name: Require one normalized receipt per ACTIVE membership
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t reports < <(find build/evidence -type f -name 'real-parser-harness-*-report.json' | sort)
+          [[ "${#reports[@]}" -eq "$EXPECTED_MEMBERSHIPS" ]] || {
+            echo "::error::Isolation evidence incomplete: expected $EXPECTED_MEMBERSHIPS reports, found ${#reports[@]}"
+            exit 1
+          }
+          cmd=(python3 farm/tools/parser_harness_aggregate.py \
+            --registry farm/compatibility/source-registry.json \
+            --output build/gekkoushi-isolation-aggregate.json)
+          for report in "${reports[@]}"; do
+            cmd+=(--report "$report")
+          done
+          mapfile -t repairs < <(find build/evidence -type f -name 'repair-*.json' | sort)
+          for repair in "${repairs[@]}"; do
+            cmd+=(--repair-report "$repair")
+          done
+          "${cmd[@]}"
+
+      - name: Emit A3 isolation verdict without promoting anything
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          aggregate = json.loads(Path('build/gekkoushi-isolation-aggregate.json').read_text(encoding='utf-8'))
+          executions = []
+          for source in aggregate.get('results', []):
+              for execution in source.get('providerExecutions', []):
+                  if execution.get('provider') == 'gekkoushi':
+                      executions.append((source.get('canonicalId'), execution.get('status')))
+          expected = int(os.environ['EXPECTED_MEMBERSHIPS'])
+          if len(executions) != expected:
+              raise SystemExit(f'expected {expected} Gekkoushi executions, observed {len(executions)}')
+          passed = sorted(source for source, status in executions if status == 'PASS')
+          failed = sorted(source for source, status in executions if status == 'FAIL')
+          verdict = {
+              'schemaVersion': 1,
+              'phase': 'A3_SOURCE_PROVIDER_ISOLATION',
+              'provider': 'gekkoushi',
+              'candidate': os.environ['CANDIDATE_SHA'],
+              'membershipCount': expected,
+              'passingMemberships': passed,
+              'failingMemberships': failed,
+              'allMembershipsExecuted': True,
+              'parserFailuresCancelUnrelatedSources': False,
+              'foundationMutated': False,
+              'promotionAttempted': False,
+          }
+          Path('build/gekkoushi-isolation-verdict.json').write_text(
+              json.dumps(verdict, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          print(json.dumps(verdict, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload A3 isolation verdict
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: source-lab-a3-gekkoushi-isolation-${{ github.run_id }}
+          path: |
+            build/gekkoushi-isolation-aggregate.json
+            build/gekkoushi-isolation-verdict.json
+          if-no-files-found: error
+          retention-days: 30
