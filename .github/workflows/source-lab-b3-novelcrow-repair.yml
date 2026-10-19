@@ -1,0 +1,311 @@
+name: Source Lab B3 NovelCrow Repair
+run-name: Source Lab B3 NovelCrow Repair
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-b3-novelcrow-repair.yml'
+      - 'tools/source_live_parser_harness.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-lab-b3-novelcrow-repair-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_OWNER_ID: '149634319'
+  MIYORARE_REPAIR_SHA: 'a513d491ac9547f95185ed618979b0fea47c8525'
+  GEKKOUSHI_SHA: '12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67'
+  NOVELCROW_BLOB_SHA: '31d43c8696c6630d105cf2fc3afd1ee91832744e'
+  NOVELCROW_ID: 'miyorare:inventory-en:NOVELCROW'
+
+jobs:
+  novelcrow-repair:
+    name: Prove NovelCrow overlay recovery
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+    steps:
+      - name: Validate safe execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" ]] || {
+                echo "::error::repair validation only accepts same-repository pull requests"
+                exit 1
+              }
+              ;;
+            workflow_dispatch)
+              [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+              [[ "$GITHUB_REF_NAME" == "main" ]]
+              ;;
+            *) echo "::error::unexpected event: $GITHUB_EVENT_NAME"; exit 1 ;;
+          esac
+
+      - name: Checkout validation control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout baseline Gekkoushi
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ env.GEKKOUSHI_SHA }}
+          path: _upstream/baseline/gekkoushi
+          fetch-depth: 1
+
+      - name: Checkout repaired Gekkoushi base
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ env.GEKKOUSHI_SHA }}
+          path: _upstream/repaired/gekkoushi
+          fetch-depth: 1
+
+      - name: Checkout exact Miyorare repair candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Noirero/Miyorare
+          ref: ${{ env.MIYORARE_REPAIR_SHA }}
+          path: miyorare
+          fetch-depth: 1
+
+      - name: Prove frozen provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git -C _upstream/baseline/gekkoushi rev-parse HEAD)" == "$GEKKOUSHI_SHA" ]]
+          [[ "$(git -C _upstream/repaired/gekkoushi rev-parse HEAD)" == "$GEKKOUSHI_SHA" ]]
+          [[ "$(git -C miyorare rev-parse HEAD)" == "$MIYORARE_REPAIR_SHA" ]]
+          target='src/main/kotlin/tsuki/site/madara/en/Novelcrow.kt'
+          [[ "$(git -C _upstream/baseline/gekkoushi hash-object "$target")" == "$NOVELCROW_BLOB_SHA" ]]
+          [[ "$(git -C _upstream/repaired/gekkoushi hash-object "$target")" == "$NOVELCROW_BLOB_SHA" ]]
+
+      - name: Apply exact Miyorare replacement overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+          from pathlib import Path
+
+          tools = Path('miyorare/extensions/miyorare-sources/tools').resolve()
+          sys.path.insert(0, str(tools))
+          from gekkoushi_overlay import apply_miyorare_overlays
+
+          source_root = Path('miyorare/extensions/miyorare-sources').resolve()
+          upstream = Path('_upstream/repaired/gekkoushi').resolve()
+          applied = apply_miyorare_overlays(source_root, upstream, 'en')
+          expected = 'replace:madara/en/Novelcrow.kt'
+          if expected not in applied:
+              raise SystemExit(f'NovelCrow replacement was not applied: {applied}')
+          print('\n'.join(applied))
+          PY
+          target='_upstream/repaired/gekkoushi/src/main/kotlin/tsuki/site/madara/en/Novelcrow.kt'
+          [[ "$(git -C _upstream/repaired/gekkoushi hash-object 'src/main/kotlin/tsuki/site/madara/en/Novelcrow.kt')" != "$NOVELCROW_BLOB_SHA" ]]
+          grep -Fq 'override val withoutAjax = true' "$target"
+          grep -Fq 'override val stylePage = ""' "$target"
+          grep -Fq 'override val tagPrefix = "comic-genre/"' "$target"
+          [[ "$(git -C _upstream/baseline/gekkoushi hash-object 'src/main/kotlin/tsuki/site/madara/en/Novelcrow.kt')" == "$NOVELCROW_BLOB_SHA" ]]
+
+      - name: Set up Java 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          packages: platform-tools
+
+      - name: Compile baseline and repaired checkouts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for side in baseline repaired; do
+            (
+              cd "_upstream/$side/gekkoushi"
+              chmod +x gradlew
+              ./gradlew buildJar --no-daemon
+            )
+          done
+
+      - name: Build single-source live parser plans
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          for side in baseline repaired; do
+            SIDE="$side" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          cid = os.environ['NOVELCROW_ID']
+          side = os.environ['SIDE']
+          plan = {
+              'schemaVersion': 2,
+              'side': side,
+              'count': 1,
+              'items': [{
+                  'canonicalId': cid,
+                  'providers': ['gekkoushi'],
+                  'upstreamIdentities': {
+                      'gekkoushi': {
+                          'file': 'src/main/kotlin/tsuki/site/madara/en/Novelcrow.kt',
+                          'sourceName': 'NOVELCROW',
+                      },
+                  },
+              }],
+          }
+          profile = {
+              'results': [{
+                  'canonicalId': cid,
+                  'state': 'PARSER_PENDING',
+                  'authType': 'NO_AUTH',
+              }],
+          }
+          Path(f'build/novelcrow-{side}-plan.json').write_text(json.dumps(plan, indent=2) + '\n')
+          Path(f'build/novelcrow-{side}-profile.json').write_text(json.dumps(profile, indent=2) + '\n')
+          PY
+          done
+
+      - name: Isolate unrelated Gekkoushi tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for side in baseline repaired; do
+            root="_upstream/$side/gekkoushi"
+            if [[ -d "$root/src/test" ]]; then
+              mv "$root/src/test" "$root/_compatibility-upstream-tests"
+            fi
+          done
+
+      - name: Generate NovelCrow real parser harnesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          for side in baseline repaired; do
+            python3 control/tools/source_live_parser_harness.py generate \
+              --plan "build/novelcrow-$side-plan.json" \
+              --profile-results "build/novelcrow-$side-profile.json" \
+              --provider gekkoushi \
+              --provider-root "_upstream/$side/gekkoushi" \
+              --output "build/novelcrow-$side-manifest.json"
+          done
+
+      - name: Execute baseline and repaired real parser tests
+        shell: bash
+        run: |
+          set -u
+          for side in baseline repaired; do
+            manifest="build/novelcrow-$side-manifest.json"
+            test_class="$(MANIFEST="$manifest" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          data = json.loads(Path(os.environ['MANIFEST']).read_text())
+          tests = data.get('tests', [])
+          if len(tests) != 1:
+              raise SystemExit(f'expected exactly one generated test, got {tests}')
+          print(tests[0]['testClass'])
+          PY
+            )"
+            (
+              cd "_upstream/$side/gekkoushi"
+              chmod +x gradlew
+              ./gradlew test --tests "$test_class" --no-daemon
+            ) || true
+          done
+
+      - name: Collect and require proven repair recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          for side in baseline repaired; do
+            python3 control/tools/source_live_parser_harness.py collect \
+              --manifest "build/novelcrow-$side-manifest.json" \
+              --output "build/novelcrow-$side-results.json"
+          done
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          def one(side):
+              data = json.loads(Path(f'build/novelcrow-{side}-results.json').read_text())
+              rows = data.get('results', [])
+              if len(rows) != 1:
+                  raise SystemExit(f'{side}: expected one result, got {rows}')
+              return rows[0]
+
+          baseline = one('baseline')
+          repaired = one('repaired')
+          if baseline.get('status') != 'FAIL':
+              raise SystemExit(f'baseline failure is no longer reproduced; repair cannot be attributed: {baseline}')
+          required = ('parserExecution', 'detailsTraversal', 'chapterTraversal', 'pageExtraction')
+          if repaired.get('status') != 'PASS' or not all(repaired.get(key) is True for key in required):
+              raise SystemExit(f'NovelCrow overlay did not prove full runtime recovery: {repaired}')
+          report = {
+              'schemaVersion': 1,
+              'phase': 'TRACK_B_BATCH_3_TARGETED_REPAIR',
+              'readOnly': True,
+              'canonicalId': 'miyorare:inventory-en:NOVELCROW',
+              'gekkoushiCommit': '12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67',
+              'miyorareRepairCommit': 'a513d491ac9547f95185ed618979b0fea47c8525',
+              'baseline': baseline,
+              'repaired': repaired,
+              'decision': 'OVERLAY_RUNTIME_RECOVERY_PROVEN',
+              'safety': {
+                  'mutateLastKnownGood': False,
+                  'mutateRetryHeld': False,
+                  'mutateCanonicalId': False,
+                  'promoteProvider': False,
+              },
+          }
+          Path('build/track-b-batch3-novelcrow-repair.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
+          Path('build/track-b-batch3-novelcrow-repair.md').write_text(
+              '# Track B Batch 3 — NovelCrow repair\n\n'
+              '- Baseline: **FAIL**\n'
+              '- Miyorare overlay: **PASS** browse → details → chapters → pages\n'
+              '- Decision: `OVERLAY_RUNTIME_RECOVERY_PROVEN`\n'
+              '- Authority mutation: **none**\n'
+          )
+          PY
+
+      - name: Prove upstream checkouts remain disposable only
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git -C _upstream/baseline/gekkoushi rev-parse HEAD)" == "$GEKKOUSHI_SHA" ]]
+          [[ "$(git -C _upstream/repaired/gekkoushi rev-parse HEAD)" == "$GEKKOUSHI_SHA" ]]
+          [[ "$(git -C miyorare rev-parse HEAD)" == "$MIYORARE_REPAIR_SHA" ]]
+          test -z "$(git -C _upstream/baseline/gekkoushi status --porcelain --untracked-files=no)"
+
+      - name: Upload NovelCrow repair evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: track-b-batch3-novelcrow-repair-${{ github.run_id }}
+          path: |
+            build/novelcrow-*-manifest.json
+            build/novelcrow-*-results.json
+            build/track-b-batch3-novelcrow-repair.json
+            build/track-b-batch3-novelcrow-repair.md
+            _upstream/baseline/gekkoushi/build/test-results/test/*.xml
+            _upstream/repaired/gekkoushi/build/test-results/test/*.xml
+          if-no-files-found: warn
+          retention-days: 14
