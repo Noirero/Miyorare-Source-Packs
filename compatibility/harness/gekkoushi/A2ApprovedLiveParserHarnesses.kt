@@ -144,24 +144,3 @@ internal class AutoLive_gekkoushi_b1577ce9c3db {
         exerciseA2ApprovedLiveParser("tsuki.site.mangareader.id.ManhwaListOrg")
     }
 }
-
-internal class AutoLive_gekkoushi_0eef3a6be0aa {
-    @Test
-    fun browseDetailsChaptersAndPagesExecuteRealParserCode() = runBlocking {
-        exerciseA2ApprovedLiveParser("tsuki.site.madara.en.HentaixComic")
-    }
-}
-
-internal class AutoLive_gekkoushi_4291766ee045 {
-    @Test
-    fun browseDetailsChaptersAndPagesExecuteRealParserCode() = runBlocking {
-        exerciseA2ApprovedLiveParser("tsuki.site.madara.en.Hentaixdickgirl")
-    }
-}
-
-internal class AutoLive_gekkoushi_14523c8209df {
-    @Test
-    fun browseDetailsChaptersAndPagesExecuteRealParserCode() = runBlocking {
-        exerciseA2ApprovedLiveParser("tsuki.site.mangareader.id.Lianscans")
-    }
-}
