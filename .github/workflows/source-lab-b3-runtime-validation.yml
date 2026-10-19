@@ -119,6 +119,8 @@ jobs:
           [[ "$(git -C miyorare-frozen rev-parse HEAD)" == "$B1_MIYORARE_SHA" ]]
           [[ "$(git -C inventory-current rev-parse HEAD)" == "$B3_INVENTORY_SHA" ]]
           [[ "$(git -C farm-current rev-parse HEAD)" == "$B3_FOUNDATION_SHA" ]]
+          # Foundation moved after B1 only in operational status. Registry and
+          # health authority inputs used for B2/B3 identity binding must match.
           cmp farm-frozen/compatibility/source-registry.json farm-current/compatibility/source-registry.json
           cmp farm-frozen/upstream/source-health.json farm-current/upstream/source-health.json
           python3 - <<'PY'
@@ -166,7 +168,8 @@ jobs:
             --inventory-commit "$B1_INVENTORY_SHA" \
             --foundation-commit "$B1_FOUNDATION_SHA" \
             --miyorare-commit "$B1_MIYORARE_SHA" \
-            --output build/track-b-batch1-en-mapping.json
+            --output build/track-b-batch1-en-mapping.json \
+            --markdown-output build/track-b-batch1-en-mapping.md
           python3 b2-control/tools/source_lab_b2_capability_health.py \
             --b1-report build/track-b-batch1-en-mapping.json \
             --inventory inventory-frozen/inventory/source-inventory.json \
@@ -176,7 +179,8 @@ jobs:
             --foundation-commit "$B1_FOUNDATION_SHA" \
             --miyorare-commit "$B1_MIYORARE_SHA" \
             --control-commit "$B2_CONTROL_SHA" \
-            --output build/track-b-batch2-capability-health.json
+            --output build/track-b-batch2-capability-health.json \
+            --markdown-output build/track-b-batch2-capability-health.md
           python3 - <<'PY'
           import json
           from pathlib import Path
