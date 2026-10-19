@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib.util
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -125,6 +126,34 @@ class PendingWorkerTest(unittest.TestCase):
         self.assertIn("retry-en", ids)
         self.assertTrue(any(item["canonicalId"].startswith("fresh-") for item in plan["items"]))
 
+    def test_retry_backoff_defers_until_due_but_baseline_change_bypasses_and_resets_budget(self) -> None:
+        retry_source = source("retry", "en")
+        state = worker.normalize_state({
+            "schemaVersion": 2,
+            "sources": {
+                "retry": {
+                    "state": worker.RETRY,
+                    "attempts": 2,
+                    "lifetimeAttempts": 5,
+                    "testedVersions": {"uma": SHA},
+                    "lastCheckedAt": "2026-10-19T00:00:00Z",
+                    "nextEligibleAt": "2099-01-01T00:00:00Z",
+                },
+            },
+        })
+        now = datetime(2026, 10, 19, tzinfo=timezone.utc)
+        waiting = worker.build_plan(registry(retry_source), state, 8, now)
+        self.assertEqual(waiting["batchSize"], 0)
+        self.assertEqual(waiting["deferredRetry"], 1)
+
+        revalidate = worker.build_plan(registry(retry_source, baseline=NEW_SHA), state, 8, now)
+        self.assertEqual(revalidate["batchSize"], 1)
+        item = revalidate["items"][0]
+        self.assertTrue(item["baselineReset"])
+        self.assertEqual(item["attempts"], 0)
+        self.assertEqual(item["previousAttempts"], 2)
+        self.assertEqual(item["lifetimeAttempts"], 5)
+
     def test_stale_ready_is_requeued_when_provider_baseline_changes(self) -> None:
         ready_source = source("ready", "id")
         stale_state = worker.normalize_state({
@@ -144,6 +173,8 @@ class PendingWorkerTest(unittest.TestCase):
         self.assertEqual(plan["retrySlots"], 1)
         self.assertEqual(plan["invalidatedReady"], 1)
         self.assertEqual(plan["items"][0]["canonicalId"], "ready")
+        self.assertTrue(plan["items"][0]["baselineReset"])
+        self.assertEqual(plan["items"][0]["attempts"], 0)
         entry = stale_state["sources"]["ready"]
         self.assertEqual(entry["state"], worker.RETRY)
         self.assertEqual(entry["approvalState"], "NOT_READY")
@@ -218,6 +249,7 @@ class PendingWorkerTest(unittest.TestCase):
             )
         row = result["results"][0]
         self.assertEqual(row["state"], worker.HELD)
+        self.assertEqual(row["failureCategory"], "PERMANENT_UPSTREAM")
         member = row["evidence"]["profile"]["memberships"][0]
         self.assertEqual(member["upstreamBrokenReason"], "Original site closed")
         self.assertEqual(member["probe"]["detail"], "upstream-declared-broken")
@@ -275,6 +307,7 @@ class PendingWorkerTest(unittest.TestCase):
 
         missing = worker.finalize_results(profile_results, {"results": []}, 3)["results"][0]
         self.assertEqual(missing["state"], worker.RETRY)
+        self.assertEqual(missing["failureCategory"], "PARSER_EVIDENCE_MISSING")
         self.assertEqual(missing["evidence"]["gate"], "REAL_PARSER_BLOCKED")
 
     def test_auth_required_parser_failure_holds_immediately(self) -> None:
@@ -291,9 +324,10 @@ class PendingWorkerTest(unittest.TestCase):
         }
         final = worker.finalize_results({"results": [row]}, parser_fail, 3)["results"][0]
         self.assertEqual(final["state"], worker.HELD)
+        self.assertEqual(final["failureCategory"], "AUTH_REQUIRED")
         self.assertEqual(final["attempts"], 1)
 
-    def test_real_parser_failure_holds_at_threshold(self) -> None:
+    def test_real_parser_failure_remains_retry_at_legacy_threshold(self) -> None:
         row = profiled()
         row["attempts"] = 3
         row["evidence"]["attempts"] = 3
@@ -306,12 +340,36 @@ class PendingWorkerTest(unittest.TestCase):
                 "detailsTraversal": False,
                 "chapterTraversal": False,
                 "pageExtraction": False,
+                "failures": 1,
             }]
         }
         final = worker.finalize_results({"results": [row]}, parser_fail, 3)["results"][0]
-        self.assertEqual(final["state"], worker.HELD)
+        self.assertEqual(final["state"], worker.RETRY)
+        self.assertEqual(final["failureCategory"], "SOURCE_PARSER_FAILURE")
 
-    def test_failure_retries_then_holds_before_parser(self) -> None:
+    def test_native_dependency_failure_remains_retry_at_legacy_threshold(self) -> None:
+        row = profiled()
+        row["attempts"] = 3
+        row["evidence"]["attempts"] = 3
+        parser_fail = {
+            "results": [{
+                "canonicalId": "alpha",
+                "provider": "uma",
+                "status": "FAIL",
+                "parserExecution": True,
+                "detailsTraversal": False,
+                "chapterTraversal": False,
+                "pageExtraction": False,
+                "failures": 1,
+                "failureType": "java.lang.UnsatisfiedLinkError",
+                "failureMessage": "no zstd-kmp in java.library.path",
+            }]
+        }
+        final = worker.finalize_results({"results": [row]}, parser_fail, 3)["results"][0]
+        self.assertEqual(final["state"], worker.RETRY)
+        self.assertEqual(final["failureCategory"], "NATIVE_DEPENDENCY")
+
+    def test_transient_profile_failure_keeps_retrying_at_legacy_threshold(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             uma = root / "uma"
@@ -333,7 +391,7 @@ class PendingWorkerTest(unittest.TestCase):
                     1.0,
                     3,
                 )
-                held = worker.assess_plan(
+                threshold = worker.assess_plan(
                     {"items": [{**base, "attempts": 2}]},
                     {"uma": uma, "keiyoushi": root, "gekkoushi": root},
                     {"uma": {"*": True}},
@@ -343,7 +401,8 @@ class PendingWorkerTest(unittest.TestCase):
             finally:
                 worker.http_probe = original_probe
         self.assertEqual(retry["results"][0]["state"], worker.RETRY)
-        self.assertEqual(held["results"][0]["state"], worker.HELD)
+        self.assertEqual(threshold["results"][0]["state"], worker.RETRY)
+        self.assertEqual(threshold["results"][0]["failureCategory"], "NETWORK_TRANSIENT")
 
     def test_apply_binds_evidence_to_provider_baseline_without_mutating_registry(self) -> None:
         value = registry(source("alpha", "en"), baseline=NEW_SHA)
@@ -363,6 +422,35 @@ class PendingWorkerTest(unittest.TestCase):
         self.assertFalse(state["sources"]["alpha"]["publishEligible"])
         self.assertFalse(state["sources"]["alpha"]["ownerActionRequired"])
         self.assertEqual(summary["states"][worker.READY], 1)
+
+    def test_apply_retry_persists_category_backoff_and_lifetime_attempts(self) -> None:
+        value = registry(source("alpha", "en"), baseline=NEW_SHA)
+        result = profiled()
+        result.update({
+            "state": worker.RETRY,
+            "attempts": 1,
+            "lifetimeAttempts": 6,
+            "baselineReset": True,
+            "failureCategory": "NETWORK_TRANSIENT",
+            "selectedProviders": [],
+        })
+        state, summary = worker.apply_results(
+            value,
+            worker.normalize_state({}),
+            {"results": [result]},
+            "456",
+            "2026-10-19T10:00:00Z",
+        )
+        entry = state["sources"]["alpha"]
+        self.assertEqual(entry["state"], worker.RETRY)
+        self.assertEqual(entry["testedVersions"], {"uma": NEW_SHA})
+        self.assertEqual(entry["lifetimeAttempts"], 6)
+        self.assertEqual(entry["failureCategory"], "NETWORK_TRANSIENT")
+        self.assertEqual(entry["nextEligibleAt"], "2026-10-19T12:00:00Z")
+        self.assertTrue(entry["retryPolicy"]["baselineReset"])
+        self.assertFalse(entry["retryPolicy"]["genericFailThresholdAutoHold"])
+        self.assertEqual(entry["revalidationReason"], "PROVIDER_BASELINE_CHANGED")
+        self.assertEqual(summary["states"][worker.RETRY], 1)
 
     def test_exact_ready_and_held_are_not_requeued(self) -> None:
         value = registry(

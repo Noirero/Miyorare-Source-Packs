@@ -8,6 +8,7 @@ import re
 import socket
 import urllib.error
 import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +34,66 @@ FAMILY_RULES = (
     ("custom-paged-html", ("select(", "Document", "Element", "Jsoup")),
 )
 
+# A4 retry taxonomy. Only genuinely terminal evidence is allowed to enter Held
+# automatically. Environment, harness, parser and transient failures remain
+# RETRY with category-aware backoff. A provider-baseline move invalidates the
+# prior retry budget and bypasses any old cooldown for one controlled recheck.
+CATEGORY_PRIORITY = {
+    "PERMANENT_UPSTREAM": 100,
+    "AUTH_REQUIRED": 95,
+    "NATIVE_DEPENDENCY": 90,
+    "HARNESS_API_MISMATCH": 85,
+    "INITIALIZATION_FAILURE": 80,
+    "REFLECTION_WRAPPER": 75,
+    "ANTI_BOT_OR_HTTP_BLOCK": 70,
+    "NETWORK_TRANSIENT": 65,
+    "SOURCE_PARSER_FAILURE": 60,
+    "PROFILE_TRANSIENT": 55,
+    "PARSER_EVIDENCE_MISSING": 50,
+    "UNKNOWN": 0,
+}
+IMMEDIATE_HOLD_CATEGORIES = {"PERMANENT_UPSTREAM", "AUTH_REQUIRED"}
+NETWORK_TYPES = (
+    "UnknownHostException",
+    "SocketTimeoutException",
+    "ConnectException",
+    "SocketException",
+    "SSLException",
+    "TimeoutException",
+)
+NETWORK_TEXT = (
+    "timed out",
+    "timeout",
+    "temporary failure in name resolution",
+    "name or service not known",
+    "connection reset",
+    "connection refused",
+)
+HARNESS_TEXT = (
+    "method mangadetailsrequest not found",
+    "method chapterlistrequest not found",
+    "method pagelistrequest not found",
+    "nosuchmethoderror",
+    "nosuchmethodexception",
+    "keiyoushi.source.generated",
+)
+NATIVE_TEXT = ("unsatisfiedlinkerror", "java.library.path", "zstd-kmp", "jni")
+INIT_TEXT = ("exceptionininitializererror", "noclassdeffounderror", "could not initialize class")
+REFLECTION_TEXT = ("invocationtargetexception",)
+ANTI_BOT_TEXT = ("http 403", "http-403", "cloudflare", "captcha", "access denied")
+BACKOFF_POLICY = {
+    "NETWORK_TRANSIENT": (2, 24),
+    "PROFILE_TRANSIENT": (2, 24),
+    "ANTI_BOT_OR_HTTP_BLOCK": (6, 24),
+    "NATIVE_DEPENDENCY": (6, 24),
+    "HARNESS_API_MISMATCH": (6, 24),
+    "INITIALIZATION_FAILURE": (6, 24),
+    "REFLECTION_WRAPPER": (6, 24),
+    "PARSER_EVIDENCE_MISSING": (6, 24),
+    "SOURCE_PARSER_FAILURE": (12, 72),
+    "UNKNOWN": (6, 24),
+}
+
 
 def load(path: str | Path, *, default: Any = None) -> Any:
     target = Path(path)
@@ -45,6 +106,25 @@ def save(path: str | Path, value: Any) -> None:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def parse_utc(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str) and value:
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    else:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def format_utc(value: datetime) -> str:
+    return value.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def canonical_sources(registry: dict[str, Any]) -> list[dict[str, Any]]:
@@ -90,6 +170,24 @@ def provider_baseline_binding(
     return {provider: provider_baselines.get(provider) for provider in selected}
 
 
+def _version_evidence_is_stale(
+    source: dict[str, Any],
+    worker_state: dict[str, Any],
+    provider_baselines: dict[str, Any],
+    *,
+    missing_is_stale: bool,
+) -> bool:
+    tested = worker_state.get("testedVersions")
+    if not isinstance(tested, dict) or not tested:
+        return missing_is_stale
+    current = provider_baseline_binding(source, provider_baselines, set(tested))
+    if set(current) != set(tested):
+        return True
+    if any(not isinstance(value, str) or len(value) != 40 for value in current.values()):
+        return missing_is_stale
+    return tested != current
+
+
 def ready_evidence_is_stale(
     source: dict[str, Any],
     worker_state: dict[str, Any],
@@ -97,15 +195,7 @@ def ready_evidence_is_stale(
 ) -> bool:
     if worker_state.get("state") != READY:
         return False
-    tested = worker_state.get("testedVersions")
-    if not isinstance(tested, dict) or not tested:
-        return True
-    current = provider_baseline_binding(source, provider_baselines, set(tested))
-    if set(current) != set(tested):
-        return True
-    if any(not isinstance(value, str) or len(value) != 40 for value in current.values()):
-        return True
-    return tested != current
+    return _version_evidence_is_stale(source, worker_state, provider_baselines, missing_is_stale=True)
 
 
 def held_evidence_is_stale(
@@ -115,15 +205,17 @@ def held_evidence_is_stale(
 ) -> bool:
     if worker_state.get("state") != HELD:
         return False
-    tested = worker_state.get("testedVersions")
-    if not isinstance(tested, dict) or not tested:
+    return _version_evidence_is_stale(source, worker_state, provider_baselines, missing_is_stale=False)
+
+
+def retry_evidence_is_stale(
+    source: dict[str, Any],
+    worker_state: dict[str, Any],
+    provider_baselines: dict[str, Any],
+) -> bool:
+    if worker_state.get("state") != RETRY:
         return False
-    current = provider_baseline_binding(source, provider_baselines, set(tested))
-    if set(current) != set(tested):
-        return True
-    if any(not isinstance(value, str) or len(value) != 40 for value in current.values()):
-        return False
-    return tested != current
+    return _version_evidence_is_stale(source, worker_state, provider_baselines, missing_is_stale=True)
 
 
 def invalidate_stale_ready(registry: dict[str, Any], state: dict[str, Any]) -> int:
@@ -185,23 +277,60 @@ def eligible(
     return True
 
 
-def build_plan(registry: dict[str, Any], state: dict[str, Any], batch_size: int) -> dict[str, Any]:
+def retry_is_due(
+    source: dict[str, Any],
+    worker_state: dict[str, Any],
+    provider_baselines: dict[str, Any],
+    now: datetime,
+) -> bool:
+    if worker_state.get("state") != RETRY:
+        return True
+    # A new provider baseline is new evidence. Never let old cooldown metadata
+    # block one controlled revalidation, and do not carry its attempt budget.
+    if retry_evidence_is_stale(source, worker_state, provider_baselines):
+        return True
+    next_eligible = parse_utc(worker_state.get("nextEligibleAt"))
+    return next_eligible is None or next_eligible <= now
+
+
+def build_plan(
+    registry: dict[str, Any],
+    state: dict[str, Any],
+    batch_size: int,
+    now: datetime | None = None,
+) -> dict[str, Any]:
     provider_baselines = registry.get("providerBaselines")
     if not isinstance(provider_baselines, dict):
         raise ValueError("registry.providerBaselines invalid")
     invalidated_ready = invalidate_stale_ready(registry, state)
     invalidated_held = invalidate_stale_held(registry, state)
+    now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
 
-    rows: list[tuple[int, str, str, str, dict[str, Any]]] = []
+    rows: list[tuple[int, str, str, str, bool, int, int, dict[str, Any]]] = []
+    deferred_retry = 0
+    stale_retry_candidates = 0
     for source in canonical_sources(registry):
         if not eligible(source, state, provider_baselines):
             continue
         worker_state = state_entry(state, source["canonicalId"])
+        is_retry = worker_state.get("state") == RETRY
+        baseline_reset = is_retry and retry_evidence_is_stale(source, worker_state, provider_baselines)
+        if is_retry and not retry_is_due(source, worker_state, provider_baselines, now):
+            deferred_retry += 1
+            continue
+        previous_attempts = int(worker_state.get("attempts", 0) or 0)
+        lifetime_attempts = int(worker_state.get("lifetimeAttempts", previous_attempts) or 0)
+        effective_attempts = 0 if baseline_reset else previous_attempts
+        if baseline_reset:
+            stale_retry_candidates += 1
         rows.append((
-            int(worker_state.get("attempts", 0) or 0),
+            effective_attempts,
             str(worker_state.get("lastCheckedAt", "")),
             str(source.get("language", "")),
             str(source.get("canonicalId", "")),
+            baseline_reset,
+            previous_attempts,
+            lifetime_attempts,
             source,
         ))
     rows.sort(key=lambda item: item[:4])
@@ -214,19 +343,25 @@ def build_plan(registry: dict[str, Any], state: dict[str, Any], batch_size: int)
     selected: list[dict[str, Any]] = []
     language_counts = {"id": 0, "en": 0}
 
-    def take_balanced(pool: list[tuple[int, str, str, str, dict[str, Any]]], count: int) -> None:
+    def take_balanced(
+        pool: list[tuple[int, str, str, str, bool, int, int, dict[str, Any]]],
+        count: int,
+    ) -> None:
         remaining = list(pool)
         while remaining and len(selected) < count:
             preferred = "id" if language_counts["id"] <= language_counts["en"] else "en"
             index = next((i for i, row in enumerate(remaining) if row[-1].get("language") == preferred), 0)
-            source = remaining.pop(index)[-1]
-            worker_state = state_entry(state, source["canonicalId"])
+            row = remaining.pop(index)
+            source = row[-1]
             selected.append({
                 "canonicalId": source["canonicalId"],
                 "language": source["language"],
                 "providers": source["providers"],
                 "upstreamIdentities": source["upstreamIdentities"],
-                "attempts": int(worker_state.get("attempts", 0) or 0),
+                "attempts": row[0],
+                "baselineReset": row[4],
+                "previousAttempts": row[5],
+                "lifetimeAttempts": row[6],
             })
             language = source.get("language")
             if language in language_counts:
@@ -243,6 +378,8 @@ def build_plan(registry: dict[str, Any], state: dict[str, Any], batch_size: int)
         "schemaVersion": 2,
         "batchSize": len(selected),
         "retrySlots": sum(1 for item in selected if state_entry(state, item["canonicalId"]).get("state") == RETRY),
+        "deferredRetry": deferred_retry,
+        "staleRetryResetCandidates": stale_retry_candidates,
         "invalidatedReady": invalidated_ready,
         "invalidatedHeld": invalidated_held,
         "items": selected,
@@ -323,7 +460,68 @@ def _auth_type(values: list[str]) -> str:
     return "FORM" if "FORM" in values else "TOKEN" if "TOKEN" in values else "COOKIE" if "COOKIE" in values else "NO_AUTH"
 
 
+def _text_blob(*values: Any) -> str:
+    return " ".join(str(value) for value in values if value is not None).lower()
+
+
+def classify_profile_membership(member: dict[str, Any]) -> str:
+    broken = member.get("upstreamBrokenReason")
+    if isinstance(broken, str) and broken.strip():
+        return "PERMANENT_UPSTREAM"
+    probe = member.get("probe") if isinstance(member.get("probe"), dict) else {}
+    blob = _text_blob(probe.get("detail"), probe.get("httpStatus"))
+    if probe.get("httpStatus") == 403 or any(token in blob for token in ANTI_BOT_TEXT):
+        return "ANTI_BOT_OR_HTTP_BLOCK"
+    if any(token in blob for token in NETWORK_TEXT) or str(probe.get("detail") or "") in {
+        "URLError", "TimeoutError", "socket.timeout", "gaierror", "ConnectionError"
+    }:
+        return "NETWORK_TRANSIENT"
+    if member.get("profilePass") is not True:
+        return "PROFILE_TRANSIENT"
+    return "UNKNOWN"
+
+
+def classify_parser_membership(member: dict[str, Any]) -> str:
+    reason = str(member.get("reason") or "")
+    failure_type = str(member.get("failureType") or "")
+    failure_message = str(member.get("failureMessage") or "")
+    blob = _text_blob(reason, failure_type, failure_message)
+    if reason.startswith("AUTH_REQUIRED:"):
+        return "AUTH_REQUIRED"
+    if any(token in blob for token in NATIVE_TEXT):
+        return "NATIVE_DEPENDENCY"
+    if any(token in blob for token in HARNESS_TEXT):
+        return "HARNESS_API_MISMATCH"
+    if any(token in blob for token in INIT_TEXT):
+        return "INITIALIZATION_FAILURE"
+    if any(token in blob for token in REFLECTION_TEXT):
+        return "REFLECTION_WRAPPER"
+    if any(token.lower() in blob for token in NETWORK_TYPES) or any(token in blob for token in NETWORK_TEXT):
+        return "NETWORK_TRANSIENT"
+    if any(token in blob for token in ANTI_BOT_TEXT):
+        return "ANTI_BOT_OR_HTTP_BLOCK"
+    if reason == "PARSER_EVIDENCE_MISSING" or member.get("parserExecution") is False:
+        return "PARSER_EVIDENCE_MISSING"
+    if member.get("status") == "FAIL" or int(member.get("failures", 0) or 0) > 0 or int(member.get("errors", 0) or 0) > 0:
+        return "SOURCE_PARSER_FAILURE"
+    return "UNKNOWN"
+
+
+def primary_category(categories: list[str]) -> str:
+    return max(categories, key=lambda value: CATEGORY_PRIORITY.get(value, 0)) if categories else "UNKNOWN"
+
+
+def retry_backoff_hours(category: str, attempts: int) -> int:
+    base, maximum = BACKOFF_POLICY.get(category, BACKOFF_POLICY["UNKNOWN"])
+    exponent = max(0, min(max(1, attempts) - 1, 6))
+    return min(base * (2 ** exponent), maximum)
+
+
 def assess_plan(plan: dict[str, Any], roots: dict[str, Path], compile_results: dict[str, Any], timeout: float, fail_threshold: int) -> dict[str, Any]:
+    # fail_threshold remains accepted for backward-compatible workflow/API
+    # contracts, but A4 no longer turns non-terminal failures into Held solely
+    # because an attempt counter reached this generic threshold.
+    _ = fail_threshold
     results: list[dict[str, Any]] = []
     for item in plan.get("items", []):
         memberships: list[dict[str, Any]] = []
@@ -375,8 +573,11 @@ def assess_plan(plan: dict[str, Any], roots: dict[str, Path], compile_results: d
                 "profilePass": passed,
             })
         attempts = int(item.get("attempts", 0) or 0) + 1
-        hard_failure = any(failure.get("hardFailure") is True for failure in failures)
-        outcome = PROFILE if selected_providers else (HELD if hard_failure or attempts >= fail_threshold else RETRY)
+        lifetime_attempts = int(item.get("lifetimeAttempts", item.get("previousAttempts", item.get("attempts", 0))) or 0) + 1
+        failed_categories = [classify_profile_membership(member) for member in memberships if member.get("profilePass") is not True]
+        failure_category = primary_category(failed_categories)
+        hard_failure = failure_category in IMMEDIATE_HOLD_CATEGORIES
+        outcome = PROFILE if selected_providers else (HELD if hard_failure else RETRY)
         family = (
             passing_families[0]
             if passing_families and all(value == passing_families[0] for value in passing_families)
@@ -399,6 +600,9 @@ def assess_plan(plan: dict[str, Any], roots: dict[str, Path], compile_results: d
             "canonicalId": item["canonicalId"],
             "state": outcome,
             "attempts": attempts,
+            "lifetimeAttempts": lifetime_attempts,
+            "baselineReset": bool(item.get("baselineReset")),
+            "failureCategory": failure_category if outcome != PROFILE else None,
             "adapterFamily": family,
             "authType": auth_type,
             "selectedProviders": sorted(selected_providers),
@@ -419,6 +623,7 @@ def _parser_passed(result: dict[str, Any]) -> bool:
 
 
 def finalize_results(profile_results: dict[str, Any], parser_results: dict[str, Any], fail_threshold: int) -> dict[str, Any]:
+    _ = fail_threshold
     parser_map = {
         (row.get("canonicalId"), row.get("provider")): row
         for row in parser_results.get("results", [])
@@ -452,13 +657,11 @@ def finalize_results(profile_results: dict[str, Any], parser_results: dict[str, 
             if _parser_passed(result):
                 passed_providers.append(provider)
         attempts = int(row.get("attempts", 0) or 0)
-        hard_parser_failure = any(
-            str(item.get("reason", "")).startswith("AUTH_REQUIRED:")
-            for item in parser_evidence
-            if isinstance(item, dict)
-        )
+        failed_categories = [classify_parser_membership(item) for item in parser_evidence if not _parser_passed(item)]
+        failure_category = primary_category(failed_categories)
+        hard_parser_failure = failure_category in IMMEDIATE_HOLD_CATEGORIES
         has_pass = bool(passed_providers)
-        outcome = READY if has_pass else (HELD if hard_parser_failure or attempts >= fail_threshold else RETRY)
+        outcome = READY if has_pass else (HELD if hard_parser_failure else RETRY)
         evidence = dict(row.get("evidence", {}))
         evidence["parser"] = {
             "executionMode": parser_results.get("executionMode", "real-live-parser"),
@@ -491,6 +694,7 @@ def finalize_results(profile_results: dict[str, Any], parser_results: dict[str, 
             )
             row["authType"] = _auth_type(selected_auth_types)
         row["state"] = outcome
+        row["failureCategory"] = None if has_pass else failure_category
         row["selectedProviders"] = sorted(passed_providers)
         row["evidence"] = evidence
         row["evidenceSha256"] = evidence_digest(evidence)
@@ -509,6 +713,9 @@ def apply_results(registry: dict[str, Any], worker_state: dict[str, Any], result
     provider_baselines = registry.get("providerBaselines")
     if not isinstance(provider_baselines, dict):
         raise ValueError("registry.providerBaselines invalid")
+    checked_time = parse_utc(checked_at)
+    if checked_time is None:
+        raise ValueError("checked_at must be a valid ISO-8601 timestamp")
     summary = {READY: 0, RETRY: 0, HELD: 0, PROFILE: 0}
     for result in results.get("results", []):
         canonical_id = result.get("canonicalId")
@@ -530,10 +737,11 @@ def apply_results(registry: dict[str, Any], worker_state: dict[str, Any], result
             not isinstance(value, str) or len(value) != 40 for value in tested_versions.values()
         ):
             raise ValueError(f"{canonical_id} has invalid provider baseline binding")
-        state["sources"][canonical_id] = {
+        entry = {
             "schemaVersion": 2,
             "state": outcome,
             "attempts": result["attempts"],
+            "lifetimeAttempts": int(result.get("lifetimeAttempts", result["attempts"]) or 0),
             "lastCheckedAt": checked_at,
             "workflowRunId": str(workflow_run_id),
             "evidenceSha256": result["evidenceSha256"],
@@ -546,6 +754,29 @@ def apply_results(registry: dict[str, Any], worker_state: dict[str, Any], result
             "publishEligible": False,
             "evidence": result["evidence"],
         }
+        category = str(result.get("failureCategory") or "UNKNOWN")
+        if outcome == RETRY:
+            applied_hours = retry_backoff_hours(category, int(result.get("attempts", 1) or 1))
+            baseline_reset = bool(result.get("baselineReset"))
+            entry.update({
+                "failureCategory": category,
+                "nextEligibleAt": format_utc(checked_time + timedelta(hours=applied_hours)),
+                "retryPolicy": {
+                    "version": 1,
+                    "mode": "CATEGORY_BACKOFF",
+                    "baseHours": BACKOFF_POLICY.get(category, BACKOFF_POLICY["UNKNOWN"])[0],
+                    "maxHours": BACKOFF_POLICY.get(category, BACKOFF_POLICY["UNKNOWN"])[1],
+                    "appliedHours": applied_hours,
+                    "baselineReset": baseline_reset,
+                    "genericFailThresholdAutoHold": False,
+                },
+            })
+            if baseline_reset:
+                entry["revalidationReason"] = "PROVIDER_BASELINE_CHANGED"
+        elif outcome == HELD:
+            entry["failureCategory"] = category
+            entry["holdReason"] = "TERMINAL_EVIDENCE" if category in IMMEDIATE_HOLD_CATEGORIES else "EXPLICIT_HOLD"
+        state["sources"][canonical_id] = entry
     state["updatedAt"] = checked_at
     state["lastWorkflowRunId"] = str(workflow_run_id)
     return state, {
