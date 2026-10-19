@@ -1,0 +1,419 @@
+name: Source Lab A6 Gekkoushi Canary
+run-name: Source Lab A6 Gekkoushi Canary
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-a6-gekkoushi-canary.yml'
+      - 'tools/source_lab_a6_gekkoushi_canary.py'
+      - 'tests/test_source_lab_a6_gekkoushi_canary.py'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: source-lab-a6-gekkoushi-canary-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    name: Resolve exact Gekkoushi canary
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      foundation_sha: ${{ steps.resolve.outputs.foundation_sha }}
+      candidate_sha: ${{ steps.plan.outputs.candidate_sha }}
+      lkg_sha: ${{ steps.plan.outputs.lkg_sha }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      membership_count: ${{ steps.plan.outputs.membership_count }}
+    env:
+      EXPECTED_OWNER_ID: '149634319'
+      PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+    steps:
+      - name: Validate safe execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" ]] || {
+                echo "::error::A6 canary only accepts same-repository pull requests"
+                exit 1
+              }
+              ;;
+            workflow_dispatch)
+              [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+              [[ "$GITHUB_REF_NAME" == "main" ]]
+              ;;
+            *) echo "::error::unexpected event: $GITHUB_EVENT_NAME"; exit 1 ;;
+          esac
+
+      - name: Checkout proposed control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout authoritative Compatibility Farm
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 1
+
+      - name: Pin current Foundation before canary
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git -C farm rev-parse HEAD)"
+          remote="$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')"
+          [[ "$actual" == "$remote" ]] || {
+            echo "::error::Compatibility Farm moved during A6 prepare: checkout=$actual remote=$remote"
+            exit 1
+          }
+          [[ "$actual" =~ ^[0-9a-f]{40}$ ]]
+          echo "foundation_sha=$actual" >> "$GITHUB_OUTPUT"
+
+      - name: Validate structural parser coverage and build Gekkoushi plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          python3 farm/tools/parser_family_plan.py \
+            --registry farm/compatibility/source-registry.json \
+            --families farm/compatibility/parser-families.json \
+            validate \
+            --output build/parser-family-validation.json
+          python3 farm/tools/parser_family_plan.py \
+            --registry farm/compatibility/source-registry.json \
+            --families farm/compatibility/parser-families.json \
+            plan --provider gekkoushi \
+            --output build/parser-plan-gekkoushi.json
+
+      - name: Select bounded EN/ID canary from authoritative state
+        id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_a6_gekkoushi_canary.py plan \
+            --registry farm/compatibility/source-registry.json \
+            --parser-plan build/parser-plan-gekkoushi.json \
+            --status farm/upstream/status.json \
+            --limit 4 \
+            --output build/a6-gekkoushi-canary-plan.json
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          plan = json.loads(Path('build/a6-gekkoushi-canary-plan.json').read_text(encoding='utf-8'))
+          include = plan['include']
+          print('candidate_sha=' + plan['candidate'])
+          print('lkg_sha=' + plan['lastKnownGood'])
+          print('membership_count=' + str(plan['membershipCount']))
+          print('matrix=' + json.dumps({'include': include}, separators=(',', ':')))
+          PY
+
+      - name: Run A6 helper unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest control/tests/test_source_lab_a6_gekkoushi_canary.py
+
+      - name: Upload immutable A6 plan
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: source-lab-a6-gekkoushi-plan-${{ github.run_id }}
+          path: |
+            build/parser-family-validation.json
+            build/parser-plan-gekkoushi.json
+            build/a6-gekkoushi-canary-plan.json
+          if-no-files-found: error
+          retention-days: 30
+
+  membership:
+    name: A6 ${{ matrix.language }} ${{ matrix.familyId }} #${{ strategy.job-index }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    env:
+      FOUNDATION_SHA: ${{ needs.prepare.outputs.foundation_sha }}
+      CANDIDATE_SHA: ${{ needs.prepare.outputs.candidate_sha }}
+      CANONICAL_ID: ${{ matrix.canonicalId }}
+      TEST_CLASS: ${{ matrix.testClass }}
+      FAMILY_ID: ${{ matrix.familyId }}
+      EVIDENCE_KEY: ${{ matrix.familyId }}-${{ strategy.job-index }}
+    steps:
+      - name: Checkout exact Compatibility Farm Foundation
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ needs.prepare.outputs.foundation_sha }}
+          path: farm
+          fetch-depth: 1
+
+      - name: Checkout exact Gekkoushi candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ needs.prepare.outputs.candidate_sha }}
+          path: upstream
+          fetch-depth: 1
+
+      - name: Verify immutable inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git -C farm rev-parse HEAD)" == "$FOUNDATION_SHA" ]]
+          [[ "$(git -C upstream rev-parse HEAD)" == "$CANDIDATE_SHA" ]]
+
+      - name: Set up Java 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+
+      - name: Install exactly one non-repair Gekkoushi harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -d upstream/src/test ]]; then
+            mv upstream/src/test upstream/_compatibility-upstream-tests
+          fi
+          mkdir -p upstream/src/test/kotlin/compatibilityfarm
+          mkdir -p upstream/src/test/resources/compatibility-farm/shinigami
+          harness="${TEST_CLASS##*.}.kt"
+          test -f "farm/compatibility/harness/gekkoushi/$harness"
+          cp "farm/compatibility/harness/gekkoushi/$harness" upstream/src/test/kotlin/compatibilityfarm/
+          cp farm/compatibility/harness/gekkoushi/LiveMangaLoaderContext.kt upstream/src/test/kotlin/compatibilityfarm/
+          cp farm/compatibility/harness/uma/DeterministicMangaLoaderContext.kt upstream/src/test/kotlin/compatibilityfarm/
+          cp -R farm/compatibility/harness/gekkoushi/resources/. upstream/src/test/resources/compatibility-farm/
+          cp -R farm/compatibility/harness/uma/resources/shinigami/. upstream/src/test/resources/compatibility-farm/shinigami/
+
+      - name: Execute exactly one real Gekkoushi parser membership
+        id: parser
+        continue-on-error: true
+        working-directory: upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew test --tests "$TEST_CLASS" --no-daemon
+
+      - name: Normalize isolated PASS or parser FAIL evidence
+        id: report
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p farm/build
+          set +e
+          python3 farm/tools/parser_harness_report.py \
+            --registry farm/compatibility/source-registry.json \
+            --results-dir upstream/build/test-results/test \
+            --provider gekkoushi \
+            --source "$CANONICAL_ID=$TEST_CLASS" \
+            --output "farm/build/a6-real-parser-$EVIDENCE_KEY.json"
+          rc=$?
+          set -e
+          case "$rc" in
+            0|2) ;;
+            *) echo "::error::Could not normalize A6 isolated parser evidence (rc=$rc)"; exit "$rc" ;;
+          esac
+
+      - name: Validate one-source evidence receipt
+        if: always()
+        env:
+          PARSER_OUTCOME: ${{ steps.parser.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${{ steps.report.outcome }}" == success ]]
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path('farm/build') / f"a6-real-parser-{os.environ['EVIDENCE_KEY']}.json"
+          report = json.loads(path.read_text(encoding='utf-8'))
+          results = report.get('results')
+          if not isinstance(results, list) or len(results) != 1:
+              raise SystemExit('isolated report must contain exactly one membership')
+          result = results[0]
+          if result.get('canonicalId') != os.environ['CANONICAL_ID']:
+              raise SystemExit('A6 receipt canonicalId mismatch')
+          if result.get('provider') != 'gekkoushi' or result.get('parserExecution') is not True:
+              raise SystemExit('A6 receipt is not real Gekkoushi parser evidence')
+          status = result.get('status')
+          if status not in {'PASS', 'FAIL'}:
+              raise SystemExit('A6 receipt status must be PASS or FAIL')
+          outcome = os.environ['PARSER_OUTCOME']
+          if status == 'PASS' and outcome != 'success':
+              raise SystemExit('PASS evidence cannot come from a failed parser step')
+          if status == 'FAIL' and outcome == 'success':
+              raise SystemExit('FAIL evidence unexpectedly came from a successful parser step')
+          PY
+
+      - name: Upload isolated A6 membership evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: source-lab-a6-gekkoushi-${{ matrix.familyId }}-${{ strategy.job-index }}-${{ github.run_id }}
+          path: |
+            farm/build/a6-real-parser-${{ env.EVIDENCE_KEY }}.json
+            upstream/build/test-results/test/*.xml
+          if-no-files-found: warn
+          retention-days: 30
+
+  aggregate:
+    name: Verify A6 canary isolation and LKG safety
+    needs: [prepare, membership]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FOUNDATION_SHA: ${{ needs.prepare.outputs.foundation_sha }}
+      EXPECTED_MEMBERSHIPS: ${{ needs.prepare.outputs.membership_count }}
+    steps:
+      - name: Checkout proposed control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout exact Compatibility Farm Foundation
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ needs.prepare.outputs.foundation_sha }}
+          path: farm
+          fetch-depth: 1
+
+      - name: Download A6 plan and isolated membership evidence
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          pattern: source-lab-a6-gekkoushi-*-${{ github.run_id }}
+          path: build/evidence
+          merge-multiple: true
+
+      - name: Snapshot protected local Foundation inputs
+        id: before
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "registry=$(sha256sum farm/compatibility/source-registry.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "state=$(sha256sum farm/automation/pending-worker-state.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "status=$(sha256sum farm/upstream/status.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Require complete isolated evidence and aggregate it
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t reports < <(find build/evidence -type f -name 'a6-real-parser-*.json' | sort)
+          [[ "${#reports[@]}" -eq "$EXPECTED_MEMBERSHIPS" ]] || {
+            echo "::error::A6 evidence incomplete: expected $EXPECTED_MEMBERSHIPS receipts, found ${#reports[@]}"
+            exit 1
+          }
+          cmd=(python3 farm/tools/parser_harness_aggregate.py \
+            --registry farm/compatibility/source-registry.json \
+            --output build/a6-gekkoushi-aggregate.json)
+          for report in "${reports[@]}"; do
+            cmd+=(--report "$report")
+          done
+          set +e
+          "${cmd[@]}"
+          rc=$?
+          set -e
+          case "$rc" in
+            0|2) ;;
+            *) echo "::error::Could not aggregate A6 isolated evidence (rc=$rc)"; exit "$rc" ;;
+          esac
+          test -s build/a6-gekkoushi-aggregate.json
+
+      - name: Recover immutable A6 plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          plan="$(find build/evidence -type f -name 'a6-gekkoushi-canary-plan.json' -print -quit)"
+          test -n "$plan"
+          cp "$plan" build/a6-gekkoushi-canary-plan.json
+
+      - name: Re-read current remote Gekkoushi LKG after canary
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C farm fetch --no-tags --depth=1 origin refs/heads/compatibility-farm-foundation
+          git -C farm show FETCH_HEAD:upstream/status.json > build/remote-status.json
+          test -s build/remote-status.json
+
+      - name: Prove local Foundation remained read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(sha256sum farm/compatibility/source-registry.json | awk '{print $1}')" == "${{ steps.before.outputs.registry }}" ]]
+          [[ "$(sha256sum farm/automation/pending-worker-state.json | awk '{print $1}')" == "${{ steps.before.outputs.state }}" ]]
+          [[ "$(sha256sum farm/upstream/status.json | awk '{print $1}')" == "${{ steps.before.outputs.status }}" ]]
+          test -z "$(git -C farm status --porcelain)"
+          test -z "$(git -C control status --porcelain)"
+
+      - name: Build A6 verdict
+        id: verdict
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_a6_gekkoushi_canary.py verdict \
+            --plan build/a6-gekkoushi-canary-plan.json \
+            --aggregate build/a6-gekkoushi-aggregate.json \
+            --remote-status build/remote-status.json \
+            --foundation-sha "$FOUNDATION_SHA" \
+            --output build/a6-gekkoushi-verdict.json
+
+      - name: Upload A6 aggregate evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: source-lab-a6-gekkoushi-verdict-${{ github.run_id }}
+          path: |
+            build/a6-gekkoushi-canary-plan.json
+            build/a6-gekkoushi-aggregate.json
+            build/remote-status.json
+            build/a6-gekkoushi-verdict.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Require accepted A6 canary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${{ steps.verdict.outcome }}" == success ]]
+          test -s build/a6-gekkoushi-verdict.json
+          jq -e '.accepted == true' build/a6-gekkoushi-verdict.json >/dev/null
+          jq -e '.allCanaryMembershipsExecuted == true' build/a6-gekkoushi-verdict.json >/dev/null
+          jq -e '.lastKnownGoodUnchanged == true' build/a6-gekkoushi-verdict.json >/dev/null
+          jq -e '.promotionAttempted == false' build/a6-gekkoushi-verdict.json >/dev/null
+          jq -e '.foundationMutationAttempted == false' build/a6-gekkoushi-verdict.json >/dev/null
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          echo '## Source Lab Phase A6 — Gekkoushi canary' >> "$GITHUB_STEP_SUMMARY"
+          echo "Pinned Foundation: $FOUNDATION_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Candidate: ${{ needs.prepare.outputs.candidate_sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Starting LKG: ${{ needs.prepare.outputs.lkg_sha }}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -s build/a6-gekkoushi-verdict.json ]]; then
+            echo "Passing memberships: $(jq -c '.passingMemberships' build/a6-gekkoushi-verdict.json)" >> "$GITHUB_STEP_SUMMARY"
+            echo "Failing memberships: $(jq -c '.failingMemberships' build/a6-gekkoushi-verdict.json)" >> "$GITHUB_STEP_SUMMARY"
+            echo "allCanaryMembershipsExecuted: $(jq -r '.allCanaryMembershipsExecuted' build/a6-gekkoushi-verdict.json)" >> "$GITHUB_STEP_SUMMARY"
+            echo "lastKnownGoodUnchanged: $(jq -r '.lastKnownGoodUnchanged' build/a6-gekkoushi-verdict.json)" >> "$GITHUB_STEP_SUMMARY"
+            echo "promotionAttempted: $(jq -r '.promotionAttempted' build/a6-gekkoushi-verdict.json)" >> "$GITHUB_STEP_SUMMARY"
+            echo "Accepted: $(jq -r '.accepted' build/a6-gekkoushi-verdict.json)" >> "$GITHUB_STEP_SUMMARY"
+          fi
