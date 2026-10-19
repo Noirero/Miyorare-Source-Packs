@@ -1,0 +1,485 @@
+name: Source Lab B3 Targeted Runtime
+run-name: Source Lab B3 Targeted Runtime
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-b3-targeted-runtime.yml'
+      - 'tools/source_lab_b3_targeted_runtime.py'
+      - 'tests/test_source_lab_b3_targeted_runtime.py'
+      - 'tools/source_lab_b1_en_mapping.py'
+      - 'tools/source_lab_b2_capability_health.py'
+      - 'tools/source_pending_worker.py'
+      - 'tools/source_live_parser_harness.py'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: source-lab-b3-targeted-runtime-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_OWNER_ID: '149634319'
+  B1_INVENTORY_SHA: '55f291a2a53f3dee4db41078766d9a18acff8a31'
+  B1_FOUNDATION_SHA: '7a69b02865a3dd494326c367024aededd81e9a69'
+  B1_MIYORARE_SHA: '4fb61632f43af55b22e24b168717d495f0926f81'
+  B1_STRUCTURAL_COHORT_SIZE: '38'
+  B3_COHORT_SIZE: '33'
+  UMA_CANDIDATE_SHA: '08f814f7468835d9c9b465a9062aecc7ac142cdd'
+  GEKKOUSHI_CANDIDATE_SHA: '12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67'
+  UMA_LKG_SHA: '52185ec4faada143f57dcfb41c6fa49aa346b4db'
+  GEKKOUSHI_LKG_SHA: '9aa770b7cb699c6385f574f13710990e17ef5517'
+  KEIYOUSHI_REFERENCE_SHA: '24bd7e69e54020079298d19bf808ccc0961b0a69'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  targeted-runtime:
+    name: Build read-only candidate-vs-LKG runtime evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+    steps:
+      - name: Validate safe execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" ]] || {
+                echo "::error::B3 only accepts same-repository pull requests"
+                exit 1
+              }
+              ;;
+            workflow_dispatch)
+              [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+              [[ "$GITHUB_REF_NAME" == "main" ]]
+              ;;
+            *) echo "::error::unexpected event: $GITHUB_EVENT_NAME"; exit 1 ;;
+          esac
+
+      - name: Checkout proposed B3 control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout frozen Batch 1 informational inventory
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ env.B1_INVENTORY_SHA }}
+          path: inventory
+          fetch-depth: 1
+
+      - name: Checkout live informational inventory for drift guard
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: source-inventory-live
+          path: inventory-live
+          fetch-depth: 1
+
+      - name: Checkout frozen Batch 1 Compatibility Farm authority
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ env.B1_FOUNDATION_SHA }}
+          path: farm
+          fetch-depth: 1
+
+      - name: Checkout frozen Batch 1 Miyorare aliases
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Noirero/Miyorare
+          ref: ${{ env.B1_MIYORARE_SHA }}
+          path: miyorare
+          fetch-depth: 1
+
+      - name: Checkout candidate and LKG UMA
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: InvalidDavid/UMA
+          ref: ${{ env.UMA_CANDIDATE_SHA }}
+          path: _upstream/candidate/uma
+          fetch-depth: 1
+
+      - name: Checkout LKG UMA
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: InvalidDavid/UMA
+          ref: ${{ env.UMA_LKG_SHA }}
+          path: _upstream/lkg/uma
+          fetch-depth: 1
+
+      - name: Checkout candidate Gekkoushi
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ env.GEKKOUSHI_CANDIDATE_SHA }}
+          path: _upstream/candidate/gekkoushi
+          fetch-depth: 1
+
+      - name: Checkout LKG Gekkoushi
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ env.GEKKOUSHI_LKG_SHA }}
+          path: _upstream/lkg/gekkoushi
+          fetch-depth: 1
+
+      - name: Checkout frozen Keiyoushi reference
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: keiyoushi/extensions-source
+          ref: ${{ env.KEIYOUSHI_REFERENCE_SHA }}
+          path: _upstream/reference/keiyoushi
+          fetch-depth: 1
+
+      - name: Prove provenance pins
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git -C inventory rev-parse HEAD)" == "$B1_INVENTORY_SHA" ]]
+          [[ "$(git -C farm rev-parse HEAD)" == "$B1_FOUNDATION_SHA" ]]
+          [[ "$(git -C miyorare rev-parse HEAD)" == "$B1_MIYORARE_SHA" ]]
+          [[ "$(git -C _upstream/candidate/uma rev-parse HEAD)" == "$UMA_CANDIDATE_SHA" ]]
+          [[ "$(git -C _upstream/candidate/gekkoushi rev-parse HEAD)" == "$GEKKOUSHI_CANDIDATE_SHA" ]]
+          [[ "$(git -C _upstream/lkg/uma rev-parse HEAD)" == "$UMA_LKG_SHA" ]]
+          [[ "$(git -C _upstream/lkg/gekkoushi rev-parse HEAD)" == "$GEKKOUSHI_LKG_SHA" ]]
+          [[ "$(git -C _upstream/reference/keiyoushi rev-parse HEAD)" == "$KEIYOUSHI_REFERENCE_SHA" ]]
+          echo "control_sha=$(git -C control rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "live_inventory_sha=$(git -C inventory-live rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Snapshot read-only authority inputs
+        id: before
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pair in \
+            source_registry:farm/compatibility/source-registry.json \
+            source_health:farm/upstream/source-health.json \
+            upstream_registry:farm/upstream/registry.json \
+            status:farm/upstream/status.json \
+            worker_state:farm/automation/pending-worker-state.json \
+            inventory:inventory/inventory/source-inventory.json \
+            aliases:miyorare/extensions/miyorare-sources/multi-upstream.json; do
+            key="${pair%%:*}"; file="${pair#*:}"
+            echo "$key=$(sha256sum "$file" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Compile and test B3 planner
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in (
+              'tools/source_lab_b1_en_mapping.py',
+              'tools/source_lab_b2_capability_health.py',
+              'tools/source_lab_b3_targeted_runtime.py',
+              'tools/source_pending_worker.py',
+              'tools/source_live_parser_harness.py',
+              'tests/test_source_lab_b3_targeted_runtime.py',
+          ):
+              path = Path('control') / name
+              compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          PY
+          python3 -m unittest control/tests/test_source_lab_b3_targeted_runtime.py
+
+      - name: Rebuild frozen B1 and B2 decision boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          python3 control/tools/source_lab_b1_en_mapping.py \
+            --inventory inventory/inventory/source-inventory.json \
+            --farm-registry farm/compatibility/source-registry.json \
+            --aliases miyorare/extensions/miyorare-sources/multi-upstream.json \
+            --upstream-registry farm/upstream/registry.json \
+            --status farm/upstream/status.json \
+            --inventory-commit "$B1_INVENTORY_SHA" \
+            --foundation-commit "$B1_FOUNDATION_SHA" \
+            --miyorare-commit "$B1_MIYORARE_SHA" \
+            --output build/track-b-batch1-en-mapping.json \
+            --markdown-output build/track-b-batch1-en-mapping.md
+          python3 control/tools/source_lab_b2_capability_health.py \
+            --b1-report build/track-b-batch1-en-mapping.json \
+            --inventory inventory/inventory/source-inventory.json \
+            --farm-registry farm/compatibility/source-registry.json \
+            --source-health farm/upstream/source-health.json \
+            --inventory-commit "$B1_INVENTORY_SHA" \
+            --foundation-commit "$B1_FOUNDATION_SHA" \
+            --miyorare-commit "$B1_MIYORARE_SHA" \
+            --control-commit '${{ steps.pins.outputs.control_sha }}' \
+            --output build/track-b-batch2-capability-health.json \
+            --markdown-output build/track-b-batch2-capability-health.md
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          b1 = json.loads(Path('build/track-b-batch1-en-mapping.json').read_text())
+          b2 = json.loads(Path('build/track-b-batch2-capability-health.json').read_text())
+          assert b1['summary']['structuralAttentionCount'] == int('${{ env.B1_STRUCTURAL_COHORT_SIZE }}')
+          assert b2['summary']['batch3Rows'] == int('${{ env.B3_COHORT_SIZE }}')
+          assert b2['readOnly'] is True
+          PY
+
+      - name: Fail closed if live inventory changed the B3 cohort
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          b2 = json.loads(Path('build/track-b-batch2-capability-health.json').read_text())
+          live = json.loads(Path('inventory-live/inventory/source-inventory.json').read_text())
+          live_by_id = {
+              row['canonicalId']: row
+              for row in live.get('sources', [])
+              if isinstance(row, dict) and row.get('language') == 'en' and isinstance(row.get('canonicalId'), str)
+          }
+          drift = []
+          for row in b2['decisions']:
+              if row.get('decision', {}).get('nextPhase') != 'TRACK_B_BATCH_3':
+                  continue
+              cid = row['canonicalId']
+              current = live_by_id.get(cid)
+              if bool(current) != bool(row.get('inventoryPresent')):
+                  drift.append({'canonicalId': cid, 'reason': 'INVENTORY_PRESENCE_CHANGED'})
+                  continue
+              if current is None:
+                  continue
+              live_providers = current.get('providers') if isinstance(current.get('providers'), dict) else {}
+              for provider in ('uma', 'gekkoushi', 'keiyoushi'):
+                  expected = row.get('providers', {}).get(provider, {}).get('inventoryIdentity')
+                  actual = live_providers.get(provider)
+                  if expected != actual:
+                      drift.append({'canonicalId': cid, 'provider': provider, 'reason': 'PROVIDER_IDENTITY_CHANGED'})
+          Path('build/track-b-batch3-live-drift.json').write_text(
+              json.dumps({'liveInventoryCommit': '${{ steps.pins.outputs.live_inventory_sha }}', 'drift': drift}, indent=2) + '\n'
+          )
+          if drift:
+              raise SystemExit(f'B3 cohort drifted since frozen B2 boundary: {drift}')
+          PY
+
+      - name: Build B3 differential runtime plans
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_b3_targeted_runtime.py plan \
+            --b2-report build/track-b-batch2-capability-health.json \
+            --uma-candidate-root _upstream/candidate/uma \
+            --gekkoushi-candidate-root _upstream/candidate/gekkoushi \
+            --uma-lkg-root _upstream/lkg/uma \
+            --gekkoushi-lkg-root _upstream/lkg/gekkoushi \
+            --keiyoushi-reference-root _upstream/reference/keiyoushi \
+            --uma-candidate-commit "$UMA_CANDIDATE_SHA" \
+            --gekkoushi-candidate-commit "$GEKKOUSHI_CANDIDATE_SHA" \
+            --uma-lkg-commit "$UMA_LKG_SHA" \
+            --gekkoushi-lkg-commit "$GEKKOUSHI_LKG_SHA" \
+            --output build/track-b-batch3-plan.json \
+            --candidate-runtime-plan build/b3-candidate-runtime-plan.json \
+            --lkg-runtime-plan build/b3-lkg-runtime-plan.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          plan = json.loads(Path('build/track-b-batch3-plan.json').read_text())
+          assert plan['readOnly'] is True
+          assert plan['count'] == int('${{ env.B3_COHORT_SIZE }}')
+          PY
+
+      - name: Set up Java 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          packages: platform-tools
+
+      - name: Compile candidate and LKG primary baselines
+        shell: bash
+        run: |
+          set -u
+          for side in candidate lkg; do
+            printf '{"uma":{},"gekkoushi":{}}\n' > "build/compile-$side.json"
+            for provider in uma gekkoushi; do
+              present="$(SIDE="$side" PROVIDER="$provider" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          data = json.loads(Path(f"build/b3-{os.environ['SIDE']}-runtime-plan.json").read_text())
+          print('true' if any(os.environ['PROVIDER'] in item.get('providers', []) for item in data.get('items', [])) else 'false')
+          PY
+              )"
+              [[ "$present" == true ]] || continue
+              root="_upstream/$side/$provider"
+              if (cd "$root" && chmod +x gradlew && ./gradlew buildJar --no-daemon); then ok=true; else ok=false; fi
+              SIDE="$side" PROVIDER="$provider" OK="$ok" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path(f"build/compile-{os.environ['SIDE']}.json")
+          data = json.loads(path.read_text())
+          data[os.environ['PROVIDER']]['*'] = os.environ['OK'] == 'true'
+          path.write_text(json.dumps(data, indent=2) + '\n')
+          PY
+            done
+          done
+
+      - name: Profile candidate and LKG primary implementations
+        shell: bash
+        run: |
+          set -euo pipefail
+          for side in candidate lkg; do
+            python3 control/tools/source_pending_worker.py assess \
+              --plan "build/b3-$side-runtime-plan.json" \
+              --keiyoushi-root _upstream/reference/keiyoushi \
+              --uma-root "_upstream/$side/uma" \
+              --gekkoushi-root "_upstream/$side/gekkoushi" \
+              --compile-results "build/compile-$side.json" \
+              --timeout 8 \
+              --fail-threshold 3 \
+              --output "build/b3-$side-profile-results.json"
+          done
+
+      - name: Isolate unrelated upstream Gekkoushi tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for side in candidate lkg; do
+            root="_upstream/$side/gekkoushi"
+            if [[ -d "$root/src/test" ]]; then
+              mv "$root/src/test" "$root/_compatibility-upstream-tests"
+            fi
+          done
+
+      - name: Generate real parser smoke harnesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          for side in candidate lkg; do
+            for provider in uma gekkoushi; do
+              python3 control/tools/source_live_parser_harness.py generate \
+                --plan "build/b3-$side-runtime-plan.json" \
+                --profile-results "build/b3-$side-profile-results.json" \
+                --provider "$provider" \
+                --provider-root "_upstream/$side/$provider" \
+                --output "build/b3-$side-live-$provider-manifest.json"
+            done
+          done
+
+      - name: Execute generated real parser tests
+        shell: bash
+        run: |
+          set -u
+          for side in candidate lkg; do
+            for provider in uma gekkoushi; do
+              manifest="build/b3-$side-live-$provider-manifest.json"
+              mapfile -t tests < <(MANIFEST="$manifest" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          data = json.loads(Path(os.environ['MANIFEST']).read_text())
+          print('\n'.join(item['testClass'] for item in data.get('tests', [])))
+          PY
+              )
+              [[ ${#tests[@]} -gt 0 ]] || continue
+              args=()
+              for test in "${tests[@]}"; do args+=(--tests "$test"); done
+              (cd "_upstream/$side/$provider" && chmod +x gradlew && ./gradlew test "${args[@]}" --no-daemon) || true
+            done
+          done
+
+      - name: Collect differential runtime evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          for side in candidate lkg; do
+            python3 control/tools/source_live_parser_harness.py collect \
+              --manifest "build/b3-$side-live-uma-manifest.json" \
+              --manifest "build/b3-$side-live-gekkoushi-manifest.json" \
+              --output "build/b3-$side-live-results.json"
+          done
+
+      - name: Build Batch 3 decision report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_b3_targeted_runtime.py report \
+            --plan build/track-b-batch3-plan.json \
+            --candidate-results build/b3-candidate-live-results.json \
+            --lkg-results build/b3-lkg-live-results.json \
+            --output build/track-b-batch3-targeted-runtime.json \
+            --markdown-output build/track-b-batch3-targeted-runtime.md
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build/track-b-batch3-targeted-runtime.json').read_text())
+          assert report['readOnly'] is True
+          assert report['summary']['rows'] == int('${{ env.B3_COHORT_SIZE }}')
+          for row in report['decisions']:
+              safety = row['safety']
+              assert safety == {
+                  'readOnly': True,
+                  'mutateLastKnownGood': False,
+                  'mutateRetryHeld': False,
+                  'mutateCanonicalId': False,
+                  'adoptReferenceProvider': False,
+                  'approveOverlay': False,
+              }
+          PY
+
+      - name: Prove authority inputs were not mutated
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(sha256sum farm/compatibility/source-registry.json | awk '{print $1}')" == '${{ steps.before.outputs.source_registry }}' ]]
+          [[ "$(sha256sum farm/upstream/source-health.json | awk '{print $1}')" == '${{ steps.before.outputs.source_health }}' ]]
+          [[ "$(sha256sum farm/upstream/registry.json | awk '{print $1}')" == '${{ steps.before.outputs.upstream_registry }}' ]]
+          [[ "$(sha256sum farm/upstream/status.json | awk '{print $1}')" == '${{ steps.before.outputs.status }}' ]]
+          [[ "$(sha256sum farm/automation/pending-worker-state.json | awk '{print $1}')" == '${{ steps.before.outputs.worker_state }}' ]]
+          [[ "$(sha256sum inventory/inventory/source-inventory.json | awk '{print $1}')" == '${{ steps.before.outputs.inventory }}' ]]
+          [[ "$(sha256sum miyorare/extensions/miyorare-sources/multi-upstream.json | awk '{print $1}')" == '${{ steps.before.outputs.aliases }}' ]]
+
+      - name: Upload Batch 3 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: track-b-batch3-targeted-runtime-${{ github.run_id }}
+          path: |
+            build/track-b-batch1-en-mapping.json
+            build/track-b-batch2-capability-health.json
+            build/track-b-batch3-live-drift.json
+            build/track-b-batch3-plan.json
+            build/b3-*-runtime-plan.json
+            build/b3-*-profile-results.json
+            build/b3-*-live-*-manifest.json
+            build/b3-*-live-results.json
+            build/track-b-batch3-targeted-runtime.json
+            build/track-b-batch3-targeted-runtime.md
+            _upstream/candidate/uma/build/test-results/test/*.xml
+            _upstream/candidate/gekkoushi/build/test-results/test/*.xml
+            _upstream/lkg/uma/build/test-results/test/*.xml
+            _upstream/lkg/gekkoushi/build/test-results/test/*.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          echo '## Track B Batch 3 — targeted candidate-vs-LKG runtime' >> "$GITHUB_STEP_SUMMARY"
+          echo "Frozen B3 cohort: $B3_COHORT_SIZE" >> "$GITHUB_STEP_SUMMARY"
+          echo "Live inventory: ${{ steps.pins.outputs.live_inventory_sha }}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f build/track-b-batch3-targeted-runtime.md ]]; then
+            cat build/track-b-batch3-targeted-runtime.md >> "$GITHUB_STEP_SUMMARY"
+          fi
