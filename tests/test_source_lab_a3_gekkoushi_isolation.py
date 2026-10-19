@@ -50,6 +50,9 @@ class SourceLabA3GekkoushiIsolationTests(unittest.TestCase):
     def test_aggregate_requires_complete_evidence_without_promotion(self) -> None:
         self.assertIn("Require one normalized receipt per ACTIVE membership", self.text)
         self.assertIn("Isolation evidence incomplete", self.text)
+        self.assertIn("aggregate_rc=$?", self.text)
+        self.assertIn("Could not aggregate isolated parser evidence", self.text)
+        self.assertIn("test -s build/gekkoushi-isolation-aggregate.json", self.text)
         self.assertIn("allMembershipsExecuted", self.text)
         self.assertIn("parserFailuresCancelUnrelatedSources", self.text)
         self.assertIn("promotionAttempted", self.text)
