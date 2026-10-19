@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -278,6 +279,32 @@ def runtime_map(results: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]
     return mapped
 
 
+def profile_map(results: dict[str, Any] | None) -> dict[tuple[str, str], dict[str, Any]]:
+    mapped: dict[tuple[str, str], dict[str, Any]] = {}
+    if not isinstance(results, dict):
+        return mapped
+    for row in results.get("results", []):
+        if not isinstance(row, dict) or not isinstance(row.get("canonicalId"), str):
+            continue
+        canonical_id = row["canonicalId"]
+        profile = row.get("evidence", {}).get("profile", {})
+        memberships = profile.get("memberships") if isinstance(profile, dict) else None
+        if not isinstance(memberships, list):
+            continue
+        for membership in memberships:
+            if not isinstance(membership, dict) or membership.get("provider") not in PRIMARY:
+                continue
+            provider = str(membership["provider"])
+            mapped[(canonical_id, provider)] = {
+                "state": row.get("state"),
+                "failureCategory": row.get("failureCategory"),
+                "profileGate": profile.get("gate"),
+                "selectedProviders": profile.get("selectedProviders"),
+                "membership": membership,
+            }
+    return mapped
+
+
 def passed(row: dict[str, Any] | None) -> bool:
     return bool(
         row
@@ -289,16 +316,45 @@ def passed(row: dict[str, Any] | None) -> bool:
     )
 
 
+def profile_blocked(row: dict[str, Any] | None) -> bool:
+    return bool(
+        row
+        and isinstance(row.get("membership"), dict)
+        and row["membership"].get("profilePass") is not True
+    )
+
+
+def runtime_failure_signature(row: dict[str, Any] | None) -> tuple[Any, ...] | None:
+    if not isinstance(row, dict) or passed(row):
+        return None
+    return (
+        row.get("status"),
+        row.get("parserExecution"),
+        row.get("failureType"),
+        " ".join(str(row.get("failureMessage") or "").split()),
+        row.get("detailsTraversal"),
+        row.get("chapterTraversal"),
+        row.get("pageExtraction"),
+    )
+
+
 def classify_provider(
     candidate_binding: dict[str, Any],
     lkg_binding: dict[str, Any],
     candidate_runtime: dict[str, Any] | None,
     lkg_runtime: dict[str, Any] | None,
+    candidate_profile: dict[str, Any] | None = None,
+    lkg_profile: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     candidate_bound = isinstance(candidate_binding.get("identity"), dict)
     lkg_bound = isinstance(lkg_binding.get("identity"), dict)
     candidate_pass = passed(candidate_runtime)
     lkg_pass = passed(lkg_runtime)
+    same_failure = (
+        runtime_failure_signature(candidate_runtime) is not None
+        and runtime_failure_signature(candidate_runtime) == runtime_failure_signature(lkg_runtime)
+    )
+
     if candidate_pass and lkg_pass:
         state = "BOTH_PASS"
     elif candidate_pass and not lkg_pass:
@@ -307,18 +363,30 @@ def classify_provider(
         state = "CANDIDATE_REGRESSION"
     elif not candidate_bound and not lkg_bound:
         state = "NO_PRIMARY_IMPLEMENTATION"
+    elif profile_blocked(candidate_profile) and profile_blocked(lkg_profile):
+        state = "BOTH_PROFILE_BLOCKED"
+    elif profile_blocked(candidate_profile) and candidate_runtime is None:
+        state = "CANDIDATE_PROFILE_BLOCKED"
+    elif profile_blocked(lkg_profile) and lkg_runtime is None:
+        state = "LKG_PROFILE_BLOCKED"
+    elif candidate_runtime is not None and lkg_runtime is not None:
+        state = "BOTH_RUNTIME_FAILING"
     elif candidate_bound and candidate_runtime is None:
         state = "CANDIDATE_RUNTIME_EVIDENCE_MISSING"
     elif lkg_bound and lkg_runtime is None:
         state = "LKG_RUNTIME_EVIDENCE_MISSING"
     else:
         state = "BOTH_BLOCKED_OR_FAILING"
+
     return {
         "state": state,
         "candidateBinding": candidate_binding,
         "lkgBinding": lkg_binding,
+        "candidateProfile": candidate_profile,
+        "lkgProfile": lkg_profile,
         "candidateRuntime": candidate_runtime,
         "lkgRuntime": lkg_runtime,
+        "sameRuntimeFailure": same_failure,
     }
 
 
@@ -326,11 +394,17 @@ def build_report(
     plan: dict[str, Any],
     candidate_results: dict[str, Any],
     lkg_results: dict[str, Any],
+    candidate_profile_results: dict[str, Any] | None = None,
+    lkg_profile_results: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     c_map = runtime_map(candidate_results)
     l_map = runtime_map(lkg_results)
+    cp_map = profile_map(candidate_profile_results)
+    lp_map = profile_map(lkg_profile_results)
     rows: list[dict[str, Any]] = []
-    counts: dict[str, int] = {}
+    counts: Counter[str] = Counter()
+    provider_states: Counter[str] = Counter()
+
     for item in plan.get("items", []):
         canonical_id = item["canonicalId"]
         providers: dict[str, Any] = {}
@@ -341,9 +415,13 @@ def build_report(
                 item["lkg"][provider],
                 c_map.get((canonical_id, provider)),
                 l_map.get((canonical_id, provider)),
+                cp_map.get((canonical_id, provider)),
+                lp_map.get((canonical_id, provider)),
             )
             providers[provider] = detail
             states.append(detail["state"])
+            provider_states[detail["state"]] += 1
+
         if any(state in {"BOTH_PASS", "CANDIDATE_IMPROVES_OR_RESTORES"} for state in states):
             decision = "B4_CANDIDATE_RUNTIME_PROVEN"
             next_phase = "TRACK_B_BATCH_4"
@@ -356,7 +434,8 @@ def build_report(
         else:
             decision = "B3_RUNTIME_INCONCLUSIVE_OR_REPAIR_REQUIRED"
             next_phase = B3_PHASE
-        counts[decision] = counts.get(decision, 0) + 1
+
+        counts[decision] += 1
         rows.append({
             "canonicalId": canonical_id,
             "displayName": item.get("displayName"),
@@ -373,15 +452,20 @@ def build_report(
                 "approveOverlay": False,
             },
         })
+
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "phase": B3_PHASE,
         "status": "COMPLETE_WITH_RUNTIME_EVIDENCE",
         "readOnly": True,
         "cohortSha256": plan.get("cohortSha256"),
         "candidateCommits": plan.get("candidateCommits"),
         "lkgCommits": plan.get("lkgCommits"),
-        "summary": {"rows": len(rows), "decisions": counts},
+        "summary": {
+            "rows": len(rows),
+            "decisions": dict(counts),
+            "providerStates": dict(provider_states),
+        },
         "decisions": rows,
     }
 
@@ -400,9 +484,18 @@ def markdown(report: dict[str, Any]) -> str:
     ]
     for key, value in sorted(report["summary"]["decisions"].items()):
         lines.append(f"- `{key}`: {value}")
+    lines.extend(["", "## Provider evidence states"])
+    for key, value in sorted(report["summary"].get("providerStates", {}).items()):
+        lines.append(f"- `{key}`: {value}")
     lines.extend(["", "## Sources", ""])
     for row in report["decisions"]:
-        lines.append(f"- `{row['canonicalId']}` — **{row['decision']}** → `{row['nextPhase']}`")
+        active = [
+            f"{provider}={detail['state']}"
+            for provider, detail in row["providers"].items()
+            if detail["state"] != "NO_PRIMARY_IMPLEMENTATION"
+        ]
+        suffix = f" ({', '.join(active)})" if active else ""
+        lines.append(f"- `{row['canonicalId']}` — **{row['decision']}** → `{row['nextPhase']}`{suffix}")
     return "\n".join(lines) + "\n"
 
 
@@ -429,9 +522,24 @@ def parser() -> argparse.ArgumentParser:
     report.add_argument("--plan", required=True)
     report.add_argument("--candidate-results", required=True)
     report.add_argument("--lkg-results", required=True)
+    report.add_argument("--candidate-profile-results")
+    report.add_argument("--lkg-profile-results")
     report.add_argument("--output", required=True)
     report.add_argument("--markdown-output", required=True)
     return p
+
+
+def inferred_profile_path(runtime_path: str | Path) -> Path:
+    path = Path(runtime_path)
+    marker = "-live-results.json"
+    if not path.name.endswith(marker):
+        return path.with_name(path.stem + "-profile-results.json")
+    return path.with_name(path.name[:-len(marker)] + "-profile-results.json")
+
+
+def optional_profile(explicit: str | None, runtime_path: str) -> dict[str, Any]:
+    path = Path(explicit) if explicit else inferred_profile_path(runtime_path)
+    return load_json(path) if path.is_file() else {"schemaVersion": 2, "results": []}
 
 
 def main() -> None:
@@ -454,6 +562,8 @@ def main() -> None:
             load_json(args.plan),
             load_json(args.candidate_results),
             load_json(args.lkg_results),
+            optional_profile(args.candidate_profile_results, args.candidate_results),
+            optional_profile(args.lkg_profile_results, args.lkg_results),
         )
         save_json(args.output, result)
         Path(args.markdown_output).write_text(markdown(result), encoding="utf-8")
