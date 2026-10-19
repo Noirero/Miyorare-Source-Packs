@@ -47,6 +47,13 @@ class SourceLabA3GekkoushiIsolationTests(unittest.TestCase):
         self.assertIn("PASS evidence cannot come from a failed parser step", self.text)
         self.assertIn("FAIL evidence unexpectedly came from a successful parser step", self.text)
 
+    def test_each_matrix_membership_has_unique_persisted_evidence(self) -> None:
+        self.assertIn("EVIDENCE_KEY: ${{ matrix.familyId }}-${{ strategy.job-index }}", self.text)
+        self.assertIn("real-parser-harness-$EVIDENCE_KEY-report.json", self.text)
+        self.assertIn("repair-$EVIDENCE_KEY.json", self.text)
+        self.assertIn("source-lab-a3-gekkoushi-${{ matrix.familyId }}-${{ strategy.job-index }}-${{ github.run_id }}", self.text)
+        self.assertNotIn("source-lab-a3-gekkoushi-${{ matrix.familyId }}-${{ github.run_id }}", self.text)
+
     def test_aggregate_requires_complete_evidence_without_promotion(self) -> None:
         self.assertIn("Require one normalized receipt per ACTIVE membership", self.text)
         self.assertIn("Isolation evidence incomplete", self.text)
