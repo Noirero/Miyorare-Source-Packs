@@ -30,7 +30,7 @@ def source(canonical_id: str = "alpha") -> dict:
     }
 
 
-def permanent_entry(*, tested: str = SHA, annotated: bool = False) -> dict:
+def permanent_entry(*, tested: str = SHA, annotated: bool = False, reason: str = "Original site closed") -> dict:
     value = {
         "state": held.HELD,
         "attempts": 2,
@@ -45,7 +45,7 @@ def permanent_entry(*, tested: str = SHA, annotated: bool = False) -> dict:
                     {
                         "provider": "gekkoushi",
                         "profilePass": False,
-                        "upstreamBrokenReason": "Original site closed",
+                        "upstreamBrokenReason": reason,
                         "probe": {"reachable": False, "detail": "upstream-declared-broken"},
                     }
                 ],
@@ -59,14 +59,26 @@ def permanent_entry(*, tested: str = SHA, annotated: bool = False) -> dict:
 
 
 class HeldObservabilityTest(unittest.TestCase):
-    def test_current_permanent_hold_is_policy_consistent(self) -> None:
+    def test_current_closed_site_hold_is_policy_consistent(self) -> None:
         report = held.audit(registry(source()), {"sources": {"alpha": permanent_entry(annotated=True)}}, NOW)
         row = report["heldEntries"][0]
         self.assertEqual("PERMANENT_UPSTREAM", row["effectiveCategory"])
+        self.assertEqual("SITE_CLOSED_OR_GONE", row["operationalReasonClass"])
         self.assertEqual("CURRENT", row["evidenceBindingStatus"])
-        self.assertEqual("KEEP_HELD_PERMANENT_UPSTREAM", row["reviewDisposition"])
+        self.assertEqual("KEEP_HELD_SITE_UNAVAILABLE", row["reviewDisposition"])
         self.assertTrue(row["policyConsistentCurrentHold"])
         self.assertFalse(row["reviewRequired"])
+
+    def test_fixable_parser_reason_is_visible_without_mutating_lifecycle_category(self) -> None:
+        entry = permanent_entry(reason="Site is online but parser is broken — layout/API changed, needs rewrite")
+        report = held.audit(registry(source()), {"sources": {"alpha": entry}}, NOW)
+        row = report["heldEntries"][0]
+        self.assertEqual("PERMANENT_UPSTREAM", row["effectiveCategory"])
+        self.assertEqual("PARSER_REWRITE_REQUIRED", row["operationalReasonClass"])
+        self.assertEqual("REVIEW_FIXABLE_PARSER_HOLD", row["reviewDisposition"])
+        self.assertTrue(row["policyConsistentCurrentHold"])
+        self.assertTrue(row["operationallyReviewableCurrentHold"])
+        self.assertTrue(row["reviewRequired"])
 
     def test_stale_terminal_hold_is_visible_for_revalidation(self) -> None:
         report = held.audit(registry(source()), {"sources": {"alpha": permanent_entry(tested=OLD_SHA)}}, NOW)
@@ -100,6 +112,7 @@ class HeldObservabilityTest(unittest.TestCase):
         report = held.audit(registry(source()), {"sources": {"alpha": entry}}, NOW)
         row = report["heldEntries"][0]
         self.assertEqual("SOURCE_PARSER_FAILURE", row["effectiveCategory"])
+        self.assertEqual("SOURCE_PARSER_FAILURE", row["operationalReasonClass"])
         self.assertEqual("REVIEW_NONTERMINAL_OR_UNKNOWN_HOLD", row["reviewDisposition"])
         self.assertTrue(row["reviewRequired"])
         self.assertFalse(row["policyConsistentCurrentHold"])
