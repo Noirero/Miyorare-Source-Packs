@@ -11,6 +11,11 @@ from typing import Any
 
 HELD = "NEEDS_ATTENTION"
 TERMINAL_CATEGORIES = {"PERMANENT_UPSTREAM", "AUTH_REQUIRED"}
+REVIEWABLE_REASON_CLASSES = {
+    "PARSER_REWRITE_REQUIRED",
+    "ANTI_BOT_OR_SESSION",
+    "UPSTREAM_SERVICE_FAILURE",
+}
 
 _RETRY_AUDIT_PATH = Path(__file__).resolve().with_name("source_retry_audit.py")
 _RETRY_AUDIT_SPEC = importlib.util.spec_from_file_location("source_retry_audit_for_held", _RETRY_AUDIT_PATH)
@@ -75,8 +80,30 @@ def effective_category(stored: Any, inferred: str) -> tuple[str, str, bool | Non
     return inferred_known, "INFERRED", None
 
 
+def operational_reason_class(category: str, findings: list[dict[str, Any]]) -> str:
+    if category == "AUTH_REQUIRED":
+        return "AUTH_REQUIRED"
+    if category != "PERMANENT_UPSTREAM":
+        return category
+    reasons = " ".join(str(item.get("reason") or "") for item in findings).lower()
+    if any(token in reasons for token in ("parser is broken", "layout/api changed", "needs rewrite")):
+        return "PARSER_REWRITE_REQUIRED"
+    if any(token in reasons for token in ("cloudflare challenge", "captcha", "access denied", "http 403")):
+        return "ANTI_BOT_OR_SESSION"
+    if any(token in reasons for token in ("tls error", "origin tls", "5xx", "misconfigured")):
+        return "UPSTREAM_SERVICE_FAILURE"
+    if any(token in reasons for token in ("parked", "landing page only", "no manga content")):
+        return "SITE_PARKED_OR_NO_CONTENT"
+    if any(token in reasons for token in ("hijacked", "spam/ads", "unrelated domain", "redirects to an unrelated")):
+        return "DOMAIN_HIJACKED_OR_REDIRECTED"
+    if any(token in reasons for token in ("no dns", "original site closed", "site is gone", "site closed")):
+        return "SITE_CLOSED_OR_GONE"
+    return "PERMANENT_UPSTREAM_OTHER"
+
+
 def disposition(
     category: str,
+    reason_class: str,
     evidence_status: str,
     category_agreement: bool | None,
 ) -> str:
@@ -86,10 +113,22 @@ def disposition(
         if category in TERMINAL_CATEGORIES:
             return "REVALIDATE_STALE_TERMINAL_EVIDENCE"
         return "REVIEW_STALE_OR_INCOMPLETE_EVIDENCE"
-    if category == "PERMANENT_UPSTREAM":
-        return "KEEP_HELD_PERMANENT_UPSTREAM"
     if category == "AUTH_REQUIRED":
         return "KEEP_HELD_AUTH_REQUIRED"
+    if category == "PERMANENT_UPSTREAM":
+        if reason_class == "PARSER_REWRITE_REQUIRED":
+            return "REVIEW_FIXABLE_PARSER_HOLD"
+        if reason_class == "ANTI_BOT_OR_SESSION":
+            return "REVIEW_ANTI_BOT_OR_SESSION_HOLD"
+        if reason_class == "UPSTREAM_SERVICE_FAILURE":
+            return "REVIEW_UPSTREAM_SERVICE_HOLD"
+        if reason_class in {
+            "SITE_CLOSED_OR_GONE",
+            "SITE_PARKED_OR_NO_CONTENT",
+            "DOMAIN_HIJACKED_OR_REDIRECTED",
+        }:
+            return "KEEP_HELD_SITE_UNAVAILABLE"
+        return "KEEP_HELD_PERMANENT_UPSTREAM"
     return "REVIEW_NONTERMINAL_OR_UNKNOWN_HOLD"
 
 
@@ -109,11 +148,12 @@ def audit(registry: dict[str, Any], state: dict[str, Any], now: datetime) -> dic
         source = sources.get(canonical_id)
         inferred, findings = _retry_audit.classify_entry(raw)
         category, category_source, category_agreement = effective_category(raw.get("failureCategory"), inferred)
+        reason_class = operational_reason_class(category, findings)
         evidence_status, binding = evidence_binding_status(source, raw, baselines)
         checked = parse_time(raw.get("lastCheckedAt"))
         hold_reason = raw.get("holdReason") if isinstance(raw.get("holdReason"), str) else None
         metadata_complete = bool(raw.get("failureCategory") and hold_reason)
-        review_disposition = disposition(category, evidence_status, category_agreement)
+        review_disposition = disposition(category, reason_class, evidence_status, category_agreement)
         enrollment = source.get("compatibilityEnrollment") if isinstance(source, dict) else None
         enrollment_state = enrollment.get("state") if isinstance(enrollment, dict) else None
         row = {
@@ -130,6 +170,7 @@ def audit(registry: dict[str, Any], state: dict[str, Any], now: datetime) -> dic
             "storedFailureCategory": raw.get("failureCategory"),
             "inferredPrimaryCategory": inferred,
             "effectiveCategory": category,
+            "operationalReasonClass": reason_class,
             "categorySource": category_source,
             "categoryAgreement": category_agreement,
             "holdReason": hold_reason,
@@ -146,15 +187,18 @@ def audit(registry: dict[str, Any], state: dict[str, Any], now: datetime) -> dic
                 and category in TERMINAL_CATEGORIES
                 and category_agreement is not False
             ),
-            "reviewRequired": review_disposition not in {
-                "KEEP_HELD_PERMANENT_UPSTREAM",
-                "KEEP_HELD_AUTH_REQUIRED",
-            },
+            "operationallyReviewableCurrentHold": (
+                evidence_status == "CURRENT"
+                and reason_class in REVIEWABLE_REASON_CLASSES
+                and category_agreement is not False
+            ),
+            "reviewRequired": not review_disposition.startswith("KEEP_HELD_"),
         }
         rows.append(row)
 
-    rows.sort(key=lambda row: (str(row["reviewDisposition"]), str(row["effectiveCategory"]), row["canonicalId"]))
+    rows.sort(key=lambda row: (str(row["reviewDisposition"]), str(row["operationalReasonClass"]), row["canonicalId"]))
     by_category = Counter(row["effectiveCategory"] for row in rows)
+    by_reason = Counter(row["operationalReasonClass"] for row in rows)
     by_disposition = Counter(row["reviewDisposition"] for row in rows)
     by_binding = Counter(row["evidenceBindingStatus"] for row in rows)
     by_language = Counter(str(row["language"] or "unknown") for row in rows)
@@ -167,6 +211,7 @@ def audit(registry: dict[str, Any], state: dict[str, Any], now: datetime) -> dic
         "summary": {
             "totalHeld": len(rows),
             "byEffectiveCategory": dict(sorted(by_category.items())),
+            "byOperationalReasonClass": dict(sorted(by_reason.items())),
             "byReviewDisposition": dict(sorted(by_disposition.items())),
             "byEvidenceBindingStatus": dict(sorted(by_binding.items())),
             "byLanguage": dict(sorted(by_language.items())),
@@ -182,6 +227,7 @@ def audit(registry: dict[str, Any], state: dict[str, Any], now: datetime) -> dic
             "categoryConflicts": sum(1 for row in rows if row["categoryAgreement"] is False),
             "reviewRequired": sum(1 for row in rows if row["reviewRequired"]),
             "policyConsistentCurrentHold": sum(1 for row in rows if row["policyConsistentCurrentHold"]),
+            "operationallyReviewableCurrentHold": sum(1 for row in rows if row["operationallyReviewableCurrentHold"]),
             "ownerActionRequiredFlagged": sum(1 for row in rows if row["ownerActionRequired"]),
         },
         "policyObservations": {
@@ -190,7 +236,9 @@ def audit(registry: dict[str, Any], state: dict[str, Any], now: datetime) -> dic
             "retryMutationPerformed": False,
             "lkgMutationPerformed": False,
             "terminalCategories": sorted(TERMINAL_CATEGORIES),
-            "nonterminalHeldRowsAreReviewOnly": True,
+            "reviewableReasonClasses": sorted(REVIEWABLE_REASON_CLASSES),
+            "operationalReasonDoesNotMutateLifecycleCategory": True,
+            "reviewRowsAreObservabilityOnly": True,
             "staleHeldRowsAreReviewOnly": True,
         },
         "heldEntries": rows,
@@ -212,17 +260,23 @@ def markdown(report: dict[str, Any]) -> str:
         f"- Current evidence: **{summary['currentEvidence']}**",
         f"- Stale evidence: **{summary['staleEvidence']}**",
         f"- Incomplete/mismatched evidence: **{summary['incompleteOrMismatchedEvidence']}**",
-        f"- Terminal-category Held: **{summary['terminalCategory']}**",
-        f"- Nonterminal/unknown Held requiring review: **{summary['nonterminalOrUnknownCategory']}**",
-        f"- Policy-consistent current Held: **{summary['policyConsistentCurrentHold']}**",
+        f"- Lifecycle-terminal category: **{summary['terminalCategory']}**",
+        f"- Operationally reviewable current Held: **{summary['operationallyReviewableCurrentHold']}**",
         f"- Review required: **{summary['reviewRequired']}**",
         f"- Legacy/incomplete metadata: **{summary['metadataIncomplete']}**",
         "",
+        "## Operational reason classes",
+        "",
+    ]
+    for name, count in summary["byOperationalReasonClass"].items():
+        lines.append(f"- {name}: **{count}**")
+    lines.extend([
+        "",
         "## Held entries",
         "",
-        "| Canonical ID | Lang | Category | Evidence | Disposition | Reason |",
-        "| --- | --- | --- | --- | --- | --- |",
-    ]
+        "| Canonical ID | Lang | Lifecycle category | Operational reason | Evidence | Disposition | Reason |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ])
     for row in report["heldEntries"]:
         reason = ""
         findings = row.get("findings") if isinstance(row.get("findings"), list) else []
@@ -234,7 +288,8 @@ def markdown(report: dict[str, Any]) -> str:
         canonical_id = str(row["canonicalId"]).replace("|", "\\|")
         lines.append(
             f"| `{canonical_id}` | {row.get('language') or '-'} | {row['effectiveCategory']} | "
-            f"{row['evidenceBindingStatus']} | {row['reviewDisposition']} | {reason or '-'} |"
+            f"{row['operationalReasonClass']} | {row['evidenceBindingStatus']} | "
+            f"{row['reviewDisposition']} | {reason or '-'} |"
         )
     lines.append("")
     return "\n".join(lines)
