@@ -17,9 +17,9 @@ concurrency:
 
 jobs:
   probe:
-    name: Probe WhaleManga WoopRead PawManga
+    name: Probe unresolved Track B runtime cohort
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Validate safe execution context
         if: github.event_name == 'pull_request'
@@ -30,7 +30,7 @@ jobs:
           set -euo pipefail
           [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" ]]
 
-      - name: Probe live Madara routes
+      - name: Probe live source routes
         shell: bash
         run: |
           set -euo pipefail
@@ -48,7 +48,9 @@ jobs:
             echo "selector.page-item-detail=$(grep -oF 'page-item-detail' "$body" 2>/dev/null | wc -l | tr -d ' ')"
             echo "selector.manga__item=$(grep -oF 'manga__item' "$body" 2>/dev/null | wc -l | tr -d ' ')"
             echo "selector.post-title=$(grep -oF 'post-title' "$body" 2>/dev/null | wc -l | tr -d ' ')"
+            echo "selector.comicItemCon=$(grep -oF 'comicItemCon' "$body" 2>/dev/null | wc -l | tr -d ' ')"
             echo "cloudflare.challenge=$(grep -Eio 'cf-chl|just a moment|challenge-platform' "$body" 2>/dev/null | wc -l | tr -d ' ')"
+            echo "parking.marker=$(grep -Eio 'domain for sale|buy this domain|parkingcrew|sedoparking|ww[0-9]+\.|survey-smiles' "$body" 2>/dev/null | wc -l | tr -d ' ')"
           }
 
           probe_get() {
@@ -109,6 +111,29 @@ jobs:
             probe_get PAWMANGA "$mode" "$ua" 'https://pawmanga.com/manga/' "paw-${mode}-manga"
             probe_get PAWMANGA "$mode" "$ua" 'https://pawmanga.com/?s=&post_type=wp-manga&m_orderby=latest' "paw-${mode}-search"
             probe_ajax PAWMANGA "$mode" "$ua" 'pawmanga.com' "paw-${mode}-ajax"
+
+            probe_get FIRESCANS "$mode" "$ua" 'https://firescans.xyz/' "fire-${mode}-home"
+            probe_get FIRESCANS "$mode" "$ua" 'https://firescans.xyz/manga/' "fire-${mode}-manga"
+            probe_get FIRESCANS "$mode" "$ua" 'https://firescans.xyz/?s=&post_type=wp-manga' "fire-${mode}-search"
+            probe_ajax FIRESCANS "$mode" "$ua" 'firescans.xyz' "fire-${mode}-ajax"
+
+            probe_get HEYTOON "$mode" "$ua" 'https://heytoon.net/' "hey-${mode}-home"
+            probe_get HEYTOON "$mode" "$ua" 'https://heytoon.net/en/genres?orderBy=latest' "hey-${mode}-genres"
+            probe_get HEYTOON "$mode" "$ua" 'https://heytoon.net/api/complete-search?keyword=love' "hey-${mode}-api"
+
+            probe_get KALISCAN "$mode" "$ua" 'https://kaliscan.io/' "kali-${mode}-home"
+            probe_get KALISCAN "$mode" "$ua" 'https://kaliscan.io/manga/' "kali-${mode}-manga"
+            probe_get KALISCAN "$mode" "$ua" 'https://kaliscan.io/?s=&post_type=wp-manga&m_orderby=latest' "kali-${mode}-search"
+
+            probe_get MANHWA18ORG "$mode" "$ua" 'https://manhwa18.org/' "m18-${mode}-home"
+            probe_get MANHWA18ORG "$mode" "$ua" 'https://manhwa18.org/manga/' "m18-${mode}-manga"
+            probe_get MANHWA18ORG "$mode" "$ua" 'https://manhwa18.org/?s=&post_type=wp-manga&m_orderby=latest' "m18-${mode}-search"
+            probe_ajax MANHWA18ORG "$mode" "$ua" 'manhwa18.org' "m18-${mode}-ajax"
+
+            probe_get SHIBAMANGA "$mode" "$ua" 'https://shibamanga.com/' "shiba-${mode}-home"
+            probe_get SHIBAMANGA "$mode" "$ua" 'https://shibamanga.com/manga/' "shiba-${mode}-manga"
+            probe_get SHIBAMANGA "$mode" "$ua" 'https://shibamanga.com/?s=&post_type=wp-manga&m_orderby=latest' "shiba-${mode}-search"
+            probe_ajax SHIBAMANGA "$mode" "$ua" 'shibamanga.com' "shiba-${mode}-ajax"
           done
 
           cat "$report"
