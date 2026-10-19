@@ -1,0 +1,215 @@
+name: Source Lab Backfill ACTIVE Parser Coverage
+run-name: Source Lab Backfill ACTIVE Parser Coverage
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_foundation_sha:
+        description: Exact compatibility-farm-foundation SHA audited before repair
+        required: true
+        type: string
+        default: '225f58a716784b466e012a97ce19293f0ceab45e'
+      expected_missing_count:
+        description: Exact number of missing ACTIVE provider memberships expected
+        required: true
+        type: string
+        default: '20'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: source-lab-backfill-active-parser-coverage
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    name: Backfill evidence-proven ACTIVE parser coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      EXPECTED_OWNER_ID: '149634319'
+    steps:
+      - name: Validate owner-only execution context
+        env:
+          EXPECTED_FOUNDATION_SHA: ${{ inputs.expected_foundation_sha }}
+          EXPECTED_MISSING_COUNT: ${{ inputs.expected_missing_count }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+          [[ "$EXPECTED_FOUNDATION_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EXPECTED_MISSING_COUNT" =~ ^[0-9]+$ ]]
+          [[ "$EXPECTED_MISSING_COUNT" -gt 0 ]]
+
+      - name: Checkout control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: main
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout authoritative Compatibility Farm
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 0
+
+      - name: Pin audited foundation and lifecycle
+        id: base
+        env:
+          EXPECTED_FOUNDATION_SHA: ${{ inputs.expected_foundation_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          local_sha="$(git -C farm rev-parse HEAD)"
+          remote_sha="$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')"
+          [[ "$local_sha" == "$remote_sha" ]]
+          [[ "$local_sha" == "$EXPECTED_FOUNDATION_SHA" ]] || {
+            echo "::error::Foundation moved: expected $EXPECTED_FOUNDATION_SHA, current $local_sha"
+            exit 1
+          }
+          echo "sha=$local_sha" >> "$GITHUB_OUTPUT"
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          status = json.loads(Path('farm/upstream/status.json').read_text(encoding='utf-8'))
+          if status.get('schema') != 3:
+              raise SystemExit('unexpected upstream status schema')
+          if status.get('approvalCandidate') is not None:
+              raise SystemExit('provider approval candidate is pending; refusing parser coverage mutation')
+          promotion = status.get('lastPromotion')
+          published = status.get('lastPublish')
+          if isinstance(promotion, dict):
+              if not isinstance(published, dict) or published.get('candidateSetId') != promotion.get('candidateSetId'):
+                  raise SystemExit('finish SIGN/PUBLISH before parser coverage mutation')
+          PY
+
+      - name: Snapshot protected authoritative state
+        id: protected
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum \
+            farm/compatibility/source-registry.json \
+            farm/automation/pending-worker-state.json \
+            farm/upstream/status.json \
+            > protected-state.before.sha256
+
+      - name: Backfill only evidence-proven ACTIVE parser coverage
+        env:
+          EXPECTED_MISSING_COUNT: ${{ inputs.expected_missing_count }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p farm/build
+          python3 control/tools/source_parser_coverage_backfill.py \
+            --registry farm/compatibility/source-registry.json \
+            --state farm/automation/pending-worker-state.json \
+            --families farm/compatibility/parser-families.json \
+            --harness-root farm/compatibility/harness \
+            --expected-missing-count "$EXPECTED_MISSING_COUNT" \
+            --report farm/build/source-lab-active-parser-coverage-backfill.json
+
+      - name: Validate structural parser-family gate only
+        env:
+          EXPECTED_MISSING_COUNT: ${{ inputs.expected_missing_count }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 farm/tools/parser_family_plan.py \
+            --registry farm/compatibility/source-registry.json \
+            --families farm/compatibility/parser-families.json \
+            validate \
+            --output farm/build/source-lab-active-parser-coverage-validation.json
+
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          expected = int(os.environ['EXPECTED_MISSING_COUNT'])
+          report = json.loads(Path('farm/build/source-lab-active-parser-coverage-backfill.json').read_text())
+          validation = json.loads(Path('farm/build/source-lab-active-parser-coverage-validation.json').read_text())
+          if report.get('missingBefore') != expected:
+              raise SystemExit(f"unexpected missingBefore: {report.get('missingBefore')} != {expected}")
+          if report.get('addedMembershipCount') != expected:
+              raise SystemExit(f"unexpected addedMembershipCount: {report.get('addedMembershipCount')} != {expected}")
+          if report.get('remainingMissingCount') != 0:
+              raise SystemExit('ACTIVE memberships remain uncovered')
+          if validation.get('status') != 'VALID':
+              raise SystemExit('parser-family structural validation did not become VALID')
+          PY
+
+      - name: Prove protected state was not mutated
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum -c protected-state.before.sha256
+          git -C farm diff --exit-code -- \
+            compatibility/source-registry.json \
+            automation/pending-worker-state.json \
+            upstream/status.json
+
+      - name: Refuse stale foundation write
+        env:
+          EXPECTED_FARM_SHA: ${{ steps.base.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote="$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')"
+          [[ "$remote" == "$EXPECTED_FARM_SHA" ]] || {
+            echo "Compatibility Farm changed during repair; refusing stale write." >&2
+            exit 1
+          }
+
+      - name: Commit parser coverage only
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C farm config user.name 'github-actions[bot]'
+          git -C farm config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C farm add compatibility/parser-families.json compatibility/harness
+
+          mapfile -t changed < <(git -C farm diff --cached --name-only)
+          ((${#changed[@]} > 0))
+          for path in "${changed[@]}"; do
+            case "$path" in
+              compatibility/parser-families.json|compatibility/harness/*) ;;
+              *) echo "::error::Unexpected staged path: $path"; exit 1 ;;
+            esac
+          done
+
+          git -C farm commit -m 'farm: restore approved ACTIVE parser coverage'
+          git -C farm push origin HEAD:compatibility-farm-foundation
+          echo "farm_commit=$(git -C farm rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload structural repair evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: source-lab-active-parser-coverage-${{ github.run_id }}
+          path: |
+            farm/build/source-lab-active-parser-coverage-backfill.json
+            farm/build/source-lab-active-parser-coverage-validation.json
+            protected-state.before.sha256
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          echo '## Source Lab ACTIVE parser coverage repair' >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f farm/build/source-lab-active-parser-coverage-backfill.json ]]; then
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat farm/build/source-lab-active-parser-coverage-backfill.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [[ -n "${{ steps.commit.outputs.farm_commit }}" ]]; then
+            echo "Foundation commit: ${{ steps.commit.outputs.farm_commit }}" >> "$GITHUB_STEP_SUMMARY"
+          fi
