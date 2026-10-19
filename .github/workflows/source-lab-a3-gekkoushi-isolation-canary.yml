@@ -173,6 +173,7 @@ jobs:
           harness="${TEST_CLASS##*.}.kt"
           test -f "farm/compatibility/harness/gekkoushi/$harness"
           cp "farm/compatibility/harness/gekkoushi/$harness" upstream/src/test/kotlin/compatibilityfarm/
+          cp farm/compatibility/harness/gekkoushi/LiveMangaLoaderContext.kt upstream/src/test/kotlin/compatibilityfarm/
           cp farm/compatibility/harness/uma/DeterministicMangaLoaderContext.kt upstream/src/test/kotlin/compatibilityfarm/
           cp -R farm/compatibility/harness/gekkoushi/resources/. upstream/src/test/resources/compatibility-farm/
           cp -R farm/compatibility/harness/uma/resources/shinigami/. upstream/src/test/resources/compatibility-farm/shinigami/
