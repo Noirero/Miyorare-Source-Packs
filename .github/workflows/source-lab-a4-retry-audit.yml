@@ -73,11 +73,15 @@ jobs:
           fi
           echo "sha=$actual" >> "$GITHUB_OUTPUT"
 
-      - name: Compile retry auditor
+      - name: Validate retry auditor syntax without writing bytecode
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m py_compile control/tools/source_retry_audit.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('control/tools/source_retry_audit.py')
+          compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          PY
 
       - name: Audit RETRY lifecycle evidence
         id: audit
