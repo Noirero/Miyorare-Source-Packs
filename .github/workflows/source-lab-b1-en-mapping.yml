@@ -1,0 +1,226 @@
+name: Source Lab B1 EN Audit Mapping
+run-name: Source Lab B1 EN Audit Mapping
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-b1-en-mapping.yml'
+      - 'tools/source_lab_b1_en_mapping.py'
+      - 'tests/test_source_lab_b1_en_mapping.py'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: source-lab-b1-en-mapping-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Build read-only EN canonical/provider map
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      EXPECTED_OWNER_ID: '149634319'
+      PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Validate safe execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" ]] || {
+                echo "::error::B1 only accepts same-repository pull requests"
+                exit 1
+              }
+              ;;
+            workflow_dispatch)
+              [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+              [[ "$GITHUB_REF_NAME" == "main" ]]
+              ;;
+            *) echo "::error::unexpected event: $GITHUB_EVENT_NAME"; exit 1 ;;
+          esac
+
+      - name: Checkout proposed control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout informational source inventory
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: source-inventory-live
+          path: inventory
+          fetch-depth: 1
+
+      - name: Checkout authoritative Compatibility Farm
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 1
+
+      - name: Checkout Miyorare canonical aliases
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Noirero/Miyorare
+          ref: beta
+          path: miyorare
+          fetch-depth: 1
+
+      - name: Pin all read-only inputs
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          inventory_sha="$(git -C inventory rev-parse HEAD)"
+          foundation_sha="$(git -C farm rev-parse HEAD)"
+          miyorare_sha="$(git -C miyorare rev-parse HEAD)"
+          inventory_remote="$(git -C inventory ls-remote origin refs/heads/source-inventory-live | awk '{print $1}')"
+          foundation_remote="$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')"
+          miyorare_remote="$(git -C miyorare ls-remote origin refs/heads/beta | awk '{print $1}')"
+          [[ "$inventory_sha" == "$inventory_remote" ]]
+          [[ "$foundation_sha" == "$foundation_remote" ]]
+          [[ "$miyorare_sha" == "$miyorare_remote" ]]
+          [[ "$inventory_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$foundation_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$miyorare_sha" =~ ^[0-9a-f]{40}$ ]]
+          echo "inventory_sha=$inventory_sha" >> "$GITHUB_OUTPUT"
+          echo "foundation_sha=$foundation_sha" >> "$GITHUB_OUTPUT"
+          echo "miyorare_sha=$miyorare_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Snapshot authority inputs
+        id: before
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "source_registry=$(sha256sum farm/compatibility/source-registry.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "upstream_registry=$(sha256sum farm/upstream/registry.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "status=$(sha256sum farm/upstream/status.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "worker_state=$(sha256sum farm/automation/pending-worker-state.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "inventory=$(sha256sum inventory/inventory/source-inventory.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "aliases=$(sha256sum miyorare/extensions/miyorare-sources/multi-upstream.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Compile B1 auditor without filesystem mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ('tools/source_lab_b1_en_mapping.py', 'tests/test_source_lab_b1_en_mapping.py'):
+              path = Path('control') / name
+              compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          PY
+
+      - name: Run B1 regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest control/tests/test_source_lab_b1_en_mapping.py
+
+      - name: Build EN audit and mapping evidence
+        id: audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          python3 control/tools/source_lab_b1_en_mapping.py \
+            --inventory inventory/inventory/source-inventory.json \
+            --farm-registry farm/compatibility/source-registry.json \
+            --aliases miyorare/extensions/miyorare-sources/multi-upstream.json \
+            --upstream-registry farm/upstream/registry.json \
+            --status farm/upstream/status.json \
+            --inventory-commit '${{ steps.pins.outputs.inventory_sha }}' \
+            --foundation-commit '${{ steps.pins.outputs.foundation_sha }}' \
+            --miyorare-commit '${{ steps.pins.outputs.miyorare_sha }}' \
+            --output build/track-b-batch1-en-mapping.json \
+            --markdown-output build/track-b-batch1-en-mapping.md
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build/track-b-batch1-en-mapping.json').read_text(encoding='utf-8'))
+          if report.get('status') not in {'COMPLETE', 'COMPLETE_WITH_FINDINGS'}:
+              raise SystemExit('B1 audit did not complete')
+          if report.get('readOnly') is not True:
+              raise SystemExit('B1 report must be read-only')
+          summary = report['summary']
+          for key in (
+              'inventoryEnSources',
+              'inventoryEnProviderMappings',
+              'farmEnSources',
+              'primaryCoveredSources',
+              'referenceOnlyKeiyoushiSources',
+              'primaryOverlapUmaGekkoushiSources',
+              'primarySourcesWithKeiyoushiReference',
+              'officialMiyorareEnAliases',
+              'inventoryNeedsAttention',
+              'structuralAttentionCount',
+          ):
+              print(f"{key}={summary[key]}")
+          print(f"status={report['status']}")
+          PY
+
+      - name: Prove B1 did not mutate authority state
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(sha256sum farm/compatibility/source-registry.json | awk '{print $1}')" == "${{ steps.before.outputs.source_registry }}" ]]
+          [[ "$(sha256sum farm/upstream/registry.json | awk '{print $1}')" == "${{ steps.before.outputs.upstream_registry }}" ]]
+          [[ "$(sha256sum farm/upstream/status.json | awk '{print $1}')" == "${{ steps.before.outputs.status }}" ]]
+          [[ "$(sha256sum farm/automation/pending-worker-state.json | awk '{print $1}')" == "${{ steps.before.outputs.worker_state }}" ]]
+          [[ "$(sha256sum inventory/inventory/source-inventory.json | awk '{print $1}')" == "${{ steps.before.outputs.inventory }}" ]]
+          [[ "$(sha256sum miyorare/extensions/miyorare-sources/multi-upstream.json | awk '{print $1}')" == "${{ steps.before.outputs.aliases }}" ]]
+          test -z "$(git -C control status --porcelain)"
+          test -z "$(git -C inventory status --porcelain)"
+          test -z "$(git -C farm status --porcelain)"
+          test -z "$(git -C miyorare status --porcelain)"
+          [[ "$(git -C inventory ls-remote origin refs/heads/source-inventory-live | awk '{print $1}')" == "${{ steps.pins.outputs.inventory_sha }}" ]] || {
+            echo "::error::source-inventory-live moved during B1 audit"
+            exit 1
+          }
+          [[ "$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')" == "${{ steps.pins.outputs.foundation_sha }}" ]] || {
+            echo "::error::Compatibility Farm moved during B1 audit"
+            exit 1
+          }
+          [[ "$(git -C miyorare ls-remote origin refs/heads/beta | awk '{print $1}')" == "${{ steps.pins.outputs.miyorare_sha }}" ]] || {
+            echo "::error::Miyorare beta moved during B1 audit"
+            exit 1
+          }
+
+      - name: Upload B1 audit evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: track-b-batch1-en-mapping-${{ github.run_id }}
+          path: |
+            build/track-b-batch1-en-mapping.json
+            build/track-b-batch1-en-mapping.md
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo '## Track B — Batch 1: EN Audit & Mapping'
+            echo "Inventory: ${{ steps.pins.outputs.inventory_sha }}"
+            echo "Foundation: ${{ steps.pins.outputs.foundation_sha }}"
+            echo "Miyorare beta: ${{ steps.pins.outputs.miyorare_sha }}"
+            echo "Verdict: ${{ steps.audit.outputs.status }}"
+            echo "Inventory EN sources: ${{ steps.audit.outputs.inventoryEnSources }}"
+            echo "EN provider mappings: ${{ steps.audit.outputs.inventoryEnProviderMappings }}"
+            echo "Farm EN sources: ${{ steps.audit.outputs.farmEnSources }}"
+            echo "UMA/Gekkoushi coverage: ${{ steps.audit.outputs.primaryCoveredSources }}"
+            echo "Keiyoushi-only reference: ${{ steps.audit.outputs.referenceOnlyKeiyoushiSources }}"
+            echo "UMA+Gekkoushi overlap: ${{ steps.audit.outputs.primaryOverlapUmaGekkoushiSources }}"
+            echo "Structural attention: ${{ steps.audit.outputs.structuralAttentionCount }}"
+            echo ''
+            cat build/track-b-batch1-en-mapping.md
+          } >> "$GITHUB_STEP_SUMMARY"
