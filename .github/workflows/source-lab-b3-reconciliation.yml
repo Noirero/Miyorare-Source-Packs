@@ -1,0 +1,189 @@
+name: Source Lab B3 Reconciliation
+run-name: Source Lab B3 Reconciliation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-b3-reconciliation.yml'
+      - 'tools/source_lab_b3_reconciliation.py'
+      - 'tests/test_source_lab_b3_reconciliation.py'
+      - 'compatibility/evidence/track-b-batch3-runtime-boundary.json'
+      - 'compatibility/evidence/track-b-batch3-upstream-disposition.json'
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_OWNER_ID: '149634319'
+  B3_VALIDATED_HEAD: '3bebc86298a89be499dd1fca14bda2f806cb0949'
+  B3_VALIDATED_RUN: '39300763760'
+  B3_ARTIFACT_ID: '12212097218'
+  B3_ARTIFACT_DIGEST: 'sha256:42e748e24666c2232bfa1f9e64fdf7dd69417bfef22244c896875a4ee8c3e056'
+  B3_REPORT_SHA256: 'd27d0fb28b3e82e9595c5594d2d243da5df969e6bc0201457923e792b644e9a7'
+  DEAD_BATCH_SHA: '58fd63ffeee7631436425748c01c1a727b0b6703'
+  DUSK_DEAD_SHA: '79636950440063d88e40cf3b8ac1416472d38cdf'
+  NINEANIME_DOWN_SHA: 'b40f5b331b7db079b5b66cb206ac7183f7fb4283'
+  CMANHUA_MIGRATION_SHA: '05c19676fd9870109557536d6e8646dd4a96bba0'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  reconcile:
+    name: Reconcile B3 evidence without authority mutation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+    steps:
+      - name: Validate safe execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" ]] || {
+                echo "::error::B3 reconciliation accepts same-repository PRs only"
+                exit 1
+              }
+              ;;
+            workflow_dispatch)
+              [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+              [[ "$GITHUB_REF_NAME" == "main" ]]
+              ;;
+            *) echo "::error::unexpected event: $GITHUB_EVENT_NAME"; exit 1 ;;
+          esac
+
+      - name: Checkout proposed reconciliation control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout exact upstream disposition evidence
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: keiyoushi/extensions-source
+          ref: ${{ env.DEAD_BATCH_SHA }}
+          path: _evidence/${{ env.DEAD_BATCH_SHA }}
+          fetch-depth: 1
+
+      - name: Checkout DuskScans removal evidence
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: keiyoushi/extensions-source
+          ref: ${{ env.DUSK_DEAD_SHA }}
+          path: _evidence/${{ env.DUSK_DEAD_SHA }}
+          fetch-depth: 1
+
+      - name: Checkout NineAnime removal evidence
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: keiyoushi/extensions-source
+          ref: ${{ env.NINEANIME_DOWN_SHA }}
+          path: _evidence/${{ env.NINEANIME_DOWN_SHA }}
+          fetch-depth: 1
+
+      - name: Checkout CManhua migration evidence
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: keiyoushi/extensions-source
+          ref: ${{ env.CMANHUA_MIGRATION_SHA }}
+          path: _evidence/${{ env.CMANHUA_MIGRATION_SHA }}
+          fetch-depth: 1
+
+      - name: Prove frozen #157 boundary metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path('control/compatibility/evidence/track-b-batch3-runtime-boundary.json')
+          data = json.loads(p.read_text())
+          assert data['schemaVersion'] == 1
+          assert data['phase'] == 'TRACK_B_BATCH_3_RECONCILIATION_BOUNDARY'
+          assert data['readOnly'] is True
+          assert len(data['rows']) == 33
+          src = data['source']
+          assert src['pr'] == 157
+          assert src['head'] == os.environ['B3_VALIDATED_HEAD']
+          assert src['runId'] == int(os.environ['B3_VALIDATED_RUN'])
+          assert src['artifactId'] == int(os.environ['B3_ARTIFACT_ID'])
+          assert src['artifactDigest'] == os.environ['B3_ARTIFACT_DIGEST']
+          assert src['reportSha256'] == os.environ['B3_REPORT_SHA256']
+          PY
+
+      - name: Compile and run B3 reconciliation regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ('tools/source_lab_b3_reconciliation.py', 'tests/test_source_lab_b3_reconciliation.py'):
+              path = Path('control') / name
+              compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          PY
+          python3 -m unittest control/tests/test_source_lab_b3_reconciliation.py
+
+      - name: Verify exact upstream evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          python3 control/tools/source_lab_b3_reconciliation.py verify-evidence \
+            --boundary control/compatibility/evidence/track-b-batch3-runtime-boundary.json \
+            --evidence control/compatibility/evidence/track-b-batch3-upstream-disposition.json \
+            --evidence-root _evidence \
+            --output build/track-b-batch3-upstream-evidence-verified.json
+
+      - name: Build read-only reconciliation report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_b3_reconciliation.py build \
+            --boundary control/compatibility/evidence/track-b-batch3-runtime-boundary.json \
+            --evidence control/compatibility/evidence/track-b-batch3-upstream-disposition.json \
+            --output build/track-b-batch3-reconciliation.json \
+            --markdown-output build/track-b-batch3-reconciliation.md
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('build/track-b-batch3-reconciliation.json').read_text())
+          assert data['readOnly'] is True
+          assert data['summary']['rows'] == 33
+          assert data['summary']['evidenceBackedRows'] == 16
+          assert data['summary']['routes'] == {
+              'NETWORK_OR_PROFILE_BLOCKED': 5,
+              'PRIMARY_MISSING_UNRESOLVED': 8,
+              'PROVEN_UPSTREAM_DEAD': 15,
+              'PROVEN_UPSTREAM_MIGRATION': 1,
+              'RUNTIME_FAILURE_DIVERGED': 1,
+              'SHARED_RUNTIME_FAILURE': 3,
+          }
+          assert data['safety'] == {
+              'approvesOverlay': False,
+              'mutatesAuthority': False,
+              'mutatesCanonicalIds': False,
+              'mutatesLastKnownGood': False,
+              'mutatesRetryHeld': False,
+              'promotesProvider': False,
+          }
+          PY
+
+      - name: Prove control checkout was not mutated
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git -C control status --porcelain)"
+
+      - name: Upload B3 reconciliation evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: track-b-batch3-reconciliation-${{ github.run_id }}
+          path: |
+            build/track-b-batch3-upstream-evidence-verified.json
+            build/track-b-batch3-reconciliation.json
+            build/track-b-batch3-reconciliation.md
+          if-no-files-found: error
