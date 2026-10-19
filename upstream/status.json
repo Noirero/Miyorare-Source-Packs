@@ -58,10 +58,10 @@
   "automation": {
     "schemaVersion": 2,
     "state": "HELD",
-    "reason": "UPSTREAM_INTAKE_NOT_SAFE",
+    "reason": "CANDIDATE_FARM_GATE_FAILED",
     "candidates": {
       "gekkoushi": {
-        "candidate": "{\n  \"message\": \"Server Error\"\n}",
+        "candidate": "12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67",
         "current": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
       "keiyoushi": {
@@ -89,12 +89,20 @@
         "workflowRunId": 39175624491,
         "upstreamRunId": 39175658796,
         "recordedAt": "2026-10-18T23:21:10.069151Z"
+      },
+      "gekkoushi": {
+        "current": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "candidate": "12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67",
+        "reason": "Run automatic exact provider Candidate Farm / Prepare exact live candidate / Build immutable candidate registry and parser plan",
+        "workflowRunId": 39184820113,
+        "upstreamRunId": 39184842861,
+        "recordedAt": "2026-10-19T01:28:40.167414Z"
       }
     },
     "ownerActionRequired": false,
-    "lastAttemptProvider": "uma",
-    "workflowRunId": 39175624491,
-    "updatedAt": "2026-10-18T23:21:10.069173Z"
+    "lastAttemptProvider": "gekkoushi",
+    "workflowRunId": 39184820113,
+    "updatedAt": "2026-10-19T01:28:40.167428Z"
   },
   "lastPromotion": {
     "schemaVersion": 1,
