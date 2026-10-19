@@ -39,8 +39,19 @@ class OnboardingCoverageTests(unittest.TestCase):
             self.assertEqual(entry["testedVersions"], item["testedVersions"])
             self.assertEqual({"state": "ACTIVE", "parserCoverageRequired": True}, source["compatibilityEnrollment"])
             self.assertEqual("REAL_PARSER_PASS", entry["evidence"]["gate"])
-            for membership in entry["evidence"]["parser"]["memberships"]:
-                key = cid, membership["provider"]
+
+            memberships = {
+                membership["provider"]: membership
+                for membership in entry["evidence"]["parser"]["memberships"]
+            }
+            selected = set(item["providers"])
+            held = {row["provider"] for row in item.get("heldProviders", [])}
+            self.assertEqual(selected, set(source["providers"]))
+            self.assertTrue(selected.isdisjoint(held))
+
+            for provider in selected:
+                membership = memberships[provider]
+                key = cid, provider
                 approved.add(key)
                 self.assertEqual(membership["testClass"], rows[key]["testClass"])
                 self.assertEqual("PASS", membership["status"])
@@ -51,13 +62,16 @@ class OnboardingCoverageTests(unittest.TestCase):
                 self.assertEqual(item["workerRunId"], provenance["workerRunId"])
                 code = (ROOT / provenance["path"]).read_bytes()
                 self.assertEqual(provenance["sha256"], hashlib.sha256(code).hexdigest())
-                if membership["provider"] == "keiyoushi":
+                if provider == "keiyoushi":
                     self.assertEqual(membership["locator"], rows[key]["module"])
                     self.assertEqual("android-gradle-live-test", rows[key]["runner"])
                 else:
                     self.assertIn(membership["fqcn"].encode(), code)
+
+            for provider in held:
+                self.assertNotIn((cid, provider), rows)
+
         self.assertEqual(approved, set(restored))
-        self.assertEqual(12, len(approved))  # exact historical missing counterpart set
         validate_harness_files(self.families, self.registry, ROOT / "compatibility/harness")
 
     def test_missing_any_restored_membership_still_fails_closed(self):
