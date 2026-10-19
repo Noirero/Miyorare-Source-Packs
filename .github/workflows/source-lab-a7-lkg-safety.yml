@@ -1,0 +1,171 @@
+name: Source Lab A7 LKG Safety
+run-name: Source Lab A7 LKG Safety
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-a7-lkg-safety.yml'
+      - 'tools/source_lab_a7_lkg_safety.py'
+      - 'tests/test_source_lab_a7_lkg_safety.py'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: source-lab-a7-lkg-safety-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Prove failed or stale candidates cannot replace LKG
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXPECTED_OWNER_ID: '149634319'
+      PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+      PYTHONDONTWRITEBYTECODE: '1'
+      FARM_ROOT: ${{ github.workspace }}/farm
+    steps:
+      - name: Validate safe execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" ]] || {
+                echo "::error::A7 only accepts same-repository pull requests"
+                exit 1
+              }
+              ;;
+            workflow_dispatch)
+              [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+              [[ "$GITHUB_REF_NAME" == "main" ]]
+              ;;
+            *) echo "::error::unexpected event: $GITHUB_EVENT_NAME"; exit 1 ;;
+          esac
+
+      - name: Checkout proposed control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout authoritative Compatibility Farm
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 1
+
+      - name: Pin current Foundation before audit
+        id: foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git -C farm rev-parse HEAD)"
+          remote="$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')"
+          [[ "$actual" == "$remote" ]] || {
+            echo "::error::Compatibility Farm moved during A7 prepare: checkout=$actual remote=$remote"
+            exit 1
+          }
+          [[ "$actual" =~ ^[0-9a-f]{40}$ ]]
+          echo "sha=$actual" >> "$GITHUB_OUTPUT"
+
+      - name: Snapshot protected LKG state
+        id: before
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "upstream_registry=$(sha256sum farm/upstream/registry.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "status=$(sha256sum farm/upstream/status.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "source_registry=$(sha256sum farm/compatibility/source-registry.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "worker_state=$(sha256sum farm/automation/pending-worker-state.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Compile A7 auditor without filesystem mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ('tools/source_lab_a7_lkg_safety.py', 'tests/test_source_lab_a7_lkg_safety.py'):
+              path = Path('control') / name
+              compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          PY
+
+      - name: Run LKG negative-regression simulations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest control/tests/test_source_lab_a7_lkg_safety.py
+
+      - name: Audit authoritative LKG invariants
+        id: audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          python3 control/tools/source_lab_a7_lkg_safety.py \
+            --upstream-registry farm/upstream/registry.json \
+            --status farm/upstream/status.json \
+            --source-registry farm/compatibility/source-registry.json \
+            --promotion-workflow control/.github/workflows/source-lab-promote-candidate.yml \
+            --output build/a7-lkg-safety.json \
+            --markdown-output build/a7-lkg-safety.md
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build/a7-lkg-safety.json').read_text(encoding='utf-8'))
+          if report.get('status') != 'SAFE':
+              raise SystemExit('A7 LKG safety verdict is not SAFE')
+          for key in ('providerCount', 'activeSourceCount', 'activeMembershipCount', 'candidateProviderCount'):
+              print(f"{key}={report[key]}")
+          print(f"approvalCandidatePresent={str(report['approvalCandidatePresent']).lower()}")
+          print(f"violations={len(report['violations'])}")
+          PY
+
+      - name: Prove audit did not mutate Foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(sha256sum farm/upstream/registry.json | awk '{print $1}')" == "${{ steps.before.outputs.upstream_registry }}" ]]
+          [[ "$(sha256sum farm/upstream/status.json | awk '{print $1}')" == "${{ steps.before.outputs.status }}" ]]
+          [[ "$(sha256sum farm/compatibility/source-registry.json | awk '{print $1}')" == "${{ steps.before.outputs.source_registry }}" ]]
+          [[ "$(sha256sum farm/automation/pending-worker-state.json | awk '{print $1}')" == "${{ steps.before.outputs.worker_state }}" ]]
+          test -z "$(git -C farm status --porcelain)"
+          test -z "$(git -C control status --porcelain)"
+          remote="$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')"
+          [[ "$remote" == "${{ steps.foundation.outputs.sha }}" ]] || {
+            echo "::error::Foundation moved during A7 audit"
+            exit 1
+          }
+
+      - name: Upload A7 safety evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: source-lab-a7-lkg-safety-${{ github.run_id }}
+          path: |
+            build/a7-lkg-safety.json
+            build/a7-lkg-safety.md
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo '## Source Lab Phase A7 — LKG Safety'
+            echo "Foundation: ${{ steps.foundation.outputs.sha }}"
+            echo "Providers: ${{ steps.audit.outputs.providerCount }}"
+            echo "ACTIVE sources: ${{ steps.audit.outputs.activeSourceCount }}"
+            echo "ACTIVE memberships: ${{ steps.audit.outputs.activeMembershipCount }}"
+            echo "Candidate providers: ${{ steps.audit.outputs.candidateProviderCount }}"
+            echo "Live approval candidate: ${{ steps.audit.outputs.approvalCandidatePresent }}"
+            echo "Violations: ${{ steps.audit.outputs.violations }}"
+            echo ''
+            cat build/a7-lkg-safety.md
+          } >> "$GITHUB_STEP_SUMMARY"
