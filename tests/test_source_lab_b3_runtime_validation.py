@@ -134,7 +134,7 @@ def parser_result(canonical_id: str, provider: str, passed: bool) -> dict:
         "parserExecution": passed,
         "detailsTraversal": passed,
         "chapterTraversal": passed,
-        "pageTraversal": passed,
+        "pageExtraction": passed,
     }
 
 
