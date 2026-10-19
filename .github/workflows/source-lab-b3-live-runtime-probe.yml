@@ -97,6 +97,11 @@ jobs:
           for mode in harness browser; do
             if [[ "$mode" == harness ]]; then ua="$harness_ua"; else ua="$browser_ua"; fi
 
+            probe_get NOVELCROW "$mode" "$ua" 'https://novelcrow.com/' "novelcrow-${mode}-home"
+            probe_get NOVELCROW "$mode" "$ua" 'https://novelcrow.com/?s=&post_type=wp-manga&m_orderby=latest' "novelcrow-${mode}-latest"
+            probe_get NOVELCROW "$mode" "$ua" 'https://novelcrow.com/?s=&post_type=wp-manga&m_orderby=trending' "novelcrow-${mode}-trending"
+            probe_get NOVELCROW "$mode" "$ua" 'https://novelcrow.com/comic/' "novelcrow-${mode}-comic"
+
             probe_get WHALEMANGA "$mode" "$ua" 'https://whalemanga.com/' "whale-${mode}-home"
             probe_get WHALEMANGA "$mode" "$ua" 'https://whalemanga.com/manga/' "whale-${mode}-manga"
             probe_get WHALEMANGA "$mode" "$ua" 'https://whalemanga.com/?s=&post_type=wp-manga&m_orderby=latest' "whale-${mode}-search"
