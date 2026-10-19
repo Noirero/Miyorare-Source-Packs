@@ -126,6 +126,7 @@ jobs:
               'terminalCategory',
               'nonterminalOrUnknownCategory',
               'policyConsistentCurrentHold',
+              'operationallyReviewableCurrentHold',
               'reviewRequired',
               'metadataIncomplete',
               'categoryConflicts',
@@ -162,9 +163,10 @@ jobs:
           echo "Current evidence: ${{ steps.observe.outputs.currentEvidence }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Stale evidence: ${{ steps.observe.outputs.staleEvidence }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Incomplete/mismatched evidence: ${{ steps.observe.outputs.incompleteOrMismatchedEvidence }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "Terminal category: ${{ steps.observe.outputs.terminalCategory }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Lifecycle-terminal category: ${{ steps.observe.outputs.terminalCategory }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Nonterminal/unknown category: ${{ steps.observe.outputs.nonterminalOrUnknownCategory }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Policy-consistent current Held: ${{ steps.observe.outputs.policyConsistentCurrentHold }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Operationally reviewable current Held: ${{ steps.observe.outputs.operationallyReviewableCurrentHold }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Review required: ${{ steps.observe.outputs.reviewRequired }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Legacy/incomplete metadata: ${{ steps.observe.outputs.metadataIncomplete }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Category conflicts: ${{ steps.observe.outputs.categoryConflicts }}" >> "$GITHUB_STEP_SUMMARY"
