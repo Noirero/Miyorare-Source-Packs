@@ -1,0 +1,176 @@
+name: Source Lab A5 Held Observability
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_foundation_sha:
+        description: Exact Compatibility Farm Foundation SHA to observe
+        required: true
+        default: 7a69b02865a3dd494326c367024aededd81e9a69
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-a5-held-observability.yml'
+      - 'tools/source_held_observability.py'
+      - 'tests/test_source_held_observability.py'
+      - 'tools/source_retry_audit.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-lab-a5-held-observability-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    name: Explain Held evidence without mutation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXPECTED_OWNER_ID: '149634319'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Validate execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          case "$GITHUB_EVENT_NAME" in
+            pull_request) ;;
+            workflow_dispatch)
+              [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+              [[ "$GITHUB_REF_NAME" == "main" ]]
+              ;;
+            *) echo "unexpected event: $GITHUB_EVENT_NAME" >&2; exit 1 ;;
+          esac
+
+      - name: Checkout proposed control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout authoritative Compatibility Farm
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 1
+
+      - name: Refuse stale or unexpected Foundation
+        id: foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git -C farm rev-parse HEAD)"
+          remote="$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')"
+          [[ "$actual" == "$remote" ]]
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            expected='${{ inputs.expected_foundation_sha }}'
+            [[ "$actual" == "$expected" ]] || {
+              echo "::error::Foundation moved: expected $expected, actual $actual"
+              exit 1
+            }
+          fi
+          echo "sha=$actual" >> "$GITHUB_OUTPUT"
+
+      - name: Snapshot protected inputs
+        id: before
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "registry=$(sha256sum farm/compatibility/source-registry.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "state=$(sha256sum farm/automation/pending-worker-state.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Validate Held observability syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ('source_held_observability.py', 'source_retry_audit.py'):
+              path = Path('control/tools') / name
+              compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          PY
+
+      - name: Run Held observability unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest control/tests/test_source_held_observability.py
+
+      - name: Build Held observability report
+        id: observe
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          python3 control/tools/source_held_observability.py \
+            --registry farm/compatibility/source-registry.json \
+            --state farm/automation/pending-worker-state.json \
+            --now "$now" \
+            --output build/a5-held-observability.json \
+            --markdown-output build/a5-held-observability.md
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          data = json.loads(Path('build/a5-held-observability.json').read_text(encoding='utf-8'))
+          summary = data['summary']
+          for key in (
+              'totalHeld',
+              'currentEvidence',
+              'staleEvidence',
+              'incompleteOrMismatchedEvidence',
+              'terminalCategory',
+              'nonterminalOrUnknownCategory',
+              'policyConsistentCurrentHold',
+              'operationallyReviewableCurrentHold',
+              'reviewRequired',
+              'metadataIncomplete',
+              'categoryConflicts',
+          ):
+              print(f"{key}={summary[key]}")
+          PY
+
+      - name: Prove observability is read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(sha256sum farm/compatibility/source-registry.json | awk '{print $1}')" == "${{ steps.before.outputs.registry }}" ]]
+          [[ "$(sha256sum farm/automation/pending-worker-state.json | awk '{print $1}')" == "${{ steps.before.outputs.state }}" ]]
+          test -z "$(git -C farm status --porcelain)"
+          test -z "$(git -C control status --porcelain)"
+
+      - name: Upload A5 observability evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: source-lab-a5-held-observability-${{ github.run_id }}
+          path: |
+            build/a5-held-observability.json
+            build/a5-held-observability.md
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          echo '## Source Lab Phase A5 — Held observability' >> "$GITHUB_STEP_SUMMARY"
+          echo "Foundation: ${{ steps.foundation.outputs.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Total Held: ${{ steps.observe.outputs.totalHeld }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Current evidence: ${{ steps.observe.outputs.currentEvidence }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Stale evidence: ${{ steps.observe.outputs.staleEvidence }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Incomplete/mismatched evidence: ${{ steps.observe.outputs.incompleteOrMismatchedEvidence }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Lifecycle-terminal category: ${{ steps.observe.outputs.terminalCategory }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Nonterminal/unknown category: ${{ steps.observe.outputs.nonterminalOrUnknownCategory }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Policy-consistent current Held: ${{ steps.observe.outputs.policyConsistentCurrentHold }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Operationally reviewable current Held: ${{ steps.observe.outputs.operationallyReviewableCurrentHold }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Review required: ${{ steps.observe.outputs.reviewRequired }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Legacy/incomplete metadata: ${{ steps.observe.outputs.metadataIncomplete }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Category conflicts: ${{ steps.observe.outputs.categoryConflicts }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f build/a5-held-observability.md ]]; then
+            cat build/a5-held-observability.md >> "$GITHUB_STEP_SUMMARY"
+          fi
