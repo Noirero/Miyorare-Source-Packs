@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "phase": "TRACK_B_BATCH_3_LIVE_RUNTIME_ACCESS",
+  "readOnly": true,
+  "source": {
+    "pr": 160,
+    "head": "e6073478360889dc3c38eaea4bcac9e9a66d03dd",
+    "runId": 39344310445,
+    "artifactId": 12230556420,
+    "artifactDigest": "sha256:bbdb0ca0d3aab9e2657dca70eefb32515aabdb3dcf8cfa7f90a830eebfc8f9d1",
+    "probeWorkflowBlob": "387c150e3fc65e68a60b49e9fc844a8ee7702e37"
+  },
+  "entries": [
+    {
+      "canonicalId": "miyorare:inventory-en:NOVELCROW",
+      "disposition": "WAF_BLOCKED",
+      "observations": [
+        "Harness and browser user agents both returned HTTP 403 for homepage, latest, trending, and /comic/ routes.",
+        "Returned HTML contained Cloudflare challenge markers and no manga-list selectors."
+      ]
+    },
+    {
+      "canonicalId": "miyorare:inventory-en:WHALEMANGA",
+      "disposition": "WAF_BLOCKED",
+      "observations": [
+        "Harness and browser user agents both returned HTTP 403 for homepage, /manga/, search, and Madara AJAX routes.",
+        "Returned HTML contained Cloudflare challenge markers and no manga-list selectors."
+      ]
+    },
+    {
+      "canonicalId": "miyorare:inventory-en:WOOPREAD",
+      "disposition": "WAF_BLOCKED",
+      "observations": [
+        "Harness and browser user agents both returned HTTP 403 for homepage, /series/, search, and Madara AJAX routes.",
+        "Returned HTML contained Cloudflare challenge markers and no manga-list selectors."
+      ]
+    },
+    {
+      "canonicalId": "miyorare:inventory-en:PAWMANGA",
+      "disposition": "DOMAIN_PARKED_OR_REDIRECTED",
+      "observations": [
+        "The original domain no longer returned recognizable manga-list selectors on tested routes.",
+        "Observed effective destinations included ww19.pawmanga.com and survey-smiles.com rather than a functioning PawManga catalogue endpoint."
+      ]
+    },
+    {
+      "canonicalId": "miyorare:inventory-en:FIRESCANS",
+      "disposition": "DNS_UNRESOLVED",
+      "observations": [
+        "Both user-agent modes returned curl exit 6 / HTTP 000 for all tested firescans.xyz routes."
+      ]
+    },
+    {
+      "canonicalId": "miyorare:inventory-en:HEYTOON",
+      "disposition": "DNS_UNRESOLVED",
+      "observations": [
+        "Both user-agent modes returned curl exit 6 / HTTP 000 for homepage, genre listing, and search API routes on heytoon.net."
+      ]
+    },
+    {
+      "canonicalId": "miyorare:inventory-en:KALISCAN",
+      "disposition": "DNS_UNRESOLVED",
+      "observations": [
+        "Both user-agent modes returned curl exit 6 / HTTP 000 for all tested kaliscan.io routes."
+      ]
+    },
+    {
+      "canonicalId": "miyorare:inventory-en:MANHWA18ORG",
+      "disposition": "TLS_UNREACHABLE",
+      "observations": [
+        "Both user-agent modes failed before HTTP with curl exit 35 / SSL_ERROR_SYSCALL for homepage, listing, search, and Madara AJAX routes."
+      ]
+    },
+    {
+      "canonicalId": "miyorare:inventory-en:SHIBAMANGA",
+      "disposition": "DNS_UNRESOLVED",
+      "observations": [
+        "Both user-agent modes returned curl exit 6 / HTTP 000 for all tested shibamanga.com routes."
+      ]
+    }
+  ]
+}
