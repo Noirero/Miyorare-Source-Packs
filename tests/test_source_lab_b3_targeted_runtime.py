@@ -47,6 +47,27 @@ def b2_report() -> dict:
     }
 
 
+def profile(cid: str, provider: str, *, passed: bool, detail: str = "URLError") -> dict:
+    return {
+        "results": [{
+            "canonicalId": cid,
+            "state": "PARSER_PENDING" if passed else "RETRY",
+            "failureCategory": None if passed else "PROFILE_TRANSIENT",
+            "evidence": {
+                "profile": {
+                    "gate": "PASS" if passed else "FAIL",
+                    "selectedProviders": [provider] if passed else [],
+                    "memberships": [{
+                        "provider": provider,
+                        "profilePass": passed,
+                        "probe": {"reachable": passed, "detail": detail},
+                    }],
+                }
+            },
+        }]
+    }
+
+
 class Batch3Test(unittest.TestCase):
     def test_exact_reference_host_discovers_primary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -146,6 +167,38 @@ class Batch3Test(unittest.TestCase):
         }
         row = b3.classify_provider(binding, binding, failed, passed)
         self.assertEqual(row["state"], "CANDIDATE_REGRESSION")
+
+    def test_profile_failure_is_preserved_when_parser_did_not_run(self) -> None:
+        binding = {"identity": {"file": "src/X.kt"}}
+        candidate_profile = b3.profile_map(profile("x", "gekkoushi", passed=False))
+        lkg_profile = b3.profile_map(profile("x", "gekkoushi", passed=False, detail="TimeoutError"))
+        row = b3.classify_provider(
+            binding,
+            binding,
+            None,
+            None,
+            candidate_profile[("x", "gekkoushi")],
+            lkg_profile[("x", "gekkoushi")],
+        )
+        self.assertEqual(row["state"], "BOTH_PROFILE_BLOCKED")
+        self.assertEqual(row["candidateProfile"]["failureCategory"], "PROFILE_TRANSIENT")
+        self.assertEqual(row["candidateProfile"]["membership"]["probe"]["detail"], "URLError")
+        self.assertEqual(row["lkgProfile"]["membership"]["probe"]["detail"], "TimeoutError")
+
+    def test_identical_runtime_failures_are_explicit(self) -> None:
+        binding = {"identity": {"file": "src/X.kt"}}
+        failed = {
+            "status": "FAIL",
+            "parserExecution": True,
+            "detailsTraversal": False,
+            "chapterTraversal": False,
+            "pageExtraction": False,
+            "failureType": "ParseException",
+            "failureMessage": "browse failed",
+        }
+        row = b3.classify_provider(binding, binding, failed, dict(failed))
+        self.assertEqual(row["state"], "BOTH_RUNTIME_FAILING")
+        self.assertTrue(row["sameRuntimeFailure"])
 
     def test_b3_cohort_count_is_fail_closed(self) -> None:
         report = b2_report()
