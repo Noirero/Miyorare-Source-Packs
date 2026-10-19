@@ -1,255 +1,311 @@
 {
-  "schemaVersion": 1,
-  "policies": {
-    "declarativeOnboarding": true,
-    "failClosed": true,
-    "requireRegistryMembership": true,
-    "duplicateMembershipForbidden": true,
-    "realParserExecutionRequired": true
-  },
   "families": [
     {
       "id": "uma-manga-reader-plus-api",
-      "provider": "uma",
-      "registryAdapterFamily": "manga-reader-plus-api",
-      "providerParserFamily": "manga-reader-plus-api",
-      "runner": "gradle-jvm-test",
       "members": [
-        {"canonicalId": "miyorare:miyorare-id:KOMIKU", "testClass": "compatibilityfarm.KomikuParserHarnessTest"}
-      ]
+        {
+          "canonicalId": "miyorare:miyorare-id:KOMIKU",
+          "testClass": "compatibilityfarm.KomikuParserHarnessTest"
+        }
+      ],
+      "provider": "uma",
+      "providerParserFamily": "manga-reader-plus-api",
+      "registryAdapterFamily": "manga-reader-plus-api",
+      "runner": "gradle-jvm-test"
     },
     {
       "id": "uma-custom-rest-json",
-      "provider": "uma",
-      "registryAdapterFamily": "custom-rest-json",
-      "providerParserFamily": "paged-json-api",
-      "runner": "gradle-jvm-test",
-      "members": [
-        {"canonicalId": "miyorare:miyorare-id:SHINIGAMI", "testClass": "compatibilityfarm.ShinigamiParserHarnessTest"}
-      ]
-    },
-    {
-      "id": "uma-cookie-auth",
-      "provider": "uma",
-      "registryAdapterFamily": "custom-auth-cookie-html",
-      "providerParserFamily": "cookie-auth-html",
-      "runner": "gradle-jvm-test",
-      "members": [
-        {"canonicalId": "miyorare:miyorare-en:WEEBCENTRAL", "testClass": "compatibilityfarm.WeebCentralAuthParserHarnessTest"}
-      ]
-    },
-    {
-      "id": "uma-natsu",
-      "provider": "uma",
-      "registryAdapterFamily": "natsu",
-      "providerParserFamily": "natsu",
-      "runner": "gradle-jvm-test",
-      "members": [
-        {"canonicalId": "miyorare:miyorare-id:KIRYUU", "testClass": "compatibilityfarm.KiryuuNatsuParserHarnessTest"}
-      ]
-    },
-    {
-      "id": "uma-madara",
-      "provider": "uma",
-      "registryAdapterFamily": "madara",
-      "providerParserFamily": "madara",
-      "runner": "gradle-jvm-test",
-      "members": [
-        {"canonicalId": "miyorare:miyorare-en:AQUAMANGA", "testClass": "compatibilityfarm.AquaReaderMadaraParserHarnessTest"}
-      ]
-    },
-    {
-      "id": "uma-form-api",
-      "provider": "uma",
-      "registryAdapterFamily": "custom-paged-form-api",
-      "providerParserFamily": "form-post-json-reader",
-      "runner": "gradle-jvm-test",
-      "members": [
-        {"canonicalId": "miyorare:miyorare-en:BATCAVE", "testClass": "compatibilityfarm.BatcaveParserHarnessTest"}
-      ]
-    },
-    {
-      "id": "uma-astro-html-json",
-      "provider": "uma",
-      "registryAdapterFamily": "custom-paged-html-json",
-      "providerParserFamily": "astro-html-json",
-      "runner": "gradle-jvm-test",
-      "members": [
-        {"canonicalId": "miyorare:miyorare-en:ASURASCANS", "testClass": "compatibilityfarm.AsuraScansParserHarnessTest"}
-      ]
-    },
-    {
-      "id": "uma-bacami-script-pages",
-      "provider": "uma",
-      "registryAdapterFamily": "custom-paged-html-json-script",
-      "providerParserFamily": "html-script-page-list",
-      "runner": "gradle-jvm-test",
-      "members": [
-        {"canonicalId": "miyorare:miyorare-id:BACAMI", "testClass": "compatibilityfarm.BacamiParserHarnessTest"}
-      ]
-    },
-    {
-      "id": "uma-like-manga",
-      "provider": "uma",
-      "registryAdapterFamily": "like-manga",
-      "providerParserFamily": "like-manga-shared-parser",
-      "runner": "gradle-jvm-test",
-      "members": [
-        {"canonicalId": "miyorare:miyorare-en:LIKEMANGA", "testClass": "compatibilityfarm.LikeMangaParserHarnessBehaviorTest"}
-      ]
-    },
-    {
-      "id": "uma-custom-paged-html",
-      "provider": "uma",
-      "registryAdapterFamily": "custom-paged-html",
-      "providerParserFamily": "paged-html",
-      "runner": "gradle-jvm-test",
-      "members": [
-        {"canonicalId": "miyorare:miyorare-en:MANGAPILL", "testClass": "compatibilityfarm.MangaPillParserHarnessTest"},
-        {"canonicalId": "miyorare:miyorare-id:THEMANGA", "testClass": "compatibilityfarm.TheMangaParserHarnessTest"}
-      ]
-    },
-    {
-      "id": "gekkoushi-html-xhr",
-      "provider": "gekkoushi",
-      "registryAdapterFamily": "custom-paged-html-xhr",
-      "providerParserFamily": "html-xhr-reader",
-      "runner": "gradle-jvm-test",
-      "members": [
-        {"canonicalId": "miyorare:miyorare-id:DOUJINDESU", "testClass": "compatibilityfarm.DoujinDesuParserHarnessTest"}
-      ]
-    },
-    {
-      "id": "gekkoushi-rest-json",
-      "provider": "gekkoushi",
-      "registryAdapterFamily": "custom-rest-json",
-      "providerParserFamily": "paged-json-api",
-      "runner": "gradle-jvm-test",
       "members": [
         {
           "canonicalId": "miyorare:miyorare-id:SHINIGAMI",
-          "testClass": "compatibilityfarm.ShinigamiGekkoushiParserHarnessTest",
-          "repairRecipes": ["forward-parser-request-headers-to-http-get"]
+          "testClass": "compatibilityfarm.ShinigamiParserHarnessTest"
         }
-      ]
+      ],
+      "provider": "uma",
+      "providerParserFamily": "paged-json-api",
+      "registryAdapterFamily": "custom-rest-json",
+      "runner": "gradle-jvm-test"
     },
     {
-      "id": "gekkoushi-form-html-reader",
-      "provider": "gekkoushi",
-      "registryAdapterFamily": "custom-paged-form-api",
-      "providerParserFamily": "html-embedded-image-reader",
-      "runner": "gradle-jvm-test",
+      "id": "uma-cookie-auth",
+      "members": [
+        {
+          "canonicalId": "miyorare:miyorare-en:WEEBCENTRAL",
+          "testClass": "compatibilityfarm.WeebCentralAuthParserHarnessTest"
+        }
+      ],
+      "provider": "uma",
+      "providerParserFamily": "cookie-auth-html",
+      "registryAdapterFamily": "custom-auth-cookie-html",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "uma-natsu",
+      "members": [
+        {
+          "canonicalId": "miyorare:miyorare-id:KIRYUU",
+          "testClass": "compatibilityfarm.KiryuuNatsuParserHarnessTest"
+        }
+      ],
+      "provider": "uma",
+      "providerParserFamily": "natsu",
+      "registryAdapterFamily": "natsu",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "uma-madara",
+      "members": [
+        {
+          "canonicalId": "miyorare:miyorare-en:AQUAMANGA",
+          "testClass": "compatibilityfarm.AquaReaderMadaraParserHarnessTest"
+        }
+      ],
+      "provider": "uma",
+      "providerParserFamily": "madara",
+      "registryAdapterFamily": "madara",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "uma-form-api",
       "members": [
         {
           "canonicalId": "miyorare:miyorare-en:BATCAVE",
-          "testClass": "compatibilityfarm.BatCaveGekkoushiParserHarnessTest",
-          "repairRecipes": ["forward-parser-request-headers-to-http-get"]
+          "testClass": "compatibilityfarm.BatcaveParserHarnessTest"
         }
-      ]
+      ],
+      "provider": "uma",
+      "providerParserFamily": "form-post-json-reader",
+      "registryAdapterFamily": "custom-paged-form-api",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "uma-astro-html-json",
+      "members": [
+        {
+          "canonicalId": "miyorare:miyorare-en:ASURASCANS",
+          "testClass": "compatibilityfarm.AsuraScansParserHarnessTest"
+        }
+      ],
+      "provider": "uma",
+      "providerParserFamily": "astro-html-json",
+      "registryAdapterFamily": "custom-paged-html-json",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "uma-bacami-script-pages",
+      "members": [
+        {
+          "canonicalId": "miyorare:miyorare-id:BACAMI",
+          "testClass": "compatibilityfarm.BacamiParserHarnessTest"
+        }
+      ],
+      "provider": "uma",
+      "providerParserFamily": "html-script-page-list",
+      "registryAdapterFamily": "custom-paged-html-json-script",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "uma-like-manga",
+      "members": [
+        {
+          "canonicalId": "miyorare:miyorare-en:LIKEMANGA",
+          "testClass": "compatibilityfarm.LikeMangaParserHarnessBehaviorTest"
+        }
+      ],
+      "provider": "uma",
+      "providerParserFamily": "like-manga-shared-parser",
+      "registryAdapterFamily": "like-manga",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "uma-custom-paged-html",
+      "members": [
+        {
+          "canonicalId": "miyorare:miyorare-en:MANGAPILL",
+          "testClass": "compatibilityfarm.MangaPillParserHarnessTest"
+        },
+        {
+          "canonicalId": "miyorare:miyorare-id:THEMANGA",
+          "testClass": "compatibilityfarm.TheMangaParserHarnessTest"
+        }
+      ],
+      "provider": "uma",
+      "providerParserFamily": "paged-html",
+      "registryAdapterFamily": "custom-paged-html",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-html-xhr",
+      "members": [
+        {
+          "canonicalId": "miyorare:miyorare-id:DOUJINDESU",
+          "testClass": "compatibilityfarm.DoujinDesuParserHarnessTest"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "html-xhr-reader",
+      "registryAdapterFamily": "custom-paged-html-xhr",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-rest-json",
+      "members": [
+        {
+          "canonicalId": "miyorare:miyorare-id:SHINIGAMI",
+          "repairRecipes": [
+            "forward-parser-request-headers-to-http-get"
+          ],
+          "testClass": "compatibilityfarm.ShinigamiGekkoushiParserHarnessTest"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "paged-json-api",
+      "registryAdapterFamily": "custom-rest-json",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-form-html-reader",
+      "members": [
+        {
+          "canonicalId": "miyorare:miyorare-en:BATCAVE",
+          "repairRecipes": [
+            "forward-parser-request-headers-to-http-get"
+          ],
+          "testClass": "compatibilityfarm.BatCaveGekkoushiParserHarnessTest"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "html-embedded-image-reader",
+      "registryAdapterFamily": "custom-paged-form-api",
+      "runner": "gradle-jvm-test"
     },
     {
       "id": "gekkoushi-astro-html-json",
-      "provider": "gekkoushi",
-      "registryAdapterFamily": "custom-paged-html-json",
-      "providerParserFamily": "astro-html-json",
-      "runner": "gradle-jvm-test",
       "members": [
-        {"canonicalId": "miyorare:miyorare-en:ASURASCANS", "testClass": "compatibilityfarm.AsuraScansGekkoushiParserHarnessTest"}
-      ]
+        {
+          "canonicalId": "miyorare:miyorare-en:ASURASCANS",
+          "testClass": "compatibilityfarm.AsuraScansGekkoushiParserHarnessTest"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "astro-html-json",
+      "registryAdapterFamily": "custom-paged-html-json",
+      "runner": "gradle-jvm-test"
     },
     {
       "id": "keiyoushi-komiku-custom",
-      "provider": "keiyoushi",
-      "registryAdapterFamily": "manga-reader-plus-api",
-      "providerParserFamily": "custom-http-source",
-      "runner": "android-gradle-unit-test",
       "members": [
-        {"canonicalId": "miyorare:miyorare-id:KOMIKU", "module": "src/id/komiku", "testClass": "compatibilityfarm.KeiyoushiKomikuParserHarnessTest"}
-      ]
+        {
+          "canonicalId": "miyorare:miyorare-id:KOMIKU",
+          "module": "src/id/komiku",
+          "testClass": "compatibilityfarm.KeiyoushiKomikuParserHarnessTest"
+        }
+      ],
+      "provider": "keiyoushi",
+      "providerParserFamily": "custom-http-source",
+      "registryAdapterFamily": "manga-reader-plus-api",
+      "runner": "android-gradle-unit-test"
     },
     {
       "id": "keiyoushi-madaralegacy",
-      "provider": "keiyoushi",
-      "registryAdapterFamily": "madara",
-      "providerParserFamily": "madaralegacy",
-      "runner": "android-gradle-unit-test",
       "members": [
-        {"canonicalId": "miyorare:miyorare-en:AQUAMANGA", "module": "src/en/aquamanga", "testClass": "compatibilityfarm.KeiyoushiAquaMangaParserHarnessTest"}
-      ]
+        {
+          "canonicalId": "miyorare:miyorare-en:AQUAMANGA",
+          "module": "src/en/aquamanga",
+          "testClass": "compatibilityfarm.KeiyoushiAquaMangaParserHarnessTest"
+        }
+      ],
+      "provider": "keiyoushi",
+      "providerParserFamily": "madaralegacy",
+      "registryAdapterFamily": "madara",
+      "runner": "android-gradle-unit-test"
     },
     {
       "id": "keiyoushi-natsuid",
-      "provider": "keiyoushi",
-      "registryAdapterFamily": "natsu",
-      "providerParserFamily": "natsuid",
-      "runner": "android-gradle-unit-test",
       "members": [
-        {"canonicalId": "miyorare:miyorare-id:KIRYUU", "module": "src/id/kiryuu", "testClass": "compatibilityfarm.KeiyoushiKiryuuParserHarnessTest"}
-      ]
+        {
+          "canonicalId": "miyorare:miyorare-id:KIRYUU",
+          "module": "src/id/kiryuu",
+          "testClass": "compatibilityfarm.KeiyoushiKiryuuParserHarnessTest"
+        }
+      ],
+      "provider": "keiyoushi",
+      "providerParserFamily": "natsuid",
+      "registryAdapterFamily": "natsu",
+      "runner": "android-gradle-unit-test"
     },
     {
       "id": "keiyoushi-bacami-custom",
-      "provider": "keiyoushi",
-      "registryAdapterFamily": "custom-paged-html-json-script",
-      "providerParserFamily": "custom-http-source-script-pages",
-      "runner": "android-gradle-unit-test",
       "members": [
-        {"canonicalId": "miyorare:miyorare-id:BACAMI", "module": "src/id/bacami", "testClass": "compatibilityfarm.KeiyoushiBacamiParserHarnessTest"}
-      ]
+        {
+          "canonicalId": "miyorare:miyorare-id:BACAMI",
+          "module": "src/id/bacami",
+          "testClass": "compatibilityfarm.KeiyoushiBacamiParserHarnessTest"
+        }
+      ],
+      "provider": "keiyoushi",
+      "providerParserFamily": "custom-http-source-script-pages",
+      "registryAdapterFamily": "custom-paged-html-json-script",
+      "runner": "android-gradle-unit-test"
     },
     {
       "id": "keiyoushi-batcave-custom",
-      "provider": "keiyoushi",
-      "registryAdapterFamily": "custom-paged-form-api",
-      "providerParserFamily": "custom-form-json-reader",
-      "runner": "android-gradle-unit-test",
       "members": [
-        {"canonicalId": "miyorare:miyorare-en:BATCAVE", "module": "src/en/batcave", "testClass": "compatibilityfarm.KeiyoushiBatCaveParserHarnessTest"}
-      ]
+        {
+          "canonicalId": "miyorare:miyorare-en:BATCAVE",
+          "module": "src/en/batcave",
+          "testClass": "compatibilityfarm.KeiyoushiBatCaveParserHarnessTest"
+        }
+      ],
+      "provider": "keiyoushi",
+      "providerParserFamily": "custom-form-json-reader",
+      "registryAdapterFamily": "custom-paged-form-api",
+      "runner": "android-gradle-unit-test"
     },
     {
       "id": "keiyoushi-asura-configurable",
-      "provider": "keiyoushi",
-      "registryAdapterFamily": "custom-paged-html-json",
-      "providerParserFamily": "api-astro-configurable",
-      "runner": "android-gradle-unit-test",
       "members": [
-        {"canonicalId": "miyorare:miyorare-en:ASURASCANS", "module": "src/en/asurascans", "testClass": "compatibilityfarm.KeiyoushiAsuraScansParserHarnessTest", "runtimeProfile": "configurable"}
-      ]
+        {
+          "canonicalId": "miyorare:miyorare-en:ASURASCANS",
+          "module": "src/en/asurascans",
+          "runtimeProfile": "configurable",
+          "testClass": "compatibilityfarm.KeiyoushiAsuraScansParserHarnessTest"
+        }
+      ],
+      "provider": "keiyoushi",
+      "providerParserFamily": "api-astro-configurable",
+      "registryAdapterFamily": "custom-paged-html-json",
+      "runner": "android-gradle-unit-test"
     },
     {
       "id": "keiyoushi-onboarded-live-madara",
-      "provider": "keiyoushi",
-      "registryAdapterFamily": "madara",
-      "providerParserFamily": "madara",
-      "runner": "android-gradle-live-test",
       "members": [
         {
           "canonicalId": "miyorare:inventory-en:APCOMICS",
-          "testClass": "compatibilityfarm.AutoLive_keiyoushi_1aec64c85fc1",
-          "module": "src/en/apcomics"
+          "module": "src/en/apcomics",
+          "testClass": "compatibilityfarm.AutoLive_keiyoushi_1aec64c85fc1"
         }
-      ]
+      ],
+      "provider": "keiyoushi",
+      "providerParserFamily": "madara",
+      "registryAdapterFamily": "madara",
+      "runner": "android-gradle-live-test"
     },
     {
       "id": "gekkoushi-onboarded-live-gekkoushi-native",
-      "provider": "gekkoushi",
-      "registryAdapterFamily": "gekkoushi-native",
-      "providerParserFamily": "gekkoushi-native",
-      "runner": "gradle-jvm-test",
       "members": [
         {
           "canonicalId": "miyorare:inventory-en:BANANASCANCOM",
           "testClass": "compatibilityfarm.AutoLive_gekkoushi_8ebde7513da7"
         }
-      ]
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "gekkoushi-native",
+      "registryAdapterFamily": "gekkoushi-native",
+      "runner": "gradle-jvm-test"
     },
     {
       "id": "uma-onboarded-live-custom-rest-json",
-      "provider": "uma",
-      "registryAdapterFamily": "custom-rest-json",
-      "providerParserFamily": "custom-rest-json",
-      "runner": "gradle-jvm-test",
       "members": [
         {
           "canonicalId": "miyorare:inventory-en:CHIKARI",
@@ -263,27 +319,27 @@
           "canonicalId": "miyorare:inventory-id:BACAKOMIKPICS",
           "testClass": "compatibilityfarm.AutoLive_uma_f95998680fbd"
         }
-      ]
+      ],
+      "provider": "uma",
+      "providerParserFamily": "custom-rest-json",
+      "registryAdapterFamily": "custom-rest-json",
+      "runner": "gradle-jvm-test"
     },
     {
       "id": "uma-onboarded-live-custom-paged-html",
-      "provider": "uma",
-      "registryAdapterFamily": "custom-paged-html",
-      "providerParserFamily": "custom-paged-html",
-      "runner": "gradle-jvm-test",
       "members": [
         {
           "canonicalId": "miyorare:inventory-id:CGBUM",
           "testClass": "compatibilityfarm.AutoLive_uma_181ed83de34d"
         }
-      ]
+      ],
+      "provider": "uma",
+      "providerParserFamily": "custom-paged-html",
+      "registryAdapterFamily": "custom-paged-html",
+      "runner": "gradle-jvm-test"
     },
     {
       "id": "gekkoushi-onboarded-live-manga-reader-plus-api",
-      "provider": "gekkoushi",
-      "registryAdapterFamily": "manga-reader-plus-api",
-      "providerParserFamily": "manga-reader-plus-api",
-      "runner": "gradle-jvm-test",
       "members": [
         {
           "canonicalId": "miyorare:inventory-id:DOJING",
@@ -305,20 +361,411 @@
           "canonicalId": "miyorare:inventory-id:KOMIKDEWASAONLINE",
           "testClass": "compatibilityfarm.AutoLive_gekkoushi_63a48c995ff5"
         }
-      ]
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "manga-reader-plus-api",
+      "registryAdapterFamily": "manga-reader-plus-api",
+      "runner": "gradle-jvm-test"
     },
     {
       "id": "gekkoushi-onboarded-live-natsu",
-      "provider": "gekkoushi",
-      "registryAdapterFamily": "natsu",
-      "providerParserFamily": "natsu",
-      "runner": "gradle-jvm-test",
       "members": [
         {
           "canonicalId": "miyorare:inventory-id:KIRYUU",
           "testClass": "compatibilityfarm.AutoLive_gekkoushi_8e9af2a8b9cf"
         }
-      ]
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "natsu",
+      "registryAdapterFamily": "natsu",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-approved-live-7f55937f4599",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:DANKEFURSLESEN",
+          "testClass": "compatibilityfarm.AutoLive_gekkoushi_7f55937f4599"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "gekkoushi-native",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-approved-live-e18b80336c95",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:DEMONICSCANS",
+          "testClass": "compatibilityfarm.AutoLive_gekkoushi_e18b80336c95"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "custom-paged-html",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-approved-live-469ad680679d",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:ENTHUNDERSCANS",
+          "testClass": "compatibilityfarm.AutoLive_gekkoushi_469ad680679d"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "multi-provider",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-approved-live-6f08c05f0fca",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:GDSCANS",
+          "testClass": "compatibilityfarm.AutoLive_gekkoushi_6f08c05f0fca"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "madara",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-approved-live-8bb4ddb43b1b",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:GENZTOON",
+          "testClass": "compatibilityfarm.AutoLive_gekkoushi_8bb4ddb43b1b"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "gekkoushi-native",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-approved-live-2b0cf25c62bd",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:GRABBER",
+          "testClass": "compatibilityfarm.AutoLive_gekkoushi_2b0cf25c62bd"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "madara",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-approved-live-a7ec42449513",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:GUYACUBARI",
+          "testClass": "compatibilityfarm.AutoLive_gekkoushi_a7ec42449513"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "gekkoushi-native",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-approved-live-179e1a30e5cf",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:HENTAI20",
+          "testClass": "compatibilityfarm.AutoLive_gekkoushi_179e1a30e5cf"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "manga-reader-plus-api",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-approved-live-0010cbcdcf06",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:HENTAI2READ",
+          "testClass": "compatibilityfarm.AutoLive_gekkoushi_0010cbcdcf06"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "custom-rest-json",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-approved-live-0eef3a6be0aa",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:HENTAIXCOMIC",
+          "testClass": "compatibilityfarm.AutoLive_gekkoushi_0eef3a6be0aa"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "madara",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-approved-live-4291766ee045",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:HENTAIXDICKGIRL",
+          "testClass": "compatibilityfarm.AutoLive_gekkoushi_4291766ee045"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "madara",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-approved-live-b2327ca45d13",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-id:KOMIKINDOORG",
+          "testClass": "compatibilityfarm.AutoLive_gekkoushi_b2327ca45d13"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "manga-reader-plus-api",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-approved-live-52e43af61de9",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-id:KOMIKLOKAL",
+          "testClass": "compatibilityfarm.AutoLive_gekkoushi_52e43af61de9"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "manga-reader-plus-api",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-approved-live-f7a1b55b0440",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-id:KOMIKU",
+          "testClass": "compatibilityfarm.AutoLive_gekkoushi_f7a1b55b0440"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "manga-reader-plus-api",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-approved-live-14523c8209df",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-id:LIANSCANS",
+          "testClass": "compatibilityfarm.AutoLive_gekkoushi_14523c8209df"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "manga-reader-plus-api",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-approved-live-32c770fd5cd6",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-id:MAIDID",
+          "testClass": "compatibilityfarm.AutoLive_gekkoushi_32c770fd5cd6"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "custom-paged-html",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-approved-live-e6501e959286",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-id:MANGASUSUKU",
+          "testClass": "compatibilityfarm.AutoLive_gekkoushi_e6501e959286"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "multi-provider",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "gekkoushi-approved-live-b1577ce9c3db",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-id:MANHWALISTORG",
+          "testClass": "compatibilityfarm.AutoLive_gekkoushi_b1577ce9c3db"
+        }
+      ],
+      "provider": "gekkoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "manga-reader-plus-api",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "keiyoushi-approved-live-35572e9c39d8",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:COLORIZEDMANGAS",
+          "module": "src/en/colorizedmangas",
+          "testClass": "compatibilityfarm.AutoLive_keiyoushi_35572e9c39d8"
+        }
+      ],
+      "provider": "keiyoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "custom-paged-html",
+      "runner": "android-gradle-live-test"
+    },
+    {
+      "id": "keiyoushi-approved-live-ac7fded2fdbe",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:IROVEDOUT",
+          "module": "src/en/irovedout",
+          "testClass": "compatibilityfarm.AutoLive_keiyoushi_ac7fded2fdbe"
+        }
+      ],
+      "provider": "keiyoushi",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "custom-paged-html",
+      "runner": "android-gradle-live-test"
+    },
+    {
+      "id": "uma-approved-live-429e03dea68d",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:DEMONICSCANS",
+          "testClass": "compatibilityfarm.AutoLive_uma_429e03dea68d"
+        }
+      ],
+      "provider": "uma",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "custom-paged-html",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "uma-approved-live-e29968321e4d",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:ENTHUNDERSCANS",
+          "testClass": "compatibilityfarm.AutoLive_uma_e29968321e4d"
+        }
+      ],
+      "provider": "uma",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "multi-provider",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "uma-approved-live-f382ae063c1d",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:HENTAINEXUS",
+          "testClass": "compatibilityfarm.AutoLive_uma_f382ae063c1d"
+        }
+      ],
+      "provider": "uma",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "custom-rest-json",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "uma-approved-live-5c23fa8a7b0c",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:HENTAIXCOMIC",
+          "testClass": "compatibilityfarm.AutoLive_uma_5c23fa8a7b0c"
+        }
+      ],
+      "provider": "uma",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "madara",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "uma-approved-live-66789df7bbb2",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:HIPERDEX",
+          "testClass": "compatibilityfarm.AutoLive_uma_66789df7bbb2"
+        }
+      ],
+      "provider": "uma",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "uma-native",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "uma-approved-live-d7d7a8351e2a",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-en:HIVETOONS",
+          "testClass": "compatibilityfarm.AutoLive_uma_d7d7a8351e2a"
+        }
+      ],
+      "provider": "uma",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "custom-rest-json",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "uma-approved-live-dc6b00f71250",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-id:LUMOSKOMIK",
+          "testClass": "compatibilityfarm.AutoLive_uma_dc6b00f71250"
+        }
+      ],
+      "provider": "uma",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "custom-rest-json",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "uma-approved-live-eaf9a3df0db7",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-id:MANGASUSUKU",
+          "testClass": "compatibilityfarm.AutoLive_uma_eaf9a3df0db7"
+        }
+      ],
+      "provider": "uma",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "multi-provider",
+      "runner": "gradle-jvm-test"
+    },
+    {
+      "id": "uma-approved-live-268c8d23dbe4",
+      "members": [
+        {
+          "canonicalId": "miyorare:inventory-id:SASANGEYOUNET",
+          "testClass": "compatibilityfarm.AutoLive_uma_268c8d23dbe4"
+        }
+      ],
+      "provider": "uma",
+      "providerParserFamily": "approved-live-parser",
+      "registryAdapterFamily": "uma-native",
+      "runner": "gradle-jvm-test"
     }
-  ]
+  ],
+  "policies": {
+    "declarativeOnboarding": true,
+    "duplicateMembershipForbidden": true,
+    "failClosed": true,
+    "realParserExecutionRequired": true,
+    "requireRegistryMembership": true
+  },
+  "schemaVersion": 1
 }
