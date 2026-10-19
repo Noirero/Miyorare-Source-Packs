@@ -18,7 +18,7 @@ concurrency:
 
 env:
   EXPECTED_OWNER_ID: '149634319'
-  MIYORARE_REPAIR_SHA: 'a513d491ac9547f95185ed618979b0fea47c8525'
+  MIYORARE_REPAIR_SHA: 'e12b9ec63551aa80dd604dd5e0d62598956e4198'
   GEKKOUSHI_SHA: '12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67'
   NOVELCROW_BLOB_SHA: '31d43c8696c6630d105cf2fc3afd1ee91832744e'
   NOVELCROW_ID: 'miyorare:inventory-en:NOVELCROW'
@@ -71,7 +71,7 @@ jobs:
           path: _upstream/repaired/gekkoushi
           fetch-depth: 1
 
-      - name: Checkout exact Miyorare repair candidate
+      - name: Checkout exact Amain2 repair candidate
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: Noirero/Miyorare
@@ -97,18 +97,17 @@ jobs:
           python3 - <<'PY'
           import sys
           from pathlib import Path
-
           tools = Path('miyorare/extensions/miyorare-sources/tools').resolve()
           sys.path.insert(0, str(tools))
           from gekkoushi_overlay import apply_miyorare_overlays
-
-          source_root = Path('miyorare/extensions/miyorare-sources').resolve()
-          upstream = Path('_upstream/repaired/gekkoushi').resolve()
-          applied = apply_miyorare_overlays(source_root, upstream, 'en')
+          applied = apply_miyorare_overlays(
+              Path('miyorare/extensions/miyorare-sources').resolve(),
+              Path('_upstream/repaired/gekkoushi').resolve(),
+              'en',
+          )
           expected = 'replace:madara/en/Novelcrow.kt'
           if expected not in applied:
               raise SystemExit(f'NovelCrow replacement was not applied: {applied}')
-          print('\n'.join(applied))
           PY
           target='_upstream/repaired/gekkoushi/src/main/kotlin/tsuki/site/madara/en/Novelcrow.kt'
           [[ "$(git -C _upstream/repaired/gekkoushi hash-object 'src/main/kotlin/tsuki/site/madara/en/Novelcrow.kt')" != "$NOVELCROW_BLOB_SHA" ]]
@@ -138,24 +137,18 @@ jobs:
         run: |
           set -euo pipefail
           for side in baseline repaired; do
-            (
-              cd "_upstream/$side/gekkoushi"
-              chmod +x gradlew
-              ./gradlew buildJar --no-daemon
-            )
+            (cd "_upstream/$side/gekkoushi" && chmod +x gradlew && ./gradlew buildJar --no-daemon)
           done
 
-      - name: Build single-source live parser plans
+      - name: Build single-source live parser inputs
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build
           for side in baseline repaired; do
             SIDE="$side" python3 - <<'PY'
-          import json
-          import os
+          import json, os
           from pathlib import Path
-
           cid = os.environ['NOVELCROW_ID']
           side = os.environ['SIDE']
           plan = {
@@ -165,21 +158,17 @@ jobs:
               'items': [{
                   'canonicalId': cid,
                   'providers': ['gekkoushi'],
-                  'upstreamIdentities': {
-                      'gekkoushi': {
-                          'file': 'src/main/kotlin/tsuki/site/madara/en/Novelcrow.kt',
-                          'sourceName': 'NOVELCROW',
-                      },
-                  },
+                  'upstreamIdentities': {'gekkoushi': {
+                      'file': 'src/main/kotlin/tsuki/site/madara/en/Novelcrow.kt',
+                      'sourceName': 'NOVELCROW',
+                  }},
               }],
           }
-          profile = {
-              'results': [{
-                  'canonicalId': cid,
-                  'state': 'PARSER_PENDING',
-                  'authType': 'NO_AUTH',
-              }],
-          }
+          profile = {'results': [{
+              'canonicalId': cid,
+              'state': 'PARSER_PENDING',
+              'authType': 'NO_AUTH',
+          }]}
           Path(f'build/novelcrow-{side}-plan.json').write_text(json.dumps(plan, indent=2) + '\n')
           Path(f'build/novelcrow-{side}-profile.json').write_text(json.dumps(profile, indent=2) + '\n')
           PY
@@ -191,9 +180,7 @@ jobs:
           set -euo pipefail
           for side in baseline repaired; do
             root="_upstream/$side/gekkoushi"
-            if [[ -d "$root/src/test" ]]; then
-              mv "$root/src/test" "$root/_compatibility-upstream-tests"
-            fi
+            [[ ! -d "$root/src/test" ]] || mv "$root/src/test" "$root/_compatibility-upstream-tests"
           done
 
       - name: Generate NovelCrow real parser harnesses
@@ -218,18 +205,13 @@ jobs:
             test_class="$(MANIFEST="$manifest" python3 - <<'PY'
           import json, os
           from pathlib import Path
-          data = json.loads(Path(os.environ['MANIFEST']).read_text())
-          tests = data.get('tests', [])
+          tests = json.loads(Path(os.environ['MANIFEST']).read_text()).get('tests', [])
           if len(tests) != 1:
               raise SystemExit(f'expected exactly one generated test, got {tests}')
           print(tests[0]['testClass'])
           PY
             )"
-            (
-              cd "_upstream/$side/gekkoushi"
-              chmod +x gradlew
-              ./gradlew test --tests "$test_class" --no-daemon
-            ) || true
+            (cd "_upstream/$side/gekkoushi" && chmod +x gradlew && ./gradlew test --tests "$test_class" --no-daemon) || true
           done
 
       - name: Collect and require proven repair recovery
@@ -242,30 +224,28 @@ jobs:
               --output "build/novelcrow-$side-results.json"
           done
           python3 - <<'PY'
-          import json
+          import json, os
           from pathlib import Path
-
           def one(side):
-              data = json.loads(Path(f'build/novelcrow-{side}-results.json').read_text())
-              rows = data.get('results', [])
+              rows = json.loads(Path(f'build/novelcrow-{side}-results.json').read_text()).get('results', [])
               if len(rows) != 1:
                   raise SystemExit(f'{side}: expected one result, got {rows}')
               return rows[0]
-
           baseline = one('baseline')
           repaired = one('repaired')
           if baseline.get('status') != 'FAIL':
-              raise SystemExit(f'baseline failure is no longer reproduced; repair cannot be attributed: {baseline}')
+              raise SystemExit(f'baseline failure is no longer reproduced: {baseline}')
           required = ('parserExecution', 'detailsTraversal', 'chapterTraversal', 'pageExtraction')
-          if repaired.get('status') != 'PASS' or not all(repaired.get(key) is True for key in required):
+          if repaired.get('status') != 'PASS' or not all(repaired.get(k) is True for k in required):
               raise SystemExit(f'NovelCrow overlay did not prove full runtime recovery: {repaired}')
           report = {
               'schemaVersion': 1,
               'phase': 'TRACK_B_BATCH_3_TARGETED_REPAIR',
               'readOnly': True,
-              'canonicalId': 'miyorare:inventory-en:NOVELCROW',
-              'gekkoushiCommit': '12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67',
-              'miyorareRepairCommit': 'a513d491ac9547f95185ed618979b0fea47c8525',
+              'canonicalId': os.environ['NOVELCROW_ID'],
+              'gekkoushiCommit': os.environ['GEKKOUSHI_SHA'],
+              'miyorareRepairCommit': os.environ['MIYORARE_REPAIR_SHA'],
+              'miyorareTargetBranch': 'Amain2',
               'baseline': baseline,
               'repaired': repaired,
               'decision': 'OVERLAY_RUNTIME_RECOVERY_PROVEN',
@@ -277,13 +257,6 @@ jobs:
               },
           }
           Path('build/track-b-batch3-novelcrow-repair.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
-          Path('build/track-b-batch3-novelcrow-repair.md').write_text(
-              '# Track B Batch 3 — NovelCrow repair\n\n'
-              '- Baseline: **FAIL**\n'
-              '- Miyorare overlay: **PASS** browse → details → chapters → pages\n'
-              '- Decision: `OVERLAY_RUNTIME_RECOVERY_PROVEN`\n'
-              '- Authority mutation: **none**\n'
-          )
           PY
 
       - name: Prove upstream checkouts remain disposable only
@@ -304,7 +277,6 @@ jobs:
             build/novelcrow-*-manifest.json
             build/novelcrow-*-results.json
             build/track-b-batch3-novelcrow-repair.json
-            build/track-b-batch3-novelcrow-repair.md
             _upstream/baseline/gekkoushi/build/test-results/test/*.xml
             _upstream/repaired/gekkoushi/build/test-results/test/*.xml
           if-no-files-found: warn
