@@ -303,7 +303,7 @@ jobs:
           fetch-depth: 1
 
       - name: Download all available isolated evidence
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        uses: actions/download-artifact@634f93cb2916e75b540449e92b4886f43607fa02
         with:
           pattern: source-lab-a3-gekkoushi-*-${{ github.run_id }}
           path: build/evidence
@@ -328,7 +328,15 @@ jobs:
           for repair in "${repairs[@]}"; do
             cmd+=(--repair-report "$repair")
           done
+          set +e
           "${cmd[@]}"
+          aggregate_rc=$?
+          set -e
+          case "$aggregate_rc" in
+            0|2) ;;
+            *) echo "::error::Could not aggregate isolated parser evidence (rc=$aggregate_rc)"; exit "$aggregate_rc" ;;
+          esac
+          test -s build/gekkoushi-isolation-aggregate.json
 
       - name: Emit A3 isolation verdict without promoting anything
         shell: bash
