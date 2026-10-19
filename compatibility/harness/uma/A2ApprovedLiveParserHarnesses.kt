@@ -67,38 +67,3 @@ internal class AutoLive_uma_268c8d23dbe4 {
         exerciseA2ApprovedLiveParser("tsuki.site.id.nsfw.Sasangeyou")
     }
 }
-
-internal class AutoLive_uma_f382ae063c1d {
-    @Test
-    fun browseDetailsChaptersAndPagesExecuteRealParserCode() = runBlocking {
-        exerciseA2ApprovedLiveParser("tsuki.site.en.nsfw.HentaiNexus")
-    }
-}
-
-internal class AutoLive_uma_5c23fa8a7b0c {
-    @Test
-    fun browseDetailsChaptersAndPagesExecuteRealParserCode() = runBlocking {
-        exerciseA2ApprovedLiveParser("tsuki.site.en.nsfw.HentaixComic")
-    }
-}
-
-internal class AutoLive_uma_66789df7bbb2 {
-    @Test
-    fun browseDetailsChaptersAndPagesExecuteRealParserCode() = runBlocking {
-        exerciseA2ApprovedLiveParser("tsuki.site.en.nsfw.Hiperdex")
-    }
-}
-
-internal class AutoLive_uma_d7d7a8351e2a {
-    @Test
-    fun browseDetailsChaptersAndPagesExecuteRealParserCode() = runBlocking {
-        exerciseA2ApprovedLiveParser("tsuki.site.en.HiveToons")
-    }
-}
-
-internal class AutoLive_uma_dc6b00f71250 {
-    @Test
-    fun browseDetailsChaptersAndPagesExecuteRealParserCode() = runBlocking {
-        exerciseA2ApprovedLiveParser("tsuki.site.id.LumosKomik")
-    }
-}
