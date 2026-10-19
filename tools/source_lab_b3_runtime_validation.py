@@ -264,7 +264,7 @@ def _parser_state(row: dict[str, Any] | None) -> str:
         and row.get("parserExecution") is True
         and row.get("detailsTraversal") is True
         and row.get("chapterTraversal") is True
-        and row.get("pageTraversal") is True
+        and row.get("pageExtraction") is True
     ):
         return "PASS"
     if row.get("status") == "FAIL":
