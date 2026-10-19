@@ -119,7 +119,7 @@ jobs:
           retention-days: 30
 
   membership:
-    name: Gekkoushi ${{ matrix.familyId }}
+    name: Gekkoushi ${{ matrix.familyId }} #${{ strategy.job-index }}
     needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -133,6 +133,7 @@ jobs:
       CANONICAL_ID: ${{ matrix.canonicalId }}
       FAMILY_ID: ${{ matrix.familyId }}
       TEST_CLASS: ${{ matrix.testClass }}
+      EVIDENCE_KEY: ${{ matrix.familyId }}-${{ strategy.job-index }}
       REPAIR_RECIPES_JSON: ${{ toJson(matrix.repairRecipes) }}
     steps:
       - name: Checkout exact Compatibility Farm foundation
@@ -208,7 +209,7 @@ jobs:
             --canonical-id "$CANONICAL_ID" \
             --root upstream \
             --path "$target" \
-            --output "farm/build/repair-$FAMILY_ID.json"
+            --output "farm/build/repair-$EVIDENCE_KEY.json"
 
       - name: Execute exactly one Gekkoushi real parser membership
         id: parser
@@ -233,7 +234,7 @@ jobs:
             --results-dir upstream/build/test-results/test \
             --provider gekkoushi \
             --source "$CANONICAL_ID=$TEST_CLASS" \
-            --output "farm/build/real-parser-harness-$FAMILY_ID-report.json"
+            --output "farm/build/real-parser-harness-$EVIDENCE_KEY-report.json"
           rc=$?
           set -e
           case "$rc" in
@@ -253,7 +254,7 @@ jobs:
           python3 - <<'PY'
           import json, os
           from pathlib import Path
-          path = Path('farm/build') / f"real-parser-harness-{os.environ['FAMILY_ID']}-report.json"
+          path = Path('farm/build') / f"real-parser-harness-{os.environ['EVIDENCE_KEY']}-report.json"
           report = json.loads(path.read_text(encoding='utf-8'))
           results = report.get('results')
           if not isinstance(results, list) or len(results) != 1:
@@ -277,10 +278,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: source-lab-a3-gekkoushi-${{ matrix.familyId }}-${{ github.run_id }}
+          name: source-lab-a3-gekkoushi-${{ matrix.familyId }}-${{ strategy.job-index }}-${{ github.run_id }}
           path: |
-            farm/build/real-parser-harness-${{ matrix.familyId }}-report.json
-            farm/build/repair-${{ matrix.familyId }}.json
+            farm/build/real-parser-harness-${{ env.EVIDENCE_KEY }}-report.json
+            farm/build/repair-${{ env.EVIDENCE_KEY }}.json
             upstream/build/test-results/test/*.xml
           if-no-files-found: warn
           retention-days: 30
