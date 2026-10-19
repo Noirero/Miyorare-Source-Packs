@@ -1,0 +1,142 @@
+name: Source Lab A4 Retry Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_foundation_sha:
+        description: Exact Compatibility Farm Foundation SHA to audit
+        required: true
+        default: dc7f9cfd11ea13b37902ee1d4653cbedd0901f0a
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-a4-retry-audit.yml'
+      - 'tools/source_retry_audit.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-lab-a4-retry-audit-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Classify RETRY evidence without mutation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXPECTED_OWNER_ID: '149634319'
+      FAIL_THRESHOLD: '3'
+    steps:
+      - name: Validate execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          case "$GITHUB_EVENT_NAME" in
+            pull_request) ;;
+            workflow_dispatch)
+              [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+              [[ "$GITHUB_REF_NAME" == "main" ]]
+              ;;
+            *) echo "unexpected event: $GITHUB_EVENT_NAME" >&2; exit 1 ;;
+          esac
+
+      - name: Checkout proposed control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout authoritative Compatibility Farm
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 1
+
+      - name: Refuse stale or unexpected Foundation
+        id: foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git -C farm rev-parse HEAD)"
+          remote="$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')"
+          [[ "$actual" == "$remote" ]]
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            expected='${{ inputs.expected_foundation_sha }}'
+            [[ "$actual" == "$expected" ]] || {
+              echo "::error::Foundation moved: expected $expected, actual $actual"
+              exit 1
+            }
+          fi
+          echo "sha=$actual" >> "$GITHUB_OUTPUT"
+
+      - name: Validate retry auditor syntax without writing bytecode
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('control/tools/source_retry_audit.py')
+          compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          PY
+
+      - name: Audit RETRY lifecycle evidence
+        id: audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          python3 control/tools/source_retry_audit.py \
+            --registry farm/compatibility/source-registry.json \
+            --state farm/automation/pending-worker-state.json \
+            --fail-threshold "$FAIL_THRESHOLD" \
+            --now "$now" \
+            --output build/a4-retry-audit.json
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          data = json.loads(Path('build/a4-retry-audit.json').read_text(encoding='utf-8'))
+          summary = data['summary']
+          for key in (
+              'totalRetry',
+              'atOrAboveFailThreshold',
+              'withBackoffMetadata',
+              'withoutBackoffMetadata',
+              'baselineBindingStale',
+              'permanentHoldCandidates',
+          ):
+              print(f"{key}={summary[key]}")
+          PY
+
+      - name: Prove audit is read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git -C farm status --porcelain)"
+          test -z "$(git -C control status --porcelain)"
+
+      - name: Upload A4 audit evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: source-lab-a4-retry-audit-${{ github.run_id }}
+          path: build/a4-retry-audit.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          echo '## Source Lab Phase A4 — RETRY audit' >> "$GITHUB_STEP_SUMMARY"
+          echo "Foundation: ${{ steps.foundation.outputs.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Total RETRY: ${{ steps.audit.outputs.totalRetry }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "At/above fail threshold: ${{ steps.audit.outputs.atOrAboveFailThreshold }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "With backoff metadata: ${{ steps.audit.outputs.withBackoffMetadata }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Without backoff metadata: ${{ steps.audit.outputs.withoutBackoffMetadata }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Stale baseline bindings: ${{ steps.audit.outputs.baselineBindingStale }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Permanent Hold candidates: ${{ steps.audit.outputs.permanentHoldCandidates }}" >> "$GITHUB_STEP_SUMMARY"
+          echo 'This workflow is read-only and performs no Retry/Held/LKG mutation.' >> "$GITHUB_STEP_SUMMARY"
