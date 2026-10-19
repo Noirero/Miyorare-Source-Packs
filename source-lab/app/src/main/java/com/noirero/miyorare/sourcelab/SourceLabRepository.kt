@@ -146,8 +146,11 @@ internal object SourceLabRepository {
         val recentRunsJob = async(Dispatchers.IO) {
             runCatching { loadRecentFarmRuns() }.getOrDefault(emptyList())
         }
+        // Queue state is part of the authoritative dashboard snapshot, not optional
+        // observability. Failing this read must fail the refresh instead of being
+        // rendered as READY/RETRY/HELD/APPROVED = 0.
         val pendingWorkerJob = async(Dispatchers.IO) {
-            runCatching { loadPendingWorkerState(farmCommit) }.getOrNull()
+            loadPendingWorkerState(farmCommit)
         }
 
         val registry = registryJob.await()
