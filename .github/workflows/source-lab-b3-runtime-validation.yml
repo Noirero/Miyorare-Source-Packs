@@ -1,0 +1,471 @@
+name: Source Lab B3 Runtime Validation
+run-name: Source Lab B3 Runtime Validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-b3-runtime-validation.yml'
+      - 'tools/source_lab_b3_runtime_validation.py'
+      - 'tests/test_source_lab_b3_runtime_validation.py'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: source-lab-b3-runtime-validation-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_OWNER_ID: '149634319'
+  B1_INVENTORY_SHA: '55f291a2a53f3dee4db41078766d9a18acff8a31'
+  B1_FOUNDATION_SHA: '7a69b02865a3dd494326c367024aededd81e9a69'
+  B1_MIYORARE_SHA: '4fb61632f43af55b22e24b168717d495f0926f81'
+  B2_CONTROL_SHA: '947cfbe9afa910bf30e053c6e4abfb23f08dca9d'
+  B3_INVENTORY_SHA: '54269f45fbfcb45846f7a0693963e27f7c38bd94'
+  B3_FOUNDATION_SHA: '6827d91e1cc02b5b46a7f710bfc7f33fc06ccaec'
+  UMA_CANDIDATE_SHA: '08f814f7468835d9c9b465a9062aecc7ac142cdd'
+  UMA_LKG_SHA: '52185ec4faada143f57dcfb41c6fa49aa346b4db'
+  GEKKOUSHI_CANDIDATE_SHA: '12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67'
+  GEKKOUSHI_LKG_SHA: '9aa770b7cb699c6385f574f13710990e17ef5517'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  runtime:
+    name: Build differential primary runtime evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+    steps:
+      - name: Validate safe execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" ]] || {
+                echo "::error::B3 only accepts same-repository pull requests"
+                exit 1
+              }
+              ;;
+            workflow_dispatch)
+              [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+              [[ "$GITHUB_REF_NAME" == "main" ]]
+              ;;
+            *) echo "::error::unexpected event: $GITHUB_EVENT_NAME"; exit 1 ;;
+          esac
+
+      - name: Checkout proposed B3 control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout exact Batch 2 decision engine
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ env.B2_CONTROL_SHA }}
+          path: b2-control
+          fetch-depth: 1
+
+      - name: Checkout frozen Batch 1 inventory
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ env.B1_INVENTORY_SHA }}
+          path: inventory-frozen
+          fetch-depth: 1
+
+      - name: Checkout frozen Batch 1 Farm authority
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ env.B1_FOUNDATION_SHA }}
+          path: farm-frozen
+          fetch-depth: 1
+
+      - name: Checkout frozen Batch 1 Miyorare aliases
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Noirero/Miyorare
+          ref: ${{ env.B1_MIYORARE_SHA }}
+          path: miyorare-frozen
+          fetch-depth: 1
+
+      - name: Checkout Batch 3 inventory snapshot
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ env.B3_INVENTORY_SHA }}
+          path: inventory-current
+          fetch-depth: 1
+
+      - name: Checkout Batch 3 Farm authority snapshot
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ env.B3_FOUNDATION_SHA }}
+          path: farm-current
+          fetch-depth: 1
+
+      - name: Verify exact provenance and non-material Farm drift
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git -C b2-control rev-parse HEAD)" == "$B2_CONTROL_SHA" ]]
+          [[ "$(git -C inventory-frozen rev-parse HEAD)" == "$B1_INVENTORY_SHA" ]]
+          [[ "$(git -C farm-frozen rev-parse HEAD)" == "$B1_FOUNDATION_SHA" ]]
+          [[ "$(git -C miyorare-frozen rev-parse HEAD)" == "$B1_MIYORARE_SHA" ]]
+          [[ "$(git -C inventory-current rev-parse HEAD)" == "$B3_INVENTORY_SHA" ]]
+          [[ "$(git -C farm-current rev-parse HEAD)" == "$B3_FOUNDATION_SHA" ]]
+          cmp farm-frozen/compatibility/source-registry.json farm-current/compatibility/source-registry.json
+          cmp farm-frozen/upstream/source-health.json farm-current/upstream/source-health.json
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          current = json.loads(Path('inventory-current/inventory/source-inventory.json').read_text())
+          snapshots = current['providerSnapshots']
+          expected = {
+              'uma': os.environ['UMA_CANDIDATE_SHA'],
+              'gekkoushi': os.environ['GEKKOUSHI_CANDIDATE_SHA'],
+          }
+          for provider, commit in expected.items():
+              actual = snapshots[provider]['commit']
+              if actual != commit:
+                  raise SystemExit(f'{provider} inventory snapshot moved: {actual} != {commit}')
+          PY
+          echo "control_sha=$(git -C control rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Compile and test B3 decision tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in (
+              'tools/source_lab_b3_runtime_validation.py',
+              'tests/test_source_lab_b3_runtime_validation.py',
+          ):
+              path = Path('control') / name
+              compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          PY
+          python3 -m unittest control/tests/test_source_lab_b3_runtime_validation.py
+
+      - name: Rebuild exact frozen Batch 2 decision matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/provider-plans
+          python3 b2-control/tools/source_lab_b1_en_mapping.py \
+            --inventory inventory-frozen/inventory/source-inventory.json \
+            --farm-registry farm-frozen/compatibility/source-registry.json \
+            --aliases miyorare-frozen/extensions/miyorare-sources/multi-upstream.json \
+            --upstream-registry farm-frozen/upstream/registry.json \
+            --status farm-frozen/upstream/status.json \
+            --inventory-commit "$B1_INVENTORY_SHA" \
+            --foundation-commit "$B1_FOUNDATION_SHA" \
+            --miyorare-commit "$B1_MIYORARE_SHA" \
+            --output build/track-b-batch1-en-mapping.json
+          python3 b2-control/tools/source_lab_b2_capability_health.py \
+            --b1-report build/track-b-batch1-en-mapping.json \
+            --inventory inventory-frozen/inventory/source-inventory.json \
+            --farm-registry farm-frozen/compatibility/source-registry.json \
+            --source-health farm-frozen/upstream/source-health.json \
+            --inventory-commit "$B1_INVENTORY_SHA" \
+            --foundation-commit "$B1_FOUNDATION_SHA" \
+            --miyorare-commit "$B1_MIYORARE_SHA" \
+            --control-commit "$B2_CONTROL_SHA" \
+            --output build/track-b-batch2-capability-health.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build/track-b-batch2-capability-health.json').read_text())
+          if report['summary']['batch3Rows'] != 33:
+              raise SystemExit(f"Expected exact 33-row B3 cohort, got {report['summary']['batch3Rows']}")
+          PY
+
+      - name: Build fail-closed Batch 3 runtime plan
+        id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_b3_runtime_validation.py plan \
+            --b2-report build/track-b-batch2-capability-health.json \
+            --current-inventory inventory-current/inventory/source-inventory.json \
+            --current-inventory-commit "$B3_INVENTORY_SHA" \
+            --foundation-commit "$B3_FOUNDATION_SHA" \
+            --uma-candidate "$UMA_CANDIDATE_SHA" \
+            --uma-lkg "$UMA_LKG_SHA" \
+            --gekkoushi-candidate "$GEKKOUSHI_CANDIDATE_SHA" \
+            --gekkoushi-lkg "$GEKKOUSHI_LKG_SHA" \
+            --provider-plan-dir build/provider-plans \
+            --output build/track-b-batch3-runtime-plan.json
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build/track-b-batch3-runtime-plan.json').read_text())
+          summary = report['summary']
+          expected = {
+              'cohortRows': 33,
+              'noRuntimeRows': 25,
+              'runtimeSourceRows': 8,
+              'runtimeProviderPairs': 10,
+              'umaPairs': 2,
+              'gekkoushiPairs': 8,
+              'primaryInventoryDriftRows': 0,
+          }
+          for key, value in expected.items():
+              if summary[key] != value:
+                  raise SystemExit(f'B3 plan mismatch {key}: {summary[key]} != {value}')
+              print(f'{key}={summary[key]}')
+          PY
+
+      - name: Checkout UMA candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: InvalidDavid/UMA
+          ref: ${{ env.UMA_CANDIDATE_SHA }}
+          path: _upstream/candidate/uma
+          fetch-depth: 1
+
+      - name: Checkout UMA LKG
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: InvalidDavid/UMA
+          ref: ${{ env.UMA_LKG_SHA }}
+          path: _upstream/lkg/uma
+          fetch-depth: 1
+
+      - name: Checkout Gekkoushi candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ env.GEKKOUSHI_CANDIDATE_SHA }}
+          path: _upstream/candidate/gekkoushi
+          fetch-depth: 1
+
+      - name: Checkout Gekkoushi LKG
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ env.GEKKOUSHI_LKG_SHA }}
+          path: _upstream/lkg/gekkoushi
+          fetch-depth: 1
+
+      - name: Verify provider refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git -C _upstream/candidate/uma rev-parse HEAD)" == "$UMA_CANDIDATE_SHA" ]]
+          [[ "$(git -C _upstream/lkg/uma rev-parse HEAD)" == "$UMA_LKG_SHA" ]]
+          [[ "$(git -C _upstream/candidate/gekkoushi rev-parse HEAD)" == "$GEKKOUSHI_CANDIDATE_SHA" ]]
+          [[ "$(git -C _upstream/lkg/gekkoushi rev-parse HEAD)" == "$GEKKOUSHI_LKG_SHA" ]]
+          mkdir -p _upstream/empty-keiyoushi
+
+      - name: Set up Java 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          packages: platform-tools
+
+      - name: Compile candidate and LKG provider baselines
+        shell: bash
+        run: |
+          set -u
+          for baseline in candidate lkg; do
+            printf '{"uma":{},"gekkoushi":{},"keiyoushi":{}}\n' > "build/compile-$baseline.json"
+            for provider in uma gekkoushi; do
+              root="_upstream/$baseline/$provider"
+              ok=false
+              if (cd "$root" && chmod +x gradlew && timeout --signal=TERM --kill-after=30s 12m ./gradlew buildJar --no-daemon); then
+                ok=true
+              fi
+              BASELINE="$baseline" PROVIDER="$provider" OK="$ok" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path(f"build/compile-{os.environ['BASELINE']}.json")
+          data = json.loads(path.read_text())
+          data[os.environ['PROVIDER']]['*'] = os.environ['OK'] == 'true'
+          path.write_text(json.dumps(data, indent=2) + '\n')
+          PY
+            done
+          done
+          exit 0
+
+      - name: Profile candidate and LKG source shape and reachability
+        shell: bash
+        run: |
+          set -euo pipefail
+          for baseline in candidate lkg; do
+            for provider in uma gekkoushi; do
+              python3 control/tools/source_pending_worker.py assess \
+                --plan "build/provider-plans/$provider.json" \
+                --keiyoushi-root _upstream/empty-keiyoushi \
+                --uma-root "_upstream/$baseline/uma" \
+                --gekkoushi-root "_upstream/$baseline/gekkoushi" \
+                --compile-results "build/compile-$baseline.json" \
+                --timeout 8 \
+                --fail-threshold 3 \
+                --output "build/profile-$baseline-$provider.json"
+            done
+          done
+
+      - name: Isolate upstream Gekkoushi tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for baseline in candidate lkg; do
+            root="_upstream/$baseline/gekkoushi"
+            if [[ -d "$root/src/test" ]]; then
+              mv "$root/src/test" "$root/_compatibility-upstream-tests"
+            fi
+          done
+
+      - name: Generate differential real-parser harnesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          for baseline in candidate lkg; do
+            for provider in uma gekkoushi; do
+              python3 control/tools/source_live_parser_harness.py generate \
+                --plan "build/provider-plans/$provider.json" \
+                --profile-results "build/profile-$baseline-$provider.json" \
+                --provider "$provider" \
+                --provider-root "_upstream/$baseline/$provider" \
+                --output "build/live-parser-$baseline-$provider-manifest.json"
+            done
+          done
+
+      - name: Execute candidate and LKG real-parser tests
+        shell: bash
+        run: |
+          set +e
+          for baseline in candidate lkg; do
+            for provider in uma gekkoushi; do
+              manifest="build/live-parser-$baseline-$provider-manifest.json"
+              mapfile -t tests < <(MANIFEST="$manifest" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          data = json.loads(Path(os.environ['MANIFEST']).read_text())
+          print('\n'.join(item['testClass'] for item in data.get('tests', [])))
+          PY
+              )
+              if [[ ${#tests[@]} -eq 0 ]]; then
+                continue
+              fi
+              args=()
+              for test in "${tests[@]}"; do args+=(--tests "$test"); done
+              root="_upstream/$baseline/$provider"
+              (
+                cd "$root" &&
+                chmod +x gradlew &&
+                timeout --signal=TERM --kill-after=30s 12m ./gradlew test "${args[@]}" --no-daemon
+              )
+              echo "$baseline/$provider real-parser exit=$?"
+            done
+          done
+          exit 0
+
+      - name: Collect candidate real-parser evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_live_parser_harness.py collect \
+            --manifest build/live-parser-candidate-uma-manifest.json \
+            --manifest build/live-parser-candidate-gekkoushi-manifest.json \
+            --output build/live-parser-candidate-results.json
+
+      - name: Collect LKG real-parser evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_live_parser_harness.py collect \
+            --manifest build/live-parser-lkg-uma-manifest.json \
+            --manifest build/live-parser-lkg-gekkoushi-manifest.json \
+            --output build/live-parser-lkg-results.json
+
+      - name: Finalize read-only Batch 3 evidence
+        id: b3
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_b3_runtime_validation.py finalize \
+            --plan build/track-b-batch3-runtime-plan.json \
+            --candidate-uma-profile build/profile-candidate-uma.json \
+            --candidate-gekkoushi-profile build/profile-candidate-gekkoushi.json \
+            --lkg-uma-profile build/profile-lkg-uma.json \
+            --lkg-gekkoushi-profile build/profile-lkg-gekkoushi.json \
+            --candidate-parser build/live-parser-candidate-results.json \
+            --lkg-parser build/live-parser-lkg-results.json \
+            --output build/track-b-batch3-runtime-validation.json \
+            --markdown-output build/track-b-batch3-runtime-validation.md
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build/track-b-batch3-runtime-validation.json').read_text())
+          if report.get('status') != 'COMPLETE_WITH_RUNTIME_EVIDENCE' or report.get('readOnly') is not True:
+              raise SystemExit('B3 runtime evidence did not complete read-only')
+          if report['summary']['cohortRows'] != 33 or report['summary']['runtimeProviderPairs'] != 10:
+              raise SystemExit('B3 output lost the exact cohort/runtime-pair contract')
+          print(f"batch4Rows={report['summary']['batch4Rows']}")
+          print(f"remainingBatch3Rows={report['summary']['remainingBatch3Rows']}")
+          PY
+
+      - name: Prove authority inputs were not mutated
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git -C control status --porcelain)"
+          test -z "$(git -C b2-control status --porcelain)"
+          test -z "$(git -C inventory-frozen status --porcelain)"
+          test -z "$(git -C farm-frozen status --porcelain)"
+          test -z "$(git -C miyorare-frozen status --porcelain)"
+          test -z "$(git -C inventory-current status --porcelain)"
+          test -z "$(git -C farm-current status --porcelain)"
+
+      - name: Upload Batch 3 evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: track-b-batch3-runtime-validation-${{ github.run_id }}
+          path: |
+            build/track-b-batch3-runtime-plan.json
+            build/track-b-batch3-runtime-validation.json
+            build/track-b-batch3-runtime-validation.md
+            build/compile-*.json
+            build/profile-*.json
+            build/live-parser-*-manifest.json
+            build/live-parser-*-results.json
+            _upstream/candidate/uma/build/test-results/test/*.xml
+            _upstream/lkg/uma/build/test-results/test/*.xml
+            _upstream/candidate/gekkoushi/build/test-results/test/*.xml
+            _upstream/lkg/gekkoushi/build/test-results/test/*.xml
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo '## Track B — Batch 3 Runtime Validation'
+            echo "Control: ${{ steps.pins.outputs.control_sha }}"
+            echo "Cohort: ${{ steps.plan.outputs.cohortRows }}"
+            echo "No-runtime rows: ${{ steps.plan.outputs.noRuntimeRows }}"
+            echo "Runtime source rows: ${{ steps.plan.outputs.runtimeSourceRows }}"
+            echo "Runtime provider pairs: ${{ steps.plan.outputs.runtimeProviderPairs }}"
+            echo "Routed to Batch 4: ${{ steps.b3.outputs.batch4Rows }}"
+            echo "Remaining Batch 3: ${{ steps.b3.outputs.remainingBatch3Rows }}"
+            echo ''
+            cat build/track-b-batch3-runtime-validation.md
+          } >> "$GITHUB_STEP_SUMMARY"
