@@ -28,6 +28,7 @@ jobs:
     env:
       EXPECTED_OWNER_ID: '149634319'
       BATCH_SIZE: '8'
+      KEIYOUSHI_TEST_TIMEOUT_SECONDS: '600'
     steps:
       - name: Validate execution context
         shell: bash
@@ -412,7 +413,38 @@ jobs:
           while IFS=$'\t' read -r module test; do
             [[ -n "$module" && -n "$test" ]] || continue
             task=":${module//\//:}:testDebugUnitTest"
-            (cd _upstream/keiyoushi && chmod +x gradlew && ./gradlew "$task" --tests "$test") || true
+            (cd _upstream/keiyoushi && chmod +x gradlew && timeout --signal=TERM --kill-after=30s "${KEIYOUSHI_TEST_TIMEOUT_SECONDS}s" ./gradlew "$task" --tests "$test" --no-daemon)
+            status=$?
+            if [[ "$status" -eq 124 ]]; then
+              echo "::warning::Keiyoushi real-parser timeout after ${KEIYOUSHI_TEST_TIMEOUT_SECONDS}s: module=$module test=$test"
+              MODULE="$module" TEST="$test" TIMEOUT_SECONDS="$KEIYOUSHI_TEST_TIMEOUT_SECONDS" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+
+          path = Path('farm/build/live-parser-keiyoushi-manifest.json')
+          data = json.loads(path.read_text(encoding='utf-8'))
+          module = os.environ['MODULE']
+          test_class = os.environ['TEST']
+          timeout_seconds = int(os.environ['TIMEOUT_SECONDS'])
+          remaining = []
+          matched = None
+          for item in data.get('tests', []):
+              if item.get('locator') == module and item.get('testClass') == test_class:
+                  matched = dict(item)
+              else:
+                  remaining.append(item)
+          if matched is None:
+              raise SystemExit(f'could not bind Keiyoushi timeout evidence for {module} {test_class}')
+          matched.update({
+              'status': 'FAIL',
+              'reason': f'EXECUTION_TIMEOUT:{timeout_seconds}s',
+              'executionTimeoutSeconds': timeout_seconds,
+          })
+          data['tests'] = remaining
+          data.setdefault('blocked', []).append(matched)
+          path.write_text(json.dumps(data, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+            fi
           done < farm/build/keiyoushi-tests.tsv
 
       - name: Collect real parser evidence
