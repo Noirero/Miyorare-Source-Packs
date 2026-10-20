@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "phase": "TRACK_B_BATCH_4_ADOPTION_DRIFT_BASELINE",
+  "readOnly": true,
+  "refs": {
+    "sourcePacksAfterBatch3": "ea33bba0aa57ff7a9c2bff494964231a6d7af8be",
+    "sourceInventory": "2c4768c7ea9914030868792bcd73d5f7f461907b",
+    "compatibilityFarm": "85c6a874ed64f6b7af470b28dc6e42963f64d462",
+    "miyorareAmain2": "f366d775c5b4c3a330b4baf105e24ce93fd66fc7"
+  },
+  "consumer": {
+    "repository": "Noirero/Miyorare",
+    "branch": "Amain2"
+  },
+  "batch3Closure": {
+    "rows": 33,
+    "evidenceBackedRows": 33,
+    "routes": {
+      "LIVE_ACCESS_BLOCKED": 8,
+      "LIVE_DOMAIN_DISPOSITION": 1,
+      "PROVEN_UPSTREAM_DEAD": 23,
+      "PROVEN_UPSTREAM_MIGRATION": 1
+    },
+    "adoptionEligibleRows": 0
+  },
+  "adoptionPolicy": {
+    "mode": "PASS_ONLY",
+    "eligibleRoute": "B4_CANDIDATE_RUNTIME_PROVEN",
+    "allowImplicitReplacement": false,
+    "allowReferenceOnlyPromotion": false
+  },
+  "existingAutomation": {
+    "inventory": ".github/workflows/source-inventory-sync.yml",
+    "membership": ".github/workflows/source-lab-sync-farm-membership.yml",
+    "runtime": ".github/workflows/source-lab-pending-worker.yml",
+    "approval": ".github/workflows/source-lab-approve-ready-sources.yml"
+  }
+}
