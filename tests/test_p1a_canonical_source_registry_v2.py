@@ -61,7 +61,9 @@ class CanonicalSourceRegistryV2Tests(unittest.TestCase):
     def test_new_explicit_global_membership_is_authoritative_on_live_farm(self):
         reviewed=legacy_source()
         new=legacy_source(canonicalId="miyorare:inventory-en:NEW",displayName="New",packs=["miyorare-global"],upstreamIdentities={"uma":{"file":"src/new.kt","sourceName":"New"}},providers=["uma"])
-        source=MODULE.migrate(farm(reviewed,new),authority(),LIVE_SHA,farm(reviewed),FARM_SHA)["sources"][1]
+        result=MODULE.migrate(farm(reviewed,new),authority(),LIVE_SHA,farm(reviewed),FARM_SHA)
+        by_id={item["canonicalId"]:item for item in result["sources"]}
+        source=by_id[new["canonicalId"]]
         self.assertEqual(source["packs"],["miyorare-global"]); self.assertEqual(source["packAuthority"],"source-declaration")
 
     def test_reviewed_snapshot_commit_must_match_authority(self):
