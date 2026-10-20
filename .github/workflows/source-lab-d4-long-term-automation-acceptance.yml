@@ -1,0 +1,308 @@
+name: Source Lab D4 Long-term Automation Acceptance
+run-name: Source Lab D4 Long-term Automation Acceptance
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-d4-long-term-automation-acceptance.yml'
+      - 'compatibility/evidence/track-d-d4-long-term-automation-acceptance.json'
+      - 'tools/source_lab_d4_long_term_automation_acceptance.py'
+      - 'tests/test_source_lab_d4_long_term_automation_acceptance.py'
+      - '.github/workflows/source-lab-auto-farm.yml'
+      - '.github/workflows/source-lab-pending-worker.yml'
+      - '.github/workflows/source-lab-approve-ready-sources.yml'
+      - '.github/workflows/source-lab-promote-candidate.yml'
+      - '.github/workflows/source-lab-a7-lkg-safety.yml'
+      - '.github/workflows/source-pack-autonomous-release.yml'
+      - '.github/workflows/release-source-packs.yml'
+      - '.github/workflows/source-pack-release-seal.yml'
+      - 'governance/automation-promotion-authority.v1.json'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: source-lab-d4-long-term-automation-acceptance-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_OWNER_ID: '149634319'
+  POST_D3_MAIN: '6f62388f87f00ca1c6bf33425f6efdf2f8567054'
+  FARM_D4_BASELINE: 'b7ca433c756caf210a4e0dbe7a2542a23e60eee7'
+  MIYORARE_AMAIN2_BASELINE: 'f366d775c5b4c3a330b4baf105e24ce93fd66fc7'
+  D3_RUN_ID: '39377086734'
+  D3_ARTIFACT_ID: '12243378299'
+  D3_ARTIFACT_NAME: 'track-d-d3-unified-drift-health-39377086734'
+  D3_ARTIFACT_DIGEST: 'sha256:d36ba29807c236f769be48b1492d2b8741ebbd896e6fe37f849d55391806d8ef'
+  D3_HEAD_SHA: '2cb443121ce8a4d6250a473c6a46b2732d394869'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  acceptance:
+    name: Prove permanent Source Lab automation acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+
+    steps:
+      - name: Validate safe execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" ]] || {
+                echo "::error::D4 accepts same-repository pull requests only"
+                exit 1
+              }
+              [[ "$PR_BASE_SHA" == "$POST_D3_MAIN" ]] || {
+                echo "::error::D4 must start from exact post-D3 main"
+                exit 1
+              }
+              ;;
+            workflow_dispatch)
+              [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+              [[ "$GITHUB_REF_NAME" == "main" ]]
+              ;;
+            *) echo "::error::unexpected event: $GITHUB_EVENT_NAME"; exit 1 ;;
+          esac
+
+      - name: Checkout exact proposed D4 control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout authoritative Compatibility Farm
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 1
+
+      - name: Checkout exact Miyorare Amain2 consumer baseline
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Noirero/Miyorare
+          ref: Amain2
+          path: miyorare-amain2
+          fetch-depth: 1
+
+      - name: Pin D4 refs and artifact bindings
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          control_sha="$(git -C control rev-parse HEAD)"
+          farm_sha="$(git -C farm rev-parse HEAD)"
+          farm_remote="$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')"
+          amain2_sha="$(git -C miyorare-amain2 rev-parse HEAD)"
+          amain2_remote="$(git -C miyorare-amain2 ls-remote origin refs/heads/Amain2 | awk '{print $1}')"
+
+          [[ "$control_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$farm_sha" == "$farm_remote" ]]
+          [[ "$farm_sha" == "$FARM_D4_BASELINE" ]] || {
+            echo "::error::Compatibility Farm moved after D4 planning"
+            exit 1
+          }
+          [[ "$amain2_sha" == "$amain2_remote" ]]
+          [[ "$amain2_sha" == "$MIYORARE_AMAIN2_BASELINE" ]] || {
+            echo "::error::Miyorare Amain2 moved after D4 planning"
+            exit 1
+          }
+
+          echo "control=$control_sha" >> "$GITHUB_OUTPUT"
+          echo "farm=$farm_sha" >> "$GITHUB_OUTPUT"
+          echo "amain2=$amain2_sha" >> "$GITHUB_OUTPUT"
+
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          baseline = json.loads(Path('control/compatibility/evidence/track-d-d4-long-term-automation-acceptance.json').read_text(encoding='utf-8'))
+          assert baseline['phase'] == 'TRACK_D_D4_LONG_TERM_AUTOMATION_ACCEPTANCE'
+          assert baseline['readOnlyAcceptance'] is True
+          assert baseline['sourcePacksAfterD3'] == os.environ['POST_D3_MAIN']
+          assert baseline['compatibilityFarmBaseline'] == os.environ['FARM_D4_BASELINE']
+          assert baseline['miyorareAmain2Baseline'] == os.environ['MIYORARE_AMAIN2_BASELINE']
+          artifact = baseline['d3Artifact']
+          assert str(artifact['runId']) == os.environ['D3_RUN_ID']
+          assert str(artifact['artifactId']) == os.environ['D3_ARTIFACT_ID']
+          assert artifact['name'] == os.environ['D3_ARTIFACT_NAME']
+          assert artifact['digest'] == os.environ['D3_ARTIFACT_DIGEST']
+          assert artifact['headSha'] == os.environ['D3_HEAD_SHA']
+          assert artifact['requiredStatus'] == 'D3_UNIFIED_DRIFT_HEALTH_PROVEN_WITH_OWNER_PACK_HANDOFFS'
+          assert baseline['nextStage'] == 'TRACK_D_D5_CLOSURE_TRANSITIONAL_CLEANUP'
+          PY
+
+      - name: Snapshot protected live state
+        id: before
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "upstream_registry=$(sha256sum farm/upstream/registry.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "status=$(sha256sum farm/upstream/status.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "source_registry=$(sha256sum farm/compatibility/source-registry.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "worker_state=$(sha256sum farm/automation/pending-worker-state.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Download exact successful D3 evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/d3
+          metadata="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$D3_ARTIFACT_ID")"
+          [[ "$(jq -r '.name' <<<"$metadata")" == "$D3_ARTIFACT_NAME" ]]
+          [[ "$(jq -r '.expired' <<<"$metadata")" == "false" ]]
+          [[ "$(jq -r '.workflow_run.id' <<<"$metadata")" == "$D3_RUN_ID" ]]
+          [[ "$(jq -r '.workflow_run.head_sha' <<<"$metadata")" == "$D3_HEAD_SHA" ]]
+          [[ "$(jq -r '.digest' <<<"$metadata")" == "$D3_ARTIFACT_DIGEST" ]]
+          gh run download "$D3_RUN_ID" --repo "$GITHUB_REPOSITORY" -n "$D3_ARTIFACT_NAME" -D build/d3
+
+          d3_report="$(find build/d3 -name track-d-d3-unified-drift-health.json -print -quit)"
+          d2_report="$(find build/d3 -name d2-report.json -print -quit)"
+          test -n "$d3_report"; test -s "$d3_report"
+          test -n "$d2_report"; test -s "$d2_report"
+          cp "$d3_report" build/d3-report.json
+          cp "$d2_report" build/d2-report.json
+
+      - name: Run D4 and LKG negative-regression suites
+        working-directory: control
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest \
+            tests.test_source_lab_d4_long_term_automation_acceptance \
+            tests.test_source_lab_a7_lkg_safety -v
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in (
+              'tools/source_lab_d4_long_term_automation_acceptance.py',
+              'tests/test_source_lab_d4_long_term_automation_acceptance.py',
+              'tools/source_lab_a7_lkg_safety.py',
+              'tests/test_source_lab_a7_lkg_safety.py',
+          ):
+              path = Path(name)
+              compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          PY
+
+      - name: Audit current Last-Known-Good safety
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_a7_lkg_safety.py \
+            --upstream-registry farm/upstream/registry.json \
+            --status farm/upstream/status.json \
+            --source-registry farm/compatibility/source-registry.json \
+            --promotion-workflow control/.github/workflows/source-lab-promote-candidate.yml \
+            --output build/a7-lkg-safety.json \
+            --markdown-output build/a7-lkg-safety.md
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build/a7-lkg-safety.json').read_text(encoding='utf-8'))
+          assert report['phase'] == 'A7_LKG_SAFETY'
+          assert report['status'] == 'SAFE'
+          assert report['violations'] == []
+          assert report['mutatesFoundation'] is False
+          assert report['promotionAttempted'] is False
+          PY
+
+      - name: Validate current explicit provider release eligibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 farm/tools/release_eligibility.py validate \
+            --status farm/upstream/status.json \
+            --source-registry farm/compatibility/source-registry.json
+
+      - name: Build D4 end-to-end acceptance report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_d4_long_term_automation_acceptance.py \
+            --baseline control/compatibility/evidence/track-d-d4-long-term-automation-acceptance.json \
+            --d3-report build/d3-report.json \
+            --d2-report build/d2-report.json \
+            --a7-report build/a7-lkg-safety.json \
+            --promotion-authority control/governance/automation-promotion-authority.v1.json \
+            --upstream-detection-workflow control/.github/workflows/source-lab-auto-farm.yml \
+            --runtime-validation-workflow control/.github/workflows/source-lab-pending-worker.yml \
+            --source-approval-workflow control/.github/workflows/source-lab-approve-ready-sources.yml \
+            --provider-promotion-workflow control/.github/workflows/source-lab-promote-candidate.yml \
+            --lkg-safety-workflow control/.github/workflows/source-lab-a7-lkg-safety.yml \
+            --release-controller-workflow control/.github/workflows/source-pack-autonomous-release.yml \
+            --release-publisher-workflow control/.github/workflows/release-source-packs.yml \
+            --release-seal-workflow control/.github/workflows/source-pack-release-seal.yml \
+            --control-head '${{ steps.pins.outputs.control }}' \
+            --source-packs-base "$POST_D3_MAIN" \
+            --farm-commit '${{ steps.pins.outputs.farm }}' \
+            --miyorare-amain2 '${{ steps.pins.outputs.amain2 }}' \
+            --output build/track-d-d4-long-term-automation-acceptance.json \
+            --markdown-output build/track-d-d4-long-term-automation-acceptance.md
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build/track-d-d4-long-term-automation-acceptance.json').read_text(encoding='utf-8'))
+          assert report['phase'] == 'TRACK_D_D4_LONG_TERM_AUTOMATION_ACCEPTANCE'
+          assert report['readOnlyAcceptance'] is True
+          assert report['status'] == 'D4_LONG_TERM_AUTOMATION_ACCEPTANCE_PROVEN'
+          assert report['trackDClosed'] is False
+          assert report['nextStage'] == 'TRACK_D_D5_CLOSURE_TRANSITIONAL_CLEANUP'
+          for proof in report['proofs'].values():
+              assert proof['status'] == 'PROVEN'
+          assert report['proofs']['packAndReleaseAcceptance']['packs'] == ['id', 'en', 'global']
+          assert report['operationalHandoffs']['carriedForwardFromD3'] is True
+          assert not any(report['safety'].values())
+          PY
+
+      - name: Recheck refs and prove D4 acceptance is read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ '${{ steps.pins.outputs.farm }}' == "$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')" ]]
+          [[ '${{ steps.pins.outputs.amain2 }}' == "$(git -C miyorare-amain2 ls-remote origin refs/heads/Amain2 | awk '{print $1}')" ]]
+          [[ "$(sha256sum farm/upstream/registry.json | awk '{print $1}')" == '${{ steps.before.outputs.upstream_registry }}' ]]
+          [[ "$(sha256sum farm/upstream/status.json | awk '{print $1}')" == '${{ steps.before.outputs.status }}' ]]
+          [[ "$(sha256sum farm/compatibility/source-registry.json | awk '{print $1}')" == '${{ steps.before.outputs.source_registry }}' ]]
+          [[ "$(sha256sum farm/automation/pending-worker-state.json | awk '{print $1}')" == '${{ steps.before.outputs.worker_state }}' ]]
+          for checkout in control farm miyorare-amain2; do
+            dirty="$(git -C "$checkout" status --porcelain)"
+            if [[ -n "$dirty" ]]; then
+              echo "::error::D4 read-only proof found a dirty checkout: $checkout"
+              printf '%s\n' "$dirty"
+              exit 1
+            fi
+          done
+
+      - name: Upload D4 acceptance evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: track-d-d4-long-term-automation-acceptance-${{ github.run_id }}
+          path: |
+            build/d3-report.json
+            build/d2-report.json
+            build/a7-lkg-safety.json
+            build/a7-lkg-safety.md
+            build/track-d-d4-long-term-automation-acceptance.json
+            build/track-d-d4-long-term-automation-acceptance.md
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo '## Track D — D4 Long-term Automation Acceptance'
+            echo "Control exact head: ${{ steps.pins.outputs.control }}"
+            echo "Compatibility Farm: ${{ steps.pins.outputs.farm }}"
+            echo "Miyorare Amain2: ${{ steps.pins.outputs.amain2 }}"
+            cat build/track-d-d4-long-term-automation-acceptance.md
+          } >> "$GITHUB_STEP_SUMMARY"
