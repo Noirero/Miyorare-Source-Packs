@@ -72,7 +72,13 @@ def track_c():
         "summary": {"sources": 3, "closureResolved": 3, "unresolved": 0, "operationalHandoffs": 2},
         "decisions": [
             {"canonicalId": d1.LUMOS, "disposition": "LUMOS_RECONCILIATION_ALREADY_SATISFIED_BY_LIFECYCLE"},
-            {"canonicalId": d1.MANGABALL, "disposition": "MANGABALL_SOURCE_PARSER_FAILURE_ROUTED_TO_RETRY"},
+            {
+                "canonicalId": d1.MANGABALL,
+                "disposition": "MANGABALL_SOURCE_PARSER_FAILURE_ROUTED_TO_RETRY",
+                "lifecycleCategory": "SOURCE_PARSER_FAILURE",
+                "retrySemantics": {"terminal": False, "genericFailThresholdAutoHold": False, "ownerActionRequired": False},
+                "authoritySnapshot": {"workerEvidencePredatesCorrectedHarness": True},
+            },
             {"canonicalId": d1.SOFTKOMIK, "disposition": "SOFTKOMIK_AUTH_REQUIRED_ROUTED_TO_OWNER_ACTION"},
         ],
         "safetyBoundary": {"x": False},
@@ -168,10 +174,24 @@ class D1ConvergenceTests(unittest.TestCase):
         with self.assertRaisesRegex(d1.ConvergenceError, "Lumos"):
             self.build(registry=farm)
 
+    def test_mangaball_current_null_worker_category_is_accepted_from_c5(self):
+        state = worker()
+        state["sources"][d1.MANGABALL]["failureCategory"] = None
+        report = self.build(worker=state)
+        manga = next(row for row in report["operationalConvergence"] if row["canonicalId"] == d1.MANGABALL)
+        self.assertIsNone(manga["workerFailureCategory"])
+        self.assertEqual(manga["lifecycleCategory"], "SOURCE_PARSER_FAILURE")
+
     def test_mangaball_must_stay_non_terminal_retry(self):
         state = worker()
-        state["sources"][d1.MANGABALL]["state"] = "NEEDS_ATTENTION"
-        with self.assertRaisesRegex(d1.ConvergenceError, "MangaBall"):
+        state["sources"][d1.MANGABALL]["state"] = "APPROVED"
+        with self.assertRaisesRegex(d1.ConvergenceError, "retry lane"):
+            self.build(worker=state)
+
+    def test_mangaball_conflicting_live_category_blocks_d1(self):
+        state = worker()
+        state["sources"][d1.MANGABALL]["failureCategory"] = "AUTH_REQUIRED"
+        with self.assertRaisesRegex(d1.ConvergenceError, "conflicts"):
             self.build(worker=state)
 
     def test_softkomik_requires_explicit_auth_owner_action(self):
