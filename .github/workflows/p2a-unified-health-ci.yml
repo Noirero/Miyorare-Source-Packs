@@ -13,10 +13,16 @@ on:
       - 'tests/test_p2a_unified_source_health.py'
       - 'upstream/status.json'
       - '.github/workflows/p2a-unified-health-ci.yml'
+      - '.github/workflows/source-lab-add-to-farm.yml'
+  schedule:
+    - cron: '41 3 * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+env:
+  REVIEWED_FARM_COMMIT: 'bd9a1a73d0c4cc1c36d94ca05bcf972672bdf0a2'
 
 jobs:
   unified-health:
@@ -30,30 +36,45 @@ jobs:
           path: source-packs
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
+
       - name: Checkout live Compatibility Farm state
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: compatibility-farm-foundation
           path: farm
           fetch-depth: 1
+
+      - name: Checkout exact reviewed Farm membership snapshot
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ env.REVIEWED_FARM_COMMIT }}
+          path: reviewed-farm
+          fetch-depth: 1
+
       - name: Run cross-authority regression tests
         working-directory: source-packs
         run: |
           python3 -m unittest tests.test_p1a_canonical_source_registry_v2 tests.test_p2a_unified_source_health -v
           python3 -m py_compile tools/canonical_source_registry_v2.py tools/unified_source_health.py
-      - name: Build canonical authority from exact reviewed Farm
+
+      - name: Build canonical authority from live Farm with exact reviewed-source continuity
         shell: bash
         run: |
           set -euo pipefail
-          farm_commit="$(git -C farm rev-parse HEAD)"
-          reviewed="$(python3 -c "import json; print(json.load(open('source-packs/governance/existing-source-pack-authority.v1.json'))['reviewedFarmCommit'])")"
-          [[ "$farm_commit" == "$reviewed" ]] || { echo "Live Farm moved beyond reviewed existing-source pack authority: $farm_commit != $reviewed" >&2; exit 1; }
+          live_farm_commit="$(git -C farm rev-parse HEAD)"
+          reviewed_checkout="$(git -C reviewed-farm rev-parse HEAD)"
+          reviewed_authority="$(python3 -c "import json; print(json.load(open('source-packs/governance/existing-source-pack-authority.v1.json'))['reviewedFarmCommit'])")"
+          [[ "$reviewed_checkout" == "$REVIEWED_FARM_COMMIT" ]]
+          [[ "$reviewed_authority" == "$REVIEWED_FARM_COMMIT" ]] || { echo "Reviewed Farm binding changed: $reviewed_authority != $REVIEWED_FARM_COMMIT" >&2; exit 1; }
           python3 source-packs/tools/canonical_source_registry_v2.py migrate \
             --farm farm/compatibility/source-registry.json \
             --pack-authority source-packs/governance/existing-source-pack-authority.v1.json \
-            --farm-commit "$farm_commit" \
+            --farm-commit "$live_farm_commit" \
+            --reviewed-farm reviewed-farm/compatibility/source-registry.json \
+            --reviewed-farm-commit "$reviewed_checkout" \
             --output build/canonical-source-registry-v2.json
           python3 source-packs/tools/canonical_source_registry_v2.py validate --registry build/canonical-source-registry-v2.json
+
       - name: Build unified health from canonical authority and runtime evidence
         run: |
           python3 source-packs/tools/unified_source_health.py build \
@@ -62,6 +83,7 @@ jobs:
             --canonical-registry build/canonical-source-registry-v2.json \
             --output build/unified-source-health.json
           python3 source-packs/tools/unified_source_health.py validate --health build/unified-source-health.json
+
       - name: Verify projection preserves identity, LKG, pack and origin authority
         shell: python {0}
         run: |
@@ -70,14 +92,51 @@ jobs:
           farm=json.loads(Path('farm/compatibility/source-registry.json').read_text(encoding='utf-8'))
           registry=json.loads(Path('build/canonical-source-registry-v2.json').read_text(encoding='utf-8'))
           health=json.loads(Path('build/unified-source-health.json').read_text(encoding='utf-8'))
-          old={item['canonicalId']:item for item in farm['sources']}; canonical={item['canonicalId']:item for item in registry['sources']}; new={item['canonicalId']:item for item in health['sources']}
-          if set(old)!=set(canonical) or set(old)!=set(new): raise SystemExit('cross-authority canonical identity sets differ')
+          old={item['canonicalId']:item for item in farm['sources']}
+          canonical={item['canonicalId']:item for item in registry['sources']}
+          new={item['canonicalId']:item for item in health['sources']}
+          if set(old)!=set(canonical) or set(old)!=set(new):
+              raise SystemExit('cross-authority canonical identity sets differ')
+          undeclared=[]
           for source_id,before in old.items():
-              if new[source_id]['lastKnownGood'] != before.get('lastKnownGood',{}): raise SystemExit(f'{source_id}: unified health changed LKG')
-              if new[source_id]['packs'] != canonical[source_id]['packs']: raise SystemExit(f'{source_id}: unified health diverged from canonical pack authority')
-              if not canonical[source_id]['packs']: raise SystemExit(f'{source_id}: existing source lacks explicit reviewed pack authority')
-              if new[source_id]['origin'] != canonical[source_id]['origin']: raise SystemExit(f'{source_id}: unified health diverged from canonical origin authority')
-          print(f'Cross-authority projection preserved {len(new)} identities, LKG, explicit packs and origins')
+              if new[source_id]['lastKnownGood'] != before.get('lastKnownGood',{}):
+                  raise SystemExit(f'{source_id}: unified health changed LKG')
+              if new[source_id]['packs'] != canonical[source_id]['packs']:
+                  raise SystemExit(f'{source_id}: unified health diverged from canonical pack authority')
+              if new[source_id]['origin'] != canonical[source_id]['origin']:
+                  raise SystemExit(f'{source_id}: unified health diverged from canonical origin authority')
+              if not canonical[source_id]['packs']:
+                  undeclared.append(source_id)
+                  if canonical[source_id].get('packAuthority') != 'undeclared':
+                      raise SystemExit(f'{source_id}: empty packs are not marked undeclared')
+                  if canonical[source_id].get('lifecycle',{}).get('state') != 'held':
+                      raise SystemExit(f'{source_id}: undeclared packs are not fail-closed as held')
+                  if canonical[source_id].get('compatibility',{}).get('health') != 'HELD':
+                      raise SystemExit(f'{source_id}: undeclared packs are not fail-closed as HELD')
+                  if new[source_id].get('health') != 'HELD' or 'PACK_MEMBERSHIP_UNDECLARED' not in new[source_id].get('reasonCodes',[]):
+                      raise SystemExit(f'{source_id}: unified health did not surface undeclared pack authority')
+          print(f'Cross-authority projection preserved {len(new)} identities, LKG, pack and origin authority')
+          print(f'Undeclared pack memberships fail-closed: {len(undeclared)}')
+          Path('build/undeclared-pack-membership.json').write_text(json.dumps({'count':len(undeclared),'canonicalIds':sorted(undeclared)},indent=2)+'\n')
+
+      - name: Summarize live unified health
+        shell: python {0}
+        run: |
+          import json, os
+          from collections import Counter
+          from pathlib import Path
+          registry=json.loads(Path('build/canonical-source-registry-v2.json').read_text())
+          health=json.loads(Path('build/unified-source-health.json').read_text())
+          counts=Counter(item['health'] for item in health['sources'])
+          undeclared=registry.get('migration',{}).get('undeclaredPackMembership',[])
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as out:
+              out.write('## P2-A Unified Health\n\n')
+              out.write(f"- Live Farm: `{registry.get('migration',{}).get('liveFarmCommit')}`\n")
+              out.write(f"- Reviewed membership snapshot: `{registry.get('migration',{}).get('reviewedFarmCommit')}`\n")
+              out.write(f"- Sources: **{health.get('sourceCount')}**\n")
+              out.write(f"- Health: `{dict(sorted(counts.items()))}`\n")
+              out.write(f"- Undeclared pack membership: **{len(undeclared)}** (fail-closed as HELD)\n")
+
       - name: Upload cross-authority previews
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -85,5 +144,6 @@ jobs:
           path: |
             build/canonical-source-registry-v2.json
             build/unified-source-health.json
+            build/undeclared-pack-membership.json
           if-no-files-found: error
           retention-days: 7
