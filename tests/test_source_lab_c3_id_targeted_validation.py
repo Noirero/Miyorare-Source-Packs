@@ -79,7 +79,7 @@ def fake_c2():
         ),
     ]
     return {
-        "phase": "TRACK_C_BATCH_2_ID_CAPABILITY_HEALTH",
+        "phase": "TRACK_C_BATCH_2_ID_CAPABILITY_HEALTH_DECISION",
         "language": "id",
         "readOnly": True,
         "provenance": {"x": "y"},
