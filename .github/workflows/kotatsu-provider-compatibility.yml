@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/kotatsu-provider-compatibility.yml'
       - 'compatibility/kotatsu-provider.v1.json'
+      - 'compatibility/kotatsu-bridge/**'
       - 'tools/prepare_kotatsu_provider.py'
       - 'tools/package_dex_plugin.py'
   workflow_dispatch:
@@ -18,7 +19,7 @@ concurrency:
 
 jobs:
   build-kotatsu-provider:
-    name: Build Kotatsu parser provider against Tsuki host ABI
+    name: Build isolated Kotatsu runtime with Tsuki facade
     runs-on: ubuntu-latest
 
     steps:
@@ -37,7 +38,7 @@ jobs:
           from pathlib import Path
 
           cfg = json.loads(Path('source-packs/compatibility/kotatsu-provider.v1.json').read_text(encoding='utf-8'))
-          if cfg.get('schema') != 1 or cfg.get('provider') != 'KOTATSU':
+          if cfg.get('schema') != 2 or cfg.get('provider') != 'KOTATSU':
               raise SystemExit('invalid Kotatsu provider metadata')
           commit = cfg.get('commit', '')
           if len(commit) != 40 or any(ch not in '0123456789abcdef' for ch in commit):
@@ -45,8 +46,11 @@ jobs:
           if cfg.get('license') != 'GPL-3.0':
               raise SystemExit('Kotatsu provider license metadata changed unexpectedly')
           host = cfg.get('hostTsuki') or {}
+          bridge = cfg.get('bridge') or {}
           if host.get('api') != '1.0.5' or host.get('ref') != '1.0.5':
-              raise SystemExit('pilot must compile against the Miyorare Tsuki 1.0.5 host ABI')
+              raise SystemExit('pilot must expose the Miyorare Tsuki 1.0.5 host ABI')
+          if bridge.get('strategy') != 'private-runtime-with-tsuki-facade':
+              raise SystemExit('unexpected Kotatsu bridge strategy')
           print(f"repository={cfg['repository']}")
           print(f"commit={commit}")
           print(f"host_repository={host['repository']}")
@@ -110,13 +114,23 @@ jobs:
           chmod +x gradlew
           ./gradlew jar --no-daemon
 
-      - name: Prepare relocated Kotatsu provider source
+      - name: Install Miyorare Kotatsu bridge sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _upstream/kotatsu/src/main/kotlin/miyorare/kotatsuredo/bridge
+          mkdir -p _upstream/kotatsu/kotatsu-parsers-ksp/src/main/kotlin/miyorare/kotatsuredo/ksp
+          cp source-packs/compatibility/kotatsu-bridge/MiyorareTsukiBridge.kt \
+            _upstream/kotatsu/src/main/kotlin/miyorare/kotatsuredo/bridge/
+          cp source-packs/compatibility/kotatsu-bridge/MiyorareFacadeProcessor.kt \
+            _upstream/kotatsu/kotatsu-parsers-ksp/src/main/kotlin/miyorare/kotatsuredo/ksp/
+
+      - name: Prepare isolated Kotatsu provider source
         shell: bash
         run: |
           set -euo pipefail
           python3 source-packs/tools/prepare_kotatsu_provider.py \
             --upstream _upstream/kotatsu \
-            --host-tsuki _host/tsuki \
             --metadata-out build/kotatsu-provider-prepare.json
           mkdir -p _upstream/kotatsu/src/main/resources/META-INF
           cp _upstream/kotatsu/LICENSE \
@@ -124,7 +138,8 @@ jobs:
           printf '%s\n' \
             'Source: https://github.com/Kotatsu-Redo/kotatsu-parsers-redo' \
             'Commit: ${{ steps.provider.outputs.commit }}' \
-            'Transformation: namespace compatibility relocation org.koitharu.kotatsu.parsers -> tsuki' \
+            'Transformation: isolated runtime namespace org.koitharu.kotatsu.parsers -> miyorare.kotatsuredo' \
+            'Host facade: Tsuki 1.0.5' \
             > _upstream/kotatsu/src/main/resources/META-INF/MIYORARE-KOTATSU-SOURCE.txt
 
       - name: Resolve host ABI jar
@@ -137,7 +152,7 @@ jobs:
           test "${#jars[@]}" -eq 1
           echo "path=${jars[0]}" >> "$GITHUB_OUTPUT"
 
-      - name: Compile all compatible Kotatsu sources against Tsuki 1.0.5
+      - name: Compile isolated Kotatsu runtime and bridge
         working-directory: _upstream/kotatsu
         shell: bash
         run: |
@@ -147,11 +162,12 @@ jobs:
             -PmiyorareHostTsukiJar='${{ steps.hostjar.outputs.path }}'
           actual="$(awk '/^total: / {print $2}' .github/summary.yaml)"
           test "$actual" = '${{ steps.exact.outputs.source_count }}'
+          test -f build/generated/ksp/main/kotlin/miyorare/kotatsuredo/MangaParserFactory.kt
+          test -f build/generated/ksp/main/kotlin/miyorare/kotatsuredo/model/MangaSource.kt
           test -f build/generated/ksp/main/kotlin/tsuki/MangaParserFactory.kt
-          test -f build/generated/ksp/main/kotlin/tsuki/model/MangaSource.kt
+          test -f build/generated/ksp/main/kotlin/tsuki/model/MangaParserSource.kt
 
       - name: D8 plugin classes against the same compile classpath
-        id: d8
         shell: bash
         run: |
           set -euo pipefail
@@ -177,9 +193,8 @@ jobs:
             --input-jar "$input_jar" \
             --dex-dir build/kotatsu-dex \
             --output "build/${{ steps.provider.outputs.artifact }}"
-          echo "input_jar=$input_jar" >> "$GITHUB_OUTPUT"
 
-      - name: Verify plugin shape and factory ABI
+      - name: Verify plugin shape and bridge ABI
         shell: bash
         run: |
           set -euo pipefail
@@ -197,8 +212,10 @@ jobs:
           for dex in build/kotatsu-dex/*.dex; do
             "$dexdump" "$dex" >> build/kotatsu-dexdump.txt
           done
-          grep -F "Ltsuki/MangaParserFactoryKt;" build/kotatsu-dexdump.txt
-          grep -F "Ltsuki/model/MangaParserSource;" build/kotatsu-dexdump.txt
+          grep -F 'Ltsuki/MangaParserFactoryKt;' build/kotatsu-dexdump.txt
+          grep -F 'Ltsuki/model/MangaParserSource;' build/kotatsu-dexdump.txt
+          grep -F 'Lmiyorare/kotatsuredo/bridge/MiyorareTsukiBridgeKt;' build/kotatsu-dexdump.txt
+          grep -F 'Lmiyorare/kotatsuredo/model/MangaParserSource;' build/kotatsu-dexdump.txt
 
       - name: Write pilot provenance
         shell: bash
@@ -206,11 +223,12 @@ jobs:
           set -euo pipefail
           cat > build/kotatsu-provider-provenance.json <<JSON
           {
-            "schema": 1,
+            "schema": 2,
             "provider": "KOTATSU",
             "repository": "${{ steps.provider.outputs.repository }}",
             "commit": "${{ steps.provider.outputs.commit }}",
             "hostTsukiApi": "1.0.5",
+            "strategy": "private-runtime-with-tsuki-facade",
             "sourceCount": ${{ steps.exact.outputs.source_count }},
             "artifact": "${{ steps.provider.outputs.artifact }}",
             "published": false
