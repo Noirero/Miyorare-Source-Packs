@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "phase": "TRACK_D_D1_CONVERGENCE_BASELINE",
+  "readOnly": true,
+  "sourcePacksAfterTrackC": "12f6969fdde7e5f595ca333d81282a9209cfc7e2",
+  "planningRefs": {
+    "sourceInventory": "2c4768c7ea9914030868792bcd73d5f7f461907b",
+    "compatibilityFarm": "79ab8d531d27388982ea549657d7baa57ed565f6",
+    "miyorareAmain2": "f366d775c5b4c3a330b4baf105e24ce93fd66fc7"
+  },
+  "trackB": {
+    "phase": "TRACK_B_BATCH_4_ADOPTION_DRIFT",
+    "requiredStatus": "TRACK_B_CLOSED_BASELINE_CLEAN",
+    "baseline": "compatibility/evidence/track-b-batch4-en-baseline.json"
+  },
+  "trackC": {
+    "phase": "TRACK_C_BATCH_5_ID_CLOSURE_HANDOFF",
+    "requiredStatus": "TRACK_C_CLOSED_WITH_OPERATIONAL_HANDOFFS",
+    "artifact": {
+      "runId": 39368069437,
+      "artifactId": 12239498123,
+      "name": "track-c-batch5-id-closure-handoff-39368069437",
+      "digest": "sha256:4e164cf3b75d267ac0d8bf261717b551637eae42251a80b8749576979efb9e7e",
+      "headSha": "e4c5570645171fef5d507a6602ad3b27956b4778"
+    },
+    "monitorPhase": "TRACK_C_BATCH_4_ID_ADOPTION_DRIFT",
+    "requiredMonitorStatus": "TRACK_C_C4_COMPLETE_WITH_C3_REMEDIATION"
+  },
+  "expectedTrackCDispositions": {
+    "miyorare:inventory-id:LUMOSKOMIK": "LUMOS_RECONCILIATION_ALREADY_SATISFIED_BY_LIFECYCLE",
+    "miyorare:inventory-id:MANGABALLINDONESIAN": "MANGABALL_SOURCE_PARSER_FAILURE_ROUTED_TO_RETRY",
+    "miyorare:inventory-id:SOFTKOMIK": "SOFTKOMIK_AUTH_REQUIRED_ROUTED_TO_OWNER_ACTION"
+  },
+  "permanentAutomation": {
+    "inventory": ".github/workflows/source-inventory-sync.yml",
+    "membership": ".github/workflows/source-lab-sync-farm-membership.yml",
+    "runtime": ".github/workflows/source-lab-pending-worker.yml",
+    "approval": ".github/workflows/source-lab-approve-ready-sources.yml",
+    "heldObservability": ".github/workflows/source-lab-a5-held-observability.yml",
+    "lkgSafety": ".github/workflows/source-lab-a7-lkg-safety.yml",
+    "releaseController": ".github/workflows/source-pack-autonomous-release.yml"
+  },
+  "transitionalMonitors": [
+    ".github/workflows/source-lab-b4-en-adoption-drift.yml",
+    ".github/workflows/source-lab-c4-id-adoption-drift.yml"
+  ],
+  "nextStage": "TRACK_D_D2_PROVIDER_PREFERENCE_RECOVERY"
+}
