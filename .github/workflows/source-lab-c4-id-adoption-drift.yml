@@ -148,20 +148,16 @@ jobs:
           assert refs['sourceInventory'] == os.environ['INVENTORY_BASELINE']
           assert refs['compatibilityFarm'] == os.environ['FARM_BASELINE']
           assert refs['miyorareAmain2'] == os.environ['MIYORARE_AMAIN2_BASELINE']
-          for label in ('batch2', 'batch3'):
+          for label, prefix in (('batch2', 'C2'), ('batch3', 'C3')):
               artifact = data['artifacts'][label]
-              prefix = label.upper()
               assert str(artifact['runId']) == os.environ[f'{prefix}_RUN_ID']
               assert str(artifact['artifactId']) == os.environ[f'{prefix}_ARTIFACT_ID']
               assert artifact['name'] == os.environ[f'{prefix}_ARTIFACT_NAME']
               assert artifact['digest'] == os.environ[f'{prefix}_ARTIFACT_DIGEST']
               assert artifact['headSha'] == os.environ[f'{prefix}_HEAD_SHA']
           PY
-          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            [[ "$inventory" == "$INVENTORY_BASELINE" ]] || { echo "::error::inventory moved before C4 closure PR validation"; exit 1; }
-            [[ "$farm" == "$FARM_BASELINE" ]] || { echo "::error::Farm moved before C4 closure PR validation"; exit 1; }
-            [[ "$miyorare" == "$MIYORARE_AMAIN2_BASELINE" ]] || { echo "::error::Amain2 moved before C4 closure PR validation"; exit 1; }
-          fi
+          # Do not reject current-head movement here. The report below compares semantic
+          # ID state against the frozen baseline and fails PR validation only for material drift.
 
       - name: Download and verify exact C2 and C3 artifacts
         shell: bash
