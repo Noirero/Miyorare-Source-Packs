@@ -57,8 +57,8 @@
   },
   "automation": {
     "schemaVersion": 2,
-    "state": "ALL_GOOD",
-    "reason": "READY_SOURCE_APPROVAL_WINDOW",
+    "state": "HELD",
+    "reason": "UPSTREAM_INTAKE_NOT_SAFE",
     "candidates": {
       "gekkoushi": {
         "candidate": "12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67",
@@ -89,12 +89,20 @@
         "workflowRunId": 39184820113,
         "upstreamRunId": 39184842861,
         "recordedAt": "2026-10-19T01:28:40.167414Z"
+      },
+      "keiyoushi": {
+        "current": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f",
+        "candidate": "ff521c17bb3e503c01e658e8fac00b60a95829f3",
+        "reason": "Validate Keiyoushi candidate / Classify registered Keiyoushi source impact",
+        "workflowRunId": 39416447546,
+        "upstreamRunId": 39416483580,
+        "recordedAt": "2026-10-20T11:44:34.781965Z"
       }
     },
     "ownerActionRequired": false,
     "lastAttemptProvider": "keiyoushi",
-    "workflowRunId": 39378066010,
-    "updatedAt": "2026-10-20T06:02:03.684161Z"
+    "workflowRunId": 39416447546,
+    "updatedAt": "2026-10-20T11:44:34.781984Z"
   },
   "lastPromotion": {
     "schemaVersion": 1,
