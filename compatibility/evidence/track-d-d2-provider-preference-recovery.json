@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "phase": "TRACK_D_D2_PROVIDER_PREFERENCE_RECOVERY",
+  "readOnly": true,
+  "sourcePacksAfterD1": "76ca23a0bd72ebc205d38db8614ff780cacb1e1d",
+  "compatibilityFarmBaseline": "79ab8d531d27388982ea549657d7baa57ed565f6",
+  "d1Artifact": {
+    "runId": 39370662923,
+    "artifactId": 12241615732,
+    "name": "track-d-d1-convergence-baseline-39370662923",
+    "digest": "sha256:b35156a37bcb2081b9597376efaf3154ce20e796b9e23925a1539f8363e2815a",
+    "headSha": "2d0ec14f33d5bb1298d246ad2eb01065596b5408",
+    "requiredStatus": "D1_CONVERGENCE_BASELINE_CLEAN"
+  },
+  "requiredBehaviorProofs": [
+    "sourcePendingWorker",
+    "multiProviderPartialOnboarding",
+    "a7LkgSafetyRegression",
+    "farmApprovalState",
+    "farmAuthorizedPromotion"
+  ],
+  "authorityFiles": {
+    "workerTool": "tools/source_pending_worker.py",
+    "approvalTool": "tools/source_pending_approval.py",
+    "promotionWorkflow": ".github/workflows/source-lab-promote-candidate.yml",
+    "farmApprovalTool": "tools/approval_state.py",
+    "farmPromotionTool": "tools/authorized_promotion.py"
+  },
+  "requiredLumosAuthority": {
+    "canonicalId": "miyorare:inventory-id:LUMOSKOMIK",
+    "providers": ["uma"],
+    "selectedProviders": ["uma"],
+    "workerState": "APPROVED"
+  },
+  "nextStage": "TRACK_D_D3_UNIFIED_DRIFT_HEALTH"
+}
