@@ -1,0 +1,155 @@
+name: Source Lab B3 Live Runtime Probe
+run-name: Source Lab B3 Live Runtime Probe
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-b3-live-runtime-probe.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-lab-b3-live-runtime-probe-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Probe unresolved Track B runtime cohort
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Validate safe execution context
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          set -euo pipefail
+          [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" ]]
+
+      - name: Probe live source routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/probe
+          report='build/track-b-batch3-live-runtime-probe.txt'
+          : > "$report"
+
+          harness_ua='Mozilla/5.0 (X11; Linux x86_64) MiyorareCompatibilityFarm/1.0'
+          browser_ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
+          ajax_payload='action=madara_load_more&page=0&template=madara-core%2Fcontent%2Fcontent-search&vars%5Bs%5D=&vars%5Bpaged%5D=1&vars%5Btemplate%5D=search&vars%5Bmeta_query%5D%5B0%5D%5Brelation%5D=AND&vars%5Bmeta_query%5D%5Brelation%5D=AND&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Bmanga_archives_item_layout%5D=default'
+
+          summarize_body() {
+            local body="$1"
+            echo "selector.c-tabs-item__content=$(grep -oF 'c-tabs-item__content' "$body" 2>/dev/null | wc -l | tr -d ' ')"
+            echo "selector.page-item-detail=$(grep -oF 'page-item-detail' "$body" 2>/dev/null | wc -l | tr -d ' ')"
+            echo "selector.manga__item=$(grep -oF 'manga__item' "$body" 2>/dev/null | wc -l | tr -d ' ')"
+            echo "selector.post-title=$(grep -oF 'post-title' "$body" 2>/dev/null | wc -l | tr -d ' ')"
+            echo "selector.comicItemCon=$(grep -oF 'comicItemCon' "$body" 2>/dev/null | wc -l | tr -d ' ')"
+            echo "cloudflare.challenge=$(grep -Eio 'cf-chl|just a moment|challenge-platform' "$body" 2>/dev/null | wc -l | tr -d ' ')"
+            echo "parking.marker=$(grep -Eio 'domain for sale|buy this domain|parkingcrew|sedoparking|ww[0-9]+\.|survey-smiles' "$body" 2>/dev/null | wc -l | tr -d ' ')"
+          }
+
+          probe_get() {
+            local source="$1"; local mode="$2"; local ua="$3"; local url="$4"; local slug="$5"
+            local body="build/probe/${slug}.html"; local headers="build/probe/${slug}.headers"
+            local meta; local curl_exit=0
+            meta="$(curl --silent --show-error --location --max-time 35 \
+              --user-agent "$ua" \
+              --header 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' \
+              --dump-header "$headers" --output "$body" \
+              --write-out 'http=%{http_code} effective=%{url_effective} type=%{content_type} bytes=%{size_download}' \
+              "$url")" || curl_exit=$?
+            {
+              echo "[$source:$mode:GET] $url"
+              echo "curl_exit=$curl_exit $meta"
+              summarize_body "$body"
+              echo
+            } | tee -a "$report"
+          }
+
+          probe_ajax() {
+            local source="$1"; local mode="$2"; local ua="$3"; local host="$4"; local slug="$5"
+            local url="https://${host}/wp-admin/admin-ajax.php"
+            local body="build/probe/${slug}.html"; local headers="build/probe/${slug}.headers"
+            local meta; local curl_exit=0
+            meta="$(curl --silent --show-error --location --max-time 35 \
+              --user-agent "$ua" \
+              --header 'Accept: */*' \
+              --header 'X-Requested-With: XMLHttpRequest' \
+              --header "Referer: https://${host}/" \
+              --header 'Content-Type: application/x-www-form-urlencoded' \
+              --data "$ajax_payload" \
+              --dump-header "$headers" --output "$body" \
+              --write-out 'http=%{http_code} effective=%{url_effective} type=%{content_type} bytes=%{size_download}' \
+              "$url")" || curl_exit=$?
+            {
+              echo "[$source:$mode:POST_AJAX] $url"
+              echo "curl_exit=$curl_exit $meta"
+              summarize_body "$body"
+              echo
+            } | tee -a "$report"
+          }
+
+          for mode in harness browser; do
+            if [[ "$mode" == harness ]]; then ua="$harness_ua"; else ua="$browser_ua"; fi
+
+            probe_get NOVELCROW "$mode" "$ua" 'https://novelcrow.com/' "novelcrow-${mode}-home"
+            probe_get NOVELCROW "$mode" "$ua" 'https://novelcrow.com/?s=&post_type=wp-manga&m_orderby=latest' "novelcrow-${mode}-latest"
+            probe_get NOVELCROW "$mode" "$ua" 'https://novelcrow.com/?s=&post_type=wp-manga&m_orderby=trending' "novelcrow-${mode}-trending"
+            probe_get NOVELCROW "$mode" "$ua" 'https://novelcrow.com/comic/' "novelcrow-${mode}-comic"
+
+            probe_get WHALEMANGA "$mode" "$ua" 'https://whalemanga.com/' "whale-${mode}-home"
+            probe_get WHALEMANGA "$mode" "$ua" 'https://whalemanga.com/manga/' "whale-${mode}-manga"
+            probe_get WHALEMANGA "$mode" "$ua" 'https://whalemanga.com/?s=&post_type=wp-manga&m_orderby=latest' "whale-${mode}-search"
+            probe_ajax WHALEMANGA "$mode" "$ua" 'whalemanga.com' "whale-${mode}-ajax"
+
+            probe_get WOOPREAD "$mode" "$ua" 'https://woopread.com/' "woop-${mode}-home"
+            probe_get WOOPREAD "$mode" "$ua" 'https://woopread.com/series/' "woop-${mode}-series"
+            probe_get WOOPREAD "$mode" "$ua" 'https://woopread.com/?s=&post_type=wp-manga&m_orderby=latest' "woop-${mode}-search"
+            probe_ajax WOOPREAD "$mode" "$ua" 'woopread.com' "woop-${mode}-ajax"
+
+            probe_get PAWMANGA "$mode" "$ua" 'https://pawmanga.com/' "paw-${mode}-home"
+            probe_get PAWMANGA "$mode" "$ua" 'https://pawmanga.com/manga/' "paw-${mode}-manga"
+            probe_get PAWMANGA "$mode" "$ua" 'https://pawmanga.com/?s=&post_type=wp-manga&m_orderby=latest' "paw-${mode}-search"
+            probe_ajax PAWMANGA "$mode" "$ua" 'pawmanga.com' "paw-${mode}-ajax"
+
+            probe_get FIRESCANS "$mode" "$ua" 'https://firescans.xyz/' "fire-${mode}-home"
+            probe_get FIRESCANS "$mode" "$ua" 'https://firescans.xyz/manga/' "fire-${mode}-manga"
+            probe_get FIRESCANS "$mode" "$ua" 'https://firescans.xyz/?s=&post_type=wp-manga' "fire-${mode}-search"
+            probe_ajax FIRESCANS "$mode" "$ua" 'firescans.xyz' "fire-${mode}-ajax"
+
+            probe_get HEYTOON "$mode" "$ua" 'https://heytoon.net/' "hey-${mode}-home"
+            probe_get HEYTOON "$mode" "$ua" 'https://heytoon.net/en/genres?orderBy=latest' "hey-${mode}-genres"
+            probe_get HEYTOON "$mode" "$ua" 'https://heytoon.net/api/complete-search?keyword=love' "hey-${mode}-api"
+
+            probe_get KALISCAN "$mode" "$ua" 'https://kaliscan.io/' "kali-${mode}-home"
+            probe_get KALISCAN "$mode" "$ua" 'https://kaliscan.io/manga/' "kali-${mode}-manga"
+            probe_get KALISCAN "$mode" "$ua" 'https://kaliscan.io/?s=&post_type=wp-manga&m_orderby=latest' "kali-${mode}-search"
+
+            probe_get MANHWA18ORG "$mode" "$ua" 'https://manhwa18.org/' "m18-${mode}-home"
+            probe_get MANHWA18ORG "$mode" "$ua" 'https://manhwa18.org/manga/' "m18-${mode}-manga"
+            probe_get MANHWA18ORG "$mode" "$ua" 'https://manhwa18.org/?s=&post_type=wp-manga&m_orderby=latest' "m18-${mode}-search"
+            probe_ajax MANHWA18ORG "$mode" "$ua" 'manhwa18.org' "m18-${mode}-ajax"
+
+            probe_get SHIBAMANGA "$mode" "$ua" 'https://shibamanga.com/' "shiba-${mode}-home"
+            probe_get SHIBAMANGA "$mode" "$ua" 'https://shibamanga.com/manga/' "shiba-${mode}-manga"
+            probe_get SHIBAMANGA "$mode" "$ua" 'https://shibamanga.com/?s=&post_type=wp-manga&m_orderby=latest' "shiba-${mode}-search"
+            probe_ajax SHIBAMANGA "$mode" "$ua" 'shibamanga.com' "shiba-${mode}-ajax"
+          done
+
+          cat "$report"
+
+      - name: Upload live probe evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: track-b-batch3-live-runtime-probe-${{ github.run_id }}
+          path: |
+            build/track-b-batch3-live-runtime-probe.txt
+            build/probe/*.headers
+          if-no-files-found: error
+          retention-days: 14
