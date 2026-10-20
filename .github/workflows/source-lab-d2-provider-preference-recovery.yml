@@ -1,0 +1,262 @@
+name: Source Lab D2 Provider Preference Recovery
+run-name: Source Lab D2 Provider Preference Recovery
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-d2-provider-preference-recovery.yml'
+      - 'compatibility/evidence/track-d-d2-provider-preference-recovery.json'
+      - 'tools/source_lab_d2_provider_preference_recovery.py'
+      - 'tests/test_source_lab_d2_provider_preference_recovery.py'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: source-lab-d2-provider-recovery-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_OWNER_ID: '149634319'
+  POST_D1_MAIN: '76ca23a0bd72ebc205d38db8614ff780cacb1e1d'
+  FARM_D2_BASELINE: '79ab8d531d27388982ea549657d7baa57ed565f6'
+  D1_RUN_ID: '39370662923'
+  D1_ARTIFACT_ID: '12241615732'
+  D1_ARTIFACT_NAME: 'track-d-d1-convergence-baseline-39370662923'
+  D1_ARTIFACT_DIGEST: 'sha256:b35156a37bcb2081b9597376efaf3154ce20e796b9e23925a1539f8363e2815a'
+  D1_HEAD_SHA: '2d0ec14f33d5bb1298d246ad2eb01065596b5408'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  provider-recovery:
+    name: Prove provider preference and scoped recovery invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+
+    steps:
+      - name: Validate safe execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" ]] || { echo "::error::D2 accepts same-repository pull requests only"; exit 1; }
+              [[ "$PR_BASE_SHA" == "$POST_D1_MAIN" ]] || { echo "::error::D2 must start from exact post-D1 main"; exit 1; }
+              ;;
+            workflow_dispatch)
+              [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+              [[ "$GITHUB_REF_NAME" == "main" ]]
+              ;;
+            *) echo "::error::unexpected event: $GITHUB_EVENT_NAME"; exit 1 ;;
+          esac
+
+      - name: Checkout exact proposed D2 control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout live Compatibility Farm
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: compatibility-farm-foundation
+          path: farm-current
+          fetch-depth: 1
+
+      - name: Pin exact D2 heads and baseline bindings
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          control_sha="$(git -C control rev-parse HEAD)"
+          farm_sha="$(git -C farm-current rev-parse HEAD)"
+          remote_farm="$(git -C farm-current ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')"
+          [[ "$control_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$farm_sha" == "$remote_farm" ]]
+          [[ "$farm_sha" == "$FARM_D2_BASELINE" ]] || { echo "::error::Compatibility Farm moved after D2 planning"; exit 1; }
+          echo "control=$control_sha" >> "$GITHUB_OUTPUT"
+          echo "farm=$farm_sha" >> "$GITHUB_OUTPUT"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          baseline = json.loads(Path('control/compatibility/evidence/track-d-d2-provider-preference-recovery.json').read_text())
+          assert baseline['phase'] == 'TRACK_D_D2_PROVIDER_PREFERENCE_RECOVERY'
+          assert baseline['readOnly'] is True
+          assert baseline['sourcePacksAfterD1'] == os.environ['POST_D1_MAIN']
+          assert baseline['compatibilityFarmBaseline'] == os.environ['FARM_D2_BASELINE']
+          artifact = baseline['d1Artifact']
+          assert str(artifact['runId']) == os.environ['D1_RUN_ID']
+          assert str(artifact['artifactId']) == os.environ['D1_ARTIFACT_ID']
+          assert artifact['name'] == os.environ['D1_ARTIFACT_NAME']
+          assert artifact['digest'] == os.environ['D1_ARTIFACT_DIGEST']
+          assert artifact['headSha'] == os.environ['D1_HEAD_SHA']
+          assert artifact['requiredStatus'] == 'D1_CONVERGENCE_BASELINE_CLEAN'
+          assert baseline['nextStage'] == 'TRACK_D_D3_UNIFIED_DRIFT_HEALTH'
+          PY
+
+      - name: Snapshot live provider authority
+        id: before
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "registry=$(sha256sum farm-current/compatibility/source-registry.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "worker=$(sha256sum farm-current/automation/pending-worker-state.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "upstream_registry=$(sha256sum farm-current/upstream/registry.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "status=$(sha256sum farm-current/upstream/status.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Download exact D1 convergence evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/d1
+          metadata="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$D1_ARTIFACT_ID")"
+          [[ "$(jq -r '.name' <<<"$metadata")" == "$D1_ARTIFACT_NAME" ]]
+          [[ "$(jq -r '.expired' <<<"$metadata")" == "false" ]]
+          [[ "$(jq -r '.workflow_run.id' <<<"$metadata")" == "$D1_RUN_ID" ]]
+          [[ "$(jq -r '.workflow_run.head_sha' <<<"$metadata")" == "$D1_HEAD_SHA" ]]
+          [[ "$(jq -r '.digest' <<<"$metadata")" == "$D1_ARTIFACT_DIGEST" ]]
+          gh run download "$D1_RUN_ID" --repo "$GITHUB_REPOSITORY" -n "$D1_ARTIFACT_NAME" -D build/d1
+          d1_report="$(find build/d1 -name track-d-d1-convergence-baseline.json -print -quit)"
+          test -n "$d1_report"; test -s "$d1_report"
+          cp "$d1_report" build/d1-report.json
+
+      - name: Re-run permanent A7 LKG safety
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_a7_lkg_safety.py \
+            --upstream-registry farm-current/upstream/registry.json \
+            --status farm-current/upstream/status.json \
+            --source-registry farm-current/compatibility/source-registry.json \
+            --promotion-workflow control/.github/workflows/source-lab-promote-candidate.yml \
+            --output build/a7-current.json \
+            --markdown-output build/a7-current.md
+
+      - name: Run permanent provider preference and recovery behavior proofs
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            cd control
+            python3 -m unittest \
+              tests.test_source_pending_worker \
+              tests.test_multi_provider_partial_onboarding \
+              tests.test_source_lab_a7_lkg_safety
+          )
+          (
+            cd farm-current
+            python3 -m unittest \
+              tests.test_approval_state \
+              tests.test_authorized_promotion
+          )
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          proofs = {
+              'schemaVersion': 1,
+              'proofs': {
+                  'sourcePendingWorker': {'passed': True, 'test': 'tests.test_source_pending_worker'},
+                  'multiProviderPartialOnboarding': {'passed': True, 'test': 'tests.test_multi_provider_partial_onboarding'},
+                  'a7LkgSafetyRegression': {'passed': True, 'test': 'tests.test_source_lab_a7_lkg_safety'},
+                  'farmApprovalState': {'passed': True, 'test': 'tests.test_approval_state'},
+                  'farmAuthorizedPromotion': {'passed': True, 'test': 'tests.test_authorized_promotion'},
+              },
+          }
+          Path('build/behavior-proofs.json').write_text(json.dumps(proofs, indent=2, sort_keys=True) + '\n')
+          PY
+
+      - name: Compile and run D2 regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ('tools/source_lab_d2_provider_preference_recovery.py','tests/test_source_lab_d2_provider_preference_recovery.py'):
+              path = Path('control') / name
+              compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          PY
+          python3 control/tests/test_source_lab_d2_provider_preference_recovery.py
+
+      - name: Build D2 provider preference and recovery report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_d2_provider_preference_recovery.py \
+            --baseline control/compatibility/evidence/track-d-d2-provider-preference-recovery.json \
+            --d1-report build/d1-report.json \
+            --a7-report build/a7-current.json \
+            --farm-registry farm-current/compatibility/source-registry.json \
+            --worker-state farm-current/automation/pending-worker-state.json \
+            --proof-manifest build/behavior-proofs.json \
+            --worker-tool control/tools/source_pending_worker.py \
+            --approval-tool control/tools/source_pending_approval.py \
+            --promotion-workflow control/.github/workflows/source-lab-promote-candidate.yml \
+            --farm-approval-tool farm-current/tools/approval_state.py \
+            --farm-promotion-tool farm-current/tools/authorized_promotion.py \
+            --control-head '${{ steps.pins.outputs.control }}' \
+            --farm-commit '${{ steps.pins.outputs.farm }}' \
+            --output build/track-d-d2-provider-preference-recovery.json \
+            --markdown-output build/track-d-d2-provider-preference-recovery.md
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build/track-d-d2-provider-preference-recovery.json').read_text())
+          assert report['phase'] == 'TRACK_D_D2_PROVIDER_PREFERENCE_RECOVERY'
+          assert report['readOnly'] is True
+          assert report['status'] == 'D2_PROVIDER_PREFERENCE_RECOVERY_PROVEN'
+          assert report['trackDClosed'] is False
+          assert report['nextStage'] == 'TRACK_D_D3_UNIFIED_DRIFT_HEALTH'
+          assert report['proofs']['providerPreference']['status'] == 'PROVEN'
+          assert report['proofs']['candidateLkgRecoveryIsolation']['status'] == 'PROVEN'
+          assert report['proofs']['staleReadyInvalidation']['status'] == 'PROVEN'
+          assert report['proofs']['candidateLkgRecoveryIsolation']['a7Status'] == 'SAFE'
+          assert not any(report['safety'].values())
+          PY
+
+      - name: Recheck live Farm and prove read-only execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ '${{ steps.pins.outputs.farm }}' == "$(git -C farm-current ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')" ]]
+          [[ "$(sha256sum farm-current/compatibility/source-registry.json | awk '{print $1}')" == '${{ steps.before.outputs.registry }}' ]]
+          [[ "$(sha256sum farm-current/automation/pending-worker-state.json | awk '{print $1}')" == '${{ steps.before.outputs.worker }}' ]]
+          [[ "$(sha256sum farm-current/upstream/registry.json | awk '{print $1}')" == '${{ steps.before.outputs.upstream_registry }}' ]]
+          [[ "$(sha256sum farm-current/upstream/status.json | awk '{print $1}')" == '${{ steps.before.outputs.status }}' ]]
+          test -z "$(git -C control status --porcelain)"
+          test -z "$(git -C farm-current status --porcelain)"
+
+      - name: Upload D2 acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: track-d-d2-provider-preference-recovery-${{ github.run_id }}
+          path: |
+            build/d1-report.json
+            build/a7-current.json
+            build/behavior-proofs.json
+            build/track-d-d2-provider-preference-recovery.json
+            build/track-d-d2-provider-preference-recovery.md
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Track D — D2: Provider Preference & Recovery'
+            echo "Control exact head: ${{ steps.pins.outputs.control }}"
+            echo "Compatibility Farm: ${{ steps.pins.outputs.farm }}"
+            if [[ -f build/track-d-d2-provider-preference-recovery.md ]]; then
+              cat build/track-d-d2-provider-preference-recovery.md
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
