@@ -8,6 +8,10 @@ on:
         description: Exact Miyorare canonical source ID selected in Source Lab
         required: true
         type: string
+      packs:
+        description: Explicit comma-separated pack membership (miyorare-id, miyorare-en, miyorare-global); never inferred from language or ID prefix
+        required: true
+        type: string
       inventory_commit:
         description: Exact source-inventory-live commit read by Source Lab
         required: true
@@ -36,6 +40,7 @@ jobs:
         env:
           EXPECTED_OWNER_ID: '149634319'
           CANONICAL_ID: ${{ inputs.canonical_id }}
+          PACKS: ${{ inputs.packs }}
           INVENTORY_COMMIT: ${{ inputs.inventory_commit }}
           FOUNDATION_COMMIT: ${{ inputs.foundation_commit }}
         run: |
@@ -45,6 +50,7 @@ jobs:
           [[ "$GITHUB_REF" == "refs/heads/main" ]]
           [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
           [[ "$CANONICAL_ID" == miyorare:* ]]
+          [[ -n "$PACKS" ]]
           [[ "$INVENTORY_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           [[ "$FOUNDATION_COMMIT" =~ ^[0-9a-f]{40}$ ]]
 
@@ -78,6 +84,7 @@ jobs:
         shell: bash
         env:
           CANONICAL_ID: ${{ inputs.canonical_id }}
+          PACKS: ${{ inputs.packs }}
           INVENTORY_COMMIT: ${{ inputs.inventory_commit }}
           FOUNDATION_COMMIT: ${{ inputs.foundation_commit }}
         run: |
@@ -91,6 +98,7 @@ jobs:
           from pathlib import Path
 
           HEX40 = re.compile(r'^[0-9a-f]{40}$')
+          allowed_packs = {'miyorare-id', 'miyorare-en', 'miyorare-global'}
           provider_repos = {
               'keiyoushi': 'https://github.com/keiyoushi/extensions-source.git',
               'uma': 'https://github.com/InvalidDavid/UMA.git',
@@ -121,6 +129,16 @@ jobs:
               raise SystemExit('finish the promoted SIGN/PUBLISH lifecycle before changing membership')
 
           canonical_id = os.environ['CANONICAL_ID']
+          requested_packs = [value.strip() for value in os.environ['PACKS'].split(',') if value.strip()]
+          if not requested_packs:
+              raise SystemExit('explicit pack membership is required')
+          if len(requested_packs) != len(set(requested_packs)):
+              raise SystemExit('duplicate explicit pack membership')
+          invalid_packs = sorted(set(requested_packs) - allowed_packs)
+          if invalid_packs:
+              raise SystemExit(f'unsupported explicit pack membership: {invalid_packs}')
+          requested_packs = sorted(requested_packs)
+
           matches = [s for s in inventory.get('sources', []) if s.get('canonicalId') == canonical_id]
           if len(matches) != 1:
               raise SystemExit('canonical source is missing or non-unique in exact inventory snapshot')
@@ -210,6 +228,7 @@ jobs:
               'canonicalId': canonical_id,
               'displayName': source.get('displayName') or canonical_id.rsplit(':', 1)[-1],
               'language': source_language,
+              'packs': requested_packs,
               'contentProfile': 'manga',
               # Conservative contract-valid placeholder. Enrollment does not
               # claim authentication support before the Farm profiles the source.
@@ -241,6 +260,7 @@ jobs:
                   'foundationBefore': os.environ['FOUNDATION_COMMIT'],
                   'workflowRunId': int(os.environ['GITHUB_RUN_ID']),
                   'actorId': os.environ['GITHUB_ACTOR_ID'],
+                  'packMembershipAuthority': 'owner-explicit-workflow-input',
               },
           }
           sources.append(new_source)
@@ -255,6 +275,8 @@ jobs:
               'action': 'ADD_TO_FARM',
               'canonicalId': canonical_id,
               'language': source_language,
+              'packs': requested_packs,
+              'packMembershipAuthority': 'owner-explicit-workflow-input',
               'inventoryCommit': os.environ['INVENTORY_COMMIT'],
               'foundationBefore': os.environ['FOUNDATION_COMMIT'],
               'workflowRunId': int(os.environ['GITHUB_RUN_ID']),
