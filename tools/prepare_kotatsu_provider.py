@@ -90,6 +90,15 @@ def transform_namespaces(upstream: Path) -> int:
         for path in root.rglob("*.kt"):
             changed += replace_text(path, FROM_NAMESPACE, TO_NAMESPACE)
 
+    service = (
+        upstream
+        / "kotatsu-parsers-ksp/src/main/resources/META-INF/services"
+        / "com.google.devtools.ksp.processing.SymbolProcessorProvider"
+    )
+    if not service.is_file():
+        fail(f"missing KSP service descriptor: {service}")
+    changed += replace_text(service, FROM_NAMESPACE, TO_NAMESPACE)
+
     changed += replace_text(upstream / "build.gradle.kts", FROM_NAMESPACE, TO_NAMESPACE)
     return changed
 
