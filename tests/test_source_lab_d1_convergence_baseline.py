@@ -79,7 +79,12 @@ def track_c():
                 "retrySemantics": {"terminal": False, "genericFailThresholdAutoHold": False, "ownerActionRequired": False},
                 "authoritySnapshot": {"workerEvidencePredatesCorrectedHarness": True},
             },
-            {"canonicalId": d1.SOFTKOMIK, "disposition": "SOFTKOMIK_AUTH_REQUIRED_ROUTED_TO_OWNER_ACTION"},
+            {
+                "canonicalId": d1.SOFTKOMIK,
+                "disposition": "SOFTKOMIK_AUTH_REQUIRED_ROUTED_TO_OWNER_ACTION",
+                "lifecycleCategory": "AUTH_REQUIRED",
+                "authSemantics": {"authType": "TOKEN", "credentialInjectionAllowed": False, "autoCredentialProvisioning": False, "holdCandidate": True},
+            },
         ],
         "safetyBoundary": {"x": False},
     }
@@ -116,7 +121,7 @@ def worker():
         "sources": {
             d1.LUMOS: {"state": "APPROVED", "selectedProviders": ["uma"]},
             d1.MANGABALL: {"state": "RETRY", "failureCategory": "SOURCE_PARSER_FAILURE", "retryPolicy": {"genericFailThresholdAutoHold": False}},
-            d1.SOFTKOMIK: {"state": "NEEDS_ATTENTION", "failureCategory": "AUTH_REQUIRED", "authType": "TOKEN"},
+            d1.SOFTKOMIK: {"state": "NEEDS_ATTENTION", "authType": "TOKEN"},
         },
     }
 
@@ -194,10 +199,22 @@ class D1ConvergenceTests(unittest.TestCase):
         with self.assertRaisesRegex(d1.ConvergenceError, "conflicts"):
             self.build(worker=state)
 
-    def test_softkomik_requires_explicit_auth_owner_action(self):
+    def test_softkomik_c5_auth_semantics_accept_live_owner_action_state(self):
+        report = self.build()
+        soft = next(row for row in report["operationalConvergence"] if row["canonicalId"] == d1.SOFTKOMIK)
+        self.assertEqual(soft["lifecycleCategory"], "AUTH_REQUIRED")
+        self.assertEqual(soft["authType"], "TOKEN")
+
+    def test_softkomik_requires_explicit_auth_type(self):
         state = worker()
-        state["sources"][d1.SOFTKOMIK]["failureCategory"] = "SOURCE_PARSER_FAILURE"
-        with self.assertRaisesRegex(d1.ConvergenceError, "SoftKomik"):
+        state["sources"][d1.SOFTKOMIK]["authType"] = "NO_AUTH"
+        with self.assertRaisesRegex(d1.ConvergenceError, "auth type"):
+            self.build(worker=state)
+
+    def test_softkomik_must_stay_owner_action(self):
+        state = worker()
+        state["sources"][d1.SOFTKOMIK]["state"] = "APPROVED"
+        with self.assertRaisesRegex(d1.ConvergenceError, "owner-action"):
             self.build(worker=state)
 
     def test_unsafe_lkg_blocks_d1(self):
