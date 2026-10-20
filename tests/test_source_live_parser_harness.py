@@ -38,9 +38,56 @@ class LiveParserHarnessTest(unittest.TestCase):
             manifest = harness.generate(plan, profiles, "uma", root)
             self.assertEqual(len(manifest["tests"]), 1)
             self.assertEqual(manifest["tests"][0]["fqcn"], "tsuki.site.en.Alpha")
+            self.assertEqual(manifest["tests"][0]["fqcnCandidates"], ["tsuki.site.en.Alpha"])
             test_class = manifest["tests"][0]["testClass"].split(".")[-1]
             self.assertTrue((root / f"src/test/kotlin/compatibilityfarm/{test_class}.kt").is_file())
             self.assertTrue((root / "src/test/kotlin/compatibilityfarm/LiveMangaLoaderContext.kt").is_file())
+
+    def test_generate_tsuki_harness_selects_annotated_nested_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "src/main/kotlin/tsuki/site/all/Multi.kt"
+            source.parent.mkdir(parents=True)
+            source.write_text(
+                '''package tsuki.site.all
+import tsuki.MangaLoaderContext
+import tsuki.MangaSourceParser
+
+internal abstract class MultiParser(
+    context: MangaLoaderContext,
+    source: Any,
+) : Base(context, source) {
+    @MangaSourceParser("MULTI_EN", "Multi (English)", "en")
+    class English(context: MangaLoaderContext) : MultiParser(context, Any())
+
+    @MangaSourceParser("MULTI_ID", "Multi (Indonesian)", "id")
+    class Indonesian(context: MangaLoaderContext) : MultiParser(context, Any())
+}
+''',
+                encoding="utf-8",
+            )
+            plan = {"items": [{
+                "canonicalId": "multi-id",
+                "providers": ["uma"],
+                "upstreamIdentities": {"uma": {
+                    "file": "src/main/kotlin/tsuki/site/all/Multi.kt",
+                    "sourceName": "MULTI_ID",
+                }},
+            }]}
+            profiles = {"results": [{
+                "canonicalId": "multi-id",
+                "state": harness.PROFILE_READY,
+                "authType": "NO_AUTH",
+            }]}
+            manifest = harness.generate(plan, profiles, "uma", root)
+            self.assertEqual(len(manifest["tests"]), 1)
+            row = manifest["tests"][0]
+            self.assertEqual(row["fqcn"], "tsuki.site.all.MultiParser$Indonesian")
+            self.assertIn("tsuki.site.all.MultiParser$Indonesian", row["fqcnCandidates"])
+            self.assertNotIn("tsuki.site.all.MultiParser$English", row["fqcnCandidates"])
+            generated = (root / f"src/test/kotlin/compatibilityfarm/{row['testClass'].split('.')[-1]}.kt").read_text()
+            self.assertIn('"tsuki.site.all.MultiParser\\$Indonesian"', generated)
+            self.assertIn("firstOrNull", generated)
 
     def test_keiyoushi_harness_supports_modern_keisource_and_factories(self) -> None:
         source = harness.keiyoushi_test_source("AutoLive_keiyoushi_test")
