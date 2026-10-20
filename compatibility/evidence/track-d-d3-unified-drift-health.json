@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "phase": "TRACK_D_D3_UNIFIED_DRIFT_HEALTH",
+  "readOnlyAcceptance": true,
+  "sourcePacksAfterD2": "a888dd8b9509fec5d5ba12a85f47a19b2bb08542",
+  "compatibilityFarmBaseline": "b7ca433c756caf210a4e0dbe7a2542a23e60eee7",
+  "reviewedPackAuthorityFarmCommit": "bd9a1a73d0c4cc1c36d94ca05bcf972672bdf0a2",
+  "d2Artifact": {
+    "runId": 39374333195,
+    "artifactId": 12242931064,
+    "name": "track-d-d2-provider-preference-recovery-39374333195",
+    "digest": "sha256:ce40dc5cecc9e768f24fcd99b30da31b0d7ba95fb127ab0ddfd0561630e507ad",
+    "headSha": "4064bc528baa158c3f2a6e05a5518ed19ccda810",
+    "requiredStatus": "D2_PROVIDER_PREFERENCE_RECOVERY_PROVEN"
+  },
+  "permanentLayers": {
+    "enDriftWorkflow": ".github/workflows/source-lab-b4-en-adoption-drift.yml",
+    "idDriftWorkflow": ".github/workflows/source-lab-c4-id-adoption-drift.yml",
+    "unifiedHealthWorkflow": ".github/workflows/p2a-unified-health-ci.yml",
+    "canonicalRegistryTool": "tools/canonical_source_registry_v2.py",
+    "unifiedHealthTool": "tools/unified_source_health.py",
+    "onboardingWorkflow": ".github/workflows/source-lab-add-to-farm.yml"
+  },
+  "requiredInvariants": [
+    "legacy pack rules are bounded to exact canonical IDs present in the reviewed Farm snapshot",
+    "live Farm movement does not broaden legacy pack authority",
+    "new sources require explicit pack membership and otherwise fail closed as HELD",
+    "EN and ID drift sentinels remain read-only and hand off to the existing Source Lab lifecycle",
+    "unified health is observational and preserves canonical identity and Last-Known-Good state"
+  ],
+  "nextStage": "TRACK_D_D4_LONG_TERM_AUTOMATION_ACCEPTANCE"
+}

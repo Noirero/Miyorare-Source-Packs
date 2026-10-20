@@ -31,28 +31,85 @@ def validate_pack_list(canonical: str | None, packs: Any) -> list[str]:
     return sorted(packs)
 
 
-def authority_packs(source: dict[str, Any], authority: dict[str, Any] | None, farm_commit: str | None) -> tuple[list[str], str]:
-    """Resolve packs from source declaration, else reviewed existing-source authority; never language."""
-    if "packs" in source:
-        return validate_pack_list(source.get("canonicalId"), source.get("packs")), "source-declaration"
-    if authority is None:
-        return [], "undeclared"
+def validate_existing_authority(authority: dict[str, Any]) -> str:
     if authority.get("schemaVersion") != 1 or authority.get("kind") != "MIYORARE_EXISTING_SOURCE_PACK_AUTHORITY":
         raise ValueError("invalid existing-source pack authority")
     reviewed = authority.get("reviewedFarmCommit")
-    if not isinstance(farm_commit, str) or farm_commit != reviewed:
-        raise ValueError("existing-source pack authority does not match exact Farm commit")
-    canonical = source.get("canonicalId")
-    matches = []
+    if not isinstance(reviewed, str) or len(reviewed) != 40:
+        raise ValueError("existing-source pack authority reviewedFarmCommit is invalid")
+    return reviewed
+
+
+def legacy_rule_packs(canonical: str, authority: dict[str, Any]) -> list[str]:
+    matches: list[list[str]] = []
     for rule in authority.get("rules", []):
         prefix = rule.get("canonicalPrefix") if isinstance(rule, dict) else None
-        if isinstance(canonical, str) and isinstance(prefix, str) and canonical.startswith(prefix):
+        if isinstance(prefix, str) and canonical.startswith(prefix):
             matches.append(validate_pack_list(canonical, rule.get("packs")))
     if len(matches) > 1:
         raise ValueError(f"{canonical}: multiple existing-source pack authorities")
-    if not matches:
+    return matches[0] if matches else []
+
+
+def reviewed_source_pack_map(
+    reviewed_farm: dict[str, Any],
+    authority: dict[str, Any],
+    reviewed_farm_commit: str,
+) -> dict[str, list[str]]:
+    """Materialize legacy prefix rules only for canonical IDs present in the exact reviewed Farm."""
+    reviewed = validate_existing_authority(authority)
+    if reviewed_farm_commit != reviewed:
+        raise ValueError("reviewed Farm snapshot does not match existing-source pack authority")
+    if reviewed_farm.get("schemaVersion") != 1:
+        raise ValueError("reviewed Farm snapshot must use schemaVersion 1")
+    result: dict[str, list[str]] = {}
+    for source in reviewed_farm.get("sources", []):
+        if not isinstance(source, dict):
+            continue
+        canonical = source.get("canonicalId")
+        if not isinstance(canonical, str) or not canonical.startswith("miyorare:"):
+            raise ValueError("reviewed Farm contains invalid canonicalId")
+        if canonical in result:
+            raise ValueError(f"duplicate reviewed canonicalId: {canonical}")
+        if "packs" in source:
+            packs = validate_pack_list(canonical, source.get("packs"))
+        else:
+            packs = legacy_rule_packs(canonical, authority)
+        if packs:
+            result[canonical] = packs
+    return result
+
+
+def authority_packs(
+    source: dict[str, Any],
+    authority: dict[str, Any] | None,
+    farm_commit: str | None,
+    reviewed_assignments: dict[str, list[str]] | None = None,
+) -> tuple[list[str], str]:
+    """Resolve packs from source declaration, else exact reviewed-source authority; never language."""
+    canonical = source.get("canonicalId")
+    if "packs" in source:
+        return validate_pack_list(canonical, source.get("packs")), "source-declaration"
+    if authority is None:
         return [], "undeclared"
-    return matches[0], "reviewed-existing-source-authority"
+    reviewed = validate_existing_authority(authority)
+    if reviewed_assignments is not None:
+        if not isinstance(canonical, str):
+            return [], "undeclared"
+        packs = reviewed_assignments.get(canonical)
+        if packs is None:
+            return [], "undeclared"
+        return validate_pack_list(canonical, packs), "reviewed-existing-source-authority"
+    # Backward-compatible one-snapshot mode: legacy prefix rules may only be used
+    # when the Farm itself is exactly the reviewed snapshot.
+    if not isinstance(farm_commit, str) or farm_commit != reviewed:
+        raise ValueError("existing-source pack authority does not match exact Farm commit")
+    if not isinstance(canonical, str):
+        return [], "undeclared"
+    packs = legacy_rule_packs(canonical, authority)
+    if not packs:
+        return [], "undeclared"
+    return packs, "reviewed-existing-source-authority"
 
 
 def lifecycle_for(source: dict[str, Any], packs: list[str]) -> str:
@@ -99,14 +156,28 @@ def explicit_origin(source: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def migrate(farm: dict[str, Any], pack_authority: dict[str, Any] | None = None, farm_commit: str | None = None) -> dict[str, Any]:
+def migrate(
+    farm: dict[str, Any],
+    pack_authority: dict[str, Any] | None = None,
+    farm_commit: str | None = None,
+    reviewed_farm: dict[str, Any] | None = None,
+    reviewed_farm_commit: str | None = None,
+) -> dict[str, Any]:
     if farm.get("schemaVersion") != 1: raise ValueError("P1-A migration currently accepts Farm schemaVersion 1 only")
+    assignments: dict[str, list[str]] | None = None
+    if reviewed_farm is not None or reviewed_farm_commit is not None:
+        if pack_authority is None or reviewed_farm is None or not isinstance(reviewed_farm_commit, str):
+            raise ValueError("live Farm continuity requires authority, reviewed Farm snapshot, and reviewed commit")
+        assignments = reviewed_source_pack_map(reviewed_farm, pack_authority, reviewed_farm_commit)
     sources = []
+    undeclared: list[str] = []
     for old in farm.get("sources", []):
         canonical = old.get("canonicalId")
         if not isinstance(canonical, str) or not canonical.startswith("miyorare:"):
             raise ValueError("refusing to invent or rewrite an invalid canonicalId")
-        packs, pack_authority_kind = authority_packs(old, pack_authority, farm_commit)
+        packs, pack_authority_kind = authority_packs(old, pack_authority, farm_commit, assignments)
+        if not packs:
+            undeclared.append(canonical)
         lifecycle = lifecycle_for(old, packs)
         identities = old.get("upstreamIdentities", {})
         if not isinstance(identities, dict): identities = {}
@@ -123,10 +194,23 @@ def migrate(farm: dict[str, Any], pack_authority: dict[str, Any] | None = None, 
             "compatibility": {"health": health_for(old, lifecycle, packs), "baseline": old.get("compatibilityBaseline", {}), "lastKnownGood": old.get("lastKnownGood", {}), "currentVersion": old.get("currentVersion", {})},
         }
         sources.append(source)
+    reviewed_commit = pack_authority.get("reviewedFarmCommit") if pack_authority else None
     result = {
         "schemaVersion": 2,
         "kind": "MIYORARE_CANONICAL_SOURCE_REGISTRY",
-        "migration": {"fromSchemaVersion": 1, "identityPreserved": True, "packMembershipAuthority": "source-declaration-or-reviewed-existing-source-authority", "languageInferenceDisabled": True, "originAuthority": "source-declaration-or-legacy-upstream-identity-evidence", "reviewedFarmCommit": pack_authority.get("reviewedFarmCommit") if pack_authority else None},
+        "migration": {
+            "fromSchemaVersion": 1,
+            "identityPreserved": True,
+            "packMembershipAuthority": "source-declaration-or-exact-reviewed-source-authority",
+            "languageInferenceDisabled": True,
+            "originAuthority": "source-declaration-or-legacy-upstream-identity-evidence",
+            "reviewedFarmCommit": reviewed_commit,
+            "liveFarmCommit": farm_commit,
+            "reviewedSourceBoundAuthority": assignments is not None,
+            "reviewedSourceAssignmentCount": len(assignments or {}),
+            "undeclaredPackMembershipCount": len(undeclared),
+            "undeclaredPackMembership": sorted(undeclared),
+        },
         "providerBaselines": farm.get("providerBaselines", {}),
         "sources": sorted(sources, key=lambda item: item["canonicalId"]),
     }
@@ -159,10 +243,26 @@ def validate(value: dict[str, Any]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(); sub = parser.add_subparsers(dest="command", required=True)
-    migration = sub.add_parser("migrate"); migration.add_argument("--farm", type=Path, required=True); migration.add_argument("--output", type=Path, required=True); migration.add_argument("--pack-authority", type=Path); migration.add_argument("--farm-commit")
+    migration = sub.add_parser("migrate")
+    migration.add_argument("--farm", type=Path, required=True)
+    migration.add_argument("--output", type=Path, required=True)
+    migration.add_argument("--pack-authority", type=Path)
+    migration.add_argument("--farm-commit")
+    migration.add_argument("--reviewed-farm", type=Path)
+    migration.add_argument("--reviewed-farm-commit")
     validation = sub.add_parser("validate"); validation.add_argument("--registry", type=Path, required=True)
     args = parser.parse_args()
-    if args.command == "migrate": write(args.output, migrate(load(args.farm), load(args.pack_authority) if args.pack_authority else None, args.farm_commit))
+    if args.command == "migrate":
+        write(
+            args.output,
+            migrate(
+                load(args.farm),
+                load(args.pack_authority) if args.pack_authority else None,
+                args.farm_commit,
+                load(args.reviewed_farm) if args.reviewed_farm else None,
+                args.reviewed_farm_commit,
+            ),
+        )
     else: validate(load(args.registry)); print("Canonical Source Registry V2 validated")
 
 
