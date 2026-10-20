@@ -1,66 +1,17 @@
 {
   "action": "APPROVE_READY_SOURCES",
-  "approvalRunId": "39204583879",
-  "approvedAt": "2026-10-19T05:26:47Z",
+  "approvalRunId": "39383580087",
+  "approvedAt": "2026-10-20T06:58:58Z",
   "approvedBy": "Noirero:149634319",
-  "count": 8,
+  "count": 6,
   "publishEligible": false,
   "schemaVersion": 1,
   "sources": [
     {
-      "adapterFamily": "custom-rest-json",
+      "adapterFamily": "gekkoushi-native",
       "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-en:HENTAINEXUS",
-      "evidenceSha256": "79371c1670e305b8ebef77901228a5425b2bc57891432d4f111c6779c065b760",
-      "heldProviders": [
-        {
-          "provider": "gekkoushi",
-          "reason": "REAL_PARSER_NOT_USABLE",
-          "state": "HELD"
-        },
-        {
-          "provider": "keiyoushi",
-          "reason": "JUNIT_SUITE_MISSING",
-          "state": "HELD"
-        }
-      ],
-      "language": "en",
-      "providers": [
-        "uma"
-      ],
-      "testedVersions": {
-        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
-      },
-      "workerRunId": "39185136786"
-    },
-    {
-      "adapterFamily": "madara",
-      "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-en:HENTAIXCOMIC",
-      "evidenceSha256": "f00984da76e7c13a4f83953c3db2baa8333bf75571ecf43cb414768b02e3cbc4",
-      "heldProviders": [
-        {
-          "provider": "keiyoushi",
-          "reason": "JUNIT_SUITE_MISSING",
-          "state": "HELD"
-        }
-      ],
-      "language": "en",
-      "providers": [
-        "gekkoushi",
-        "uma"
-      ],
-      "testedVersions": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
-      },
-      "workerRunId": "39185136786"
-    },
-    {
-      "adapterFamily": "madara",
-      "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-en:HENTAIXDICKGIRL",
-      "evidenceSha256": "44d652707ddfced8f957b445196c1986270b64c2f7b8a9d0b642591aaa6eb1a2",
+      "canonicalId": "miyorare:inventory-en:18PORNCOMIC",
+      "evidenceSha256": "a597ff28424fd1463d85477aa2ad5c07912380c94c6605de8febdf9229a28037",
       "heldProviders": [
         {
           "provider": "keiyoushi",
@@ -75,13 +26,34 @@
       "testedVersions": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
-      "workerRunId": "39185136786"
+      "workerRunId": "39245451145"
+    },
+    {
+      "adapterFamily": "gekkoushi-native",
+      "authType": "NO_AUTH",
+      "canonicalId": "miyorare:inventory-en:KEWNSCANS",
+      "evidenceSha256": "cfca104ba775a10e1b7e78f58c1b9833c44dfbb12955e4f4a7ef3c0558ee8416",
+      "heldProviders": [
+        {
+          "provider": "keiyoushi",
+          "reason": "JUNIT_SUITE_MISSING",
+          "state": "HELD"
+        }
+      ],
+      "language": "en",
+      "providers": [
+        "gekkoushi"
+      ],
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workerRunId": "39245451145"
     },
     {
       "adapterFamily": "uma-native",
       "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-en:HIPERDEX",
-      "evidenceSha256": "77a4ec909f8437117ea4d4b033e79c4e0f860f2112205f39d609c7f080d54a5a",
+      "canonicalId": "miyorare:inventory-en:KINGOFSHOJO",
+      "evidenceSha256": "c798eec686ac19c2ac26ab3c4aab02bc512401fdc1c6ae1cca078d48bcde3924",
       "heldProviders": [
         {
           "provider": "keiyoushi",
@@ -96,98 +68,82 @@
       "testedVersions": {
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
-      "workerRunId": "39185136786"
+      "workerRunId": "39297047839"
     },
     {
-      "adapterFamily": "custom-rest-json",
+      "adapterFamily": "madara",
       "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-en:HIVETOONS",
-      "evidenceSha256": "1a4c8773a682df752f6bafa8b8858b93ea9f492f0165e2fa37b076555fa01ef7",
-      "heldProviders": [],
-      "language": "en",
-      "providers": [
-        "uma"
-      ],
-      "testedVersions": {
-        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
-      },
-      "workerRunId": "39185136786"
-    },
-    {
-      "adapterFamily": "custom-paged-html",
-      "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-en:IROVEDOUT",
-      "evidenceSha256": "7be81159401000ca6292b722ac539caedea05bd7b51fe923ef9e45f1050a6777",
-      "heldProviders": [],
-      "language": "en",
-      "providers": [
-        "keiyoushi"
-      ],
-      "testedVersions": {
-        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
-      },
-      "workerRunId": "39185136786"
-    },
-    {
-      "adapterFamily": "manga-reader-plus-api",
-      "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-id:LIANSCANS",
-      "evidenceSha256": "44524136e776f89627ac6071d65cbb2163f9421ff554777d9f0d8425cbbe452c",
+      "canonicalId": "miyorare:inventory-en:KSGROUPSCANS",
+      "evidenceSha256": "d570214e30133291bbac611f74787394adf65e00a1f739716009dd7f647d575a",
       "heldProviders": [
         {
           "provider": "keiyoushi",
-          "reason": "REAL_PARSER_NOT_USABLE",
+          "reason": "JUNIT_SUITE_MISSING",
           "state": "HELD"
         }
       ],
-      "language": "id",
+      "language": "en",
       "providers": [
         "gekkoushi"
       ],
       "testedVersions": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
-      "workerRunId": "39185136786"
+      "workerRunId": "39349317125"
     },
     {
-      "adapterFamily": "custom-rest-json",
+      "adapterFamily": "madara",
       "authType": "NO_AUTH",
-      "canonicalId": "miyorare:inventory-id:LUMOSKOMIK",
-      "evidenceSha256": "3f4dee48a4ee9977eb03c43e0a79e86e12ca5a660dbc6092f5a959b71a92ec6d",
+      "canonicalId": "miyorare:inventory-en:LHTRANSLATION",
+      "evidenceSha256": "677270ff022f7e0d0f6b6835696a34b2461445b1990e67dea8023129f3926415",
       "heldProviders": [
         {
-          "provider": "gekkoushi",
-          "reason": "REAL_PARSER_NOT_USABLE",
-          "state": "HELD"
-        },
-        {
           "provider": "keiyoushi",
-          "reason": "REAL_PARSER_NOT_USABLE",
+          "reason": "JUNIT_SUITE_MISSING",
           "state": "HELD"
         }
       ],
-      "language": "id",
+      "language": "en",
       "providers": [
-        "uma"
+        "gekkoushi"
       ],
       "testedVersions": {
-        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
-      "workerRunId": "39185136786"
+      "workerRunId": "39363408617"
+    },
+    {
+      "adapterFamily": "gekkoushi-native",
+      "authType": "NO_AUTH",
+      "canonicalId": "miyorare:inventory-en:LIKEMANGA",
+      "evidenceSha256": "d93eade2c705910cf54ac910501168312a25cff58fb221a4be22ba512eb7e6da",
+      "heldProviders": [
+        {
+          "provider": "keiyoushi",
+          "reason": "JUNIT_SUITE_MISSING",
+          "state": "HELD"
+        }
+      ],
+      "language": "en",
+      "providers": [
+        "gekkoushi"
+      ],
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workerRunId": "39363408617"
     }
   ],
   "state": "APPROVED",
   "summary": {
-    "approved": 8,
+    "approved": 6,
     "canonicalIds": [
-      "miyorare:inventory-en:HENTAINEXUS",
-      "miyorare:inventory-en:HENTAIXCOMIC",
-      "miyorare:inventory-en:HENTAIXDICKGIRL",
-      "miyorare:inventory-en:HIPERDEX",
-      "miyorare:inventory-en:HIVETOONS",
-      "miyorare:inventory-en:IROVEDOUT",
-      "miyorare:inventory-id:LIANSCANS",
-      "miyorare:inventory-id:LUMOSKOMIK"
+      "miyorare:inventory-en:18PORNCOMIC",
+      "miyorare:inventory-en:KEWNSCANS",
+      "miyorare:inventory-en:KINGOFSHOJO",
+      "miyorare:inventory-en:KSGROUPSCANS",
+      "miyorare:inventory-en:LHTRANSLATION",
+      "miyorare:inventory-en:LIKEMANGA"
     ],
     "schemaVersion": 1
   }

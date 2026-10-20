@@ -40,9 +40,9 @@
   },
   "sources": [
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "gekkoushi-native",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:18PORNCOMIC",
       "compatibilityBaseline": {
         "capabilities": [
@@ -59,13 +59,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
       "displayName": "18PornComic",
       "enrollmentEvidence": {
@@ -73,17 +72,39 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "39383580087",
+        "approvedAt": "2026-10-20T06:58:58Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "a597ff28424fd1463d85477aa2ad5c07912380c94c6605de8febdf9229a28037",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "39245451145"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi"
+        "gekkoushi"
       ],
       "publishEligible": false,
       "repairPolicy": {
@@ -93,21 +114,17 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
         "gekkoushi": {
           "file": "src/main/kotlin/tsuki/site/manga18/en/PornComic18.kt",
           "sourceName": "PORNCOMIC18"
-        },
-        "keiyoushi": {
-          "module": "src/en/eighteenporncomic",
-          "sourceId": 5133553291675008671,
-          "sourceName": "18 Porn Comic"
         }
       }
     },
@@ -15900,9 +15917,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "gekkoushi-native",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:KEWNSCANS",
       "compatibilityBaseline": {
         "capabilities": [
@@ -15919,13 +15936,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
       "displayName": "KewnScans",
       "enrollmentEvidence": {
@@ -15933,17 +15949,39 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "39383580087",
+        "approvedAt": "2026-10-20T06:58:58Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "cfca104ba775a10e1b7e78f58c1b9833c44dfbb12955e4f4a7ef3c0558ee8416",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "39245451145"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi"
+        "gekkoushi"
       ],
       "publishEligible": false,
       "repairPolicy": {
@@ -15953,21 +15991,17 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
         "gekkoushi": {
           "file": "src/main/kotlin/tsuki/site/keyoapp/en/KewnScans.kt",
           "sourceName": "KEWNSCANS"
-        },
-        "keiyoushi": {
-          "module": "src/en/kewnscans",
-          "sourceId": 2816768640766208312,
-          "sourceName": "Kewn Scans"
         }
       }
     },
@@ -16101,9 +16135,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "uma-native",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:KINGOFSHOJO",
       "compatibilityBaseline": {
         "capabilities": [
@@ -16120,12 +16154,11 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
       "displayName": "King of Shojo",
@@ -16139,13 +16172,33 @@
       ],
       "language": "en",
       "lastKnownGood": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "uma"
+        ],
+        "approvalRunId": "39383580087",
+        "approvedAt": "2026-10-20T06:58:58Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "c798eec686ac19c2ac26ab3c4aab02bc512401fdc1c6ae1cca078d48bcde3924",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39297047839"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "keiyoushi",
         "uma"
       ],
       "publishEligible": false,
@@ -16156,18 +16209,14 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
-        "keiyoushi": {
-          "module": "src/en/kingofshojo",
-          "sourceId": 9153097368891994905,
-          "sourceName": "King of Shojo"
-        },
         "uma": {
           "file": "src/main/kotlin/tsuki/site/en/KingofShojo.kt",
           "sourceName": "KINGOFSHOJO"
@@ -16693,9 +16742,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:KSGROUPSCANS",
       "compatibilityBaseline": {
         "capabilities": [
@@ -16712,13 +16761,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
       "displayName": "KSGroupScans",
       "enrollmentEvidence": {
@@ -16726,17 +16774,39 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "39383580087",
+        "approvedAt": "2026-10-20T06:58:58Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "d570214e30133291bbac611f74787394adf65e00a1f739716009dd7f647d575a",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "39349317125"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi"
+        "gekkoushi"
       ],
       "publishEligible": false,
       "repairPolicy": {
@@ -16746,21 +16816,17 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
         "gekkoushi": {
           "file": "src/main/kotlin/tsuki/site/madara/en/KsGroupScans.kt",
           "sourceName": "KSGROUPSCANS"
-        },
-        "keiyoushi": {
-          "module": "src/en/ksgroupscans",
-          "sourceId": 4307007494151154546,
-          "sourceName": "KSGroupScans"
         }
       }
     },
@@ -17218,9 +17284,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:LHTRANSLATION",
       "compatibilityBaseline": {
         "capabilities": [
@@ -17237,13 +17303,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
       "displayName": "LHTranslation",
       "enrollmentEvidence": {
@@ -17251,17 +17316,39 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "39383580087",
+        "approvedAt": "2026-10-20T06:58:58Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "677270ff022f7e0d0f6b6835696a34b2461445b1990e67dea8023129f3926415",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "39363408617"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi"
+        "gekkoushi"
       ],
       "publishEligible": false,
       "repairPolicy": {
@@ -17271,28 +17358,24 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
         "gekkoushi": {
           "file": "src/main/kotlin/tsuki/site/madara/en/LhTranslation.kt",
           "sourceName": "LHTRANSLATION"
-        },
-        "keiyoushi": {
-          "module": "src/en/lhtranslation",
-          "sourceId": 8802607595629671202,
-          "sourceName": "LHTranslation"
         }
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "gekkoushi-native",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:LIKEMANGA",
       "compatibilityBaseline": {
         "capabilities": [
@@ -17309,13 +17392,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
       "displayName": "LikeManga",
       "enrollmentEvidence": {
@@ -17323,17 +17405,39 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "39383580087",
+        "approvedAt": "2026-10-20T06:58:58Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "d93eade2c705910cf54ac910501168312a25cff58fb221a4be22ba512eb7e6da",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "39363408617"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi"
+        "gekkoushi"
       ],
       "publishEligible": false,
       "repairPolicy": {
@@ -17343,21 +17447,17 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
         "gekkoushi": {
           "file": "src/main/kotlin/tsuki/site/likemanga/en/LikeManga.kt",
           "sourceName": "LIKEMANGA"
-        },
-        "keiyoushi": {
-          "module": "src/en/likemanga",
-          "sourceId": 6236979603959140497,
-          "sourceName": "LikeManga"
         }
       }
     },
