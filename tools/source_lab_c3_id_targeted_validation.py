@@ -44,7 +44,7 @@ def save(path: str | Path, value: Any) -> None:
 
 
 def c3_rows(c2: dict[str, Any]) -> list[dict[str, Any]]:
-    if c2.get("phase") != "TRACK_C_BATCH_2_ID_CAPABILITY_HEALTH":
+    if c2.get("phase") != "TRACK_C_BATCH_2_ID_CAPABILITY_HEALTH_DECISION":
         raise ValueError("unexpected C2 phase")
     if c2.get("readOnly") is not True or c2.get("language") != "id":
         raise ValueError("C2 must be read-only ID evidence")
