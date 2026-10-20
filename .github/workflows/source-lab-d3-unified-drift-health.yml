@@ -152,10 +152,16 @@ jobs:
             tests.test_p1a_canonical_source_registry_v2 \
             tests.test_p2a_unified_source_health \
             tests.test_source_lab_d3_unified_drift_health -v
-          python3 -m py_compile \
-            tools/canonical_source_registry_v2.py \
-            tools/unified_source_health.py \
-            tools/source_lab_d3_unified_drift_health.py
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in (
+              'tools/canonical_source_registry_v2.py',
+              'tools/unified_source_health.py',
+              'tools/source_lab_d3_unified_drift_health.py',
+          ):
+              path = Path(name)
+              compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          PY
 
       - name: Build live canonical authority with reviewed-source continuity
         shell: bash
