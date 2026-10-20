@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import json
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -104,6 +105,25 @@ def validate_b3_closure(report: dict[str, Any], baseline: dict[str, Any]) -> Non
     decisions = report.get("decisions")
     if not isinstance(decisions, list) or len(decisions) != 33:
         raise ValueError("B3 decisions must contain 33 rows")
+    route_counts: Counter[str] = Counter()
+    canonical_ids: set[str] = set()
+    for row in decisions:
+        if not isinstance(row, dict):
+            raise ValueError("B3 decision must be an object")
+        canonical = row.get("canonicalId")
+        route = row.get("route")
+        if not isinstance(canonical, str) or not canonical.startswith("miyorare:"):
+            raise ValueError("B3 decision canonicalId is invalid")
+        if canonical in canonical_ids:
+            raise ValueError(f"duplicate B3 decision canonicalId: {canonical}")
+        canonical_ids.add(canonical)
+        if not isinstance(route, str) or not route:
+            raise ValueError(f"B3 route missing for {canonical}")
+        if route == PASS_ADOPTION_ROUTE:
+            raise ValueError(f"B3 closure cannot silently authorize B4 adoption: {canonical}")
+        route_counts[route] += 1
+    if dict(route_counts) != baseline["batch3Closure"]["routes"]:
+        raise ValueError("B3 decision routes do not match the frozen route totals")
     safety = report.get("safety")
     if not isinstance(safety, dict) or any(bool(value) for value in safety.values()):
         raise ValueError("B3 closure safety must remain non-mutating")
