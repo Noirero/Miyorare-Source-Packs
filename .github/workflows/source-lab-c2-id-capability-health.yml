@@ -1,0 +1,255 @@
+name: Source Lab C2 ID Capability Health Decision
+run-name: Source Lab C2 ID Capability Health Decision
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-c2-id-capability-health.yml'
+      - 'tools/source_lab_c2_id_capability_health.py'
+      - 'tests/test_source_lab_c2_id_capability_health.py'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: source-lab-c2-id-capability-health-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_OWNER_ID: '149634319'
+  C1_RUN_ID: '39353626205'
+  C1_ARTIFACT_ID: '12233753227'
+  C1_ARTIFACT_NAME: 'track-c-batch1-id-mapping-39353626205'
+  C1_ARTIFACT_DIGEST: 'sha256:163f04cd08e7dde445043b24bc984ff004f23ddea29c59a6ba97931cfac95070'
+  C1_INVENTORY_SHA: '2c4768c7ea9914030868792bcd73d5f7f461907b'
+  C1_FOUNDATION_SHA: '654af67becbdb0adf85ab87663674ba7340b3cf4'
+  C1_MIYORARE_SHA: 'f366d775c5b4c3a330b4baf105e24ce93fd66fc7'
+  C1_STRUCTURAL_ATTENTION: '4'
+  C1_FINDING_ROWS: '18'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  decision:
+    name: Build read-only ID capability and health decision matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Validate safe execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" ]] || {
+                echo "::error::C2 only accepts same-repository pull requests"
+                exit 1
+              }
+              ;;
+            workflow_dispatch)
+              [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+              [[ "$GITHUB_REF_NAME" == "main" ]]
+              ;;
+            *) echo "::error::unexpected event: $GITHUB_EVENT_NAME"; exit 1 ;;
+          esac
+
+      - name: Checkout proposed C2 control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout frozen C1 informational inventory
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ env.C1_INVENTORY_SHA }}
+          path: inventory
+          fetch-depth: 1
+
+      - name: Checkout frozen C1 Compatibility Farm authority
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ env.C1_FOUNDATION_SHA }}
+          path: farm
+          fetch-depth: 1
+
+      - name: Checkout frozen C1 Amain2 consumer commit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Noirero/Miyorare
+          ref: ${{ env.C1_MIYORARE_SHA }}
+          path: miyorare
+          fetch-depth: 1
+
+      - name: Pin exact frozen provenance
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          control_sha="$(git -C control rev-parse HEAD)"
+          inventory_sha="$(git -C inventory rev-parse HEAD)"
+          foundation_sha="$(git -C farm rev-parse HEAD)"
+          miyorare_sha="$(git -C miyorare rev-parse HEAD)"
+          [[ "$inventory_sha" == "$C1_INVENTORY_SHA" ]]
+          [[ "$foundation_sha" == "$C1_FOUNDATION_SHA" ]]
+          [[ "$miyorare_sha" == "$C1_MIYORARE_SHA" ]]
+          [[ "$control_sha" =~ ^[0-9a-f]{40}$ ]]
+          echo "control_sha=$control_sha" >> "$GITHUB_OUTPUT"
+          echo "inventory_sha=$inventory_sha" >> "$GITHUB_OUTPUT"
+          echo "foundation_sha=$foundation_sha" >> "$GITHUB_OUTPUT"
+          echo "miyorare_sha=$miyorare_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Download and verify exact C1 artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          metadata="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$C1_ARTIFACT_ID")"
+          [[ "$(jq -r '.name' <<<"$metadata")" == "$C1_ARTIFACT_NAME" ]]
+          [[ "$(jq -r '.expired' <<<"$metadata")" == "false" ]]
+          [[ "$(jq -r '.workflow_run.id' <<<"$metadata")" == "$C1_RUN_ID" ]]
+          [[ "$(jq -r '.digest' <<<"$metadata")" == "$C1_ARTIFACT_DIGEST" ]]
+          mkdir -p build/c1
+          gh run download "$C1_RUN_ID" -n "$C1_ARTIFACT_NAME" -D build/c1
+          test -s build/c1/track-c-batch1-id-mapping.json
+          test -s build/c1/track-c-batch1-id-mapping.md
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          report = json.loads(Path('build/c1/track-c-batch1-id-mapping.json').read_text(encoding='utf-8'))
+          if report.get('phase') != 'TRACK_C_BATCH_1_ID_AUDIT_MAPPING':
+              raise SystemExit('unexpected C1 artifact phase')
+          if report.get('readOnly') is not True or report.get('language') != 'id':
+              raise SystemExit('C1 artifact is not read-only ID evidence')
+          p = report.get('provenance', {})
+          expected = {
+              'inventoryCommit': os.environ['C1_INVENTORY_SHA'],
+              'foundationCommit': os.environ['C1_FOUNDATION_SHA'],
+              'miyorareCommit': os.environ['C1_MIYORARE_SHA'],
+          }
+          for key, value in expected.items():
+              if p.get(key) != value:
+                  raise SystemExit(f'C1 artifact provenance mismatch: {key}')
+          if report.get('summary', {}).get('structuralAttentionCount') != int(os.environ['C1_STRUCTURAL_ATTENTION']):
+              raise SystemExit('C1 structural attention count mismatch')
+          finding_types = (
+              'farmCanonicalMissingFromInventory', 'providerIdentityDrift',
+              'inventoryCanonicalNotEnrolledInFarm', 'discoveredProviderNotEnrolled',
+              'inventoryUmaNotCuratedByConsumer',
+          )
+          rows = sum(len(report.get('findings', {}).get(key, [])) for key in finding_types)
+          if rows != int(os.environ['C1_FINDING_ROWS']):
+              raise SystemExit(f'C1 finding cohort mismatch: expected {os.environ["C1_FINDING_ROWS"]}, got {rows}')
+          PY
+
+      - name: Snapshot all read-only authority inputs
+        id: before
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "source_registry=$(sha256sum farm/compatibility/source-registry.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "source_health=$(sha256sum farm/upstream/source-health.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "inventory=$(sha256sum inventory/inventory/source-inventory.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "c1_report=$(sha256sum build/c1/track-c-batch1-id-mapping.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Compile C2 auditor without filesystem mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ('tools/source_lab_c2_id_capability_health.py', 'tests/test_source_lab_c2_id_capability_health.py'):
+              path = Path('control') / name
+              compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          PY
+
+      - name: Run C2 regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest control/tests/test_source_lab_c2_id_capability_health.py
+
+      - name: Build C2 capability and health decision matrix
+        id: c2
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_c2_id_capability_health.py \
+            --c1-report build/c1/track-c-batch1-id-mapping.json \
+            --inventory inventory/inventory/source-inventory.json \
+            --farm-registry farm/compatibility/source-registry.json \
+            --source-health farm/upstream/source-health.json \
+            --inventory-commit '${{ steps.pins.outputs.inventory_sha }}' \
+            --foundation-commit '${{ steps.pins.outputs.foundation_sha }}' \
+            --miyorare-commit '${{ steps.pins.outputs.miyorare_sha }}' \
+            --control-commit '${{ steps.pins.outputs.control_sha }}' \
+            --c1-run-id "$C1_RUN_ID" \
+            --c1-artifact-id "$C1_ARTIFACT_ID" \
+            --c1-artifact-digest "$C1_ARTIFACT_DIGEST" \
+            --output build/track-c-batch2-id-capability-health.json \
+            --markdown-output build/track-c-batch2-id-capability-health.md
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          from pathlib import Path
+          report = json.loads(Path('build/track-c-batch2-id-capability-health.json').read_text(encoding='utf-8'))
+          if report.get('status') != 'COMPLETE_WITH_DECISIONS' or report.get('readOnly') is not True:
+              raise SystemExit('C2 decision matrix did not complete read-only')
+          summary = report['summary']
+          if summary['findingRows'] != int(os.environ['C1_FINDING_ROWS']):
+              raise SystemExit('C2 does not cover the exact frozen C1 finding cohort')
+          if summary['structuralAttentionCount'] != int(os.environ['C1_STRUCTURAL_ATTENTION']):
+              raise SystemExit('C2 structural cohort mismatch')
+          if report.get('safetyBoundary', {}).get('authorityMutated') is not False:
+              raise SystemExit('C2 must not mutate authority')
+          for key in ('findingRows', 'c3FindingRows', 'c3CanonicalSources', 'c4FindingRows'):
+              print(f"{key}={summary[key]}")
+          PY
+
+      - name: Prove C2 did not mutate frozen authority or evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(sha256sum farm/compatibility/source-registry.json | awk '{print $1}')" == "${{ steps.before.outputs.source_registry }}" ]]
+          [[ "$(sha256sum farm/upstream/source-health.json | awk '{print $1}')" == "${{ steps.before.outputs.source_health }}" ]]
+          [[ "$(sha256sum inventory/inventory/source-inventory.json | awk '{print $1}')" == "${{ steps.before.outputs.inventory }}" ]]
+          [[ "$(sha256sum build/c1/track-c-batch1-id-mapping.json | awk '{print $1}')" == "${{ steps.before.outputs.c1_report }}" ]]
+          test -z "$(git -C control status --porcelain)"
+          test -z "$(git -C inventory status --porcelain)"
+          test -z "$(git -C farm status --porcelain)"
+          test -z "$(git -C miyorare status --porcelain)"
+
+      - name: Upload C2 decision evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: track-c-batch2-id-capability-health-${{ github.run_id }}
+          path: |
+            build/track-c-batch2-id-capability-health.json
+            build/track-c-batch2-id-capability-health.md
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo '## Track C — Batch 2: ID Capability & Health Decision'
+            echo "Control: ${{ steps.pins.outputs.control_sha }}"
+            echo "Exact C1 run/artifact: $C1_RUN_ID / $C1_ARTIFACT_ID"
+            echo "Frozen C1 inventory: ${{ steps.pins.outputs.inventory_sha }}"
+            echo "Frozen C1 foundation: ${{ steps.pins.outputs.foundation_sha }}"
+            echo "Frozen C1 Miyorare Amain2: ${{ steps.pins.outputs.miyorare_sha }}"
+            echo "Finding rows: ${{ steps.c2.outputs.findingRows }}"
+            echo "Batch 3 finding rows: ${{ steps.c2.outputs.c3FindingRows }}"
+            echo "Batch 3 canonical sources: ${{ steps.c2.outputs.c3CanonicalSources }}"
+            echo "Batch 4 finding rows: ${{ steps.c2.outputs.c4FindingRows }}"
+            echo ''
+            cat build/track-c-batch2-id-capability-health.md
+          } >> "$GITHUB_STEP_SUMMARY"
