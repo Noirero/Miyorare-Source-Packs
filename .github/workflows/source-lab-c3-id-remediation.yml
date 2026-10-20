@@ -1,0 +1,428 @@
+name: Source Lab C3 ID Remediation Revalidation
+run-name: Source Lab C3 ID Remediation Revalidation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-c3-id-remediation.yml'
+      - 'tools/source_lab_c3_id_remediation.py'
+      - 'tests/test_source_lab_c3_id_remediation.py'
+      - 'tools/source_pending_worker.py'
+      - 'tools/source_live_parser_harness.py'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: source-lab-c3-id-remediation-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_OWNER_ID: '149634319'
+  SOURCE_PACKS_AFTER_C4: '5f4ec1f560ca7e2af081839b8fc4427e937dbfd2'
+
+  C2_RUN_ID: '39357613207'
+  C2_ARTIFACT_ID: '12235399586'
+  C2_ARTIFACT_NAME: 'track-c-batch2-id-capability-health-39357613207'
+  C2_ARTIFACT_DIGEST: 'sha256:9ad96880a878d20268576eb99833958fb1c9be9dfd09e5d62755073f5f30147c'
+  C2_HEAD_SHA: '325ace908d72a0fd6e75a0ac739b599a4d33a0d9'
+
+  C3_RUN_ID: '39362316682'
+  C3_ARTIFACT_ID: '12237618161'
+  C3_ARTIFACT_NAME: 'track-c-batch3-id-targeted-validation-39362316682'
+  C3_ARTIFACT_DIGEST: 'sha256:c320fa8cb1cf9811c0d4d9bd7e1f37528a4bac1ebf08e2704dfae243d05a82ee'
+  C3_HEAD_SHA: 'd286c04b1c9d37f65192345b49c8f37290280040'
+
+  C4_RUN_ID: '39364621532'
+  C4_ARTIFACT_ID: '12238367886'
+  C4_ARTIFACT_NAME: 'track-c-batch4-id-adoption-drift-39364621532'
+  C4_ARTIFACT_DIGEST: 'sha256:d589e472d5998f25542afc046156a2520adc7f335586eac5a565491efe8e1885'
+  C4_HEAD_SHA: '7ac4cb405efd1780505ea1351702383c127f7d85'
+
+  KEIYOUSHI_SHA: '314a0d1b2b6b194f6a4f9aee252fec9ce55ae5ca'
+  UMA_SHA: '08f814f7468835d9c9b465a9062aecc7ac142cdd'
+  GEKKOUSHI_SHA: '12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  remediation:
+    name: Revalidate the three unresolved ID runtime findings
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Validate safe execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" ]] || {
+                echo "::error::remediation accepts same-repository pull requests only"
+                exit 1
+              }
+              [[ "$PR_BASE_SHA" == "$SOURCE_PACKS_AFTER_C4" ]] || {
+                echo "::error::main moved after the frozen C4 remediation boundary"
+                exit 1
+              }
+              ;;
+            workflow_dispatch)
+              [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+              [[ "$GITHUB_REF_NAME" == "main" ]]
+              ;;
+            *) echo "::error::unexpected event: $GITHUB_EVENT_NAME"; exit 1 ;;
+          esac
+
+      - name: Checkout exact proposed remediation control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout exact UMA candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: InvalidDavid/UMA
+          ref: ${{ env.UMA_SHA }}
+          path: _upstream/candidate/uma
+          fetch-depth: 1
+
+      - name: Checkout exact Gekkoushi candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ env.GEKKOUSHI_SHA }}
+          path: _upstream/candidate/gekkoushi
+          fetch-depth: 1
+
+      - name: Checkout exact Keiyoushi reference
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: keiyoushi/extensions-source
+          ref: ${{ env.KEIYOUSHI_SHA }}
+          path: _upstream/reference/keiyoushi
+          fetch-depth: 1
+
+      - name: Prove provider heads did not drift
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          control_sha="$(git -C control rev-parse HEAD)"
+          [[ "$control_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git -C _upstream/candidate/uma rev-parse HEAD)" == "$UMA_SHA" ]]
+          [[ "$(git -C _upstream/candidate/gekkoushi rev-parse HEAD)" == "$GEKKOUSHI_SHA" ]]
+          [[ "$(git -C _upstream/reference/keiyoushi rev-parse HEAD)" == "$KEIYOUSHI_SHA" ]]
+          [[ "$(git -C _upstream/candidate/uma ls-remote origin refs/heads/master | awk '{print $1}')" == "$UMA_SHA" ]]
+          [[ "$(git -C _upstream/candidate/gekkoushi ls-remote origin refs/heads/master | awk '{print $1}')" == "$GEKKOUSHI_SHA" ]]
+          [[ "$(git -C _upstream/reference/keiyoushi ls-remote origin refs/heads/main | awk '{print $1}')" == "$KEIYOUSHI_SHA" ]]
+          echo "control_sha=$control_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Download and verify exact C2 C3 C4 evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/evidence
+          for label in C2 C3 C4; do
+            run_var="${label}_RUN_ID"
+            artifact_var="${label}_ARTIFACT_ID"
+            name_var="${label}_ARTIFACT_NAME"
+            digest_var="${label}_ARTIFACT_DIGEST"
+            head_var="${label}_HEAD_SHA"
+            run_id="${!run_var}"
+            artifact_id="${!artifact_var}"
+            artifact_name="${!name_var}"
+            expected_digest="${!digest_var}"
+            expected_head="${!head_var}"
+            metadata="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id")"
+            [[ "$(jq -r '.name' <<<"$metadata")" == "$artifact_name" ]]
+            [[ "$(jq -r '.expired' <<<"$metadata")" == "false" ]]
+            [[ "$(jq -r '.workflow_run.id' <<<"$metadata")" == "$run_id" ]]
+            [[ "$(jq -r '.workflow_run.head_sha' <<<"$metadata")" == "$expected_head" ]]
+            [[ "$(jq -r '.digest' <<<"$metadata")" == "$expected_digest" ]]
+            mkdir -p "build/evidence/${label,,}"
+            gh run download "$run_id" --repo "$GITHUB_REPOSITORY" -n "$artifact_name" -D "build/evidence/${label,,}"
+          done
+
+          c2="$(find build/evidence/c2 -name track-c-batch2-id-capability-health.json -print -quit)"
+          c3="$(find build/evidence/c3 -name track-c-batch3-id-targeted-validation.json -print -quit)"
+          c4="$(find build/evidence/c4 -name track-c-batch4-id-adoption-drift.json -print -quit)"
+          test -n "$c2"; test -s "$c2"
+          test -n "$c3"; test -s "$c3"
+          test -n "$c4"; test -s "$c4"
+          cp "$c2" build/c2-report.json
+          cp "$c3" build/c3-report.json
+          cp "$c4" build/c4-report.json
+
+      - name: Compile and run remediation regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in (
+              'tools/source_lab_c3_id_remediation.py',
+              'tools/source_pending_worker.py',
+              'tools/source_live_parser_harness.py',
+              'tests/test_source_lab_c3_id_remediation.py',
+              'tests/test_source_live_parser_harness.py',
+          ):
+              path = Path('control') / name
+              compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          PY
+          python3 -m unittest \
+            control/tests/test_source_lab_c3_id_remediation.py \
+            control/tests/test_source_live_parser_harness.py
+
+      - name: Build three-source remediation plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_c3_id_remediation.py plan \
+            --c2-report build/c2-report.json \
+            --c3-report build/c3-report.json \
+            --c4-report build/c4-report.json \
+            --uma-root _upstream/candidate/uma \
+            --gekkoushi-root _upstream/candidate/gekkoushi \
+            --output build/track-c-c3-id-remediation-plan.json \
+            --runtime-plan build/remediation-runtime-plan.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          plan = json.loads(Path('build/track-c-c3-id-remediation-plan.json').read_text())
+          runtime = json.loads(Path('build/remediation-runtime-plan.json').read_text())
+          assert plan['readOnly'] is True
+          assert plan['count'] == 3
+          assert runtime['count'] == 3
+          assert plan['structuralEvidence']['lumos']['gekkoushiDomain'] == 'lumos01.com'
+          assert plan['structuralEvidence']['lumos']['umaDomain'] == '03.lumosgg.com'
+          assert plan['structuralEvidence']['lumos']['keiyoushiBaseUrl'] == 'https://03.lumosgg.com'
+          soft = next(x for x in runtime['items'] if x['canonicalId'].endswith(':SOFTKOMIK'))
+          assert soft['allowUnauthenticatedLiveSmoke'] is True
+          assert soft['authOverrideScope'] == 'PUBLIC_BROWSE_ONLY_NO_CREDENTIALS'
+          assert not any(plan['safetyBoundary'].values())
+          PY
+
+      - name: Set up Java 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          packages: platform-tools
+
+      - name: Compile exact candidate provider baselines
+        shell: bash
+        run: |
+          set -u
+          printf '{"uma":{},"gekkoushi":{},"keiyoushi":{}}\n' > build/compile-candidate.json
+          for provider in uma gekkoushi; do
+            root="_upstream/candidate/$provider"
+            if (cd "$root" && chmod +x gradlew && ./gradlew buildJar --no-daemon); then ok=true; else ok=false; fi
+            PROVIDER="$provider" OK="$ok" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path('build/compile-candidate.json')
+          data = json.loads(path.read_text())
+          data[os.environ['PROVIDER']]['*'] = os.environ['OK'] == 'true'
+          path.write_text(json.dumps(data, indent=2) + '\n')
+          PY
+          done
+
+      - name: Profile source-scoped remediation implementations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_pending_worker.py assess \
+            --plan build/remediation-runtime-plan.json \
+            --keiyoushi-root _upstream/reference/keiyoushi \
+            --uma-root _upstream/candidate/uma \
+            --gekkoushi-root _upstream/candidate/gekkoushi \
+            --compile-results build/compile-candidate.json \
+            --timeout 8 \
+            --fail-threshold 3 \
+            --output build/remediation-profile-results.json
+
+      - name: Apply explicit public-smoke auth override only to planned source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_c3_id_remediation.py prepare-profiles \
+            --plan build/track-c-c3-id-remediation-plan.json \
+            --profiles build/remediation-profile-results.json \
+            --output build/remediation-harness-profile-results.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          original = json.loads(Path('build/remediation-profile-results.json').read_text())
+          adjusted = json.loads(Path('build/remediation-harness-profile-results.json').read_text())
+          old = {r['canonicalId']: r for r in original['results']}
+          new = {r['canonicalId']: r for r in adjusted['results']}
+          soft = 'miyorare:inventory-id:SOFTKOMIK'
+          assert old[soft]['authType'] != 'NO_AUTH'
+          assert new[soft]['authType'] == 'NO_AUTH'
+          assert new[soft]['originalAuthType'] == old[soft]['authType']
+          assert new[soft]['authSmokeOverride'] is True
+          for cid in new:
+              if cid != soft:
+                  assert new[cid].get('authSmokeOverride') is not True
+                  assert new[cid]['authType'] == old[cid]['authType']
+          PY
+
+      - name: Isolate unrelated upstream Gekkoushi tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="_upstream/candidate/gekkoushi"
+          if [[ -d "$root/src/test" ]]; then
+            mv "$root/src/test" "$root/_compatibility-upstream-tests"
+          fi
+
+      - name: Generate remediation live parser harnesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          for provider in uma gekkoushi; do
+            python3 control/tools/source_live_parser_harness.py generate \
+              --plan build/remediation-runtime-plan.json \
+              --profile-results build/remediation-harness-profile-results.json \
+              --provider "$provider" \
+              --provider-root "_upstream/candidate/$provider" \
+              --output "build/remediation-live-$provider-manifest.json"
+          done
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          manifests = [
+              json.loads(Path('build/remediation-live-uma-manifest.json').read_text()),
+              json.loads(Path('build/remediation-live-gekkoushi-manifest.json').read_text()),
+          ]
+          tests = [row for manifest in manifests for row in manifest['tests']]
+          blocked = [row for manifest in manifests for row in manifest['blocked']]
+          assert len(tests) + len(blocked) == 4
+          assert not any(row['canonicalId'].endswith(':SOFTKOMIK') for row in blocked), blocked
+          PY
+
+      - name: Execute generated remediation parser tests
+        shell: bash
+        run: |
+          set -u
+          for provider in uma gekkoushi; do
+            manifest="build/remediation-live-$provider-manifest.json"
+            mapfile -t tests < <(MANIFEST="$manifest" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          data = json.loads(Path(os.environ['MANIFEST']).read_text())
+          print('\n'.join(item['testClass'] for item in data.get('tests', [])))
+          PY
+            )
+            [[ ${#tests[@]} -gt 0 ]] || continue
+            args=()
+            for test in "${tests[@]}"; do args+=(--tests "$test"); done
+            (cd "_upstream/candidate/$provider" && chmod +x gradlew && ./gradlew test "${args[@]}" --no-daemon) || true
+          done
+
+      - name: Collect factual remediation runtime evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_live_parser_harness.py collect \
+            --manifest build/remediation-live-uma-manifest.json \
+            --manifest build/remediation-live-gekkoushi-manifest.json \
+            --output build/remediation-live-results.json
+
+      - name: Build remediation decision report
+        id: report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_c3_id_remediation.py report \
+            --plan build/track-c-c3-id-remediation-plan.json \
+            --live-results build/remediation-live-results.json \
+            --output build/track-c-c3-id-remediation-revalidation.json \
+            --markdown-output build/track-c-c3-id-remediation-revalidation.md
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          data = json.loads(Path('build/track-c-c3-id-remediation-revalidation.json').read_text())
+          assert data['readOnly'] is True
+          assert data['summary']['sources'] == 3
+          assert data['summary']['resolved'] + data['summary']['remaining'] == 3
+          assert not any(data['safetyBoundary'].values())
+          for row in data['decisions']:
+              assert row['safety']['readOnly'] is True
+              assert row['safety']['authorityMutation'] is False
+              assert row['safety']['providerAdoption'] is False
+              assert row['safety']['credentialInjection'] is False
+          print('status=' + data['status'])
+          print('resolved=' + str(data['summary']['resolved']))
+          print('remaining=' + str(data['summary']['remaining']))
+          print('handoffs=' + str(data['summary']['lifecycleHandoffs']))
+          PY
+
+      - name: Prove remediation stayed source scoped and read only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git -C control status --porcelain)"
+          [[ "$(git -C _upstream/candidate/uma rev-parse HEAD)" == "$UMA_SHA" ]]
+          [[ "$(git -C _upstream/candidate/gekkoushi rev-parse HEAD)" == "$GEKKOUSHI_SHA" ]]
+          [[ "$(git -C _upstream/reference/keiyoushi rev-parse HEAD)" == "$KEIYOUSHI_SHA" ]]
+          [[ "$(git -C _upstream/candidate/uma ls-remote origin refs/heads/master | awk '{print $1}')" == "$UMA_SHA" ]]
+          [[ "$(git -C _upstream/candidate/gekkoushi ls-remote origin refs/heads/master | awk '{print $1}')" == "$GEKKOUSHI_SHA" ]]
+          [[ "$(git -C _upstream/reference/keiyoushi ls-remote origin refs/heads/main | awk '{print $1}')" == "$KEIYOUSHI_SHA" ]]
+
+      - name: Upload remediation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: track-c-c3-id-remediation-${{ github.run_id }}
+          path: |
+            build/c2-report.json
+            build/c3-report.json
+            build/c4-report.json
+            build/track-c-c3-id-remediation-plan.json
+            build/remediation-runtime-plan.json
+            build/compile-candidate.json
+            build/remediation-profile-results.json
+            build/remediation-harness-profile-results.json
+            build/remediation-live-*-manifest.json
+            build/remediation-live-results.json
+            build/track-c-c3-id-remediation-revalidation.json
+            build/track-c-c3-id-remediation-revalidation.md
+            _upstream/candidate/uma/build/test-results/test/*.xml
+            _upstream/candidate/gekkoushi/build/test-results/test/*.xml
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Track C — C3 ID Remediation Revalidation'
+            echo "Control exact head: ${{ steps.pins.outputs.control_sha }}"
+            echo "Frozen C2/C3/C4 artifacts: $C2_ARTIFACT_ID / $C3_ARTIFACT_ID / $C4_ARTIFACT_ID"
+            echo "Provider heads: UMA $UMA_SHA / Gekkoushi $GEKKOUSHI_SHA / Keiyoushi $KEIYOUSHI_SHA"
+            echo 'Safety: read-only; no authority/provider/consumer mutation; no credentials injected.'
+            if [[ -f build/track-c-c3-id-remediation-revalidation.md ]]; then
+              cat build/track-c-c3-id-remediation-revalidation.md
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
