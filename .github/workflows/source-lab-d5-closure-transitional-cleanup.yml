@@ -1,0 +1,256 @@
+name: Source Lab D5 Track Closure
+run-name: Source Lab D5 Track Closure
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-d5-closure-transitional-cleanup.yml'
+      - 'compatibility/evidence/track-d-d5-closure-transitional-cleanup.json'
+      - 'tools/source_lab_d5_closure_transitional_cleanup.py'
+      - 'tests/test_source_lab_d5_closure_transitional_cleanup.py'
+      - '.github/workflows/source-lab-b4-en-adoption-drift.yml'
+      - '.github/workflows/source-lab-c4-id-adoption-drift.yml'
+      - '.github/workflows/source-lab-d1-convergence-baseline.yml'
+      - '.github/workflows/source-lab-d2-provider-preference-recovery.yml'
+      - '.github/workflows/source-lab-d3-unified-drift-health.yml'
+      - '.github/workflows/source-lab-d4-long-term-automation-acceptance.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: source-lab-d5-track-closure-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_OWNER_ID: '149634319'
+  POST_D4_MAIN: '7137764cec78c562b2a644bfc370730b98c905e8'
+  D4_RUN_ID: '39379002953'
+  D4_ARTIFACT_ID: '12243863340'
+  D4_ARTIFACT_NAME: 'track-d-d4-long-term-automation-acceptance-39379002953'
+  D4_ARTIFACT_DIGEST: 'sha256:17ea5f45621c75aa7bb74397caabec5ebfa4d1f0e5c41f0b315a9d8244a10033'
+  D4_HEAD_SHA: '9558fe04ba202b1796559f9d4420c99a0659746e'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  closure:
+    name: Close Track D and retire transitional automation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+
+    steps:
+      - name: Validate safe execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" ]] || { echo "::error::D5 accepts same-repository pull requests only"; exit 1; }
+              [[ "$PR_BASE_SHA" == "$POST_D4_MAIN" ]] || { echo "::error::D5 must start from exact post-D4 main"; exit 1; }
+              ;;
+            workflow_dispatch)
+              [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+              [[ "$GITHUB_REF_NAME" == "main" ]]
+              ;;
+            *) echo "::error::unexpected event: $GITHUB_EVENT_NAME"; exit 1 ;;
+          esac
+
+      - name: Checkout exact proposed D5 control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout live Compatibility Farm
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: compatibility-farm-foundation
+          path: farm
+          fetch-depth: 1
+
+      - name: Checkout live Miyorare Amain2 consumer
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Noirero/Miyorare
+          ref: Amain2
+          path: miyorare-amain2
+          fetch-depth: 1
+
+      - name: Pin live refs and D4 artifact binding
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          control_sha="$(git -C control rev-parse HEAD)"
+          farm_sha="$(git -C farm rev-parse HEAD)"
+          amain2_sha="$(git -C miyorare-amain2 rev-parse HEAD)"
+          [[ "$farm_sha" == "$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')" ]]
+          [[ "$amain2_sha" == "$(git -C miyorare-amain2 ls-remote origin refs/heads/Amain2 | awk '{print $1}')" ]]
+          echo "control=$control_sha" >> "$GITHUB_OUTPUT"
+          echo "farm=$farm_sha" >> "$GITHUB_OUTPUT"
+          echo "amain2=$amain2_sha" >> "$GITHUB_OUTPUT"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          baseline=json.loads(Path('control/compatibility/evidence/track-d-d5-closure-transitional-cleanup.json').read_text())
+          assert baseline['phase']=='TRACK_D_D5_CLOSURE_TRANSITIONAL_CLEANUP'
+          assert baseline['sourcePacksAfterD4']==os.environ['POST_D4_MAIN']
+          artifact=baseline['d4Artifact']
+          assert str(artifact['runId'])==os.environ['D4_RUN_ID']
+          assert str(artifact['artifactId'])==os.environ['D4_ARTIFACT_ID']
+          assert artifact['name']==os.environ['D4_ARTIFACT_NAME']
+          assert artifact['digest']==os.environ['D4_ARTIFACT_DIGEST']
+          assert artifact['headSha']==os.environ['D4_HEAD_SHA']
+          assert artifact['requiredStatus']=='D4_LONG_TERM_AUTOMATION_ACCEPTANCE_PROVEN'
+          PY
+
+      - name: Snapshot protected live state
+        id: before
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "upstream_registry=$(sha256sum farm/upstream/registry.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "status=$(sha256sum farm/upstream/status.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "source_registry=$(sha256sum farm/compatibility/source-registry.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "worker_state=$(sha256sum farm/automation/pending-worker-state.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Download exact successful D4 evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/d4
+          metadata="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$D4_ARTIFACT_ID")"
+          [[ "$(jq -r '.name' <<<"$metadata")" == "$D4_ARTIFACT_NAME" ]]
+          [[ "$(jq -r '.expired' <<<"$metadata")" == "false" ]]
+          [[ "$(jq -r '.workflow_run.id' <<<"$metadata")" == "$D4_RUN_ID" ]]
+          [[ "$(jq -r '.workflow_run.head_sha' <<<"$metadata")" == "$D4_HEAD_SHA" ]]
+          [[ "$(jq -r '.digest' <<<"$metadata")" == "$D4_ARTIFACT_DIGEST" ]]
+          gh run download "$D4_RUN_ID" --repo "$GITHUB_REPOSITORY" -n "$D4_ARTIFACT_NAME" -D build/d4
+          d4_report="$(find build/d4 -name track-d-d4-long-term-automation-acceptance.json -print -quit)"
+          test -n "$d4_report"; test -s "$d4_report"
+          cp "$d4_report" build/d4-report.json
+
+      - name: Run D5 closure regression tests
+        working-directory: control
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests.test_source_lab_d5_closure_transitional_cleanup -v
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in (
+              'tools/source_lab_d5_closure_transitional_cleanup.py',
+              'tests/test_source_lab_d5_closure_transitional_cleanup.py',
+              'tools/source_lab_a7_lkg_safety.py',
+          ):
+              path=Path(name)
+              compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          PY
+
+      - name: Reconfirm current Last-Known-Good safety
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_a7_lkg_safety.py \
+            --upstream-registry farm/upstream/registry.json \
+            --status farm/upstream/status.json \
+            --source-registry farm/compatibility/source-registry.json \
+            --promotion-workflow control/.github/workflows/source-lab-promote-candidate.yml \
+            --output build/a7-lkg-safety.json \
+            --markdown-output build/a7-lkg-safety.md
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path('build/a7-lkg-safety.json').read_text())
+          assert report['phase']=='A7_LKG_SAFETY'
+          assert report['status']=='SAFE'
+          assert report['violations']==[]
+          assert report['mutatesFoundation'] is False
+          assert report['promotionAttempted'] is False
+          PY
+
+      - name: Validate current provider release eligibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 farm/tools/release_eligibility.py validate \
+            --status farm/upstream/status.json \
+            --source-registry farm/compatibility/source-registry.json
+
+      - name: Build final Track D closure report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_d5_closure_transitional_cleanup.py \
+            --baseline control/compatibility/evidence/track-d-d5-closure-transitional-cleanup.json \
+            --d4-report build/d4-report.json \
+            --repo-root control \
+            --control-head '${{ steps.pins.outputs.control }}' \
+            --source-packs-base "$POST_D4_MAIN" \
+            --farm-commit '${{ steps.pins.outputs.farm }}' \
+            --miyorare-amain2 '${{ steps.pins.outputs.amain2 }}' \
+            --output build/track-d-d5-closure-transitional-cleanup.json \
+            --markdown-output build/track-d-d5-closure-transitional-cleanup.md
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path('build/track-d-d5-closure-transitional-cleanup.json').read_text())
+          assert report['phase']=='TRACK_D_D5_CLOSURE_TRANSITIONAL_CLEANUP'
+          assert report['trackDClosed'] is True
+          assert report['nextStage'] is None
+          assert report['status'] in {'TRACK_D_CLOSED','TRACK_D_CLOSED_WITH_OPERATIONAL_HANDOFFS'}
+          assert report['closure']['permanentMaintenanceModelEstablished'] is True
+          assert report['closure']['transitionalWorkflowsRetired'] is True
+          assert report['closure']['historicalEvidencePreserved'] is True
+          assert report['operationalHandoffs']['blocksTrackClosure'] is False
+          assert not any(report['safety'].values())
+          PY
+
+      - name: Recheck live refs and prove D5 is authority-read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ '${{ steps.pins.outputs.farm }}' == "$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')" ]]
+          [[ '${{ steps.pins.outputs.amain2 }}' == "$(git -C miyorare-amain2 ls-remote origin refs/heads/Amain2 | awk '{print $1}')" ]]
+          [[ "$(sha256sum farm/upstream/registry.json | awk '{print $1}')" == '${{ steps.before.outputs.upstream_registry }}' ]]
+          [[ "$(sha256sum farm/upstream/status.json | awk '{print $1}')" == '${{ steps.before.outputs.status }}' ]]
+          [[ "$(sha256sum farm/compatibility/source-registry.json | awk '{print $1}')" == '${{ steps.before.outputs.source_registry }}' ]]
+          [[ "$(sha256sum farm/automation/pending-worker-state.json | awk '{print $1}')" == '${{ steps.before.outputs.worker_state }}' ]]
+          for checkout in control farm miyorare-amain2; do
+            dirty="$(git -C "$checkout" status --porcelain)"
+            if [[ -n "$dirty" ]]; then
+              echo "::error::D5 found a dirty checkout: $checkout"
+              printf '%s\n' "$dirty"
+              exit 1
+            fi
+          done
+
+      - name: Upload final Track D closure evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: track-d-d5-closure-transitional-cleanup-${{ github.run_id }}
+          path: |
+            build/d4-report.json
+            build/a7-lkg-safety.json
+            build/a7-lkg-safety.md
+            build/track-d-d5-closure-transitional-cleanup.json
+            build/track-d-d5-closure-transitional-cleanup.md
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f build/track-d-d5-closure-transitional-cleanup.md ]]; then
+            cat build/track-d-d5-closure-transitional-cleanup.md >> "$GITHUB_STEP_SUMMARY"
+          fi
