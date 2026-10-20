@@ -16,6 +16,7 @@ A = "a" * 40
 B = "b" * 40
 LUMOS = D2.LUMOS
 SCOPED = "miyorare:inventory-id:SCOPED"
+LEGACY = "miyorare:inventory-en:LEGACY"
 READY_ID = "miyorare:inventory-id:READY"
 
 
@@ -113,6 +114,14 @@ def registry() -> dict:
                 },
             },
             {
+                "canonicalId": LEGACY,
+                "providers": ["gekkoushi"],
+                "currentVersion": {"gekkoushi": B},
+                "lastKnownGood": {"gekkoushi": B},
+                "compatibilityEnrollment": {"state": "ACTIVE"},
+                "onboardingApproval": {"state": "APPROVED", "approvedAt": "2026-01-01T00:00:00Z"},
+            },
+            {
                 "canonicalId": READY_ID,
                 "providers": ["uma"],
                 "currentVersion": {"uma": A},
@@ -140,49 +149,33 @@ def worker() -> dict:
 
 
 def manifest() -> dict:
-    return {
-        "schemaVersion": 1,
-        "proofs": {name: {"passed": True} for name in baseline()["requiredBehaviorProofs"]},
-    }
+    return {"schemaVersion": 1, "proofs": {name: {"passed": True} for name in baseline()["requiredBehaviorProofs"]}}
 
 
 def authority_code() -> dict[str, str]:
     return {
         "workerTool": "\n".join([
-            "def ready_evidence_is_stale(",
-            "def invalidate_stale_ready(",
-            'entry["state"] = RETRY',
-            'entry["approvalState"] = "NOT_READY"',
-            'entry["revalidationReason"] = "PROVIDER_BASELINE_CHANGED"',
+            "def ready_evidence_is_stale(", "def invalidate_stale_ready(", 'entry["state"] = RETRY',
+            'entry["approvalState"] = "NOT_READY"', 'entry["revalidationReason"] = "PROVIDER_BASELINE_CHANGED"',
             "baseline_reset = is_retry and retry_evidence_is_stale",
         ]),
         "approvalTool": "\n".join([
-            'source["providers"] = list(active_providers)',
-            'source["upstreamIdentities"] = {',
-            'source["onboardingApproval"] = {',
-            '"activeProviders": list(active_providers)',
-            '"heldProviders": item["heldProviders"]',
-            'raise ValueError("approval plan changed; refusing stale approval")',
+            'source["providers"] = list(active_providers)', 'source["upstreamIdentities"] = {',
+            'source["onboardingApproval"] = {', '"activeProviders": list(active_providers)',
+            '"heldProviders": item["heldProviders"]', 'raise ValueError("approval plan changed; refusing stale approval")',
         ]),
         "promotionWorkflow": "\n".join([
-            "approval sourceScope changed",
-            "scoped source is not a {provider} member",
-            "source state moved",
-            "active/LKG moved",
-            'entry["state"] = "RETRY"',
-            'entry["revalidationReason"] = "PROVIDER_BASELINE_CHANGED"',
-            'entry["invalidatedByPromotionRunId"]',
-            "Refuse promotion if foundation moved after validation",
+            "approval sourceScope changed", "scoped source is not a {provider} member", "source state moved",
+            "active/LKG moved", 'entry["state"] = "RETRY"', 'entry["revalidationReason"] = "PROVIDER_BASELINE_CHANGED"',
+            'entry["invalidatedByPromotionRunId"]', "Refuse promotion if foundation moved after validation",
         ]),
         "farmApprovalTool": "\n".join([
-            "def validate_source_scope(",
-            "approval sourceScope does not match pending candidate",
+            "def validate_source_scope(", "approval sourceScope does not match pending candidate",
             "registry changed after staging; approval is stale",
         ]),
         "farmPromotionTool": "\n".join([
             "authorization sourceScope does not match requested/pending sourceScope",
-            "registry lastKnownGood changed after authorization; approval is stale",
-            "Source-level LKG mutation is",
+            "registry lastKnownGood changed after authorization; approval is stale", "Source-level LKG mutation is",
         ]),
     }
 
@@ -196,13 +189,29 @@ class D2Tests(unittest.TestCase):
 
     def test_clean_acceptance_proves_all_three_d2_invariants(self):
         report = self.build()
+        preference = report["proofs"]["providerPreference"]
         self.assertEqual(report["status"], "D2_PROVIDER_PREFERENCE_RECOVERY_PROVEN")
         self.assertFalse(report["trackDClosed"])
         self.assertEqual(report["nextStage"], D2.NEXT_STAGE)
-        self.assertEqual(report["proofs"]["providerPreference"]["status"], "PROVEN")
+        self.assertEqual(preference["status"], "PROVEN")
+        self.assertEqual(preference["scopedApprovedSourceCount"], 1)
+        self.assertEqual(preference["legacyProviderWideApprovals"], [LEGACY])
         self.assertEqual(report["proofs"]["candidateLkgRecoveryIsolation"]["status"], "PROVEN")
         self.assertEqual(report["proofs"]["staleReadyInvalidation"]["liveReadyCount"], 1)
         self.assertFalse(any(report["safety"].values()))
+
+    def test_historical_provider_wide_approval_is_not_misread_as_partial_scope(self):
+        report = self.build()
+        preference = report["proofs"]["providerPreference"]
+        self.assertEqual(preference["legacyProviderWideApprovalCount"], 1)
+        self.assertNotIn(LEGACY, [row["canonicalId"] for row in preference["scopedApprovedSources"]])
+
+    def test_one_sided_partial_provider_authority_fails_closed(self):
+        reg = registry()
+        legacy = next(row for row in reg["sources"] if row["canonicalId"] == LEGACY)
+        legacy["onboardingApproval"]["activeProviders"] = ["gekkoushi"]
+        with self.assertRaisesRegex(D2.D2Error, "onboarding provider authority malformed"):
+            self.build(reg=reg)
 
     def test_held_provider_cannot_reenter_scoped_active_authority(self):
         reg = registry()
