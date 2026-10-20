@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "provider": "KOTATSU",
   "repository": "Kotatsu-Redo/kotatsu-parsers-redo",
   "branch": "master",
@@ -13,7 +13,12 @@
   "artifact": "kotatsu-parsers.jar",
   "namespace": {
     "from": "org.koitharu.kotatsu.parsers",
-    "to": "tsuki"
+    "to": "miyorare.kotatsuredo"
+  },
+  "bridge": {
+    "factory": "tsuki.MangaParserFactoryKt",
+    "sourceEnum": "tsuki.model.MangaParserSource",
+    "strategy": "private-runtime-with-tsuki-facade"
   },
   "policy": {
     "optional": true,

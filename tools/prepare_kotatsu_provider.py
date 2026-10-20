@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Prepare a Kotatsu-Redo checkout as a Tsuki 1.0.5 compatibility plugin.
+"""Prepare a Kotatsu-Redo checkout as an isolated runtime with a Tsuki 1.0.5 facade.
 
-The transformation is intentionally build-only. Upstream source remains authoritative and pinned by
-compatibility/kotatsu-provider.v1.json. Shared Tsuki ABI files are removed from the disposable
-checkout so every remaining parser is compiled against the exact host ABI instead of silently
-shipping a second copy of the runtime contract.
+The upstream implementation is relocated as one intact module into a private plugin namespace.
+Only the tiny generated facade is linked to Miyorare's parent-loaded Tsuki ABI. This avoids both
+replacing the host's existing parser dependency and splitting modern Kotatsu model/core classes
+across module boundaries.
 """
 
 from __future__ import annotations
@@ -14,8 +14,9 @@ import json
 from pathlib import Path
 
 FROM_NAMESPACE = "org.koitharu.kotatsu.parsers"
-TO_NAMESPACE = "tsuki"
+TO_NAMESPACE = "miyorare.kotatsuredo"
 HOST_JAR_PROPERTY = "miyorareHostTsukiJar"
+FACADE_PROVIDER = "miyorare.kotatsuredo.ksp.MiyorareFacadeProcessorProvider"
 
 
 def fail(message: str) -> "NoReturn":
@@ -30,31 +31,11 @@ def replace_text(path: Path, old: str, new: str) -> int:
     return count
 
 
-def remove_host_overlaps(upstream: Path, host: Path) -> list[str]:
-    upstream_root = upstream / "src/main/kotlin/org/koitharu/kotatsu/parsers"
-    host_root = host / "src/main/kotlin/tsuki"
-    if not upstream_root.is_dir():
-        fail(f"missing Kotatsu parser source root: {upstream_root}")
-    if not host_root.is_dir():
-        fail(f"missing Tsuki host source root: {host_root}")
-
-    removed: list[str] = []
-    for host_file in sorted(host_root.rglob("*.kt")):
-        relative = host_file.relative_to(host_root)
-        candidate = upstream_root / relative
-        if candidate.is_file():
-            candidate.unlink()
-            removed.append(relative.as_posix())
-    return removed
-
-
 def patch_build(upstream: Path) -> None:
     build = upstream / "build.gradle.kts"
     text = build.read_text(encoding="utf-8")
     marker = "dependencies {\n"
-    dependency = (
-        f'    compileOnly(files(providers.gradleProperty("{HOST_JAR_PROPERTY}").get()))\n'
-    )
+    dependency = f'    compileOnly(files(providers.gradleProperty("{HOST_JAR_PROPERTY}").get()))\n'
     if dependency not in text:
         if marker not in text:
             fail("could not find root dependencies block")
@@ -98,54 +79,57 @@ def transform_namespaces(upstream: Path) -> int:
     if not service.is_file():
         fail(f"missing KSP service descriptor: {service}")
     changed += replace_text(service, FROM_NAMESPACE, TO_NAMESPACE)
+    providers = [line.strip() for line in service.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if FACADE_PROVIDER not in providers:
+        providers.append(FACADE_PROVIDER)
+    service.write_text("\n".join(providers) + "\n", encoding="utf-8")
 
     changed += replace_text(upstream / "build.gradle.kts", FROM_NAMESPACE, TO_NAMESPACE)
     return changed
 
 
-def verify_no_duplicate_host_sources(upstream: Path, host: Path) -> None:
-    upstream_root = upstream / "src/main/kotlin/org/koitharu/kotatsu/parsers"
-    host_root = host / "src/main/kotlin/tsuki"
-    duplicates = [
-        path.relative_to(upstream_root).as_posix()
-        for path in upstream_root.rglob("*.kt")
-        if (host_root / path.relative_to(upstream_root)).is_file()
-    ]
-    if duplicates:
-        fail("shared Tsuki sources remain in shard: " + ", ".join(sorted(duplicates)[:20]))
+def verify_transform(upstream: Path) -> None:
+    offenders: list[str] = []
+    for root in (
+        upstream / "src/main/kotlin",
+        upstream / "kotatsu-parsers-ksp/src/main/kotlin",
+    ):
+        for path in root.rglob("*.kt"):
+            if FROM_NAMESPACE in path.read_text(encoding="utf-8"):
+                offenders.append(str(path.relative_to(upstream)))
+    if offenders:
+        fail("unrelocated Kotatsu namespace remains in: " + ", ".join(offenders[:20]))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--upstream", required=True, type=Path)
-    parser.add_argument("--host-tsuki", required=True, type=Path)
     parser.add_argument("--metadata-out", required=True, type=Path)
     args = parser.parse_args()
 
     upstream = args.upstream.resolve()
-    host = args.host_tsuki.resolve()
-    removed = remove_host_overlaps(upstream, host)
     replacements = transform_namespaces(upstream)
     patch_build(upstream)
-    verify_no_duplicate_host_sources(upstream, host)
+    verify_transform(upstream)
 
     if replacements < 100:
         fail(f"unexpectedly small namespace transformation: {replacements} replacements")
 
     metadata = {
-        "schema": 1,
+        "schema": 2,
         "namespaceFrom": FROM_NAMESPACE,
         "namespaceTo": TO_NAMESPACE,
         "hostJarProperty": HOST_JAR_PROPERTY,
-        "removedSharedSourceCount": len(removed),
+        "facadeProcessor": FACADE_PROVIDER,
         "namespaceReplacementCount": replacements,
-        "removedSharedSources": removed,
+        "sharedAbiRemovalCount": 0,
+        "strategy": "private-runtime-with-tsuki-facade",
     }
     args.metadata_out.parent.mkdir(parents=True, exist_ok=True)
     args.metadata_out.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     print(
-        f"prepared Kotatsu provider: removed {len(removed)} shared ABI files; "
-        f"rewrote {replacements} namespace references"
+        f"prepared isolated Kotatsu provider: rewrote {replacements} namespace references; "
+        "kept modern runtime/model classes intact"
     )
 
 
