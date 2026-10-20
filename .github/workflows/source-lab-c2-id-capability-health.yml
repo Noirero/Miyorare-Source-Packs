@@ -115,7 +115,7 @@ jobs:
           [[ "$(jq -r '.workflow_run.id' <<<"$metadata")" == "$C1_RUN_ID" ]]
           [[ "$(jq -r '.digest' <<<"$metadata")" == "$C1_ARTIFACT_DIGEST" ]]
           mkdir -p build/c1
-          gh run download "$C1_RUN_ID" -n "$C1_ARTIFACT_NAME" -D build/c1
+          gh run download "$C1_RUN_ID" --repo "$GITHUB_REPOSITORY" -n "$C1_ARTIFACT_NAME" -D build/c1
           test -s build/c1/track-c-batch1-id-mapping.json
           test -s build/c1/track-c-batch1-id-mapping.md
           python3 - <<'PY'
