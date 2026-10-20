@@ -227,9 +227,14 @@ jobs:
           [[ "$(sha256sum farm-current/compatibility/source-registry.json | awk '{print $1}')" == '${{ steps.before.outputs.registry }}' ]]
           [[ "$(sha256sum farm-current/automation/pending-worker-state.json | awk '{print $1}')" == '${{ steps.before.outputs.worker }}' ]]
           [[ "$(sha256sum farm-current/upstream/status.json | awk '{print $1}')" == '${{ steps.before.outputs.status }}' ]]
-          test -z "$(git -C control status --porcelain)"
-          test -z "$(git -C farm-current status --porcelain)"
-          test -z "$(git -C farm-reviewed status --porcelain)"
+          for checkout in control farm-current farm-reviewed; do
+            dirty="$(git -C "$checkout" status --porcelain)"
+            if [[ -n "$dirty" ]]; then
+              echo "::error::D3 read-only proof found a dirty checkout: $checkout"
+              printf '%s\n' "$dirty"
+              exit 1
+            fi
+          done
 
       - name: Upload D3 convergence evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
