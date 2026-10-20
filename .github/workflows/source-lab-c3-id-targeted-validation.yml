@@ -185,7 +185,7 @@ jobs:
           import json, os
           from pathlib import Path
           report = json.loads(Path('build/c2/track-c-batch2-id-capability-health.json').read_text())
-          assert report['phase'] == 'TRACK_C_BATCH_2_ID_CAPABILITY_HEALTH'
+          assert report['phase'] == 'TRACK_C_BATCH_2_ID_CAPABILITY_HEALTH_DECISION'
           assert report['readOnly'] is True
           assert report['language'] == 'id'
           assert report['summary']['c3CanonicalSources'] == int(os.environ['C3_CANONICAL_SOURCES'])
