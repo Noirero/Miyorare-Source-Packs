@@ -70,7 +70,7 @@ tasks.register("writeMiyorareCompileClasspath") {
     outputs.file(output)
     doLast {
         output.get().asFile.writeText(
-            configurations.compileClasspath.get().files.joinToString(java.io.File.pathSeparator),
+            configurations.compileClasspath.get().files.joinToString(System.getProperty("path.separator")),
         )
     }
 }
