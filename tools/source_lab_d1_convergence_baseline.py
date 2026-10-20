@@ -212,11 +212,20 @@ def validate_operational_convergence(track_c_rows: dict[str, dict[str, Any]], re
     if isinstance(retry_policy, dict) and retry_policy.get("genericFailThresholdAutoHold") is not False:
         raise ConvergenceError("MangaBall retry policy unexpectedly allows generic auto-hold")
 
+    soft_decision = track_c_rows[SOFTKOMIK]
+    auth_semantics = soft_decision.get("authSemantics")
+    if soft_decision.get("lifecycleCategory") != "AUTH_REQUIRED" or not isinstance(auth_semantics, dict):
+        raise ConvergenceError("SoftKomik C5 auth semantics are missing")
+    if auth_semantics.get("credentialInjectionAllowed") is not False or auth_semantics.get("autoCredentialProvisioning") is not False or auth_semantics.get("holdCandidate") is not True:
+        raise ConvergenceError("SoftKomik C5 auth safety semantics changed")
+
     soft_worker = workers[SOFTKOMIK]
-    if soft_worker.get("state") != "NEEDS_ATTENTION" or soft_worker.get("failureCategory") != "AUTH_REQUIRED":
-        raise ConvergenceError("SoftKomik no longer follows AUTH_REQUIRED owner-action semantics")
+    if soft_worker.get("state") != "NEEDS_ATTENTION":
+        raise ConvergenceError("SoftKomik no longer remains in the owner-action lifecycle lane")
     if soft_worker.get("authType") not in {"TOKEN", "FORM", "COOKIE"}:
         raise ConvergenceError("SoftKomik auth type is no longer explicit")
+    if soft_worker.get("authType") != auth_semantics.get("authType"):
+        raise ConvergenceError("SoftKomik live auth type diverged from C5 closure")
 
     return [
         {
@@ -238,9 +247,9 @@ def validate_operational_convergence(track_c_rows: dict[str, dict[str, Any]], re
         },
         {
             "canonicalId": SOFTKOMIK,
-            "trackCDisposition": track_c_rows[SOFTKOMIK]["disposition"],
+            "trackCDisposition": soft_decision["disposition"],
+            "lifecycleCategory": soft_decision.get("lifecycleCategory"),
             "liveState": soft_worker.get("state"),
-            "failureCategory": soft_worker.get("failureCategory"),
             "authType": soft_worker.get("authType"),
             "converged": True,
         },
