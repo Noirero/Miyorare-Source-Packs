@@ -14,7 +14,13 @@ from typing import Any
 PROFILE_READY = "PARSER_PENDING"
 PACKAGE_RE = re.compile(r"(?m)^\s*package\s+([A-Za-z0-9_.]+)\s*$")
 CLASS_RE = re.compile(
-    r"(?:internal\s+|public\s+|private\s+|protected\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*MangaLoaderContext",
+    r"(?:internal\s+|public\s+|private\s+|protected\s+|abstract\s+|open\s+|final\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*MangaLoaderContext",
+    re.S,
+)
+ANNOTATED_CLASS_RE = re.compile(
+    r"@MangaSourceParser\s*\(\s*\"(?P<source>[A-Za-z0-9_]+)\".*?\)\s*"
+    r"(?:(?:internal|public|private|protected|abstract|open|final|data|sealed)\s+)*"
+    r"class\s+(?P<class>[A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*MangaLoaderContext",
     re.S,
 )
 
@@ -46,13 +52,44 @@ def profile_map(profile_results: dict[str, Any]) -> dict[str, dict[str, Any]]:
     }
 
 
-def detect_tsuki_class(path: Path) -> str:
+def detect_tsuki_class_candidates(path: Path, source_name: str | None = None) -> list[str]:
     text = path.read_text(encoding="utf-8", errors="ignore")
     package = PACKAGE_RE.search(text)
-    klass = CLASS_RE.search(text)
-    if package is None or klass is None:
+    first = CLASS_RE.search(text)
+    if package is None or first is None:
         raise ValueError(f"could not resolve MangaLoaderContext parser class from {path}")
-    return f"{package.group(1)}.{klass.group(1)}"
+
+    package_name = package.group(1)
+    candidates: list[str] = []
+    if source_name:
+        annotated = next(
+            (match for match in ANNOTATED_CLASS_RE.finditer(text) if match.group("source") == source_name),
+            None,
+        )
+        if annotated is not None:
+            annotated_name = annotated.group("class")
+            if annotated_name == first.group(1):
+                candidates.append(f"{package_name}.{annotated_name}")
+            else:
+                between = text[first.end():annotated.start()]
+                if between.count("{") - between.count("}") > 0:
+                    candidates.append(f"{package_name}.{first.group(1)}${annotated_name}")
+                    candidates.append(f"{package_name}.{first.group(1)}$Companion${annotated_name}")
+                candidates.append(f"{package_name}.{annotated_name}")
+
+    if not candidates:
+        candidates.append(f"{package_name}.{first.group(1)}")
+
+    return list(dict.fromkeys(candidates))
+
+
+def detect_tsuki_class(path: Path, source_name: str | None = None) -> str:
+    return detect_tsuki_class_candidates(path, source_name)[0]
+
+
+def kotlin_string(value: str) -> str:
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
+    return f'"{escaped}"'
 
 
 def live_context_source() -> str:
@@ -114,7 +151,9 @@ internal class LiveMangaLoaderContext : MangaLoaderContext() {
 '''
 
 
-def tsuki_test_source(test_class: str, fqcn: str) -> str:
+def tsuki_test_source(test_class: str, fqcn_candidates: list[str] | str) -> str:
+    candidates = [fqcn_candidates] if isinstance(fqcn_candidates, str) else fqcn_candidates
+    rendered_candidates = ",\n            ".join(kotlin_string(value) for value in candidates)
     return f'''package compatibilityfarm
 
 import kotlinx.coroutines.runBlocking
@@ -129,7 +168,13 @@ import tsuki.model.SortOrder
 internal class {test_class} {{
     @Test
     fun browseDetailsChaptersAndPagesExecuteRealParserCode() = runBlocking {{
-        val type = Class.forName("{fqcn}")
+        val type = listOf(
+            {rendered_candidates}
+        ).asSequence().mapNotNull {{ name ->
+            runCatching {{ Class.forName(name) }}.getOrNull()
+        }}.firstOrNull {{ candidate ->
+            runCatching {{ candidate.getDeclaredConstructor(MangaLoaderContext::class.java) }}.isSuccess
+        }} ?: error("no MangaLoaderContext parser class resolved from candidates")
         val ctor = type.getDeclaredConstructor(MangaLoaderContext::class.java).apply {{ isAccessible = true }}
         val parser = ctor.newInstance(LiveMangaLoaderContext()) as MangaParser
 
@@ -244,6 +289,7 @@ class {test_class} {{
 
             val pageRequest = call("pageListRequest", arrayOf(SChapter::class.java), chapters.first()) as Request
             val pages = execute(pageRequest) {{ response ->
+                @Suppress("UNCHECKED_CAST")
                 call("pageListParse", arrayOf(Response::class.java), response) as List<*>
             }}
             assertFalse("first chapter returned no pages", pages.isEmpty())
@@ -347,17 +393,19 @@ def generate(
                 )
             else:
                 source_path = provider_root / locator
-                fqcn = detect_tsuki_class(source_path)
+                source_name = identity.get("sourceName") if isinstance(identity.get("sourceName"), str) else None
+                fqcn_candidates = detect_tsuki_class_candidates(source_path, source_name)
                 target = provider_root / "src/test/kotlin/compatibilityfarm"
                 (target / f"{test_class}.kt").write_text(
-                    tsuki_test_source(test_class, fqcn), encoding="utf-8"
+                    tsuki_test_source(test_class, fqcn_candidates), encoding="utf-8"
                 )
                 tests.append(
                     {
                         "canonicalId": canonical_id,
                         "provider": provider,
                         "locator": locator,
-                        "fqcn": fqcn,
+                        "fqcn": fqcn_candidates[0],
+                        "fqcnCandidates": fqcn_candidates,
                         "testClass": f"compatibilityfarm.{test_class}",
                         "resultsDir": str(provider_root / "build/test-results/test"),
                     }
