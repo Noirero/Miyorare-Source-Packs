@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "phase": "TRACK_D_D4_LONG_TERM_AUTOMATION_ACCEPTANCE",
+  "readOnlyAcceptance": true,
+  "sourcePacksAfterD3": "6f62388f87f00ca1c6bf33425f6efdf2f8567054",
+  "compatibilityFarmBaseline": "b7ca433c756caf210a4e0dbe7a2542a23e60eee7",
+  "miyorareAmain2Baseline": "f366d775c5b4c3a330b4baf105e24ce93fd66fc7",
+  "d3Artifact": {
+    "runId": 39377086734,
+    "artifactId": 12243378299,
+    "name": "track-d-d3-unified-drift-health-39377086734",
+    "digest": "sha256:d36ba29807c236f769be48b1492d2b8741ebbd896e6fe37f849d55391806d8ef",
+    "headSha": "2cb443121ce8a4d6250a473c6a46b2732d394869",
+    "requiredStatus": "D3_UNIFIED_DRIFT_HEALTH_PROVEN_WITH_OWNER_PACK_HANDOFFS"
+  },
+  "permanentChain": {
+    "upstreamDetection": ".github/workflows/source-lab-auto-farm.yml",
+    "runtimeValidation": ".github/workflows/source-lab-pending-worker.yml",
+    "sourceApproval": ".github/workflows/source-lab-approve-ready-sources.yml",
+    "providerPromotion": ".github/workflows/source-lab-promote-candidate.yml",
+    "lkgSafety": ".github/workflows/source-lab-a7-lkg-safety.yml",
+    "releaseController": ".github/workflows/source-pack-autonomous-release.yml",
+    "releasePublisher": ".github/workflows/release-source-packs.yml",
+    "releaseSeal": ".github/workflows/source-pack-release-seal.yml",
+    "promotionAuthority": "governance/automation-promotion-authority.v1.json"
+  },
+  "requiredAcceptance": [
+    "upstream/provider drift is detected against authoritative Last-Known-Good without replacing LKG",
+    "runtime validation routes evidence into fail-closed lifecycle states and preserves owner mutation boundaries",
+    "stale evidence, partial provider failure, rollback, and publish recovery remain isolated and bounded",
+    "builder promotion requires exact ID/EN/Global checks and Main Required Gates",
+    "stable release uses one controller, one publisher, immutable compatibility evidence, sealing, and post-publish audit"
+  ],
+  "nextStage": "TRACK_D_D5_CLOSURE_TRANSITIONAL_CLEANUP"
+}
