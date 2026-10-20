@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "phase": "TRACK_C_BATCH_4_ID_ADOPTION_DRIFT_BASELINE",
+  "readOnly": true,
+  "refs": {
+    "sourcePacksAfterBatch3": "7eb7073679f77398d6814aa1989730e4423c895e",
+    "sourceInventory": "2c4768c7ea9914030868792bcd73d5f7f461907b",
+    "compatibilityFarm": "654af67becbdb0adf85ab87663674ba7340b3cf4",
+    "miyorareAmain2": "f366d775c5b4c3a330b4baf105e24ce93fd66fc7"
+  },
+  "artifacts": {
+    "batch2": {
+      "runId": 39357613207,
+      "artifactId": 12235399586,
+      "name": "track-c-batch2-id-capability-health-39357613207",
+      "digest": "sha256:9ad96880a878d20268576eb99833958fb1c9be9dfd09e5d62755073f5f30147c",
+      "headSha": "325ace908d72a0fd6e75a0ac739b599a4d33a0d9"
+    },
+    "batch3": {
+      "runId": 39362316682,
+      "artifactId": 12237618161,
+      "name": "track-c-batch3-id-targeted-validation-39362316682",
+      "digest": "sha256:c320fa8cb1cf9811c0d4d9bd7e1f37528a4bac1ebf08e2704dfae243d05a82ee",
+      "headSha": "d286c04b1c9d37f65192345b49c8f37290280040"
+    }
+  },
+  "consumer": {
+    "repository": "Noirero/Miyorare",
+    "branch": "Amain2"
+  },
+  "batch2Carry": {
+    "findingRows": 9,
+    "canonicalSources": 7,
+    "decisions": {
+      "NO_C3_REDUNDANT_PROVIDER_DISCOVERY": 2,
+      "NO_C3_REFERENCE_ONLY_PROVIDER_DISCOVERY": 3,
+      "NO_C3_UMA_NOT_CURATED_REDUNDANT_COVERAGE": 4
+    },
+    "canonicalIds": [
+      "miyorare:inventory-id:KOMBATCH",
+      "miyorare:inventory-id:LIANSCANS",
+      "miyorare:inventory-id:LUMOSKOMIK",
+      "miyorare:inventory-id:MANGAPLUSINDONESIAN",
+      "miyorare:inventory-id:MANHWADESU",
+      "miyorare:inventory-id:MIKOROKU",
+      "miyorare:inventory-id:WEBTOONSINDONESIA"
+    ]
+  },
+  "batch3Boundary": {
+    "canonicalSources": 8,
+    "c2FindingRowsCovered": 9,
+    "c4Sources": 5,
+    "remediationSources": 3,
+    "adoptionEligibleSources": 1,
+    "decisions": {
+      "CONSUMED_GEKKOUSHI_RUNTIME_NOT_VALIDATED": 1,
+      "REFERENCE_MOVED_OUT_OF_ID_SCOPE": 1,
+      "REFERENCE_REMOVED_UPSTREAM": 1,
+      "REFERENCE_SOURCE_ID_MIGRATION_CONFIRMED": 2,
+      "UNCURATED_UMA_RUNTIME_NOT_VALIDATED": 2,
+      "UNENROLLED_UMA_RUNTIME_VALIDATED": 1
+    },
+    "c4CanonicalIds": [
+      "miyorare:inventory-id:DAILYSUKA",
+      "miyorare:inventory-id:IKIRU",
+      "miyorare:inventory-id:MIKOROKU",
+      "miyorare:inventory-id:PORNHWA18",
+      "miyorare:inventory-id:THRIVEMOE"
+    ],
+    "remediationCanonicalIds": [
+      "miyorare:inventory-id:LUMOSKOMIK",
+      "miyorare:inventory-id:MANGABALLINDONESIAN",
+      "miyorare:inventory-id:SOFTKOMIK"
+    ],
+    "adoptionEligibleCanonicalIds": [
+      "miyorare:inventory-id:THRIVEMOE"
+    ]
+  },
+  "adoptionPolicy": {
+    "mode": "PASS_ONLY",
+    "eligibleDecision": "UNENROLLED_UMA_RUNTIME_VALIDATED",
+    "requireSourceScopedEnrollment": true,
+    "allowImplicitReplacement": false,
+    "allowReferenceOnlyPromotion": false,
+    "allowAutomaticConsumerMutation": false
+  },
+  "existingAutomation": {
+    "inventory": ".github/workflows/source-inventory-sync.yml",
+    "membership": ".github/workflows/source-lab-sync-farm-membership.yml",
+    "runtime": ".github/workflows/source-lab-pending-worker.yml",
+    "approval": ".github/workflows/source-lab-approve-ready-sources.yml"
+  }
+}
