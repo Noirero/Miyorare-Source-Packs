@@ -1,0 +1,185 @@
+name: Source Lab C5 ID Closure Handoff
+run-name: Source Lab C5 ID Closure Handoff
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-c5-id-closure-handoff.yml'
+      - 'tools/source_lab_c5_id_closure_handoff.py'
+      - 'tests/test_source_lab_c5_id_closure_handoff.py'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: source-lab-c5-id-closure-handoff-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_OWNER_ID: '149634319'
+  SOURCE_PACKS_AFTER_REMEDIATION: 'dfc2436d99484ff139a81e8846168c219148b2c3'
+  REMEDIATION_RUN_ID: '39366501478'
+  REMEDIATION_ARTIFACT_ID: '12239771803'
+  REMEDIATION_ARTIFACT_NAME: 'track-c-c3-id-remediation-39366501478'
+  REMEDIATION_ARTIFACT_DIGEST: 'sha256:dead8b6b62d12314554c2f107098e959ad4287ad5b695740f36b2186073e4558'
+  REMEDIATION_HEAD_SHA: 'c337b635a4df87e54cd2f8f7a7d11f0189cb93ce'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  closure:
+    name: Close Track C investigation and route operational handoffs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Validate safe execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" ]] || { echo "::error::C5 only accepts same-repository pull requests"; exit 1; }
+              [[ "$PR_BASE_SHA" == "$SOURCE_PACKS_AFTER_REMEDIATION" ]] || { echo "::error::main moved after the frozen #167 remediation boundary"; exit 1; }
+              ;;
+            workflow_dispatch)
+              [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+              [[ "$GITHUB_REF_NAME" == "main" ]]
+              ;;
+            *) echo "::error::unexpected event: $GITHUB_EVENT_NAME"; exit 1 ;;
+          esac
+
+      - name: Checkout exact proposed C5 control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout live Compatibility Farm authority
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: compatibility-farm-foundation
+          path: farm-live
+          fetch-depth: 1
+
+      - name: Pin exact control and live Farm heads
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          control_sha="$(git -C control rev-parse HEAD)"
+          farm_sha="$(git -C farm-live rev-parse HEAD)"
+          [[ "$control_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$farm_sha" =~ ^[0-9a-f]{40}$ ]]
+          echo "control_sha=$control_sha" >> "$GITHUB_OUTPUT"
+          echo "farm_sha=$farm_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Snapshot read-only authority inputs
+        id: before
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "registry=$(sha256sum farm-live/compatibility/source-registry.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "worker=$(sha256sum farm-live/automation/pending-worker-state.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Download and verify exact #167 remediation evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/remediation
+          metadata="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$REMEDIATION_ARTIFACT_ID")"
+          [[ "$(jq -r '.name' <<<"$metadata")" == "$REMEDIATION_ARTIFACT_NAME" ]]
+          [[ "$(jq -r '.expired' <<<"$metadata")" == "false" ]]
+          [[ "$(jq -r '.workflow_run.id' <<<"$metadata")" == "$REMEDIATION_RUN_ID" ]]
+          [[ "$(jq -r '.workflow_run.head_sha' <<<"$metadata")" == "$REMEDIATION_HEAD_SHA" ]]
+          [[ "$(jq -r '.digest' <<<"$metadata")" == "$REMEDIATION_ARTIFACT_DIGEST" ]]
+          gh run download "$REMEDIATION_RUN_ID" --repo "$GITHUB_REPOSITORY" -n "$REMEDIATION_ARTIFACT_NAME" -D build/remediation
+          report="$(find build/remediation -name track-c-c3-id-remediation-revalidation.json -print -quit)"
+          test -n "$report"; test -s "$report"
+          cp "$report" build/remediation-report.json
+          jq -n --argjson runId "$REMEDIATION_RUN_ID" --argjson artifactId "$REMEDIATION_ARTIFACT_ID" --arg name "$REMEDIATION_ARTIFACT_NAME" --arg digest "$REMEDIATION_ARTIFACT_DIGEST" --arg headSha "$REMEDIATION_HEAD_SHA" '{runId:$runId,artifactId:$artifactId,name:$name,digest:$digest,headSha:$headSha}' > build/remediation-artifact-meta.json
+
+      - name: Compile and run C5 regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ('tools/source_lab_c5_id_closure_handoff.py','tests/test_source_lab_c5_id_closure_handoff.py'):
+              path = Path('control') / name
+              compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          PY
+          python3 control/tests/test_source_lab_c5_id_closure_handoff.py
+
+      - name: Build final Track C closure and lifecycle handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_c5_id_closure_handoff.py \
+            --remediation-report build/remediation-report.json \
+            --farm-registry farm-live/compatibility/source-registry.json \
+            --worker-state farm-live/automation/pending-worker-state.json \
+            --artifact-meta build/remediation-artifact-meta.json \
+            --source-packs-commit "$SOURCE_PACKS_AFTER_REMEDIATION" \
+            --farm-commit "${{ steps.pins.outputs.farm_sha }}" \
+            --output build/track-c-batch5-id-closure-handoff.json \
+            --markdown-output build/track-c-batch5-id-closure-handoff.md
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build/track-c-batch5-id-closure-handoff.json').read_text())
+          assert report['phase'] == 'TRACK_C_BATCH_5_ID_CLOSURE_HANDOFF'
+          assert report['readOnly'] is True
+          assert report['trackCClosed'] is True
+          assert report['summary']['sources'] == 3
+          assert report['summary']['closureResolved'] == 3
+          assert report['summary']['unresolved'] == 0
+          rows = {row['canonicalId']: row for row in report['decisions']}
+          assert rows['miyorare:inventory-id:MANGABALLINDONESIAN']['lifecycleCategory'] == 'SOURCE_PARSER_FAILURE'
+          assert rows['miyorare:inventory-id:MANGABALLINDONESIAN']['nextAction'] == '.github/workflows/source-lab-pending-worker.yml'
+          assert rows['miyorare:inventory-id:SOFTKOMIK']['lifecycleCategory'] == 'AUTH_REQUIRED'
+          assert rows['miyorare:inventory-id:SOFTKOMIK']['authSemantics']['credentialInjectionAllowed'] is False
+          assert not any(report['safetyBoundary'].values())
+          PY
+
+      - name: Prove C5 did not mutate authority state
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(sha256sum farm-live/compatibility/source-registry.json | awk '{print $1}')" == "${{ steps.before.outputs.registry }}" ]]
+          [[ "$(sha256sum farm-live/automation/pending-worker-state.json | awk '{print $1}')" == "${{ steps.before.outputs.worker }}" ]]
+          test -z "$(git -C farm-live status --porcelain)"
+          test -z "$(git -C control status --porcelain)"
+
+      - name: Upload C5 closure evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: track-c-batch5-id-closure-handoff-${{ github.run_id }}
+          path: |
+            build/remediation-artifact-meta.json
+            build/remediation-report.json
+            build/track-c-batch5-id-closure-handoff.json
+            build/track-c-batch5-id-closure-handoff.md
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Track C — Batch 5: ID Closure & Lifecycle Handoff'
+            echo "Control exact head: ${{ steps.pins.outputs.control_sha }}"
+            echo "Live Farm snapshot: ${{ steps.pins.outputs.farm_sha }}"
+            echo "Exact remediation artifact: $REMEDIATION_RUN_ID / $REMEDIATION_ARTIFACT_ID"
+            if [[ -f build/track-c-batch5-id-closure-handoff.md ]]; then cat build/track-c-batch5-id-closure-handoff.md; fi
+          } >> "$GITHUB_STEP_SUMMARY"
