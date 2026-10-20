@@ -195,9 +195,19 @@ def validate_operational_convergence(track_c_rows: dict[str, dict[str, Any]], re
     if lumos_providers != ["uma"] or lumos_selected != ["uma"] or lumos_worker.get("state") != "APPROVED":
         raise ConvergenceError("Lumos lifecycle no longer converges on approved UMA-only authority")
 
+    manga_decision = track_c_rows[MANGABALL]
+    retry_semantics = manga_decision.get("retrySemantics")
+    if manga_decision.get("lifecycleCategory") != "SOURCE_PARSER_FAILURE" or not isinstance(retry_semantics, dict):
+        raise ConvergenceError("MangaBall C5 retry-lane semantics are missing")
+    if retry_semantics.get("terminal") is not False or retry_semantics.get("genericFailThresholdAutoHold") is not False or retry_semantics.get("ownerActionRequired") is not False:
+        raise ConvergenceError("MangaBall C5 retry-lane semantics changed")
+
     manga_worker = workers[MANGABALL]
-    if manga_worker.get("state") != "RETRY" or manga_worker.get("failureCategory") != "SOURCE_PARSER_FAILURE":
-        raise ConvergenceError("MangaBall no longer follows non-terminal SOURCE_PARSER_FAILURE retry semantics")
+    if manga_worker.get("state") != "RETRY":
+        raise ConvergenceError("MangaBall no longer remains in the non-terminal retry lane")
+    worker_failure = manga_worker.get("failureCategory")
+    if worker_failure not in {None, "SOURCE_PARSER_FAILURE"}:
+        raise ConvergenceError("MangaBall live worker category conflicts with C5 SOURCE_PARSER_FAILURE disposition")
     retry_policy = manga_worker.get("retryPolicy")
     if isinstance(retry_policy, dict) and retry_policy.get("genericFailThresholdAutoHold") is not False:
         raise ConvergenceError("MangaBall retry policy unexpectedly allows generic auto-hold")
@@ -219,9 +229,11 @@ def validate_operational_convergence(track_c_rows: dict[str, dict[str, Any]], re
         },
         {
             "canonicalId": MANGABALL,
-            "trackCDisposition": track_c_rows[MANGABALL]["disposition"],
+            "trackCDisposition": manga_decision["disposition"],
+            "lifecycleCategory": manga_decision.get("lifecycleCategory"),
             "liveState": manga_worker.get("state"),
-            "failureCategory": manga_worker.get("failureCategory"),
+            "workerFailureCategory": worker_failure,
+            "workerEvidencePredatesCorrectedHarness": manga_decision.get("authoritySnapshot", {}).get("workerEvidencePredatesCorrectedHarness"),
             "converged": True,
         },
         {
@@ -339,7 +351,7 @@ def markdown(report: dict[str, Any]) -> str:
         "|---|---|---|",
     ]
     for row in report["operationalConvergence"]:
-        detail = row.get("failureCategory") or ",".join(row.get("providers") or [])
+        detail = row.get("failureCategory") or row.get("lifecycleCategory") or ",".join(row.get("providers") or [])
         lines.append(f"| `{row['canonicalId']}` | `{row['liveState']}` | `{detail}` |")
     lines.extend(["", "D1 is read-only. It establishes the post-Track-B/C maintenance baseline; provider preference/recovery proof begins in D2.", ""])
     return "\n".join(lines)
