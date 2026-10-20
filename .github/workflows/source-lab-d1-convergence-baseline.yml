@@ -1,0 +1,362 @@
+name: Source Lab D1 B+C Convergence Baseline
+run-name: Source Lab D1 B+C Convergence Baseline
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-d1-convergence-baseline.yml'
+      - 'compatibility/evidence/track-d-d1-convergence-baseline.json'
+      - 'tools/source_lab_d1_convergence_baseline.py'
+      - 'tests/test_source_lab_d1_convergence_baseline.py'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: source-lab-d1-convergence-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_OWNER_ID: '149634319'
+  POST_TRACK_C_MAIN: '12f6969fdde7e5f595ca333d81282a9209cfc7e2'
+  INVENTORY_BASELINE: '2c4768c7ea9914030868792bcd73d5f7f461907b'
+  FARM_B4_BASELINE: '654af67becbdb0adf85ab87663674ba7340b3cf4'
+  MIYORARE_AMAIN2_BASELINE: 'f366d775c5b4c3a330b4baf105e24ce93fd66fc7'
+  C2_RUN_ID: '39357613207'
+  C2_ARTIFACT_ID: '12235399586'
+  C2_ARTIFACT_NAME: 'track-c-batch2-id-capability-health-39357613207'
+  C2_ARTIFACT_DIGEST: 'sha256:9ad96880a878d20268576eb99833958fb1c9be9dfd09e5d62755073f5f30147c'
+  C2_HEAD_SHA: '325ace908d72a0fd6e75a0ac739b599a4d33a0d9'
+  C3_RUN_ID: '39362316682'
+  C3_ARTIFACT_ID: '12237618161'
+  C3_ARTIFACT_NAME: 'track-c-batch3-id-targeted-validation-39362316682'
+  C3_ARTIFACT_DIGEST: 'sha256:c320fa8cb1cf9811c0d4d9bd7e1f37528a4bac1ebf08e2704dfae243d05a82ee'
+  C3_HEAD_SHA: 'd286c04b1c9d37f65192345b49c8f37290280040'
+  C5_RUN_ID: '39368069437'
+  C5_ARTIFACT_ID: '12239498123'
+  C5_ARTIFACT_NAME: 'track-c-batch5-id-closure-handoff-39368069437'
+  C5_ARTIFACT_DIGEST: 'sha256:4e164cf3b75d267ac0d8bf261717b551637eae42251a80b8749576979efb9e7e'
+  C5_HEAD_SHA: 'e4c5570645171fef5d507a6602ad3b27956b4778'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  convergence:
+    name: Bind Track B+C closure to permanent Source Lab authority
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+
+    steps:
+      - name: Validate safe execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" ]] || { echo "::error::D1 accepts same-repository pull requests only"; exit 1; }
+              [[ "$PR_BASE_SHA" == "$POST_TRACK_C_MAIN" ]] || { echo "::error::D1 must start from exact post-Track-C main"; exit 1; }
+              ;;
+            workflow_dispatch)
+              [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+              [[ "$GITHUB_REF_NAME" == "main" ]]
+              ;;
+            *) echo "::error::unexpected event: $GITHUB_EVENT_NAME"; exit 1 ;;
+          esac
+
+      - name: Checkout exact proposed D1 control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout frozen inventory baseline
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ env.INVENTORY_BASELINE }}
+          path: inventory-baseline
+          fetch-depth: 1
+
+      - name: Checkout live informational inventory
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: source-inventory-live
+          path: inventory-current
+          fetch-depth: 1
+
+      - name: Checkout frozen Track B/C Farm baseline
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ env.FARM_B4_BASELINE }}
+          path: farm-baseline
+          fetch-depth: 1
+
+      - name: Checkout live Compatibility Farm
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: compatibility-farm-foundation
+          path: farm-current
+          fetch-depth: 1
+
+      - name: Checkout frozen Amain2 consumer baseline
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Noirero/Miyorare
+          ref: ${{ env.MIYORARE_AMAIN2_BASELINE }}
+          path: miyorare-baseline
+          fetch-depth: 1
+
+      - name: Checkout live Amain2 consumer
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Noirero/Miyorare
+          ref: Amain2
+          path: miyorare-current
+          fetch-depth: 1
+
+      - name: Pin live heads and validate D1 baseline binding
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          control_sha="$(git -C control rev-parse HEAD)"
+          inventory_sha="$(git -C inventory-current rev-parse HEAD)"
+          farm_sha="$(git -C farm-current rev-parse HEAD)"
+          miyorare_sha="$(git -C miyorare-current rev-parse HEAD)"
+          [[ "$control_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git -C inventory-baseline rev-parse HEAD)" == "$INVENTORY_BASELINE" ]]
+          [[ "$(git -C farm-baseline rev-parse HEAD)" == "$FARM_B4_BASELINE" ]]
+          [[ "$(git -C miyorare-baseline rev-parse HEAD)" == "$MIYORARE_AMAIN2_BASELINE" ]]
+          [[ "$inventory_sha" == "$(git -C inventory-current ls-remote origin refs/heads/source-inventory-live | awk '{print $1}')" ]]
+          [[ "$farm_sha" == "$(git -C farm-current ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')" ]]
+          [[ "$miyorare_sha" == "$(git -C miyorare-current ls-remote origin refs/heads/Amain2 | awk '{print $1}')" ]]
+          echo "control=$control_sha" >> "$GITHUB_OUTPUT"
+          echo "inventory=$inventory_sha" >> "$GITHUB_OUTPUT"
+          echo "farm=$farm_sha" >> "$GITHUB_OUTPUT"
+          echo "miyorare=$miyorare_sha" >> "$GITHUB_OUTPUT"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          baseline = json.loads(Path('control/compatibility/evidence/track-d-d1-convergence-baseline.json').read_text())
+          assert baseline['phase'] == 'TRACK_D_D1_CONVERGENCE_BASELINE'
+          assert baseline['readOnly'] is True
+          assert baseline['sourcePacksAfterTrackC'] == os.environ['POST_TRACK_C_MAIN']
+          assert baseline['planningRefs']['sourceInventory'] == os.environ['INVENTORY_BASELINE']
+          assert baseline['planningRefs']['miyorareAmain2'] == os.environ['MIYORARE_AMAIN2_BASELINE']
+          artifact = baseline['trackC']['artifact']
+          assert str(artifact['runId']) == os.environ['C5_RUN_ID']
+          assert str(artifact['artifactId']) == os.environ['C5_ARTIFACT_ID']
+          assert artifact['name'] == os.environ['C5_ARTIFACT_NAME']
+          assert artifact['digest'] == os.environ['C5_ARTIFACT_DIGEST']
+          assert artifact['headSha'] == os.environ['C5_HEAD_SHA']
+          PY
+
+      - name: Snapshot live authority inputs
+        id: before
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "registry=$(sha256sum farm-current/compatibility/source-registry.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "worker=$(sha256sum farm-current/automation/pending-worker-state.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "upstream_registry=$(sha256sum farm-current/upstream/registry.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "status=$(sha256sum farm-current/upstream/status.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Download exact Track C C2/C3 evidence and final C5 closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/c2 build/c3 build/c5
+          for label in C2 C3 C5; do
+            run_var="${label}_RUN_ID"; artifact_var="${label}_ARTIFACT_ID"; name_var="${label}_ARTIFACT_NAME"; digest_var="${label}_ARTIFACT_DIGEST"; head_var="${label}_HEAD_SHA"
+            run_id="${!run_var}"; artifact_id="${!artifact_var}"; artifact_name="${!name_var}"; expected_digest="${!digest_var}"; expected_head="${!head_var}"
+            metadata="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id")"
+            [[ "$(jq -r '.name' <<<"$metadata")" == "$artifact_name" ]]
+            [[ "$(jq -r '.expired' <<<"$metadata")" == "false" ]]
+            [[ "$(jq -r '.workflow_run.id' <<<"$metadata")" == "$run_id" ]]
+            [[ "$(jq -r '.workflow_run.head_sha' <<<"$metadata")" == "$expected_head" ]]
+            [[ "$(jq -r '.digest' <<<"$metadata")" == "$expected_digest" ]]
+            gh run download "$run_id" --repo "$GITHUB_REPOSITORY" -n "$artifact_name" -D "build/${label,,}"
+          done
+          c2_report="$(find build/c2 -name track-c-batch2-id-capability-health.json -print -quit)"
+          c3_report="$(find build/c3 -name track-c-batch3-id-targeted-validation.json -print -quit)"
+          c5_report="$(find build/c5 -name track-c-batch5-id-closure-handoff.json -print -quit)"
+          test -n "$c2_report"; test -s "$c2_report"
+          test -n "$c3_report"; test -s "$c3_report"
+          test -n "$c5_report"; test -s "$c5_report"
+          cp "$c2_report" build/c2-report.json
+          cp "$c3_report" build/c3-report.json
+          cp "$c5_report" build/c5-report.json
+
+      - name: Rebuild current Track B EN closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          PYTHONPATH=control/tools python3 control/tools/source_lab_b3_identity_closure.py \
+            --boundary control/compatibility/evidence/track-b-batch3-runtime-boundary.json \
+            --upstream-evidence control/compatibility/evidence/track-b-batch3-upstream-disposition.json \
+            --live-access-evidence control/compatibility/evidence/track-b-batch3-live-runtime-access.json \
+            --identity-evidence control/compatibility/evidence/track-b-batch3-identity-closure.json \
+            --output build/track-b-batch3-final.json
+          PYTHONPATH=control/tools python3 control/tools/source_lab_b4_en_adoption_drift.py \
+            --baseline control/compatibility/evidence/track-b-batch4-en-baseline.json \
+            --b3-closure build/track-b-batch3-final.json \
+            --inventory-baseline inventory-baseline/inventory/source-inventory.json \
+            --inventory-current inventory-current/inventory/source-inventory.json \
+            --farm-baseline farm-baseline/compatibility/source-registry.json \
+            --farm-current farm-current/compatibility/source-registry.json \
+            --miyorare-baseline-root miyorare-baseline \
+            --miyorare-current-root miyorare-current \
+            --inventory-current-commit '${{ steps.pins.outputs.inventory }}' \
+            --farm-current-commit '${{ steps.pins.outputs.farm }}' \
+            --miyorare-current-commit '${{ steps.pins.outputs.miyorare }}' \
+            --output build/track-b-current.json \
+            --markdown-output build/track-b-current.md
+
+      - name: Rebuild current Track C ID drift monitor
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_c4_id_adoption_drift.py \
+            --baseline control/compatibility/evidence/track-c-batch4-id-baseline.json \
+            --c2-report build/c2-report.json \
+            --c3-report build/c3-report.json \
+            --inventory-baseline inventory-baseline/inventory/source-inventory.json \
+            --inventory-current inventory-current/inventory/source-inventory.json \
+            --farm-baseline farm-baseline/compatibility/source-registry.json \
+            --farm-current farm-current/compatibility/source-registry.json \
+            --miyorare-baseline-root miyorare-baseline \
+            --miyorare-current-root miyorare-current \
+            --inventory-current-commit '${{ steps.pins.outputs.inventory }}' \
+            --farm-current-commit '${{ steps.pins.outputs.farm }}' \
+            --miyorare-current-commit '${{ steps.pins.outputs.miyorare }}' \
+            --output build/track-c-monitor-current.json \
+            --markdown-output build/track-c-monitor-current.md
+
+      - name: Re-run permanent LKG safety against live Farm
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_a7_lkg_safety.py \
+            --upstream-registry farm-current/upstream/registry.json \
+            --status farm-current/upstream/status.json \
+            --source-registry farm-current/compatibility/source-registry.json \
+            --promotion-workflow control/.github/workflows/source-lab-promote-candidate.yml \
+            --output build/a7-current.json \
+            --markdown-output build/a7-current.md
+
+      - name: Verify permanent automation handoff paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          baseline = json.loads(Path('control/compatibility/evidence/track-d-d1-convergence-baseline.json').read_text())
+          root = Path('control')
+          result = {}
+          for name, path in baseline['permanentAutomation'].items():
+              result[name] = {'path': path, 'exists': (root / path).is_file()}
+          Path('build/automation-presence.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          missing = [name for name, row in result.items() if not row['exists']]
+          if missing:
+              raise SystemExit('missing permanent automation: ' + ', '.join(missing))
+          PY
+
+      - name: Compile and run D1 regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ('tools/source_lab_d1_convergence_baseline.py','tests/test_source_lab_d1_convergence_baseline.py'):
+              path = Path('control') / name
+              compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          PY
+          python3 control/tests/test_source_lab_d1_convergence_baseline.py
+
+      - name: Build D1 convergence baseline report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_d1_convergence_baseline.py \
+            --baseline control/compatibility/evidence/track-d-d1-convergence-baseline.json \
+            --track-b-report build/track-b-current.json \
+            --track-c-monitor-report build/track-c-monitor-current.json \
+            --track-c-report build/c5-report.json \
+            --a7-report build/a7-current.json \
+            --farm-registry farm-current/compatibility/source-registry.json \
+            --worker-state farm-current/automation/pending-worker-state.json \
+            --automation-presence build/automation-presence.json \
+            --control-head '${{ steps.pins.outputs.control }}' \
+            --inventory-commit '${{ steps.pins.outputs.inventory }}' \
+            --farm-commit '${{ steps.pins.outputs.farm }}' \
+            --miyorare-commit '${{ steps.pins.outputs.miyorare }}' \
+            --output build/track-d-d1-convergence-baseline.json \
+            --markdown-output build/track-d-d1-convergence-baseline.md
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build/track-d-d1-convergence-baseline.json').read_text())
+          assert report['phase'] == 'TRACK_D_D1_CONVERGENCE_BASELINE'
+          assert report['readOnly'] is True
+          assert report['status'] == 'D1_CONVERGENCE_BASELINE_CLEAN'
+          assert report['trackDClosed'] is False
+          assert report['nextStage'] == 'TRACK_D_D2_PROVIDER_PREFERENCE_RECOVERY'
+          assert report['tracks']['trackB']['closed'] is True
+          assert report['tracks']['trackC']['closed'] is True
+          assert report['permanentAuthority']['lkgSafety'] == 'SAFE'
+          assert len(report['operationalConvergence']) == 3
+          assert not any(report['safety'].values())
+          PY
+
+      - name: Recheck live heads and prove read-only execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ '${{ steps.pins.outputs.inventory }}' == "$(git -C inventory-current ls-remote origin refs/heads/source-inventory-live | awk '{print $1}')" ]]
+          [[ '${{ steps.pins.outputs.farm }}' == "$(git -C farm-current ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')" ]]
+          [[ '${{ steps.pins.outputs.miyorare }}' == "$(git -C miyorare-current ls-remote origin refs/heads/Amain2 | awk '{print $1}')" ]]
+          [[ "$(sha256sum farm-current/compatibility/source-registry.json | awk '{print $1}')" == '${{ steps.before.outputs.registry }}' ]]
+          [[ "$(sha256sum farm-current/automation/pending-worker-state.json | awk '{print $1}')" == '${{ steps.before.outputs.worker }}' ]]
+          [[ "$(sha256sum farm-current/upstream/registry.json | awk '{print $1}')" == '${{ steps.before.outputs.upstream_registry }}' ]]
+          [[ "$(sha256sum farm-current/upstream/status.json | awk '{print $1}')" == '${{ steps.before.outputs.status }}' ]]
+          for repo in control inventory-baseline inventory-current farm-baseline farm-current miyorare-baseline miyorare-current; do
+            test -z "$(git -C "$repo" status --porcelain)"
+          done
+
+      - name: Upload D1 convergence evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: track-d-d1-convergence-baseline-${{ github.run_id }}
+          path: |
+            build/track-b-current.json
+            build/track-c-monitor-current.json
+            build/c5-report.json
+            build/a7-current.json
+            build/automation-presence.json
+            build/track-d-d1-convergence-baseline.json
+            build/track-d-d1-convergence-baseline.md
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Track D — D1: B+C Convergence Baseline'
+            echo "Control exact head: ${{ steps.pins.outputs.control }}"
+            echo "Live inventory: ${{ steps.pins.outputs.inventory }}"
+            echo "Live Farm: ${{ steps.pins.outputs.farm }}"
+            echo "Live Amain2: ${{ steps.pins.outputs.miyorare }}"
+            if [[ -f build/track-d-d1-convergence-baseline.md ]]; then cat build/track-d-d1-convergence-baseline.md; fi
+          } >> "$GITHUB_STEP_SUMMARY"
