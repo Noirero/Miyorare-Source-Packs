@@ -1,0 +1,486 @@
+name: Source Lab C3 ID Targeted Validation
+run-name: Source Lab C3 ID Targeted Validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-c3-id-targeted-validation.yml'
+      - 'tools/source_lab_c3_id_targeted_validation.py'
+      - 'tests/test_source_lab_c3_id_targeted_validation.py'
+      - 'tools/source_pending_worker.py'
+      - 'tools/source_live_parser_harness.py'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: source-lab-c3-id-targeted-validation-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_OWNER_ID: '149634319'
+  C2_RUN_ID: '39357613207'
+  C2_ARTIFACT_ID: '12235399586'
+  C2_ARTIFACT_NAME: 'track-c-batch2-id-capability-health-39357613207'
+  C2_ARTIFACT_DIGEST: 'sha256:9ad96880a878d20268576eb99833958fb1c9be9dfd09e5d62755073f5f30147c'
+  C2_HEAD_SHA: '325ace908d72a0fd6e75a0ac739b599a4d33a0d9'
+  C2_INVENTORY_SHA: '2c4768c7ea9914030868792bcd73d5f7f461907b'
+  C2_FOUNDATION_SHA: '654af67becbdb0adf85ab87663674ba7340b3cf4'
+  C2_MIYORARE_SHA: 'f366d775c5b4c3a330b4baf105e24ce93fd66fc7'
+  KEIYOUSHI_CANDIDATE_SHA: '314a0d1b2b6b194f6a4f9aee252fec9ce55ae5ca'
+  UMA_CANDIDATE_SHA: '08f814f7468835d9c9b465a9062aecc7ac142cdd'
+  GEKKOUSHI_CANDIDATE_SHA: '12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67'
+  UMA_LKG_SHA: '52185ec4faada143f57dcfb41c6fa49aa346b4db'
+  GEKKOUSHI_LKG_SHA: '9aa770b7cb699c6385f574f13710990e17ef5517'
+  C3_CANONICAL_SOURCES: '8'
+  C3_FINDING_ROWS: '9'
+  C3_RUNTIME_TARGETS: '4'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  targeted-validation:
+    name: Build read-only ID targeted runtime and reference evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Validate safe execution context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "Noirero/Miyorare-Source-Packs" ]]
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" ]] || {
+                echo "::error::C3 only accepts same-repository pull requests"
+                exit 1
+              }
+              ;;
+            workflow_dispatch)
+              [[ "$GITHUB_ACTOR_ID" == "$EXPECTED_OWNER_ID" ]]
+              [[ "$GITHUB_REF_NAME" == "main" ]]
+              ;;
+            *) echo "::error::unexpected event: $GITHUB_EVENT_NAME"; exit 1 ;;
+          esac
+
+      - name: Checkout exact proposed C3 control plane
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: control
+          fetch-depth: 1
+
+      - name: Checkout frozen C2 inventory
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ env.C2_INVENTORY_SHA }}
+          path: inventory
+          fetch-depth: 1
+
+      - name: Checkout live inventory drift guard
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: source-inventory-live
+          path: inventory-live
+          fetch-depth: 1
+
+      - name: Checkout frozen C2 Compatibility Farm authority
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ env.C2_FOUNDATION_SHA }}
+          path: farm
+          fetch-depth: 1
+
+      - name: Checkout frozen C2 Amain2 consumer state
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Noirero/Miyorare
+          ref: ${{ env.C2_MIYORARE_SHA }}
+          path: miyorare
+          fetch-depth: 1
+
+      - name: Checkout frozen current Keiyoushi with history
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: keiyoushi/extensions-source
+          ref: ${{ env.KEIYOUSHI_CANDIDATE_SHA }}
+          path: _upstream/reference/keiyoushi
+          fetch-depth: 0
+
+      - name: Checkout candidate UMA
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: InvalidDavid/UMA
+          ref: ${{ env.UMA_CANDIDATE_SHA }}
+          path: _upstream/candidate/uma
+          fetch-depth: 1
+
+      - name: Checkout LKG UMA
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: InvalidDavid/UMA
+          ref: ${{ env.UMA_LKG_SHA }}
+          path: _upstream/lkg/uma
+          fetch-depth: 1
+
+      - name: Checkout candidate Gekkoushi
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ env.GEKKOUSHI_CANDIDATE_SHA }}
+          path: _upstream/candidate/gekkoushi
+          fetch-depth: 1
+
+      - name: Checkout LKG Gekkoushi
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Gekkoushi/plugin-source
+          ref: ${{ env.GEKKOUSHI_LKG_SHA }}
+          path: _upstream/lkg/gekkoushi
+          fetch-depth: 1
+
+      - name: Prove exact frozen provenance and no live drift
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          control_sha="$(git -C control rev-parse HEAD)"
+          [[ "$control_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git -C inventory rev-parse HEAD)" == "$C2_INVENTORY_SHA" ]]
+          [[ "$(git -C inventory-live rev-parse HEAD)" == "$C2_INVENTORY_SHA" ]]
+          [[ "$(git -C farm rev-parse HEAD)" == "$C2_FOUNDATION_SHA" ]]
+          [[ "$(git -C miyorare rev-parse HEAD)" == "$C2_MIYORARE_SHA" ]]
+          [[ "$(git -C _upstream/reference/keiyoushi rev-parse HEAD)" == "$KEIYOUSHI_CANDIDATE_SHA" ]]
+          [[ "$(git -C _upstream/candidate/uma rev-parse HEAD)" == "$UMA_CANDIDATE_SHA" ]]
+          [[ "$(git -C _upstream/lkg/uma rev-parse HEAD)" == "$UMA_LKG_SHA" ]]
+          [[ "$(git -C _upstream/candidate/gekkoushi rev-parse HEAD)" == "$GEKKOUSHI_CANDIDATE_SHA" ]]
+          [[ "$(git -C _upstream/lkg/gekkoushi rev-parse HEAD)" == "$GEKKOUSHI_LKG_SHA" ]]
+          [[ "$(git -C inventory-live ls-remote origin refs/heads/source-inventory-live | awk '{print $1}')" == "$C2_INVENTORY_SHA" ]]
+          [[ "$(git -C farm ls-remote origin refs/heads/compatibility-farm-foundation | awk '{print $1}')" == "$C2_FOUNDATION_SHA" ]]
+          [[ "$(git -C miyorare ls-remote origin refs/heads/Amain2 | awk '{print $1}')" == "$C2_MIYORARE_SHA" ]]
+          [[ "$(git -C _upstream/reference/keiyoushi ls-remote origin refs/heads/main | awk '{print $1}')" == "$KEIYOUSHI_CANDIDATE_SHA" ]]
+          [[ "$(git -C _upstream/candidate/uma ls-remote origin refs/heads/master | awk '{print $1}')" == "$UMA_CANDIDATE_SHA" ]]
+          [[ "$(git -C _upstream/candidate/gekkoushi ls-remote origin refs/heads/master | awk '{print $1}')" == "$GEKKOUSHI_CANDIDATE_SHA" ]]
+          echo "control_sha=$control_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Download and verify exact C2 artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          metadata="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$C2_ARTIFACT_ID")"
+          [[ "$(jq -r '.name' <<<"$metadata")" == "$C2_ARTIFACT_NAME" ]]
+          [[ "$(jq -r '.expired' <<<"$metadata")" == "false" ]]
+          [[ "$(jq -r '.workflow_run.id' <<<"$metadata")" == "$C2_RUN_ID" ]]
+          [[ "$(jq -r '.workflow_run.head_sha' <<<"$metadata")" == "$C2_HEAD_SHA" ]]
+          [[ "$(jq -r '.digest' <<<"$metadata")" == "$C2_ARTIFACT_DIGEST" ]]
+          mkdir -p build/c2
+          gh run download "$C2_RUN_ID" --repo "$GITHUB_REPOSITORY" -n "$C2_ARTIFACT_NAME" -D build/c2
+          test -s build/c2/track-c-batch2-id-capability-health.json
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          report = json.loads(Path('build/c2/track-c-batch2-id-capability-health.json').read_text())
+          assert report['phase'] == 'TRACK_C_BATCH_2_ID_CAPABILITY_HEALTH_DECISION'
+          assert report['readOnly'] is True
+          assert report['language'] == 'id'
+          assert report['summary']['c3CanonicalSources'] == int(os.environ['C3_CANONICAL_SOURCES'])
+          assert report['summary']['c3FindingRows'] == int(os.environ['C3_FINDING_ROWS'])
+          p = report['provenance']
+          assert p['inventoryCommit'] == os.environ['C2_INVENTORY_SHA']
+          assert p['foundationCommit'] == os.environ['C2_FOUNDATION_SHA']
+          assert p['miyorareCommit'] == os.environ['C2_MIYORARE_SHA']
+          assert p['controlCommit'] == os.environ['C2_HEAD_SHA']
+          PY
+
+      - name: Snapshot read-only authority and consumer inputs
+        id: before
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pair in \
+            source_registry:farm/compatibility/source-registry.json \
+            source_health:farm/upstream/source-health.json \
+            upstream_registry:farm/upstream/registry.json \
+            status:farm/upstream/status.json \
+            worker_state:farm/automation/pending-worker-state.json \
+            inventory:inventory/inventory/source-inventory.json \
+            aliases:miyorare/extensions/miyorare-sources/multi-upstream.json \
+            packs:miyorare/extensions/miyorare-sources/packs.json \
+            c2_report:build/c2/track-c-batch2-id-capability-health.json; do
+            key="${pair%%:*}"; file="${pair#*:}"
+            echo "$key=$(sha256sum "$file" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Compile and test C3 planner
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in (
+              'tools/source_lab_c3_id_targeted_validation.py',
+              'tools/source_pending_worker.py',
+              'tools/source_live_parser_harness.py',
+              'tests/test_source_lab_c3_id_targeted_validation.py',
+          ):
+              path = Path('control') / name
+              compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          PY
+          python3 -m unittest control/tests/test_source_lab_c3_id_targeted_validation.py
+
+      - name: Build exact C3 source-scoped plans
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          python3 control/tools/source_lab_c3_id_targeted_validation.py plan \
+            --c2-report build/c2/track-c-batch2-id-capability-health.json \
+            --keiyoushi-root _upstream/reference/keiyoushi \
+            --uma-candidate-root _upstream/candidate/uma \
+            --gekkoushi-candidate-root _upstream/candidate/gekkoushi \
+            --uma-lkg-root _upstream/lkg/uma \
+            --gekkoushi-lkg-root _upstream/lkg/gekkoushi \
+            --keiyoushi-candidate-commit "$KEIYOUSHI_CANDIDATE_SHA" \
+            --uma-candidate-commit "$UMA_CANDIDATE_SHA" \
+            --gekkoushi-candidate-commit "$GEKKOUSHI_CANDIDATE_SHA" \
+            --uma-lkg-commit "$UMA_LKG_SHA" \
+            --gekkoushi-lkg-commit "$GEKKOUSHI_LKG_SHA" \
+            --output build/track-c-batch3-plan.json \
+            --candidate-runtime-plan build/c3-candidate-runtime-plan.json \
+            --lkg-runtime-plan build/c3-lkg-runtime-plan.json
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          plan = json.loads(Path('build/track-c-batch3-plan.json').read_text())
+          candidate = json.loads(Path('build/c3-candidate-runtime-plan.json').read_text())
+          lkg = json.loads(Path('build/c3-lkg-runtime-plan.json').read_text())
+          assert plan['readOnly'] is True
+          assert plan['count'] == int(os.environ['C3_CANONICAL_SOURCES'])
+          assert plan['c2FindingRows'] == int(os.environ['C3_FINDING_ROWS'])
+          assert candidate['count'] == int(os.environ['C3_RUNTIME_TARGETS'])
+          assert lkg['count'] == 3
+          rows = {row['canonicalId']: row for row in plan['items']}
+          assert rows['miyorare:inventory-id:DAILYSUKA']['referenceEvidence']['state'] == 'REFERENCE_REMOVED_UPSTREAM'
+          assert rows['miyorare:inventory-id:PORNHWA18']['referenceEvidence']['state'] == 'REFERENCE_LANGUAGE_RELOCATED'
+          assert 'src/en/pornhwa18' in rows['miyorare:inventory-id:PORNHWA18']['referenceEvidence']['relocations']
+          for cid in ('miyorare:inventory-id:IKIRU', 'miyorare:inventory-id:MIKOROKU'):
+              assert rows[cid]['referenceEvidence']['state'] == 'REFERENCE_SOURCE_ID_MIGRATION_PRESENT'
+              assert rows[cid]['referenceEvidence']['lastTouch'] is not None
+          dailysuka = rows['miyorare:inventory-id:DAILYSUKA']['referenceEvidence']['lastTouch']
+          assert dailysuka is not None
+          assert 'remove dead sources' in dailysuka['subject'].lower()
+          PY
+
+      - name: Set up Java 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          packages: platform-tools
+
+      - name: Compile candidate and LKG runtime baselines
+        shell: bash
+        run: |
+          set -u
+          for side in candidate lkg; do
+            printf '{"uma":{},"gekkoushi":{}}\n' > "build/compile-$side.json"
+            for provider in uma gekkoushi; do
+              present="$(SIDE="$side" PROVIDER="$provider" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          data = json.loads(Path(f"build/c3-{os.environ['SIDE']}-runtime-plan.json").read_text())
+          print('true' if any(os.environ['PROVIDER'] in item.get('providers', []) for item in data.get('items', [])) else 'false')
+          PY
+              )"
+              [[ "$present" == true ]] || continue
+              root="_upstream/$side/$provider"
+              if (cd "$root" && chmod +x gradlew && ./gradlew buildJar --no-daemon); then ok=true; else ok=false; fi
+              SIDE="$side" PROVIDER="$provider" OK="$ok" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path(f"build/compile-{os.environ['SIDE']}.json")
+          data = json.loads(path.read_text())
+          data[os.environ['PROVIDER']]['*'] = os.environ['OK'] == 'true'
+          path.write_text(json.dumps(data, indent=2) + '\n')
+          PY
+            done
+          done
+
+      - name: Profile source-scoped candidate and LKG implementations
+        shell: bash
+        run: |
+          set -euo pipefail
+          for side in candidate lkg; do
+            python3 control/tools/source_pending_worker.py assess \
+              --plan "build/c3-$side-runtime-plan.json" \
+              --keiyoushi-root _upstream/reference/keiyoushi \
+              --uma-root "_upstream/$side/uma" \
+              --gekkoushi-root "_upstream/$side/gekkoushi" \
+              --compile-results "build/compile-$side.json" \
+              --timeout 8 \
+              --fail-threshold 3 \
+              --output "build/c3-$side-profile-results.json"
+          done
+
+      - name: Isolate unrelated upstream Gekkoushi tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for side in candidate lkg; do
+            root="_upstream/$side/gekkoushi"
+            if [[ -d "$root/src/test" ]]; then
+              mv "$root/src/test" "$root/_compatibility-upstream-tests"
+            fi
+          done
+
+      - name: Generate real parser smoke harnesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          for side in candidate lkg; do
+            for provider in uma gekkoushi; do
+              python3 control/tools/source_live_parser_harness.py generate \
+                --plan "build/c3-$side-runtime-plan.json" \
+                --profile-results "build/c3-$side-profile-results.json" \
+                --provider "$provider" \
+                --provider-root "_upstream/$side/$provider" \
+                --output "build/c3-$side-live-$provider-manifest.json"
+            done
+          done
+
+      - name: Execute generated real parser tests
+        shell: bash
+        run: |
+          set -u
+          for side in candidate lkg; do
+            for provider in uma gekkoushi; do
+              manifest="build/c3-$side-live-$provider-manifest.json"
+              mapfile -t tests < <(MANIFEST="$manifest" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          data = json.loads(Path(os.environ['MANIFEST']).read_text())
+          print('\n'.join(item['testClass'] for item in data.get('tests', [])))
+          PY
+              )
+              [[ ${#tests[@]} -gt 0 ]] || continue
+              args=()
+              for test in "${tests[@]}"; do args+=(--tests "$test"); done
+              (cd "_upstream/$side/$provider" && chmod +x gradlew && ./gradlew test "${args[@]}" --no-daemon) || true
+            done
+          done
+
+      - name: Collect source-scoped runtime evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          for side in candidate lkg; do
+            python3 control/tools/source_live_parser_harness.py collect \
+              --manifest "build/c3-$side-live-uma-manifest.json" \
+              --manifest "build/c3-$side-live-gekkoushi-manifest.json" \
+              --output "build/c3-$side-live-results.json"
+          done
+
+      - name: Build C3 final decision evidence
+        id: report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 control/tools/source_lab_c3_id_targeted_validation.py report \
+            --plan build/track-c-batch3-plan.json \
+            --candidate-results build/c3-candidate-live-results.json \
+            --lkg-results build/c3-lkg-live-results.json \
+            --output build/track-c-batch3-id-targeted-validation.json \
+            --markdown-output build/track-c-batch3-id-targeted-validation.md
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          from pathlib import Path
+          report = json.loads(Path('build/track-c-batch3-id-targeted-validation.json').read_text())
+          assert report['readOnly'] is True
+          assert report['summary']['canonicalSources'] == int(os.environ['C3_CANONICAL_SOURCES'])
+          assert report['summary']['c2FindingRowsCovered'] == int(os.environ['C3_FINDING_ROWS'])
+          assert report['safetyBoundary'] == {
+              'autoAdoptProvider': False,
+              'mutateCanonicalId': False,
+              'mutateConsumerPackaging': False,
+              'mutateFarmAuthority': False,
+              'mutateLastKnownGood': False,
+              'mutateRetryHeld': False,
+          }
+          for row in report['decisions']:
+              assert row['safety']['readOnly'] is True
+              assert row['safety']['autoAdoptProvider'] is False
+              assert row['safety']['mutateFarmAuthority'] is False
+              assert row['safety']['mutateCanonicalId'] is False
+          print(f"status={report['status']}")
+          print(f"remediationRequired={report['summary']['remediationRequired']}")
+          PY
+
+      - name: Prove C3 did not mutate authority or consumer state
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(sha256sum farm/compatibility/source-registry.json | awk '{print $1}')" == "${{ steps.before.outputs.source_registry }}" ]]
+          [[ "$(sha256sum farm/upstream/source-health.json | awk '{print $1}')" == "${{ steps.before.outputs.source_health }}" ]]
+          [[ "$(sha256sum farm/upstream/registry.json | awk '{print $1}')" == "${{ steps.before.outputs.upstream_registry }}" ]]
+          [[ "$(sha256sum farm/upstream/status.json | awk '{print $1}')" == "${{ steps.before.outputs.status }}" ]]
+          [[ "$(sha256sum farm/automation/pending-worker-state.json | awk '{print $1}')" == "${{ steps.before.outputs.worker_state }}" ]]
+          [[ "$(sha256sum inventory/inventory/source-inventory.json | awk '{print $1}')" == "${{ steps.before.outputs.inventory }}" ]]
+          [[ "$(sha256sum miyorare/extensions/miyorare-sources/multi-upstream.json | awk '{print $1}')" == "${{ steps.before.outputs.aliases }}" ]]
+          [[ "$(sha256sum miyorare/extensions/miyorare-sources/packs.json | awk '{print $1}')" == "${{ steps.before.outputs.packs }}" ]]
+          [[ "$(sha256sum build/c2/track-c-batch2-id-capability-health.json | awk '{print $1}')" == "${{ steps.before.outputs.c2_report }}" ]]
+          test -z "$(git -C control status --porcelain)"
+          test -z "$(git -C inventory status --porcelain)"
+          test -z "$(git -C farm status --porcelain)"
+          test -z "$(git -C miyorare status --porcelain)"
+
+      - name: Upload C3 targeted validation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: track-c-batch3-id-targeted-validation-${{ github.run_id }}
+          path: |
+            build/c2/track-c-batch2-id-capability-health.json
+            build/track-c-batch3-plan.json
+            build/c3-*-runtime-plan.json
+            build/compile-*.json
+            build/c3-*-profile-results.json
+            build/c3-*-live-*-manifest.json
+            build/c3-*-live-results.json
+            build/track-c-batch3-id-targeted-validation.json
+            build/track-c-batch3-id-targeted-validation.md
+            _upstream/candidate/uma/build/test-results/test/*.xml
+            _upstream/candidate/gekkoushi/build/test-results/test/*.xml
+            _upstream/lkg/uma/build/test-results/test/*.xml
+            _upstream/lkg/gekkoushi/build/test-results/test/*.xml
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Track C — Batch 3: ID Targeted Validation'
+            echo "Control exact head: ${{ steps.pins.outputs.control_sha }}"
+            echo "Exact C2 artifact: $C2_RUN_ID / $C2_ARTIFACT_ID"
+            echo "Frozen inventory/farm/Amain2: $C2_INVENTORY_SHA / $C2_FOUNDATION_SHA / $C2_MIYORARE_SHA"
+            echo "C3 sources: $C3_CANONICAL_SOURCES (from $C3_FINDING_ROWS C2 rows)"
+            echo "Runtime targets: $C3_RUNTIME_TARGETS"
+            if [[ -f build/track-c-batch3-id-targeted-validation.md ]]; then
+              cat build/track-c-batch3-id-targeted-validation.md
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
