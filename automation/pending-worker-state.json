@@ -4,7 +4,7 @@
     "promotionRunId": 39020534587,
     "sources": []
   },
-  "lastWorkflowRunId": "39485074243",
+  "lastWorkflowRunId": "39509899785",
   "schemaVersion": 2,
   "sources": {
     "miyorare:inventory-en:18PORNCOMIC": {
@@ -1024,14 +1024,17 @@
     "miyorare:inventory-en:ALPHAMANGA": {
       "adapterFamily": "custom-rest-json",
       "approvalState": "NOT_READY",
-      "attempts": 2,
+      "attempts": 1,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 2,
+        "attempts": 1,
         "gate": "REAL_PARSER_BLOCKED",
         "parser": {
           "executionMode": "real-live-parser",
           "gate": "FAIL",
+          "heldProviders": [
+            "keiyoushi"
+          ],
           "memberships": [
             {
               "canonicalId": "miyorare:inventory-en:ALPHAMANGA",
@@ -1051,10 +1054,12 @@
               "testClass": "compatibilityfarm.AutoLive_keiyoushi_f9a097cd80b9",
               "tests": 1
             }
-          ]
+          ],
+          "selectedProviders": []
         },
         "profile": {
           "gate": "PASS",
+          "heldProviders": [],
           "memberships": [
             {
               "authType": "NO_AUTH",
@@ -1072,19 +1077,36 @@
               "provider": "keiyoushi",
               "upstreamBrokenReason": null
             }
+          ],
+          "selectedProviders": [
+            "keiyoushi"
           ]
         }
       },
-      "evidenceSha256": "2c4b9bd28e37976b81f21fbc0b7ea048cacbea8e0f5984c37c74a894d06cbe0f",
-      "lastCheckedAt": "2026-09-19T19:22:28Z",
+      "evidenceSha256": "2e60c596237f7bdb806d308ab2801565e20b57b508b14081a2907d4c2aacf3a3",
+      "failureCategory": "INITIALIZATION_FAILURE",
+      "lastCheckedAt": "2026-10-20T22:46:17Z",
+      "lifetimeAttempts": 3,
+      "nextEligibleAt": "2026-10-21T04:46:17Z",
       "ownerActionRequired": false,
       "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 6,
+        "baseHours": 6,
+        "baselineReset": true,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "revalidationReason": "PROVIDER_BASELINE_CHANGED",
       "schemaVersion": 2,
+      "selectedProviders": [],
       "state": "RETRY",
       "testedVersions": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
-      "workflowRunId": "35464001903"
+      "workflowRunId": "39509899785"
     },
     "miyorare:inventory-en:ANIGLISCANS": {
       "adapterFamily": "manga-reader-plus-api",
@@ -19225,6 +19247,468 @@
       },
       "workflowRunId": "39485074243"
     },
+    "miyorare:inventory-en:MANGA18FREE": {
+      "adapterFamily": "madara",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "heldProviders": [
+            "keiyoushi"
+          ],
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:MANGA18FREE",
+              "locator": "src/en/manga18free",
+              "parserExecution": false,
+              "provider": "keiyoushi",
+              "reason": "JUNIT_SUITE_MISSING",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/manga18free/build/test-results/testDebugUnitTest",
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_e820d18c1829"
+            }
+          ],
+          "selectedProviders": []
+        },
+        "profile": {
+          "gate": "PASS",
+          "heldProviders": [],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/en/manga18free",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://manga18free.com/"
+              },
+              "probeHost": "manga18free.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": [
+            "keiyoushi"
+          ]
+        }
+      },
+      "evidenceSha256": "bb24fd34fe2b410ff67613b71e7ca02b1100634485ac61a6e9f178b97c6ab0c0",
+      "failureCategory": "PARSER_EVIDENCE_MISSING",
+      "lastCheckedAt": "2026-10-20T22:46:17Z",
+      "lifetimeAttempts": 1,
+      "nextEligibleAt": "2026-10-21T04:46:17Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 6,
+        "baseHours": 6,
+        "baselineReset": false,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "39509899785"
+    },
+    "miyorare:inventory-en:MANGA18FX": {
+      "adapterFamily": "madara",
+      "approvalState": "WAITING_FOR_APPROVAL",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_PASS",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "PASS",
+          "heldProviders": [],
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:MANGA18FX",
+              "chapterTraversal": true,
+              "detailsTraversal": true,
+              "errors": 0,
+              "failureMessage": null,
+              "failureType": null,
+              "failures": 0,
+              "fqcn": "tsuki.site.en.nsfw.Manga18fx",
+              "fqcnCandidates": [
+                "tsuki.site.en.nsfw.Manga18fx"
+              ],
+              "locator": "src/main/kotlin/tsuki/site/en/nsfw/Manga18fx.kt",
+              "pageExtraction": true,
+              "parserExecution": true,
+              "provider": "uma",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/uma/build/test-results/test",
+              "skipped": 0,
+              "status": "PASS",
+              "testClass": "compatibilityfarm.AutoLive_uma_41d9fad6200b",
+              "tests": 1
+            }
+          ],
+          "selectedProviders": [
+            "uma"
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "heldProviders": [],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/en/nsfw/Manga18fx.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://manga18fx.com/"
+              },
+              "probeHost": "manga18fx.com",
+              "profilePass": true,
+              "provider": "uma",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": [
+            "uma"
+          ]
+        }
+      },
+      "evidenceSha256": "6fb13056be83eb7110a7cb9a06e9292e2c3298e98f72d40f4d26b28e9087241c",
+      "lastCheckedAt": "2026-10-20T22:46:17Z",
+      "lifetimeAttempts": 1,
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "selectedProviders": [
+        "uma"
+      ],
+      "state": "READY_FOR_APPROVAL",
+      "testedVersions": {
+        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "workflowRunId": "39509899785"
+    },
+    "miyorare:inventory-en:MANGA18X": {
+      "adapterFamily": "madara",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "heldProviders": [
+            "gekkoushi",
+            "keiyoushi"
+          ],
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:MANGA18X",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "org.opentest4j.AssertionFailedError: live browse returned no manga; lastFailure=ParseException ==> expected: <true> but was: <false>",
+              "failureType": "org.opentest4j.AssertionFailedError",
+              "failures": 1,
+              "fqcn": "tsuki.site.madara.en.Manga18x",
+              "fqcnCandidates": [
+                "tsuki.site.madara.en.Manga18x"
+              ],
+              "locator": "src/main/kotlin/tsuki/site/madara/en/Manga18x.kt",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_a268c1b2fa6a",
+              "tests": 1
+            },
+            {
+              "canonicalId": "miyorare:inventory-en:MANGA18X",
+              "locator": "src/en/manga18x",
+              "parserExecution": false,
+              "provider": "keiyoushi",
+              "reason": "JUNIT_SUITE_MISSING",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/manga18x/build/test-results/testDebugUnitTest",
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_c515cec95114"
+            }
+          ],
+          "selectedProviders": []
+        },
+        "profile": {
+          "gate": "PASS",
+          "heldProviders": [],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/Manga18x.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://manga18x.net/"
+              },
+              "probeHost": "manga18x.net",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            },
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/en/manga18x",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://manga18x.net/"
+              },
+              "probeHost": "manga18x.net",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": [
+            "gekkoushi",
+            "keiyoushi"
+          ]
+        }
+      },
+      "evidenceSha256": "788295900f6c60fcdabca272033b18c111d110bb40dd9bb105f74eebd42fab83",
+      "failureCategory": "SOURCE_PARSER_FAILURE",
+      "lastCheckedAt": "2026-10-20T22:46:17Z",
+      "lifetimeAttempts": 1,
+      "nextEligibleAt": "2026-10-21T10:46:17Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 12,
+        "baseHours": 12,
+        "baselineReset": false,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 72,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "39509899785"
+    },
+    "miyorare:inventory-en:MANGA18XYZ": {
+      "adapterFamily": "unclassified",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "heldProviders": [
+            "gekkoushi"
+          ],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/Manga18Xyz.kt",
+              "probe": {
+                "detail": "upstream-declared-broken",
+                "reachable": false
+              },
+              "probeHost": "manga18.xyz",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": "Domain parked \u2014 landing page only, no manga content"
+            }
+          ],
+          "selectedProviders": []
+        }
+      },
+      "evidenceSha256": "a5b3026fa179266fbb7c5c04fa0ee5dc2702859dc6582828335b61db249d9712",
+      "failureCategory": "PERMANENT_UPSTREAM",
+      "holdReason": "TERMINAL_EVIDENCE",
+      "lastCheckedAt": "2026-10-20T22:46:17Z",
+      "lifetimeAttempts": 1,
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "NEEDS_ATTENTION",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "39509899785"
+    },
+    "miyorare:inventory-en:MANGA1K": {
+      "adapterFamily": "unclassified",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "heldProviders": [
+            "gekkoushi"
+          ],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/Manga1k.kt",
+              "probe": {
+                "detail": "upstream-declared-broken",
+                "reachable": false
+              },
+              "probeHost": "manga1k.com",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": "Domain has no DNS records \u2014 site is gone"
+            }
+          ],
+          "selectedProviders": []
+        }
+      },
+      "evidenceSha256": "67211f85ef86fbe6af42c765bcd4a3f5fb90ac9afb799b61cf81067d0c38ea4b",
+      "failureCategory": "PERMANENT_UPSTREAM",
+      "holdReason": "TERMINAL_EVIDENCE",
+      "lastCheckedAt": "2026-10-20T22:46:17Z",
+      "lifetimeAttempts": 1,
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "NEEDS_ATTENTION",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "39509899785"
+    },
+    "miyorare:inventory-en:MANGA1ST": {
+      "adapterFamily": "madara",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "heldProviders": [
+            "gekkoushi"
+          ],
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:MANGA1ST",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "org.opentest4j.AssertionFailedError: live browse returned no manga; lastFailure=ParseException ==> expected: <true> but was: <false>",
+              "failureType": "org.opentest4j.AssertionFailedError",
+              "failures": 1,
+              "fqcn": "tsuki.site.madara.en.Manga1st",
+              "fqcnCandidates": [
+                "tsuki.site.madara.en.Manga1st"
+              ],
+              "locator": "src/main/kotlin/tsuki/site/madara/en/Manga1st.kt",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_107034afca9c",
+              "tests": 1
+            }
+          ],
+          "selectedProviders": []
+        },
+        "profile": {
+          "gate": "PASS",
+          "heldProviders": [],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/Manga1st.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://manga1st.online/"
+              },
+              "probeHost": "manga1st.online",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": [
+            "gekkoushi"
+          ]
+        }
+      },
+      "evidenceSha256": "bf29209dbc107ed8fb45888d7b31c18de865b9e0908485433c505a186db0a8f1",
+      "failureCategory": "SOURCE_PARSER_FAILURE",
+      "lastCheckedAt": "2026-10-20T22:46:17Z",
+      "lifetimeAttempts": 1,
+      "nextEligibleAt": "2026-10-21T10:46:17Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 12,
+        "baseHours": 12,
+        "baselineReset": false,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 72,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "39509899785"
+    },
     "miyorare:inventory-id:AARLAS": {
       "adapterFamily": "keiyoushi-native",
       "approvalState": "NOT_READY",
@@ -20736,44 +21220,61 @@
       "workflowRunId": "39485074243"
     },
     "miyorare:inventory-id:DAILYSUKA": {
-      "adapterFamily": "keiyoushi-native",
+      "adapterFamily": "unclassified",
       "approvalState": "NOT_READY",
-      "attempts": 2,
+      "attempts": 1,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 2,
+        "attempts": 1,
         "profile": {
           "gate": "FAIL",
+          "heldProviders": [
+            "keiyoushi"
+          ],
           "memberships": [
             {
-              "authType": "NO_AUTH",
-              "compile": true,
-              "exists": true,
-              "family": "keiyoushi-native",
+              "authType": "UNSUPPORTED",
+              "compile": false,
+              "exists": false,
+              "family": null,
               "locator": "src/id/dailysuka",
               "probe": {
-                "detail": "URLError",
-                "reachable": false,
-                "url": "https://dailysuka.com/"
+                "detail": "no-probe-host",
+                "reachable": false
               },
-              "probeHost": "dailysuka.com",
+              "probeHost": null,
               "profilePass": false,
               "provider": "keiyoushi",
               "upstreamBrokenReason": null
             }
-          ]
+          ],
+          "selectedProviders": []
         }
       },
-      "evidenceSha256": "94d42c5a05b4e6ba99344e4127d232800133f95da0550629b4a55745d4c773bf",
-      "lastCheckedAt": "2026-09-20T12:26:59Z",
+      "evidenceSha256": "3ce90195f36a596a6391d82172b740ff8549c4dac6244120e9024ed340b18e41",
+      "failureCategory": "PROFILE_TRANSIENT",
+      "lastCheckedAt": "2026-10-20T22:46:17Z",
+      "lifetimeAttempts": 3,
+      "nextEligibleAt": "2026-10-21T00:46:17Z",
       "ownerActionRequired": false,
       "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 2,
+        "baseHours": 2,
+        "baselineReset": true,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "revalidationReason": "PROVIDER_BASELINE_CHANGED",
       "schemaVersion": 2,
+      "selectedProviders": [],
       "state": "RETRY",
       "testedVersions": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
-      "workflowRunId": "35510515864"
+      "workflowRunId": "39509899785"
     },
     "miyorare:inventory-id:DOJING": {
       "adapterFamily": "manga-reader-plus-api",
@@ -30890,5 +31391,5 @@
       "workflowRunId": "36240024118"
     }
   },
-  "updatedAt": "2026-10-20T19:43:28Z"
+  "updatedAt": "2026-10-20T22:46:17Z"
 }
