@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Track D D2: prove provider preference, scoped recovery, and stale-evidence invalidation.
 
-D2 is read-only. It binds the clean D1 convergence result to the live Compatibility Farm,
-reuses the permanent A7 LKG audit, checks live source/worker authority, and requires behavioral
-proofs from the production lifecycle tests. It does not select providers, mutate LKG, alter
-Retry/Held, approve candidates, promote revisions, change consumer packaging, or publish.
+D2 is read-only. It binds clean D1 convergence to the live Compatibility Farm, reuses the
+permanent A7 LKG audit, checks live authority, and requires behavioral proofs from production
+lifecycle tests. Historical provider-wide onboarding approvals are recorded but are not treated
+as partial-provider authority unless they carry both activeProviders and heldProviders.
 """
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ def validate_baseline(baseline: dict[str, Any]) -> None:
     if artifact.get("requiredStatus") != "D1_CONVERGENCE_BASELINE_CLEAN":
         raise D2Error("D2 requires clean D1 convergence")
     proofs = baseline.get("requiredBehaviorProofs")
-    if not isinstance(proofs, list) or len(proofs) != len(set(proofs)) or not proofs:
+    if not isinstance(proofs, list) or not proofs or len(proofs) != len(set(proofs)):
         raise D2Error("requiredBehaviorProofs invalid")
     files = baseline.get("authorityFiles")
     if not isinstance(files, dict) or set(files) != {
@@ -84,12 +84,12 @@ def validate_d1(report: dict[str, Any], baseline: dict[str, Any]) -> None:
         raise D2Error("D1 convergence is not clean")
     if report.get("trackDClosed") is not False or report.get("nextStage") != PHASE:
         raise D2Error("D1 does not hand off to D2")
-    questions = report.get("d2Questions")
     expected = {
         "prove source-scoped provider preference cannot regress to a failed provider",
         "prove candidate/LKG recovery remains isolated per provider/source",
         "prove stale READY evidence is invalidated after provider-baseline drift",
     }
+    questions = report.get("d2Questions")
     if not isinstance(questions, list) or set(questions) != expected:
         raise D2Error("D1 D2-question binding changed")
     authority = report.get("permanentAuthority")
@@ -110,13 +110,10 @@ def validate_a7(report: dict[str, Any]) -> None:
 
 
 def source_map(registry: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    if registry.get("schemaVersion") != 1:
+    if registry.get("schemaVersion") != 1 or not isinstance(registry.get("sources"), list):
         raise D2Error("unsupported Farm source registry")
-    rows = registry.get("sources")
-    if not isinstance(rows, list):
-        raise D2Error("Farm sources must be a list")
     result: dict[str, dict[str, Any]] = {}
-    for row in rows:
+    for row in registry["sources"]:
         if not isinstance(row, dict) or not isinstance(row.get("canonicalId"), str):
             continue
         cid = row["canonicalId"]
@@ -146,6 +143,7 @@ def validate_provider_preference(registry: dict[str, Any], worker: dict[str, Any
         raise D2Error("Lumos provider preference regressed from approved UMA-only authority")
 
     scoped_rows: list[dict[str, Any]] = []
+    legacy_rows: list[str] = []
     for cid, source in sorted(sources.items()):
         enrollment = source.get("compatibilityEnrollment")
         if not isinstance(enrollment, dict) or enrollment.get("state") != "ACTIVE":
@@ -155,6 +153,17 @@ def validate_provider_preference(registry: dict[str, Any], worker: dict[str, Any
             continue
         if approval.get("state") != "APPROVED":
             raise D2Error(f"{cid} onboardingApproval is not APPROVED")
+
+        has_active = "activeProviders" in approval
+        has_held = "heldProviders" in approval
+        if not has_active and not has_held:
+            # Historical/provider-wide approval format. A7 remains the global LKG/candidate-leak proof;
+            # partial-provider invariants only apply when the scoped authority fields are present.
+            legacy_rows.append(cid)
+            continue
+        if has_active != has_held:
+            raise D2Error(f"{cid} onboarding provider authority malformed")
+
         active = approval.get("activeProviders")
         held = approval.get("heldProviders")
         source_providers = source.get("providers")
@@ -189,12 +198,15 @@ def validate_provider_preference(registry: dict[str, Any], worker: dict[str, Any
             "activeProviders": sorted(provider_set),
             "heldProviders": sorted(value for value in held_set if isinstance(value, str)),
         })
+
     return {
         "status": "PROVEN",
         "lumosProviders": providers,
         "lumosSelectedProviders": selected,
         "scopedApprovedSources": scoped_rows,
         "scopedApprovedSourceCount": len(scoped_rows),
+        "legacyProviderWideApprovals": sorted(legacy_rows),
+        "legacyProviderWideApprovalCount": len(legacy_rows),
     }
 
 
@@ -209,7 +221,8 @@ def validate_ready_evidence(registry: dict[str, Any], worker: dict[str, Any]) ->
         if entry.get("state") != READY:
             continue
         source = sources.get(cid)
-        if not isinstance(source, dict) or source.get("compatibilityEnrollment", {}).get("state") != "PENDING":
+        enrollment = source.get("compatibilityEnrollment") if isinstance(source, dict) else None
+        if not isinstance(source, dict) or not isinstance(enrollment, dict) or enrollment.get("state") != "PENDING":
             raise D2Error(f"READY source is not live PENDING authority: {cid}")
         selected = entry.get("selectedProviders")
         tested = entry.get("testedVersions")
@@ -230,8 +243,8 @@ def validate_behavior_proofs(manifest: dict[str, Any], baseline: dict[str, Any])
     if manifest.get("schemaVersion") != 1 or not isinstance(manifest.get("proofs"), dict):
         raise D2Error("behavior proof manifest invalid")
     proofs = manifest["proofs"]
-    missing = []
-    failed = []
+    missing: list[str] = []
+    failed: list[str] = []
     for name in baseline["requiredBehaviorProofs"]:
         row = proofs.get(name)
         if not isinstance(row, dict):
@@ -252,64 +265,37 @@ def require_markers(text: str, markers: list[str], label: str) -> int:
     return len(markers)
 
 
-def validate_authority_code(
-    worker_text: str,
-    approval_text: str,
-    promotion_text: str,
-    farm_approval_text: str,
-    farm_promotion_text: str,
-) -> dict[str, Any]:
+def validate_authority_code(worker_text: str, approval_text: str, promotion_text: str, farm_approval_text: str, farm_promotion_text: str) -> dict[str, Any]:
     counts = {
         "worker": require_markers(worker_text, [
-            "def ready_evidence_is_stale(",
-            "def invalidate_stale_ready(",
-            'entry["state"] = RETRY',
-            'entry["approvalState"] = "NOT_READY"',
-            'entry["revalidationReason"] = "PROVIDER_BASELINE_CHANGED"',
+            "def ready_evidence_is_stale(", "def invalidate_stale_ready(", 'entry["state"] = RETRY',
+            'entry["approvalState"] = "NOT_READY"', 'entry["revalidationReason"] = "PROVIDER_BASELINE_CHANGED"',
             "baseline_reset = is_retry and retry_evidence_is_stale",
         ], "pending worker"),
         "approval": require_markers(approval_text, [
-            'source["providers"] = list(active_providers)',
-            'source["upstreamIdentities"] = {',
-            'source["onboardingApproval"] = {',
-            '"activeProviders": list(active_providers)',
-            '"heldProviders": item["heldProviders"]',
-            'raise ValueError("approval plan changed; refusing stale approval")',
+            'source["providers"] = list(active_providers)', 'source["upstreamIdentities"] = {',
+            'source["onboardingApproval"] = {', '"activeProviders": list(active_providers)',
+            '"heldProviders": item["heldProviders"]', 'raise ValueError("approval plan changed; refusing stale approval")',
         ], "pending approval"),
         "promotionWorkflow": require_markers(promotion_text, [
-            "approval sourceScope changed",
-            "scoped source is not a {provider} member",
-            "source state moved",
-            "active/LKG moved",
-            'entry["state"] = "RETRY"',
-            'entry["revalidationReason"] = "PROVIDER_BASELINE_CHANGED"',
-            'entry["invalidatedByPromotionRunId"]',
+            "approval sourceScope changed", "scoped source is not a {provider} member", "source state moved",
+            "active/LKG moved", 'entry["state"] = "RETRY"',
+            'entry["revalidationReason"] = "PROVIDER_BASELINE_CHANGED"', 'entry["invalidatedByPromotionRunId"]',
             "Refuse promotion if foundation moved after validation",
         ], "promotion workflow"),
         "farmApproval": require_markers(farm_approval_text, [
-            "def validate_source_scope(",
-            "approval sourceScope does not match pending candidate",
+            "def validate_source_scope(", "approval sourceScope does not match pending candidate",
             "registry changed after staging; approval is stale",
         ], "Farm approval authority"),
         "farmPromotion": require_markers(farm_promotion_text, [
             "authorization sourceScope does not match requested/pending sourceScope",
-            "registry lastKnownGood changed after authorization; approval is stale",
-            "Source-level LKG mutation is",
+            "registry lastKnownGood changed after authorization; approval is stale", "Source-level LKG mutation is",
         ], "Farm promotion authority"),
     }
     return {"status": "PROVEN", "markerCounts": counts}
 
 
-def build_report(
-    baseline: dict[str, Any],
-    d1: dict[str, Any],
-    a7: dict[str, Any],
-    registry: dict[str, Any],
-    worker: dict[str, Any],
-    proof_manifest: dict[str, Any],
-    authority_code: dict[str, str],
-    current_refs: dict[str, str],
-) -> dict[str, Any]:
+def build_report(baseline: dict[str, Any], d1: dict[str, Any], a7: dict[str, Any], registry: dict[str, Any], worker: dict[str, Any], proof_manifest: dict[str, Any], authority_code: dict[str, str], current_refs: dict[str, str]) -> dict[str, Any]:
     validate_baseline(baseline)
     validate_d1(d1, baseline)
     validate_a7(a7)
@@ -322,13 +308,9 @@ def build_report(
     stale_ready = validate_ready_evidence(registry, worker)
     behavior = validate_behavior_proofs(proof_manifest, baseline)
     code = validate_authority_code(
-        authority_code["workerTool"],
-        authority_code["approvalTool"],
-        authority_code["promotionWorkflow"],
-        authority_code["farmApprovalTool"],
-        authority_code["farmPromotionTool"],
+        authority_code["workerTool"], authority_code["approvalTool"], authority_code["promotionWorkflow"],
+        authority_code["farmApprovalTool"], authority_code["farmPromotionTool"],
     )
-
     return {
         "schemaVersion": 1,
         "phase": PHASE,
@@ -364,21 +346,18 @@ def build_report(
 def markdown(report: dict[str, Any]) -> str:
     preference = report["proofs"]["providerPreference"]
     stale = report["proofs"]["staleReadyInvalidation"]
-    lines = [
-        "# Track D D2 — Provider Preference & Recovery",
-        "",
+    return "\n".join([
+        "# Track D D2 — Provider Preference & Recovery", "",
         f"- Status: `{report['status']}`",
         f"- Track D closed: `{str(report['trackDClosed']).lower()}`",
         f"- Next stage: `{report['nextStage']}`",
         f"- Lumos live providers: `{','.join(preference['lumosProviders'])}`",
-        f"- Scoped approved sources checked: `{preference['scopedApprovedSourceCount']}`",
+        f"- Scoped partial-provider approvals checked: `{preference['scopedApprovedSourceCount']}`",
+        f"- Historical/provider-wide approvals recorded: `{preference['legacyProviderWideApprovalCount']}`",
         f"- Live READY entries checked for stale evidence: `{stale['liveReadyCount']}`",
-        "- A7 LKG safety: `SAFE`",
-        "",
-        "D2 is read-only. Provider preference, scoped recovery/LKG isolation, and stale READY invalidation are proven without changing lifecycle authority.",
-        "",
-    ]
-    return "\n".join(lines)
+        "- A7 LKG safety: `SAFE`", "",
+        "D2 is read-only. Scoped provider preference, recovery/LKG isolation, and stale READY invalidation are proven without changing lifecycle authority.", "",
+    ])
 
 
 def main() -> int:
@@ -401,12 +380,8 @@ def main() -> int:
     args = parser.parse_args()
     try:
         report = build_report(
-            load(args.baseline),
-            load(args.d1_report),
-            load(args.a7_report),
-            load(args.farm_registry),
-            load(args.worker_state),
-            load(args.proof_manifest),
+            load(args.baseline), load(args.d1_report), load(args.a7_report), load(args.farm_registry),
+            load(args.worker_state), load(args.proof_manifest),
             {
                 "workerTool": Path(args.worker_tool).read_text(encoding="utf-8"),
                 "approvalTool": Path(args.approval_tool).read_text(encoding="utf-8"),
