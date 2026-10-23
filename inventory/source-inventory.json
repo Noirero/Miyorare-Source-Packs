@@ -6,7 +6,7 @@
       "commit": "12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67"
     },
     "keiyoushi": {
-      "commit": "1d3d7c4b3e876fb0c26ae3ade8113fb329af15fa"
+      "commit": "edce5868af1ea36ca48b6e729004901a2a684637"
     },
     "uma": {
       "commit": "83bcf88cad8a047028fa59cb267c07e995009a68"
@@ -2198,6 +2198,24 @@
     },
     {
       "attentionReasons": [],
+      "canonicalId": "miyorare:inventory-all:RAWKUMAME",
+      "displayName": "Rawkuma.me",
+      "identityConfidence": "exact-name",
+      "language": "all",
+      "needsAttention": false,
+      "providers": {
+        "keiyoushi": {
+          "available": true,
+          "baseUrl": "https://rawkuma.me",
+          "extensionVersionCode": 1,
+          "module": "src/all/rawkumame",
+          "sourceId": 2457998659080845631,
+          "sourceName": "Rawkuma.me"
+        }
+      }
+    },
+    {
+      "attentionReasons": [],
       "canonicalId": "miyorare:inventory-all:ROKUHENTAI",
       "displayName": "Roku Hentai",
       "identityConfidence": "previous",
@@ -2631,6 +2649,24 @@
           "module": "src/all/yaoimangaonline",
           "sourceId": 7988826691692266469,
           "sourceName": "Yaoi Manga Online"
+        }
+      }
+    },
+    {
+      "attentionReasons": [],
+      "canonicalId": "miyorare:inventory-all:YAOIME",
+      "displayName": "Yaoi.me",
+      "identityConfidence": "exact-name",
+      "language": "all",
+      "needsAttention": false,
+      "providers": {
+        "keiyoushi": {
+          "available": true,
+          "baseUrl": "https://yaoi.me",
+          "extensionVersionCode": 0,
+          "module": "src/all/yaoime",
+          "sourceId": 4224239960768133106,
+          "sourceName": "Yaoi.me"
         }
       }
     },
@@ -3516,17 +3552,18 @@
       "attentionReasons": [],
       "canonicalId": "miyorare:inventory-ar:MANGAHUB",
       "displayName": "MangaHub",
-      "identityConfidence": "previous",
+      "identityConfidence": "exact-name",
       "language": "ar",
       "needsAttention": false,
       "providers": {
         "keiyoushi": {
           "available": true,
-          "baseUrl": "https://www.mangaxhentai.com",
-          "extensionVersionCode": 2,
+          "baseUrl": "https://mangaxhentai.com",
+          "extensionVersionCode": 0,
           "module": "src/ar/mangahub",
-          "sourceId": 9160891278578525988,
-          "sourceName": "MangaHub"
+          "sourceId": 1214953877894211809,
+          "sourceName": "MangaHub",
+          "versionId": 2
         }
       }
     },
@@ -9037,6 +9074,24 @@
     },
     {
       "attentionReasons": [],
+      "canonicalId": "miyorare:inventory-en:KALISCANSORGUNORIGINAL",
+      "displayName": "KaliScans.org (unoriginal)",
+      "identityConfidence": "exact-name",
+      "language": "en",
+      "needsAttention": false,
+      "providers": {
+        "keiyoushi": {
+          "available": true,
+          "baseUrl": "https://kaliscans.org",
+          "extensionVersionCode": 0,
+          "module": "src/en/kaliscansorg",
+          "sourceId": 1879005209022234038,
+          "sourceName": "KaliScans.org (unoriginal)"
+        }
+      }
+    },
+    {
+      "attentionReasons": [],
       "canonicalId": "miyorare:inventory-en:KAPPABEAST",
       "displayName": "Kappa Beast",
       "identityConfidence": "explicit",
@@ -10415,7 +10470,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://mangacloud.org",
-          "extensionVersionCode": 0,
+          "extensionVersionCode": 1,
           "module": "src/en/mangacloud",
           "sourceId": 8787213233662904706,
           "sourceName": "MangaCloud"
@@ -15641,6 +15696,24 @@
           "displayName": "ScansGG",
           "file": "src/main/kotlin/tsuki/site/en/ScansGG.kt",
           "sourceName": "SCANSGG"
+        }
+      }
+    },
+    {
+      "attentionReasons": [],
+      "canonicalId": "miyorare:inventory-en:SCHALESCANS",
+      "displayName": "Schale Scans",
+      "identityConfidence": "exact-name",
+      "language": "en",
+      "needsAttention": false,
+      "providers": {
+        "keiyoushi": {
+          "available": true,
+          "baseUrl": "https://www.schalescans.com",
+          "extensionVersionCode": 0,
+          "module": "src/en/schalescans",
+          "sourceId": 135437514280789093,
+          "sourceName": "Schale Scans"
         }
       }
     },
@@ -44743,6 +44816,26 @@
       }
     },
     {
+      "attentionReasons": [
+        "ambiguous-automatic-identity"
+      ],
+      "canonicalId": "miyorare:inventory-zh:UNKNOWN:KEIYOUSHI-9711585E37",
+      "displayName": "漫小肆韓漫",
+      "identityConfidence": "ambiguous",
+      "language": "zh",
+      "needsAttention": true,
+      "providers": {
+        "keiyoushi": {
+          "available": true,
+          "baseUrl": "https://ikanmh.xyz",
+          "extensionVersionCode": 1,
+          "module": "src/zh/ikanmh",
+          "sourceId": 8826152585666516354,
+          "sourceName": "漫小肆韓漫"
+        }
+      }
+    },
+    {
       "attentionReasons": [],
       "canonicalId": "miyorare:inventory-zh:UNKNOWN:KEIYOUSHI-B2D7D57F25",
       "displayName": "爱看漫",
@@ -45383,8 +45476,8 @@
     }
   ],
   "stats": {
-    "allSources": 2474,
-    "needsAttention": 1,
-    "providerMappings": 2958
+    "allSources": 2479,
+    "needsAttention": 2,
+    "providerMappings": 2963
   }
 }
