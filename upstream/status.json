@@ -57,8 +57,8 @@
   },
   "automation": {
     "schemaVersion": 2,
-    "state": "ALL_GOOD",
-    "reason": "READY_SOURCE_APPROVAL_WINDOW",
+    "state": "HELD",
+    "reason": "UPSTREAM_INTAKE_NOT_SAFE",
     "candidates": {
       "gekkoushi": {
         "candidate": "12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67",
@@ -81,12 +81,20 @@
         "workflowRunId": 39184820113,
         "upstreamRunId": 39184842861,
         "recordedAt": "2026-10-19T01:28:40.167414Z"
+      },
+      "uma": {
+        "current": "52185ec4faada143f57dcfb41c6fa49aa346b4db",
+        "candidate": "83bcf88cad8a047028fa59cb267c07e995009a68",
+        "reason": "Validate UMA en candidate / Prepare candidate shard",
+        "workflowRunId": 40032498057,
+        "upstreamRunId": 40032532539,
+        "recordedAt": "2026-10-23T22:23:34.376971Z"
       }
     },
     "ownerActionRequired": false,
-    "lastAttemptProvider": "keiyoushi",
-    "workflowRunId": 40009854126,
-    "updatedAt": "2026-10-23T19:14:53.364373Z"
+    "lastAttemptProvider": "uma",
+    "workflowRunId": 40032498057,
+    "updatedAt": "2026-10-23T22:23:34.376989Z"
   },
   "lastPromotion": {
     "schemaVersion": 1,
