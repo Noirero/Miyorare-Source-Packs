@@ -840,9 +840,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:ALLPORNCOMIC",
       "compatibilityBaseline": {
         "capabilities": [
@@ -859,13 +859,11 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
       "displayName": "AllPornComic",
@@ -879,15 +877,38 @@
       ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "214770c90ca6b733e5cb3d88437216227a8af151b158d4b77d178ecc593a34bb",
+        "heldProviders": [
+          {
+            "provider": "gekkoushi",
+            "reason": "REAL_PARSER_NOT_USABLE",
+            "state": "HELD"
+          },
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39447923609"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi",
         "uma"
       ],
       "publishEligible": false,
@@ -898,22 +919,14 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
-        "gekkoushi": {
-          "file": "src/main/kotlin/tsuki/site/madara/en/AllPornComic.kt",
-          "sourceName": "ALLPORN_COMIC"
-        },
-        "keiyoushi": {
-          "module": "src/en/allporncomic",
-          "sourceId": 8547397037512613554,
-          "sourceName": "AllPornComic"
-        },
         "uma": {
           "file": "src/main/kotlin/tsuki/site/en/nsfw/AllPornComic.kt",
           "sourceName": "ALLPORNCOMIC"
@@ -1115,9 +1128,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:ANISASCANS",
       "compatibilityBaseline": {
         "capabilities": [
@@ -1134,13 +1147,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
       "displayName": "AnisaScans",
@@ -1150,19 +1162,42 @@
         "workflowRunId": 35279099921
       },
       "healthyHistory": [
-        "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        "52185ec4faada143f57dcfb41c6fa49aa346b4db",
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
       ],
       "language": "en",
       "lastKnownGood": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi",
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "615ee327b073c25a658ce372c9b61d2778635f2f9eb5b5b9250000354edc2c95",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39524676652"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
         "gekkoushi",
-        "keiyoushi",
         "uma"
       ],
       "publishEligible": false,
@@ -1173,21 +1208,17 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
         "gekkoushi": {
           "file": "src/main/kotlin/tsuki/site/madara/en/AnisaScans.kt",
           "sourceName": "ANISASCANS"
-        },
-        "keiyoushi": {
-          "module": "src/en/anisascans",
-          "sourceId": 8904806262353429205,
-          "sourceName": "Anisa Scans"
         },
         "uma": {
           "file": "src/main/kotlin/tsuki/site/en/AnisaScans.kt",
@@ -2543,9 +2574,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "custom-rest-json",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:ATSUMARU",
       "compatibilityBaseline": {
         "capabilities": [
@@ -2562,13 +2593,11 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
       "displayName": "Atsumaru",
@@ -2582,15 +2611,38 @@
       ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "42b8d143d26a74e5866d1cd545838805962799f26f731906237c74d647cc2a05",
+        "heldProviders": [
+          {
+            "provider": "gekkoushi",
+            "reason": "REAL_PARSER_NOT_USABLE",
+            "state": "HELD"
+          },
+          {
+            "provider": "keiyoushi",
+            "reason": "REAL_PARSER_NOT_USABLE",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39858863062"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi",
         "uma"
       ],
       "publishEligible": false,
@@ -2601,22 +2653,14 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
-        "gekkoushi": {
-          "file": "src/main/kotlin/tsuki/site/en/Atsumaru.kt",
-          "sourceName": "ATSUMARU"
-        },
-        "keiyoushi": {
-          "module": "src/en/atsumaru",
-          "sourceId": 2327480808438768017,
-          "sourceName": "Atsumaru"
-        },
         "uma": {
           "file": "src/main/kotlin/tsuki/site/en/Atsumaru.kt",
           "sourceName": "ATSUMARU"
@@ -6807,9 +6851,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "gekkoushi-native",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:DEATHTOLLSCANS",
       "compatibilityBaseline": {
         "capabilities": [
@@ -6826,13 +6870,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
       "displayName": "DeathTollScans",
       "enrollmentEvidence": {
@@ -6840,17 +6883,39 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "87fd06e8d948b552cacf3905976afba29e963f3315b032070c7174a0545776d3",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "40010035859"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi"
+        "gekkoushi"
       ],
       "publishEligible": false,
       "repairPolicy": {
@@ -6860,21 +6925,17 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
         "gekkoushi": {
           "file": "src/main/kotlin/tsuki/site/foolslide/en/Deathtollscans.kt",
           "sourceName": "DEATHTOLLSCANS"
-        },
-        "keiyoushi": {
-          "module": "src/en/deathtollscans",
-          "sourceId": 4722346859737894698,
-          "sourceName": "Death Toll Scans"
         }
       }
     },
@@ -18692,9 +18753,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MADARADEX",
       "compatibilityBaseline": {
         "capabilities": [
@@ -18711,13 +18772,11 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
       "displayName": "MadaraDex",
@@ -18731,15 +18790,38 @@
       ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "64d3d1f4414c321d43c7552d12008979d51878dd37c64147bf73edffd734b474",
+        "heldProviders": [
+          {
+            "provider": "gekkoushi",
+            "reason": "PROFILE_NOT_USABLE",
+            "state": "HELD"
+          },
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39447923609"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi",
         "uma"
       ],
       "publishEligible": false,
@@ -18750,22 +18832,14 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
-        "gekkoushi": {
-          "file": "src/main/kotlin/tsuki/site/madara/en/MadaraDex.kt",
-          "sourceName": "MADARADEX"
-        },
-        "keiyoushi": {
-          "module": "src/en/madaradex",
-          "sourceId": 2136088453725931591,
-          "sourceName": "MadaraDex"
-        },
         "uma": {
           "file": "src/main/kotlin/tsuki/site/en/nsfw/MadaraDex.kt",
           "sourceName": "MADARADEX"
@@ -19293,9 +19367,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "uma-native",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGAPLUSENGLISH",
       "compatibilityBaseline": {
         "capabilities": [
@@ -19312,12 +19386,11 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
       "displayName": "MANGA Plus English",
@@ -19331,13 +19404,33 @@
       ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "fb16bdf968edec7804df37e3dda185612914bd978c3e03f792db5282e827a9b2",
+        "heldProviders": [
+          {
+            "provider": "gekkoushi",
+            "reason": "REAL_PARSER_NOT_USABLE",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39936731129"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
         "uma"
       ],
       "publishEligible": false,
@@ -19348,17 +19441,14 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
-        "gekkoushi": {
-          "file": "src/main/kotlin/tsuki/site/all/MangaPlusParser.kt",
-          "sourceName": "MANGAPLUSPARSER_EN"
-        },
         "uma": {
           "file": "src/main/kotlin/tsuki/site/all/MangaPlus.kt",
           "sourceName": "MANGAPLUSPARSER_EN"
@@ -19690,9 +19780,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "multi-provider",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGA18",
       "compatibilityBaseline": {
         "capabilities": [
@@ -19709,8 +19799,8 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
@@ -19724,12 +19814,31 @@
         "workflowRunId": 35279099921
       },
       "healthyHistory": [
-        "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        "52185ec4faada143f57dcfb41c6fa49aa346b4db",
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
       ],
       "language": "en",
       "lastKnownGood": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi",
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "2e96b261312384c308982e4dd2e1a6074a0b678131dca306875734be2aea481f",
+        "heldProviders": [],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39485074243"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
@@ -19745,10 +19854,11 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
@@ -19957,9 +20067,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGA18FX",
       "compatibilityBaseline": {
         "capabilities": [
@@ -19976,8 +20086,8 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
@@ -19996,6 +20106,22 @@
       "lastKnownGood": {
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
+      "onboardingApproval": {
+        "activeProviders": [
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "6fb13056be83eb7110a7cb9a06e9292e2c3298e98f72d40f4d26b28e9087241c",
+        "heldProviders": [],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39509899785"
+      },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
@@ -20009,10 +20135,11 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
@@ -20415,9 +20542,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "gekkoushi-native",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGABAT",
       "compatibilityBaseline": {
         "capabilities": [
@@ -20434,13 +20561,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
       "displayName": "Mangabat",
       "enrollmentEvidence": {
@@ -20448,17 +20574,39 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "9244c20873117b8f703bc2247dcf32c9c8bff91675350b0aabf89d5c653cab97",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "39524676652"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi"
+        "gekkoushi"
       ],
       "publishEligible": false,
       "repairPolicy": {
@@ -20468,28 +20616,24 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
         "gekkoushi": {
           "file": "src/main/kotlin/tsuki/site/mangabox/en/Mangabat.kt",
           "sourceName": "HMANGABAT"
-        },
-        "keiyoushi": {
-          "module": "src/en/mangabat",
-          "sourceId": 4215511432986138970,
-          "sourceName": "Mangabat"
         }
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "custom-paged-form-api",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGABATS",
       "compatibilityBaseline": {
         "capabilities": [
@@ -20506,8 +20650,8 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
@@ -20526,6 +20670,22 @@
       "lastKnownGood": {
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
+      "onboardingApproval": {
+        "activeProviders": [
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "a0c6a0b90192337cc377a057b356d23b3c048edfe308e53492ec91e802646025",
+        "heldProviders": [],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39524676652"
+      },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
@@ -20539,10 +20699,11 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
@@ -20553,9 +20714,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGABEE",
       "compatibilityBaseline": {
         "capabilities": [
@@ -20572,8 +20733,8 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
@@ -20585,10 +20746,28 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "en",
       "lastKnownGood": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "e49673bf9d5833e232c0a9efef9a2722d92eaf4f25f5ce8a52530416e14b2de5",
+        "heldProviders": [],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "39553037831"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
@@ -20603,10 +20782,11 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
@@ -21197,9 +21377,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGADASS",
       "compatibilityBaseline": {
         "capabilities": [
@@ -21216,13 +21396,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
       "displayName": "MangaDass",
       "enrollmentEvidence": {
@@ -21230,17 +21409,39 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "4a435acac9ca4d3aa1963cedaa908f527050ac22ea44e151a8f6ac1797ed11a8",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "39595228491"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi"
+        "gekkoushi"
       ],
       "publishEligible": false,
       "repairPolicy": {
@@ -21250,21 +21451,17 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
         "gekkoushi": {
           "file": "src/main/kotlin/tsuki/site/madara/en/MangaDass.kt",
           "sourceName": "MANGADASS"
-        },
-        "keiyoushi": {
-          "module": "src/en/mangadass",
-          "sourceId": 5571661567325096882,
-          "sourceName": "Manga Dass"
         }
       }
     },
@@ -21399,9 +21596,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGADISTRICT",
       "compatibilityBaseline": {
         "capabilities": [
@@ -21418,13 +21615,11 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
       "displayName": "MangaDistrict",
@@ -21438,15 +21633,38 @@
       ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "483e32440f7a4b789754d501ef0f741d88cf958df3e800e3816557d49f1ead95",
+        "heldProviders": [
+          {
+            "provider": "gekkoushi",
+            "reason": "REAL_PARSER_NOT_USABLE",
+            "state": "HELD"
+          },
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39642027611"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi",
         "uma"
       ],
       "publishEligible": false,
@@ -21457,22 +21675,14 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
-        "gekkoushi": {
-          "file": "src/main/kotlin/tsuki/site/madara/en/MangaDistrict.kt",
-          "sourceName": "MANGA_DISTRICT"
-        },
-        "keiyoushi": {
-          "module": "src/en/mangadistrict",
-          "sourceId": 2964723819258267786,
-          "sourceName": "Manga District"
-        },
         "uma": {
           "file": "src/main/kotlin/tsuki/site/en/nsfw/MangaDistrict.kt",
           "sourceName": "MANGADISTRICT"
@@ -21480,9 +21690,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGADNA",
       "compatibilityBaseline": {
         "capabilities": [
@@ -21499,8 +21709,8 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
@@ -21512,10 +21722,28 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "en",
       "lastKnownGood": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "3cdefd3edbc8d78ce52cd82646d2cd0c03b8e1f129b4f729def87fee02e2abad",
+        "heldProviders": [],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "39642027611"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
@@ -21530,10 +21758,11 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
@@ -21544,9 +21773,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGAECLIPSE",
       "compatibilityBaseline": {
         "capabilities": [
@@ -21563,8 +21792,8 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
@@ -21576,10 +21805,28 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "en",
       "lastKnownGood": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "eb4379e744e2ccac551f232c0d37c08fb362f506e1a17261cc82ea850378e337",
+        "heldProviders": [],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "39672348835"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
@@ -21594,10 +21841,11 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
@@ -21736,9 +21984,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "custom-rest-json",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGAFIREENGLISH",
       "compatibilityBaseline": {
         "capabilities": [
@@ -21755,12 +22003,11 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
       "displayName": "MangaFire English",
@@ -21774,13 +22021,33 @@
       ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "c10044c9153c6a038d425f47788a910279d8e78878e6d770b9a3c18e75ffa0a6",
+        "heldProviders": [
+          {
+            "provider": "gekkoushi",
+            "reason": "PROFILE_NOT_USABLE",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39672348835"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
         "uma"
       ],
       "publishEligible": false,
@@ -21791,17 +22058,14 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
-        "gekkoushi": {
-          "file": "src/main/kotlin/tsuki/site/all/mangafire/MangaFireEn.kt",
-          "sourceName": "MANGAFIRE_EN"
-        },
         "uma": {
           "file": "src/main/kotlin/tsuki/site/all/MangaFire.kt",
           "sourceName": "MANGAFIRE_EN"
@@ -21873,9 +22137,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGAFORFREE",
       "compatibilityBaseline": {
         "capabilities": [
@@ -21892,8 +22156,8 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
@@ -21905,10 +22169,28 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "en",
       "lastKnownGood": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "b8597e00911a423ed8993f56b36b76e650c56d4e69032c3397c9428cdcb453a9",
+        "heldProviders": [],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "39672348835"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
@@ -21923,10 +22205,11 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
@@ -22002,9 +22285,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "custom-paged-html",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGAFOX",
       "compatibilityBaseline": {
         "capabilities": [
@@ -22021,12 +22304,11 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
       "displayName": "MangaFox",
@@ -22040,13 +22322,33 @@
       ],
       "language": "en",
       "lastKnownGood": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "a6134e760e3cfdf6382976834e8548b095d4f50b8d2cd2936b0bc0e16513f1d6",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39694925619"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "keiyoushi",
         "uma"
       ],
       "publishEligible": false,
@@ -22057,18 +22359,14 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
-        "keiyoushi": {
-          "module": "src/en/mangafox",
-          "sourceId": 6484561431658238800,
-          "sourceName": "MangaFox"
-        },
         "uma": {
           "file": "src/main/kotlin/tsuki/site/en/MangaFox.kt",
           "sourceName": "MANGAFOX"
@@ -22342,9 +22640,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "custom-rest-json",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGAGEKO",
       "compatibilityBaseline": {
         "capabilities": [
@@ -22361,13 +22659,11 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
       "displayName": "MangaGeko",
@@ -22381,15 +22677,38 @@
       ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "81a3bff95da6ec9ecae71c4bb0c11e25fcde8463c24027d0ad4fcdcff00ad10d",
+        "heldProviders": [
+          {
+            "provider": "gekkoushi",
+            "reason": "PROFILE_NOT_USABLE",
+            "state": "HELD"
+          },
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39708317317"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi",
         "uma"
       ],
       "publishEligible": false,
@@ -22400,22 +22719,14 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
-        "gekkoushi": {
-          "file": "src/main/kotlin/tsuki/site/en/MangaGeko.kt",
-          "sourceName": "MANGAGEKO"
-        },
-        "keiyoushi": {
-          "module": "src/en/mangarawclub",
-          "sourceId": 734865402529567092,
-          "sourceName": "MangaGeko"
-        },
         "uma": {
           "file": "src/main/kotlin/tsuki/site/en/MangaGeko.kt",
           "sourceName": "MANGAKEKO"
@@ -22423,9 +22734,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGAGG",
       "compatibilityBaseline": {
         "capabilities": [
@@ -22442,13 +22753,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
       "displayName": "MangaGG",
@@ -22458,19 +22768,42 @@
         "workflowRunId": 35279099921
       },
       "healthyHistory": [
-        "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        "52185ec4faada143f57dcfb41c6fa49aa346b4db",
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
       ],
       "language": "en",
       "lastKnownGood": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi",
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "1b7c792ca4648ab65d603b09caa78fb06b4b345cbc87e4ff6f64c230a4dbe670",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39708317317"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
         "gekkoushi",
-        "keiyoushi",
         "uma"
       ],
       "publishEligible": false,
@@ -22481,21 +22814,17 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
         "gekkoushi": {
           "file": "src/main/kotlin/tsuki/site/madara/en/Mangagg.kt",
           "sourceName": "MANGAGG"
-        },
-        "keiyoushi": {
-          "module": "src/en/mangagg",
-          "sourceId": 8173282214298911566,
-          "sourceName": "MangaGG"
         },
         "uma": {
           "file": "src/main/kotlin/tsuki/site/en/MangaGG.kt",
@@ -22504,9 +22833,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "custom-rest-json",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGAGO",
       "compatibilityBaseline": {
         "capabilities": [
@@ -22523,13 +22852,11 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
       "displayName": "Mangago",
@@ -22543,15 +22870,38 @@
       ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "fc3e7d1d83a46d6b5b2e616ad9b10d3c73b8dc666a52dad650eea5d7e4bca4f2",
+        "heldProviders": [
+          {
+            "provider": "gekkoushi",
+            "reason": "Refactor",
+            "state": "HELD"
+          },
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39708317317"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi",
         "uma"
       ],
       "publishEligible": false,
@@ -22562,22 +22912,14 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
-        "gekkoushi": {
-          "file": "src/main/kotlin/tsuki/site/en/Mangago.kt",
-          "sourceName": "MANGAGO"
-        },
-        "keiyoushi": {
-          "module": "src/en/mangago",
-          "sourceId": 2470059397662084186,
-          "sourceName": "Mangago"
-        },
         "uma": {
           "file": "src/main/kotlin/tsuki/site/en/Mangago.kt",
           "sourceName": "MANGAGO"
@@ -23037,9 +23379,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "custom-paged-html-xhr",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGAHOME",
       "compatibilityBaseline": {
         "capabilities": [
@@ -23056,8 +23398,8 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
@@ -23069,10 +23411,28 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "en",
       "lastKnownGood": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "50eb36edf0002d4e3dc2f267eea85d3a7a063addb21faa36304b05f15e79f4ce",
+        "heldProviders": [],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "39741745591"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
@@ -23087,10 +23447,11 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
@@ -23239,9 +23600,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "custom-rest-json",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGAK",
       "compatibilityBaseline": {
         "capabilities": [
@@ -23258,12 +23619,11 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
       "displayName": "MangaK",
@@ -23277,13 +23637,33 @@
       ],
       "language": "en",
       "lastKnownGood": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "c65ffd3bc8c0dce6c06510b5b3eba0cd154853e8ae4f82767cc5d8c3ee2e9162",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39784894641"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "keiyoushi",
         "uma"
       ],
       "publishEligible": false,
@@ -23294,18 +23674,14 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
-        "keiyoushi": {
-          "module": "src/en/mangabuddy",
-          "sourceId": 5020395055978987501,
-          "sourceName": "MangaK"
-        },
         "uma": {
           "file": "src/main/kotlin/tsuki/site/en/MangaK.kt",
           "sourceName": "MANGAK"
@@ -23572,9 +23948,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "custom-paged-html",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGAKATANA",
       "compatibilityBaseline": {
         "capabilities": [
@@ -23591,13 +23967,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
       "displayName": "MangaKatana",
@@ -23607,19 +23982,42 @@
         "workflowRunId": 35279099921
       },
       "healthyHistory": [
-        "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        "52185ec4faada143f57dcfb41c6fa49aa346b4db",
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
       ],
       "language": "en",
       "lastKnownGood": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi",
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "03009a2920c4c0aa72cae9e279c712cc3a2ee68479631f75afef860ba5739f8d",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39827640292"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
         "gekkoushi",
-        "keiyoushi",
         "uma"
       ],
       "publishEligible": false,
@@ -23630,21 +24028,17 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
         "gekkoushi": {
           "file": "src/main/kotlin/tsuki/site/en/MangaKatana.kt",
           "sourceName": "MANGAKATANA"
-        },
-        "keiyoushi": {
-          "module": "src/en/mangakatana",
-          "sourceId": 3170561626848540385,
-          "sourceName": "MangaKatana"
         },
         "uma": {
           "file": "src/main/kotlin/tsuki/site/en/MangaKatana.kt",
@@ -23982,9 +24376,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGAMANIACS",
       "compatibilityBaseline": {
         "capabilities": [
@@ -24001,13 +24395,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
       "displayName": "MangaManiacs",
       "enrollmentEvidence": {
@@ -24015,17 +24408,39 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "97b13e927a3a0e10cb22b4bc54a2992024e750e87d4fede4ccaba861529451cf",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "39858863062"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi"
+        "gekkoushi"
       ],
       "publishEligible": false,
       "repairPolicy": {
@@ -24035,21 +24450,17 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
         "gekkoushi": {
           "file": "src/main/kotlin/tsuki/site/madara/en/MangaManiacs.kt",
           "sourceName": "MANGAMANIACS"
-        },
-        "keiyoushi": {
-          "module": "src/en/mangamaniacs",
-          "sourceId": 5502656519292762717,
-          "sourceName": "MangaManiacs"
         }
       }
     },
@@ -24184,9 +24595,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "gekkoushi-native",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGANATO",
       "compatibilityBaseline": {
         "capabilities": [
@@ -24203,13 +24614,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
       "displayName": "Manganato",
       "enrollmentEvidence": {
@@ -24217,17 +24627,39 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "1e49c3f26e8ecede89d69c17689c467140703ff7e242916f6ec3d8b4214f78e6",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "39858863062"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi"
+        "gekkoushi"
       ],
       "publishEligible": false,
       "repairPolicy": {
@@ -24237,28 +24669,24 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
         "gekkoushi": {
           "file": "src/main/kotlin/tsuki/site/mangabox/en/Manganato.kt",
           "sourceName": "MANGANATO"
-        },
-        "keiyoushi": {
-          "module": "src/en/manganelo",
-          "sourceId": 1024627298672457456,
-          "sourceName": "Manganato"
         }
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "custom-paged-form-api",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGANATOGG",
       "compatibilityBaseline": {
         "capabilities": [
@@ -24275,8 +24703,8 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
@@ -24295,6 +24723,22 @@
       "lastKnownGood": {
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
+      "onboardingApproval": {
+        "activeProviders": [
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "710031dd63d3adb54b7b9d880f37e56ca729edf0eb8c1efa0cff93ac285440f8",
+        "heldProviders": [],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39858863062"
+      },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
@@ -24308,10 +24752,11 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
@@ -24645,9 +25090,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGAOWLIO",
       "compatibilityBaseline": {
         "capabilities": [
@@ -24664,8 +25109,8 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
@@ -24677,10 +25122,28 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "en",
       "lastKnownGood": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "e98a1d0458242b2457b8f5ca114cc5ffbf16611c7e7d47d19de99a91917ba747",
+        "heldProviders": [],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "39876568203"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
@@ -24695,10 +25158,11 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
@@ -25225,9 +25689,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "custom-paged-html",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGAPILL",
       "compatibilityBaseline": {
         "capabilities": [
@@ -25244,13 +25708,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
       "displayName": "MangaPill",
       "enrollmentEvidence": {
@@ -25258,17 +25721,39 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "en",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "2108316ad418dfae6920cdb4688fe0748c0e431c1e6a288affa53770bd2d554d",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "JUNIT_SUITE_MISSING",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "39936731129"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi"
+        "gekkoushi"
       ],
       "publishEligible": false,
       "repairPolicy": {
@@ -25278,21 +25763,17 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
         "gekkoushi": {
           "file": "src/main/kotlin/tsuki/site/en/MangaPill.kt",
           "sourceName": "MANGAPILL"
-        },
-        "keiyoushi": {
-          "module": "src/en/mangapill",
-          "sourceId": 8448310129093543312,
-          "sourceName": "MangaPill"
         }
       }
     },
@@ -25617,9 +26098,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-en:MANGAREAD",
       "compatibilityBaseline": {
         "capabilities": [
@@ -25636,8 +26117,8 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
@@ -25651,12 +26132,31 @@
         "workflowRunId": 35279099921
       },
       "healthyHistory": [
-        "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        "52185ec4faada143f57dcfb41c6fa49aa346b4db",
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
       ],
       "language": "en",
       "lastKnownGood": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi",
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "6de9ba3ed9b7204d3650039c8196a032281b8e7b2ac526d7b3b850fb9729e2b3",
+        "heldProviders": [],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39975387349"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
@@ -25672,10 +26172,11 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
@@ -49549,9 +50050,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "custom-rest-json",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-id:COSMICSCANS",
       "compatibilityBaseline": {
         "capabilities": [
@@ -49568,12 +50069,11 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
       "displayName": "CosmicScans",
@@ -49587,13 +50087,33 @@
       ],
       "language": "id",
       "lastKnownGood": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "d9a5a4804228dc4a47d0d5bc530fcd985337fea05f35e34145d1054954695e53",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "REAL_PARSER_NOT_USABLE",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39447923609"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "keiyoushi",
         "uma"
       ],
       "publishEligible": false,
@@ -49604,18 +50124,14 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
-        "keiyoushi": {
-          "module": "src/id/cosmicscansid",
-          "sourceId": 6559481336553833282,
-          "sourceName": "CosmicScans"
-        },
         "uma": {
           "file": "src/main/kotlin/tsuki/site/id/CosmicScans.kt",
           "sourceName": "COSMICSCANSID"
@@ -49896,9 +50412,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "uma-native",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-id:DOJINGNET",
       "compatibilityBaseline": {
         "capabilities": [
@@ -49915,12 +50431,11 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
       "displayName": "Dojing.net",
@@ -49934,13 +50449,33 @@
       ],
       "language": "id",
       "lastKnownGood": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "38f994b96aa35bf0a47d4048bb76291f95d7dcd4263101dd89e7618d74af064f",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "REAL_PARSER_NOT_USABLE",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "39524676652"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "keiyoushi",
         "uma"
       ],
       "publishEligible": false,
@@ -49951,18 +50486,14 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
-        "keiyoushi": {
-          "module": "src/id/dojingnet",
-          "sourceId": 8062443260299418342,
-          "sourceName": "Dojing.net"
-        },
         "uma": {
           "file": "src/main/kotlin/tsuki/site/id/nsfw/DojingNet.kt",
           "sourceName": "DOJINGNET"
@@ -50496,9 +51027,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "custom-paged-html",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-id:HENTAICROT",
       "compatibilityBaseline": {
         "capabilities": [
@@ -50515,13 +51046,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
       "displayName": "HentaiCrot",
       "enrollmentEvidence": {
@@ -50529,17 +51059,39 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "id",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "104bb6ad4159cf1fa3ceac97007d7d780003bb444668a86e9f84764911f7cd91",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "REAL_PARSER_NOT_USABLE",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "39672348835"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi"
+        "gekkoushi"
       ],
       "publishEligible": false,
       "repairPolicy": {
@@ -50549,21 +51101,17 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
         "gekkoushi": {
           "file": "src/main/kotlin/tsuki/site/id/HentaiCrot.kt",
           "sourceName": "HENTAICROT"
-        },
-        "keiyoushi": {
-          "module": "src/id/hentaicrot",
-          "sourceId": 1764268677652741702,
-          "sourceName": "Hentai Crot"
         }
       }
     },
@@ -50979,9 +51527,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "manga-reader-plus-api",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-id:IZANAMISCANS",
       "compatibilityBaseline": {
         "capabilities": [
@@ -50998,13 +51546,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
       "displayName": "IzanamiScans",
       "enrollmentEvidence": {
@@ -51012,17 +51559,39 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
+      ],
       "language": "id",
       "lastKnownGood": {
-        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "6496dc352509825d4d02248764c82c4badc21b94d091baf0232c6a45eb57e94f",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "REAL_PARSER_NOT_USABLE",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+        },
+        "workerRunId": "39876568203"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
-        "gekkoushi",
-        "keiyoushi"
+        "gekkoushi"
       ],
       "publishEligible": false,
       "repairPolicy": {
@@ -51032,21 +51601,17 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
         "gekkoushi": {
           "file": "src/main/kotlin/tsuki/site/mangareader/id/IzanamiScans.kt",
           "sourceName": "IZANAMISCANS"
-        },
-        "keiyoushi": {
-          "module": "src/id/izanamiscans",
-          "sourceId": 831567442922111170,
-          "sourceName": "Izanami Scans"
         }
       }
     },
@@ -51116,9 +51681,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "multi-provider",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-id:KANZENIN",
       "compatibilityBaseline": {
         "capabilities": [
@@ -51135,13 +51700,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
       "displayName": "Kanzenin",
@@ -51151,19 +51715,42 @@
         "workflowRunId": 35279099921
       },
       "healthyHistory": [
-        "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        "52185ec4faada143f57dcfb41c6fa49aa346b4db",
+        "9aa770b7cb699c6385f574f13710990e17ef5517"
       ],
       "language": "id",
       "lastKnownGood": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "gekkoushi",
+          "uma"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "5a25d92a39b1cb650d7b93c02e3cd0fe26ed1bede4879f87aedc12057b511e33",
+        "heldProviders": [
+          {
+            "provider": "keiyoushi",
+            "reason": "REAL_PARSER_NOT_USABLE",
+            "state": "HELD"
+          }
+        ],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+          "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+        },
+        "workerRunId": "40010035859"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
       "providers": [
         "gekkoushi",
-        "keiyoushi",
         "uma"
       ],
       "publishEligible": false,
@@ -51174,21 +51761,17 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
         "gekkoushi": {
           "file": "src/main/kotlin/tsuki/site/mangareader/id/Kanzenin.kt",
           "sourceName": "KANZENIN"
-        },
-        "keiyoushi": {
-          "module": "src/id/kanzenin",
-          "sourceId": 8834320474567176246,
-          "sourceName": "Kanzenin"
         },
         "uma": {
           "file": "src/main/kotlin/tsuki/site/id/nsfw/Kanzenin.kt",
@@ -55218,9 +55801,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "custom-paged-html",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-id:MANGALAY",
       "compatibilityBaseline": {
         "capabilities": [
@@ -55237,12 +55820,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
       "displayName": "Mangalay",
       "enrollmentEvidence": {
@@ -55250,10 +55833,28 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      ],
       "language": "id",
       "lastKnownGood": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "keiyoushi"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "ae88f209eb10436ff6f7dfc8de2a20b6d12429888c94dbb41d2c800d850e4a01",
+        "heldProviders": [],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+        },
+        "workerRunId": "39858863062"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
@@ -55268,10 +55869,11 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
@@ -55347,9 +55949,9 @@
       }
     },
     {
-      "adapterFamily": "unclassified",
+      "adapterFamily": "custom-paged-html",
       "approvalState": "NOT_READY",
-      "authType": "UNSUPPORTED",
+      "authType": "NO_AUTH",
       "canonicalId": "miyorare:inventory-id:MANGASUSU",
       "compatibilityBaseline": {
         "capabilities": [
@@ -55366,12 +55968,12 @@
         "status": "PENDING"
       },
       "compatibilityEnrollment": {
-        "parserCoverageRequired": false,
-        "state": "PENDING"
+        "parserCoverageRequired": true,
+        "state": "ACTIVE"
       },
       "contentProfile": "manga",
       "currentVersion": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
       "displayName": "Mangasusu",
       "enrollmentEvidence": {
@@ -55379,10 +55981,28 @@
         "inventoryCommit": "df13d15987f68451428c4f3ea5a402c0cbf148fa",
         "workflowRunId": 35279099921
       },
-      "healthyHistory": [],
+      "healthyHistory": [
+        "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      ],
       "language": "id",
       "lastKnownGood": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "onboardingApproval": {
+        "activeProviders": [
+          "keiyoushi"
+        ],
+        "approvalRunId": "40019144385",
+        "approvedAt": "2026-10-23T20:25:59Z",
+        "approvedBy": "Noirero:149634319",
+        "evidenceSha256": "49aa1c6b7fc1d1d3b95c3f995904850cf3ae147062b7b873346c39fa5c3b7886",
+        "heldProviders": [],
+        "schemaVersion": 1,
+        "state": "APPROVED",
+        "testedVersions": {
+          "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+        },
+        "workerRunId": "39902768916"
       },
       "ownerActionRequired": false,
       "protectedOverlays": [],
@@ -55397,10 +56017,11 @@
         "safeSelfRepair": true,
         "validatedCanonicalFallback": true
       },
-      "runtimeHealth": "UNKNOWN",
+      "runtimeHealth": "HEALTHY",
       "selectionReasons": [
         "automatic-source-inventory",
-        "language-scope-id-en"
+        "language-scope-id-en",
+        "autonomous-real-parser-approved"
       ],
       "updateState": "PROMOTED",
       "upstreamIdentities": {
