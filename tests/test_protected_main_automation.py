@@ -119,6 +119,16 @@ class ProtectedMainAutomationTests(unittest.TestCase):
         self.assertNotIn("ref: beta", auto)
         self.assertNotIn("miyorare-beta", auto)
 
+    def test_upstream_sync_pr_check_follows_pinned_builder_lineage(self) -> None:
+        sync = workflow("upstream-sync-pr-check.yml")
+        self.assertIn("miyorare-builder-baseline.json", sync)
+        self.assertIn("lineageBranch", sync)
+        self.assertIn("ref: ${{ steps.pins.outputs.lineage }}", sync)
+        self.assertIn('git clone --depth 1 --branch "$lineage"', sync)
+        self.assertNotIn("ref: beta", sync)
+        self.assertNotIn("--branch beta", sync)
+        self.assertNotIn("Miyorare beta", sync)
+
     def test_android_sdk_guard_is_read_only_audit(self) -> None:
         audit = workflow("repair-android-sdk-setup.yml")
         self.assertIn("name: Audit Android SDK Setup", audit)
