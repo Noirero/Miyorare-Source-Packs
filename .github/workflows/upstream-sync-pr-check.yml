@@ -73,11 +73,19 @@ jobs:
             puts "valid yaml: #{path}"
           end
 
-      - name: Validate registry materializer against Miyorare beta
+      - name: Validate registry materializer against active Miyorare lineage
         shell: bash
         run: |
           set -euo pipefail
-          git clone --depth 1 --branch beta https://github.com/Noirero/Miyorare.git _miyorare
+          lineage="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('compatibility/miyorare-builder-baseline.json').read_text(encoding='utf-8'))
+          print(data['lineageBranch'])
+          PY
+          )"
+          [[ "$lineage" == "beta" || "$lineage" == "Amain2" ]]
+          git clone --depth 1 --branch "$lineage" https://github.com/Noirero/Miyorare.git _miyorare
           python3 -m py_compile _miyorare/extensions/miyorare-sources/tools/prepare_pack.py
           python3 tools/upstream_sync.py materialize \
             --registry upstream/registry.json \
@@ -145,7 +153,7 @@ jobs:
       - name: Checkout pull request
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
-      - name: Resolve validated pins
+      - name: Resolve validated pins and active lineage
         id: pins
         shell: bash
         run: |
@@ -153,16 +161,21 @@ jobs:
           import json
           from pathlib import Path
           p = json.loads(Path('upstream/registry.json').read_text(encoding='utf-8'))['providers']
+          baseline = json.loads(Path('compatibility/miyorare-builder-baseline.json').read_text(encoding='utf-8'))
+          lineage = baseline['lineageBranch']
+          if lineage not in {'beta', 'Amain2'}:
+              raise SystemExit(f'unsupported Miyorare lineage: {lineage}')
           print(f"uma={p['uma']['lastKnownGood']}")
           print(f"gekkoushi={p['gekkoushi']['lastKnownGood']}")
           print(f"keiyoushi={p['keiyoushi']['lastKnownGood']}")
+          print(f"lineage={lineage}")
           PY
 
-      - name: Checkout Miyorare beta
+      - name: Checkout active Miyorare lineage
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: Noirero/Miyorare
-          ref: beta
+          ref: ${{ steps.pins.outputs.lineage }}
           path: miyorare
           fetch-depth: 1
 
