@@ -4,7 +4,7 @@
     "promotionRunId": 39020534587,
     "sources": []
   },
-  "lastWorkflowRunId": "40116970129",
+  "lastWorkflowRunId": "40127034094",
   "schemaVersion": 2,
   "sources": {
     "miyorare:inventory-en:18PORNCOMIC": {
@@ -7003,29 +7003,26 @@
         "parser": {
           "executionMode": "real-live-parser",
           "gate": "FAIL",
+          "heldProviders": [
+            "keiyoushi"
+          ],
           "memberships": [
             {
               "canonicalId": "miyorare:inventory-en:DIVASCANS",
-              "chapterTraversal": false,
-              "detailsTraversal": false,
-              "errors": 0,
-              "failureMessage": "java.lang.ExceptionInInitializerError",
-              "failureType": "java.lang.ExceptionInInitializerError",
-              "failures": 1,
               "locator": "src/en/divascans",
-              "pageExtraction": false,
-              "parserExecution": true,
+              "parserExecution": false,
               "provider": "keiyoushi",
+              "reason": "JUNIT_SUITE_MISSING",
               "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/divascans/build/test-results/testDebugUnitTest",
-              "skipped": 0,
               "status": "FAIL",
-              "testClass": "compatibilityfarm.AutoLive_keiyoushi_375015472846",
-              "tests": 1
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_375015472846"
             }
-          ]
+          ],
+          "selectedProviders": []
         },
         "profile": {
           "gate": "PASS",
+          "heldProviders": [],
           "memberships": [
             {
               "authType": "NO_AUTH",
@@ -7043,19 +7040,36 @@
               "provider": "keiyoushi",
               "upstreamBrokenReason": null
             }
+          ],
+          "selectedProviders": [
+            "keiyoushi"
           ]
         }
       },
-      "evidenceSha256": "bf5b044d07097d9c110ee93f97ded91b10081a5b2c8557284b8901a60d713a6e",
-      "lastCheckedAt": "2026-09-22T17:24:48Z",
+      "evidenceSha256": "6b70e759b940c59e9c59ddb9b7d31c87cf7ff752f74850e1f3e7e7949bdf977b",
+      "failureCategory": "PARSER_EVIDENCE_MISSING",
+      "lastCheckedAt": "2026-10-24T19:54:08Z",
+      "lifetimeAttempts": 2,
+      "nextEligibleAt": "2026-10-25T01:54:08Z",
       "ownerActionRequired": false,
       "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 6,
+        "baseHours": 6,
+        "baselineReset": true,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "revalidationReason": "PROVIDER_BASELINE_CHANGED",
       "schemaVersion": 2,
+      "selectedProviders": [],
       "state": "RETRY",
       "testedVersions": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
-      "workflowRunId": "35759876471"
+      "workflowRunId": "40127034094"
     },
     "miyorare:inventory-en:DOUJINIOJ18": {
       "adapterFamily": "custom-paged-form-api",
@@ -29798,6 +29812,477 @@
       },
       "workflowRunId": "40116970129"
     },
+    "miyorare:inventory-en:MANHUAPLUSORG": {
+      "adapterFamily": "gekkoushi-native",
+      "approvalState": "WAITING_FOR_APPROVAL",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_PASS",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "PASS",
+          "heldProviders": [],
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:MANHUAPLUSORG",
+              "chapterTraversal": true,
+              "detailsTraversal": true,
+              "errors": 0,
+              "failureMessage": null,
+              "failureType": null,
+              "failures": 0,
+              "fqcn": "tsuki.site.liliana.en.ManhuaPlusOrg",
+              "fqcnCandidates": [
+                "tsuki.site.liliana.en.ManhuaPlusOrg"
+              ],
+              "locator": "src/main/kotlin/tsuki/site/liliana/en/ManhuaPlusOrg.kt",
+              "pageExtraction": true,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "PASS",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_9e7927fce399",
+              "tests": 1
+            }
+          ],
+          "selectedProviders": [
+            "gekkoushi"
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "heldProviders": [],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "gekkoushi-native",
+              "locator": "src/main/kotlin/tsuki/site/liliana/en/ManhuaPlusOrg.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://manhuaplus.org/"
+              },
+              "probeHost": "manhuaplus.org",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": [
+            "gekkoushi"
+          ]
+        }
+      },
+      "evidenceSha256": "4d7d727685de21b5d2226cf21ff2ceee5467c99273c9c926b69bbab67cbb0296",
+      "lastCheckedAt": "2026-10-24T19:54:08Z",
+      "lifetimeAttempts": 1,
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "selectedProviders": [
+        "gekkoushi"
+      ],
+      "state": "READY_FOR_APPROVAL",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "40127034094"
+    },
+    "miyorare:inventory-en:MANHUAPLUSUNORIGINAL": {
+      "adapterFamily": "keiyoushi-native",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "heldProviders": [
+            "keiyoushi"
+          ],
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:MANHUAPLUSUNORIGINAL",
+              "locator": "src/en/manhuaplusorg",
+              "parserExecution": false,
+              "provider": "keiyoushi",
+              "reason": "JUNIT_SUITE_MISSING",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/manhuaplusorg/build/test-results/testDebugUnitTest",
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_f50f37a782d2"
+            }
+          ],
+          "selectedProviders": []
+        },
+        "profile": {
+          "gate": "PASS",
+          "heldProviders": [],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "keiyoushi-native",
+              "locator": "src/en/manhuaplusorg",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://manhuaplus.org/"
+              },
+              "probeHost": "manhuaplus.org",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": [
+            "keiyoushi"
+          ]
+        }
+      },
+      "evidenceSha256": "f62675fe83d79b608b62ba90c069c34f588b373b95b094edc85ce94ee5bc8d9a",
+      "failureCategory": "PARSER_EVIDENCE_MISSING",
+      "lastCheckedAt": "2026-10-24T19:54:08Z",
+      "lifetimeAttempts": 1,
+      "nextEligibleAt": "2026-10-25T01:54:08Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 6,
+        "baseHours": 6,
+        "baselineReset": false,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "40127034094"
+    },
+    "miyorare:inventory-en:MANHUARUSH": {
+      "adapterFamily": "unclassified",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "heldProviders": [
+            "keiyoushi"
+          ],
+          "memberships": [
+            {
+              "authType": "UNSUPPORTED",
+              "compile": false,
+              "exists": false,
+              "family": null,
+              "locator": "src/en/manhuarush",
+              "probe": {
+                "detail": "no-probe-host",
+                "reachable": false
+              },
+              "probeHost": null,
+              "profilePass": false,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": []
+        }
+      },
+      "evidenceSha256": "d0f3406c457e8fd7d623d64203585245aaa54e9bb3e971639f01b568e06c2fd4",
+      "failureCategory": "PROFILE_TRANSIENT",
+      "lastCheckedAt": "2026-10-24T19:54:08Z",
+      "lifetimeAttempts": 1,
+      "nextEligibleAt": "2026-10-24T21:54:08Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 2,
+        "baseHours": 2,
+        "baselineReset": false,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "40127034094"
+    },
+    "miyorare:inventory-en:MANHUASCANUS": {
+      "adapterFamily": "unclassified",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "heldProviders": [
+            "gekkoushi"
+          ],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "manga-reader-plus-api",
+              "locator": "src/main/kotlin/tsuki/site/mangareader/en/ManhuaScanUs.kt",
+              "probe": {
+                "detail": "URLError",
+                "reachable": false,
+                "url": "https://manhuascan.us/"
+              },
+              "probeHost": "manhuascan.us",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": []
+        }
+      },
+      "evidenceSha256": "9d648809be3084f89230a042114d0c264f82b26464d42368c9893b584bf59a97",
+      "failureCategory": "NETWORK_TRANSIENT",
+      "lastCheckedAt": "2026-10-24T19:54:08Z",
+      "lifetimeAttempts": 1,
+      "nextEligibleAt": "2026-10-24T21:54:08Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 2,
+        "baseHours": 2,
+        "baselineReset": false,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "40127034094"
+    },
+    "miyorare:inventory-en:MANHUASY": {
+      "adapterFamily": "unclassified",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "heldProviders": [
+            "gekkoushi"
+          ],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/Manhuasy.kt",
+              "probe": {
+                "detail": "upstream-declared-broken",
+                "reachable": false
+              },
+              "probeHost": "www.manhuasy.com",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": "Site is online but parser is broken \u2014 layout/API changed, needs rewrite"
+            }
+          ],
+          "selectedProviders": []
+        }
+      },
+      "evidenceSha256": "288663f022c7ebe91d2e234b9874dcb888fcc591fd92ea8adcfc7fb1dcf68b73",
+      "failureCategory": "PERMANENT_UPSTREAM",
+      "holdReason": "TERMINAL_EVIDENCE",
+      "lastCheckedAt": "2026-10-24T19:54:08Z",
+      "lifetimeAttempts": 1,
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "NEEDS_ATTENTION",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "40127034094"
+    },
+    "miyorare:inventory-en:MANHUATOP": {
+      "adapterFamily": "madara",
+      "approvalState": "WAITING_FOR_APPROVAL",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_PASS",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "PASS",
+          "heldProviders": [
+            "keiyoushi"
+          ],
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:MANHUATOP",
+              "chapterTraversal": true,
+              "detailsTraversal": true,
+              "errors": 0,
+              "failureMessage": null,
+              "failureType": null,
+              "failures": 0,
+              "fqcn": "tsuki.site.madara.en.TopManhua",
+              "fqcnCandidates": [
+                "tsuki.site.madara.en.TopManhua"
+              ],
+              "locator": "src/main/kotlin/tsuki/site/madara/en/TopManhua.kt",
+              "pageExtraction": true,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "PASS",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_9006db899821",
+              "tests": 1
+            },
+            {
+              "canonicalId": "miyorare:inventory-en:MANHUATOP",
+              "locator": "src/en/manhuatop",
+              "parserExecution": false,
+              "provider": "keiyoushi",
+              "reason": "JUNIT_SUITE_MISSING",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/manhuatop/build/test-results/testDebugUnitTest",
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_8951d2819838"
+            },
+            {
+              "canonicalId": "miyorare:inventory-en:MANHUATOP",
+              "chapterTraversal": true,
+              "detailsTraversal": true,
+              "errors": 0,
+              "failureMessage": null,
+              "failureType": null,
+              "failures": 0,
+              "fqcn": "tsuki.site.en.TopManhua",
+              "fqcnCandidates": [
+                "tsuki.site.en.TopManhua"
+              ],
+              "locator": "src/main/kotlin/tsuki/site/en/TopManhua.kt",
+              "pageExtraction": true,
+              "parserExecution": true,
+              "provider": "uma",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/uma/build/test-results/test",
+              "skipped": 0,
+              "status": "PASS",
+              "testClass": "compatibilityfarm.AutoLive_uma_4b086822cfcd",
+              "tests": 1
+            }
+          ],
+          "selectedProviders": [
+            "gekkoushi",
+            "uma"
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "heldProviders": [],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/TopManhua.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://manhuatop.org/"
+              },
+              "probeHost": "manhuatop.org",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            },
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/en/manhuatop",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://manhuatop.org/"
+              },
+              "probeHost": "manhuatop.org",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            },
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/en/TopManhua.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://manhuatop.org/"
+              },
+              "probeHost": "manhuatop.org",
+              "profilePass": true,
+              "provider": "uma",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": [
+            "gekkoushi",
+            "keiyoushi",
+            "uma"
+          ]
+        }
+      },
+      "evidenceSha256": "9f85d6775b421ce247fe565ab92a90d144391707dc71531843aef6fe3085c9cb",
+      "lastCheckedAt": "2026-10-24T19:54:08Z",
+      "lifetimeAttempts": 1,
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "selectedProviders": [
+        "gekkoushi",
+        "uma"
+      ],
+      "state": "READY_FOR_APPROVAL",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
+        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "workflowRunId": "40127034094"
+    },
     "miyorare:inventory-id:AARLAS": {
       "adapterFamily": "keiyoushi-native",
       "approvalState": "NOT_READY",
@@ -38203,6 +38688,10 @@
         "parser": {
           "executionMode": "real-live-parser",
           "gate": "FAIL",
+          "heldProviders": [
+            "gekkoushi",
+            "keiyoushi"
+          ],
           "memberships": [
             {
               "canonicalId": "miyorare:inventory-id:MIHENTAI",
@@ -38213,6 +38702,9 @@
               "failureType": "org.opentest4j.AssertionFailedError",
               "failures": 1,
               "fqcn": "tsuki.site.mangareader.id.MiHentai",
+              "fqcnCandidates": [
+                "tsuki.site.mangareader.id.MiHentai"
+              ],
               "locator": "src/main/kotlin/tsuki/site/mangareader/id/MiHentai.kt",
               "pageExtraction": false,
               "parserExecution": true,
@@ -38241,10 +38733,12 @@
               "testClass": "compatibilityfarm.AutoLive_keiyoushi_eb1042612127",
               "tests": 1
             }
-          ]
+          ],
+          "selectedProviders": []
         },
         "profile": {
           "gate": "PASS",
+          "heldProviders": [],
           "memberships": [
             {
               "authType": "NO_AUTH",
@@ -38278,20 +38772,38 @@
               "provider": "keiyoushi",
               "upstreamBrokenReason": null
             }
+          ],
+          "selectedProviders": [
+            "gekkoushi",
+            "keiyoushi"
           ]
         }
       },
-      "evidenceSha256": "480f97c9f86c9787a4a1b4733d649968b4dfa2dad2c2d5f55e8e936451cfd73d",
-      "lastCheckedAt": "2026-09-23T06:46:31Z",
+      "evidenceSha256": "3a6aa0503686754e57a742a6f0e0a0a21627456bbcc6b0306d2d8f333ddd61de",
+      "failureCategory": "NATIVE_DEPENDENCY",
+      "lastCheckedAt": "2026-10-24T19:54:08Z",
+      "lifetimeAttempts": 2,
+      "nextEligibleAt": "2026-10-25T01:54:08Z",
       "ownerActionRequired": false,
       "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 6,
+        "baseHours": 6,
+        "baselineReset": true,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "revalidationReason": "PROVIDER_BASELINE_CHANGED",
       "schemaVersion": 2,
+      "selectedProviders": [],
       "state": "RETRY",
       "testedVersions": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
-      "workflowRunId": "35828055742"
+      "workflowRunId": "40127034094"
     },
     "miyorare:inventory-id:MIKOROKU": {
       "adapterFamily": "multi-provider",
@@ -42042,5 +42554,5 @@
       "workflowRunId": "36240024118"
     }
   },
-  "updatedAt": "2026-10-24T17:41:33Z"
+  "updatedAt": "2026-10-24T19:54:08Z"
 }
