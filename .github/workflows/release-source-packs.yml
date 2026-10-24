@@ -517,12 +517,16 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
+          manifest = json.loads(Path('miyorare/extensions/miyorare-sources/packs.json').read_text(encoding='utf-8'))
+          expected_list = manifest['packs']['global'].get('gekkoushiSources') or []
+          if not expected_list or len(expected_list) != len(set(expected_list)):
+              raise SystemExit('pinned builder global gekkoushiSources must be non-empty and unique')
+          expected_sources = set(expected_list)
           p = Path('build/miyorare-source-packs/global/miyorare-global-pack.json')
           data = json.loads(p.read_text(encoding='utf-8'))
-          expected_sources = {'EXHENTAI', 'GELBOORU', 'RAWDEX', 'NEWXTOON'}
           source_names = data['sourceNames']
           assert len(source_names) == len(set(source_names)), source_names
-          assert set(source_names) == expected_sources, source_names
+          assert set(source_names) == expected_sources, (source_names, sorted(expected_sources))
           assert data['sourceCount'] == len(expected_sources), data['sourceCount']
           PY
 
@@ -655,7 +659,7 @@ jobs:
             --latest=false \
             --target "$GITHUB_SHA" \
             --title "Miyorare Source Packs v${SOURCE_VERSION}" \
-            --notes "Official Miyorare-ID, Miyorare-EN, and Miyorare-Global packs. Compatibility snapshot ${{ steps.manifest.outputs.compatibility_snapshot_id }}; Farm ${FARM_COMMIT}; pinned Miyorare builder ${SOURCE_COMMIT} (beta lineage); stable runtime compatibility baseline Miyorare main ${RUNTIME_COMMIT} (versionCode ${RUNTIME_VERSION_CODE}, Tsuki ${TSUKI_API}); validated upstreams: UMA ${UMA_COMMIT}, Gekkoushi ${GEKKOUSHI_COMMIT}, Keiyoushi ${KEIYOUSHI_COMMIT}."
+            --notes "Official Miyorare-ID, Miyorare-EN, and Miyorare-Global packs. Compatibility snapshot ${{ steps.manifest.outputs.compatibility_snapshot_id }}; Farm ${FARM_COMMIT}; pinned Miyorare builder ${SOURCE_COMMIT}; stable runtime compatibility baseline Miyorare main ${RUNTIME_COMMIT} (versionCode ${RUNTIME_VERSION_CODE}, Tsuki ${TSUKI_API}); validated upstreams: UMA ${UMA_COMMIT}, Gekkoushi ${GEKKOUSHI_COMMIT}, Keiyoushi ${KEIYOUSHI_COMMIT}."
           gh release view "$TAG" --json isDraft,isPrerelease --jq 'select(.isDraft == true and .isPrerelease == false)' >/dev/null
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
