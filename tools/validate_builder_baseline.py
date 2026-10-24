@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
+ALLOWED_LINEAGE_BRANCHES = {"beta", "Amain2"}
 
 
 class BaselineError(ValueError):
@@ -30,8 +31,12 @@ def validate(baseline: dict[str, Any], contract: dict[str, Any]) -> str:
         raise BaselineError("unsupported builder baseline schema")
     if baseline.get("repository") != "Noirero/Miyorare":
         raise BaselineError("builder repository must be Noirero/Miyorare")
-    if baseline.get("lineageBranch") != "beta":
-        raise BaselineError("builder lineage branch must remain beta")
+    lineage_branch = baseline.get("lineageBranch")
+    if lineage_branch not in ALLOWED_LINEAGE_BRANCHES:
+        raise BaselineError(
+            "builder lineage branch must be an approved Miyorare integration lineage: "
+            + ", ".join(sorted(ALLOWED_LINEAGE_BRANCHES))
+        )
     commit = baseline.get("builderCommit")
     if not isinstance(commit, str) or not HEX40.fullmatch(commit.lower()):
         raise BaselineError("builderCommit must be an exact 40-character git SHA")
