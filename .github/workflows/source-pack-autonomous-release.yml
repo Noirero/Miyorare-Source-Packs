@@ -85,12 +85,30 @@ jobs:
           path: farm
           fetch-depth: 1
 
-      - name: Checkout Miyorare beta lineage
+      - name: Resolve active Miyorare lineage
+        id: lineage
+        shell: bash
+        run: |
+          set -euo pipefail
+          baseline="$(python3 control/tools/validate_builder_baseline.py --baseline control/compatibility/miyorare-builder-baseline.json --contract control/compatibility/miyorare-source-pack-contract.v1.json --print-commit)"
+          branch="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("control/compatibility/miyorare-builder-baseline.json").read_text(encoding="utf-8"))
+          print(data["lineageBranch"])
+          PY
+          )"
+          [[ "$baseline" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$branch" == "beta" || "$branch" == "Amain2" ]]
+          echo "baseline=$baseline" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout active Miyorare lineage
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: Noirero/Miyorare
-          ref: beta
-          path: miyorare-beta
+          ref: ${{ steps.lineage.outputs.branch }}
+          path: miyorare-lineage
           fetch-depth: 0
 
       - name: Resolve approved provider fingerprint
@@ -122,23 +140,23 @@ jobs:
               print(f"{provider}={commit}")
           PY
 
-      - name: Resolve last manifest-changing beta commit
+      - name: Resolve last manifest-changing active-lineage commit
         id: builder
         shell: bash
         run: |
           set -euo pipefail
-          candidate="$(git -C miyorare-beta log -1 --format=%H -- extensions/miyorare-sources/packs.json)"
+          candidate="$(git -C miyorare-lineage log -1 --format=%H -- extensions/miyorare-sources/packs.json)"
           [[ "$candidate" =~ ^[0-9a-f]{40}$ ]]
           echo "candidate=$candidate" >> "$GITHUB_OUTPUT"
-          baseline="$(python3 control/tools/validate_builder_baseline.py --baseline control/compatibility/miyorare-builder-baseline.json --contract control/compatibility/miyorare-source-pack-contract.v1.json --print-commit)"
+          baseline="${{ steps.lineage.outputs.baseline }}"
           [[ "$baseline" =~ ^[0-9a-f]{40}$ ]]
           echo "baseline=$baseline" >> "$GITHUB_OUTPUT"
           mkdir -p build
-          git -C miyorare-beta show "$candidate:extensions/miyorare-sources/packs.json" > build/candidate-packs.json
-          if ! git -C miyorare-beta cat-file -e "$baseline^{commit}" 2>/dev/null; then
-            git -C miyorare-beta fetch origin "$baseline"
+          git -C miyorare-lineage show "$candidate:extensions/miyorare-sources/packs.json" > build/candidate-packs.json
+          if ! git -C miyorare-lineage cat-file -e "$baseline^{commit}" 2>/dev/null; then
+            git -C miyorare-lineage fetch origin "$baseline"
           fi
-          git -C miyorare-beta show "$baseline:extensions/miyorare-sources/packs.json" > build/baseline-packs.json
+          git -C miyorare-lineage show "$baseline:extensions/miyorare-sources/packs.json" > build/baseline-packs.json
           if cmp --silent build/candidate-packs.json build/baseline-packs.json; then
             echo "manifest_changed=false" >> "$GITHUB_OUTPUT"
           else
@@ -152,9 +170,9 @@ jobs:
         run: |
           set -euo pipefail
           cp build/candidate-packs.json build/verified-candidate-packs.json
-          test -f miyorare-beta/extensions/miyorare-sources/tools/sync_approved_farm_sources.py
-          python3 miyorare-beta/extensions/miyorare-sources/tools/sync_approved_farm_sources.py --registry farm/compatibility/source-registry.json --packs build/verified-candidate-packs.json --report build/candidate-farm-sync-report.json
-          cmp --silent build/candidate-packs.json build/verified-candidate-packs.json || { echo "Miyorare beta packs.json is not caught up with authoritative ACTIVE Farm membership." >&2; exit 1; }
+          test -f miyorare-lineage/extensions/miyorare-sources/tools/sync_approved_farm_sources.py
+          python3 miyorare-lineage/extensions/miyorare-sources/tools/sync_approved_farm_sources.py --registry farm/compatibility/source-registry.json --packs build/verified-candidate-packs.json --report build/candidate-farm-sync-report.json
+          cmp --silent build/candidate-packs.json build/verified-candidate-packs.json || { echo "Active Miyorare lineage packs.json is not caught up with authoritative ACTIVE Farm membership." >&2; exit 1; }
 
       - name: Require successful Miyorare pack checks on candidate commit
         if: steps.builder.outputs.manifest_changed == 'true'
@@ -185,6 +203,7 @@ jobs:
         id: promote
         env:
           CANDIDATE_SHA: ${{ steps.builder.outputs.candidate }}
+          LINEAGE_BRANCH: ${{ steps.lineage.outputs.branch }}
         shell: bash
         run: |
           set -euo pipefail
@@ -219,7 +238,7 @@ jobs:
           git -C control commit -m "Promote validated Miyorare pack builder baseline"
           git -C control push origin "HEAD:$branch"
           head_sha="$(git -C control rev-parse HEAD)"
-          url="$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "Promote validated Miyorare pack builder baseline" --body "Automated promotion of exact Miyorare beta manifest commit `$CANDIDATE_SHA` after Farm synchronization and ID/EN/Global pack checks passed.")"
+          url="$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "Promote validated Miyorare pack builder baseline" --body "Automated promotion of exact Miyorare $LINEAGE_BRANCH manifest commit `$CANDIDATE_SHA` after Farm synchronization and ID/EN/Global pack checks passed.")"
           number="$(gh pr view "$url" --repo "$GITHUB_REPOSITORY" --json number --jq '.number')"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
@@ -363,7 +382,8 @@ jobs:
         run: |
           echo '## Autonomous Source Pack control' >> "$GITHUB_STEP_SUMMARY"
           echo "Current pinned builder: ${{ steps.builder.outputs.baseline }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "Latest beta manifest commit: ${{ steps.builder.outputs.candidate }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Active lineage branch: ${{ steps.lineage.outputs.branch }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Latest active-lineage manifest commit: ${{ steps.builder.outputs.candidate }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Manifest promotion needed: ${{ steps.builder.outputs.manifest_changed }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Desired UMA: ${{ steps.providers.outputs.uma }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Desired Gekkoushi: ${{ steps.providers.outputs.gekkoushi }}" >> "$GITHUB_STEP_SUMMARY"
