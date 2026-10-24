@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import unittest
 
@@ -105,6 +106,28 @@ class ProtectedMainAutomationTests(unittest.TestCase):
         self.assertIn("gh workflow run source-pack-autonomous-release.yml", release)
         self.assertNotIn("gh workflow run release-source-packs.yml", release)
         self.assertNotIn("Determine next immutable source-pack version", release)
+
+    def test_autonomous_release_follows_pinned_builder_lineage(self) -> None:
+        auto = workflow("source-pack-autonomous-release.yml")
+        baseline = json.loads((ROOT / "compatibility" / "miyorare-builder-baseline.json").read_text(encoding="utf-8"))
+        self.assertIn("id: lineage", auto)
+        self.assertIn('data["lineageBranch"]', auto)
+        self.assertIn("ref: ${{ steps.lineage.outputs.branch }}", auto)
+        self.assertIn("path: miyorare-lineage", auto)
+        self.assertIn(f'[[ "$branch" == "beta" || "$branch" == "Amain2" ]]', auto)
+        self.assertIn(baseline["lineageBranch"], {"beta", "Amain2"})
+        self.assertNotIn("ref: beta", auto)
+        self.assertNotIn("miyorare-beta", auto)
+
+    def test_upstream_sync_pr_check_follows_pinned_builder_lineage(self) -> None:
+        sync = workflow("upstream-sync-pr-check.yml")
+        self.assertIn("miyorare-builder-baseline.json", sync)
+        self.assertIn("lineageBranch", sync)
+        self.assertIn("ref: ${{ steps.pins.outputs.lineage }}", sync)
+        self.assertIn('git clone --depth 1 --branch "$lineage"', sync)
+        self.assertNotIn("ref: beta", sync)
+        self.assertNotIn("--branch beta", sync)
+        self.assertNotIn("Miyorare beta", sync)
 
     def test_android_sdk_guard_is_read_only_audit(self) -> None:
         audit = workflow("repair-android-sdk-setup.yml")
