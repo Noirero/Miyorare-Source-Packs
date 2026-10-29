@@ -4,7 +4,7 @@
     "promotionRunId": 39020534587,
     "sources": []
   },
-  "lastWorkflowRunId": "40775771534",
+  "lastWorkflowRunId": "40802617237",
   "schemaVersion": 2,
   "sources": {
     "miyorare:inventory-en:18PORNCOMIC": {
@@ -9299,7 +9299,7 @@
       "workflowRunId": "35966150175"
     },
     "miyorare:inventory-en:FAIRYSCANS": {
-      "adapterFamily": "custom-paged-form-api",
+      "adapterFamily": "unclassified",
       "approvalState": "NOT_READY",
       "attempts": 1,
       "authType": "NO_AUTH",
@@ -9307,37 +9307,53 @@
         "attempts": 1,
         "profile": {
           "gate": "FAIL",
+          "heldProviders": [
+            "keiyoushi"
+          ],
           "memberships": [
             {
-              "authType": "NO_AUTH",
-              "compile": true,
-              "exists": true,
-              "family": "custom-paged-form-api",
+              "authType": "UNSUPPORTED",
+              "compile": false,
+              "exists": false,
+              "family": null,
               "locator": "src/en/fairyscans",
               "probe": {
-                "detail": "http-520",
-                "httpStatus": 520,
-                "reachable": false,
-                "url": "https://fairyscans.org/"
+                "detail": "no-probe-host",
+                "reachable": false
               },
-              "probeHost": "fairyscans.org",
+              "probeHost": null,
               "profilePass": false,
               "provider": "keiyoushi",
               "upstreamBrokenReason": null
             }
-          ]
+          ],
+          "selectedProviders": []
         }
       },
-      "evidenceSha256": "b9dd59a8db533c60c66a65e264448725768b3a4595c72f0f5797c54fe154ce3b",
-      "lastCheckedAt": "2026-09-24T06:50:38Z",
+      "evidenceSha256": "b4734e91b3e6a174688b1538a0276acde0d91843700798633271a5aeb7f24807",
+      "failureCategory": "PROFILE_TRANSIENT",
+      "lastCheckedAt": "2026-10-29T01:53:58Z",
+      "lifetimeAttempts": 2,
+      "nextEligibleAt": "2026-10-29T03:53:58Z",
       "ownerActionRequired": false,
       "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 2,
+        "baseHours": 2,
+        "baselineReset": true,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "revalidationReason": "PROVIDER_BASELINE_CHANGED",
       "schemaVersion": 2,
+      "selectedProviders": [],
       "state": "RETRY",
       "testedVersions": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
-      "workflowRunId": "35966150175"
+      "workflowRunId": "40802617237"
     },
     "miyorare:inventory-en:FANFOX": {
       "adapterFamily": "custom-paged-html",
@@ -41288,6 +41304,445 @@
       },
       "workflowRunId": "40775771534"
     },
+    "miyorare:inventory-en:READBERSERKMANGA": {
+      "adapterFamily": "custom-paged-html",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "heldProviders": [
+            "keiyoushi"
+          ],
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:READBERSERKMANGA",
+              "locator": "src/en/readberserkmanga",
+              "parserExecution": false,
+              "provider": "keiyoushi",
+              "reason": "JUNIT_SUITE_MISSING",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/readberserkmanga/build/test-results/testDebugUnitTest",
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_b76dafb09a30"
+            }
+          ],
+          "selectedProviders": []
+        },
+        "profile": {
+          "gate": "PASS",
+          "heldProviders": [],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-paged-html",
+              "locator": "src/en/readberserkmanga",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://readberserk.com/"
+              },
+              "probeHost": "readberserk.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": [
+            "keiyoushi"
+          ]
+        }
+      },
+      "evidenceSha256": "ba1a26ef7572d84c6999d50b25b5f21f09e77795ec584de45b25692695b09f71",
+      "failureCategory": "PARSER_EVIDENCE_MISSING",
+      "lastCheckedAt": "2026-10-29T01:53:58Z",
+      "lifetimeAttempts": 1,
+      "nextEligibleAt": "2026-10-29T07:53:58Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 6,
+        "baseHours": 6,
+        "baselineReset": false,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "40802617237"
+    },
+    "miyorare:inventory-en:READBLACKCLOVERMANGAONLINE": {
+      "adapterFamily": "unclassified",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "heldProviders": [
+            "keiyoushi"
+          ],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "keiyoushi-native",
+              "locator": "src/en/readblackclovermangaonline",
+              "probe": {
+                "detail": "URLError",
+                "reachable": false,
+                "url": "https://ww10.readblackclover.com/"
+              },
+              "probeHost": "ww10.readblackclover.com",
+              "profilePass": false,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": []
+        }
+      },
+      "evidenceSha256": "bcbaa7a920e4fd15f53248d5350616b659d1c1e901ca42017799278da74321d2",
+      "failureCategory": "NETWORK_TRANSIENT",
+      "lastCheckedAt": "2026-10-29T01:53:58Z",
+      "lifetimeAttempts": 1,
+      "nextEligibleAt": "2026-10-29T03:53:58Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 2,
+        "baseHours": 2,
+        "baselineReset": false,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "40802617237"
+    },
+    "miyorare:inventory-en:READCHAINSAWMANMANGAONLINE": {
+      "adapterFamily": "keiyoushi-native",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "heldProviders": [
+            "keiyoushi"
+          ],
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:READCHAINSAWMANMANGAONLINE",
+              "locator": "src/en/readchainsawmanmangaonline",
+              "parserExecution": false,
+              "provider": "keiyoushi",
+              "reason": "JUNIT_SUITE_MISSING",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/readchainsawmanmangaonline/build/test-results/testDebugUnitTest",
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_76378c4a3403"
+            }
+          ],
+          "selectedProviders": []
+        },
+        "profile": {
+          "gate": "PASS",
+          "heldProviders": [],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "keiyoushi-native",
+              "locator": "src/en/readchainsawmanmangaonline",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://ww6.readchainsawman.com/"
+              },
+              "probeHost": "ww6.readchainsawman.com",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": [
+            "keiyoushi"
+          ]
+        }
+      },
+      "evidenceSha256": "5f23dfceb2bb9b0276fa911cfa62f25e52be2897a42b32fb2ba988cc63917b43",
+      "failureCategory": "PARSER_EVIDENCE_MISSING",
+      "lastCheckedAt": "2026-10-29T01:53:58Z",
+      "lifetimeAttempts": 1,
+      "nextEligibleAt": "2026-10-29T07:53:58Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 6,
+        "baseHours": 6,
+        "baselineReset": false,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "40802617237"
+    },
+    "miyorare:inventory-en:READCOMICONLINE": {
+      "adapterFamily": "unclassified",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "heldProviders": [
+            "keiyoushi"
+          ],
+          "memberships": [
+            {
+              "authType": "UNSUPPORTED",
+              "compile": false,
+              "exists": false,
+              "family": null,
+              "locator": "src/en/readcomiconline",
+              "probe": {
+                "detail": "no-probe-host",
+                "reachable": false
+              },
+              "probeHost": null,
+              "profilePass": false,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": []
+        }
+      },
+      "evidenceSha256": "cfa6f6dc59299388e5bf6005cfe38b0cc4ff0e4504931a1f7c2918a04775c7f3",
+      "failureCategory": "PROFILE_TRANSIENT",
+      "lastCheckedAt": "2026-10-29T01:53:58Z",
+      "lifetimeAttempts": 1,
+      "nextEligibleAt": "2026-10-29T03:53:58Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 2,
+        "baseHours": 2,
+        "baselineReset": false,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "40802617237"
+    },
+    "miyorare:inventory-en:READCOMICSONLINE": {
+      "adapterFamily": "custom-paged-html",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "heldProviders": [
+            "keiyoushi"
+          ],
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:READCOMICSONLINE",
+              "locator": "src/en/readcomicsonline",
+              "parserExecution": false,
+              "provider": "keiyoushi",
+              "reason": "JUNIT_SUITE_MISSING",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/readcomicsonline/build/test-results/testDebugUnitTest",
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_30a5126e6656"
+            }
+          ],
+          "selectedProviders": []
+        },
+        "profile": {
+          "gate": "PASS",
+          "heldProviders": [],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-paged-html",
+              "locator": "src/en/readcomicsonline",
+              "probe": {
+                "detail": "http-403",
+                "httpStatus": 403,
+                "reachable": true,
+                "url": "https://readcomicsonline.ru/"
+              },
+              "probeHost": "readcomicsonline.ru",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": [
+            "keiyoushi"
+          ]
+        }
+      },
+      "evidenceSha256": "8a6ca9514d7b7bfa0741adac0f8d28b8391358b869b400a62b273e643b82dc30",
+      "failureCategory": "PARSER_EVIDENCE_MISSING",
+      "lastCheckedAt": "2026-10-29T01:53:58Z",
+      "lifetimeAttempts": 1,
+      "nextEligibleAt": "2026-10-29T07:53:58Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 6,
+        "baseHours": 6,
+        "baselineReset": false,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "40802617237"
+    },
+    "miyorare:inventory-en:READCOMICSONLINERU": {
+      "adapterFamily": "gekkoushi-native",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_BLOCKED",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "FAIL",
+          "heldProviders": [
+            "gekkoushi"
+          ],
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:READCOMICSONLINERU",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "org.opentest4j.AssertionFailedError: live browse returned no manga; lastFailure=HttpStatusException ==> expected: <true> but was: <false>",
+              "failureType": "org.opentest4j.AssertionFailedError",
+              "failures": 1,
+              "fqcn": "tsuki.site.mmrcms.en.ReadComicsOnline",
+              "fqcnCandidates": [
+                "tsuki.site.mmrcms.en.ReadComicsOnline"
+              ],
+              "locator": "src/main/kotlin/tsuki/site/mmrcms/en/ReadComicsOnline.kt",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "gekkoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/gekkoushi/build/test-results/test",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_gekkoushi_42dd0c649e87",
+              "tests": 1
+            }
+          ],
+          "selectedProviders": []
+        },
+        "profile": {
+          "gate": "PASS",
+          "heldProviders": [],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "gekkoushi-native",
+              "locator": "src/main/kotlin/tsuki/site/mmrcms/en/ReadComicsOnline.kt",
+              "probe": {
+                "detail": "http-403",
+                "httpStatus": 403,
+                "reachable": true,
+                "url": "https://readcomicsonline.ru/"
+              },
+              "probeHost": "readcomicsonline.ru",
+              "profilePass": true,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": [
+            "gekkoushi"
+          ]
+        }
+      },
+      "evidenceSha256": "b54e12122170f4854061ae702d7f72d23ea74c345aca2bf390c5e4583d058c5e",
+      "failureCategory": "SOURCE_PARSER_FAILURE",
+      "lastCheckedAt": "2026-10-29T01:53:58Z",
+      "lifetimeAttempts": 1,
+      "nextEligibleAt": "2026-10-29T13:53:58Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 12,
+        "baseHours": 12,
+        "baselineReset": false,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 72,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "40802617237"
+    },
     "miyorare:inventory-id:AARLAS": {
       "adapterFamily": "keiyoushi-native",
       "approvalState": "NOT_READY",
@@ -51995,15 +52450,18 @@
     },
     "miyorare:inventory-id:SEKTEDOUJIN": {
       "adapterFamily": "multi-provider",
-      "approvalState": "NOT_READY",
+      "approvalState": "WAITING_FOR_APPROVAL",
       "attempts": 1,
       "authType": "NO_AUTH",
       "evidence": {
         "attempts": 1,
-        "gate": "REAL_PARSER_BLOCKED",
+        "gate": "REAL_PARSER_PASS",
         "parser": {
           "executionMode": "real-live-parser",
-          "gate": "FAIL",
+          "gate": "PASS",
+          "heldProviders": [
+            "keiyoushi"
+          ],
           "memberships": [
             {
               "canonicalId": "miyorare:inventory-id:SEKTEDOUJIN",
@@ -52014,6 +52472,9 @@
               "failureType": null,
               "failures": 0,
               "fqcn": "tsuki.site.mangareader.id.Sektedoujin",
+              "fqcnCandidates": [
+                "tsuki.site.mangareader.id.Sektedoujin"
+              ],
               "locator": "src/main/kotlin/tsuki/site/mangareader/id/Sektedoujin.kt",
               "pageExtraction": true,
               "parserExecution": true,
@@ -52051,6 +52512,9 @@
               "failureType": null,
               "failures": 0,
               "fqcn": "tsuki.site.id.nsfw.SekteDoujin",
+              "fqcnCandidates": [
+                "tsuki.site.id.nsfw.SekteDoujin"
+              ],
               "locator": "src/main/kotlin/tsuki/site/id/nsfw/SekteDoujin.kt",
               "pageExtraction": true,
               "parserExecution": true,
@@ -52061,10 +52525,15 @@
               "testClass": "compatibilityfarm.AutoLive_uma_0c3e53fd9438",
               "tests": 1
             }
+          ],
+          "selectedProviders": [
+            "gekkoushi",
+            "uma"
           ]
         },
         "profile": {
           "gate": "PASS",
+          "heldProviders": [],
           "memberships": [
             {
               "authType": "NO_AUTH",
@@ -52114,21 +52583,30 @@
               "provider": "uma",
               "upstreamBrokenReason": null
             }
+          ],
+          "selectedProviders": [
+            "gekkoushi",
+            "keiyoushi",
+            "uma"
           ]
         }
       },
-      "evidenceSha256": "6fe0f644bd6275447bfd4a0e60ffe885b2e0b5c37a59bb7e36b290985d9baba6",
-      "lastCheckedAt": "2026-09-24T23:59:33Z",
+      "evidenceSha256": "6e42b6998ab7567139f399b08bab45d161afdaa299bb5550d2e36afb9f924f89",
+      "lastCheckedAt": "2026-10-29T01:53:58Z",
+      "lifetimeAttempts": 2,
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
-      "state": "RETRY",
+      "selectedProviders": [
+        "gekkoushi",
+        "uma"
+      ],
+      "state": "READY_FOR_APPROVAL",
       "testedVersions": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
-      "workflowRunId": "36074968700"
+      "workflowRunId": "40802617237"
     },
     "miyorare:inventory-id:SEKTEKOMIK": {
       "adapterFamily": "multi-provider",
@@ -54064,5 +54542,5 @@
       "workflowRunId": "36240024118"
     }
   },
-  "updatedAt": "2026-10-28T22:00:39Z"
+  "updatedAt": "2026-10-29T01:53:58Z"
 }
