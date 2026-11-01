@@ -4,7 +4,7 @@
     "promotionRunId": 39020534587,
     "sources": []
   },
-  "lastWorkflowRunId": "41249985608",
+  "lastWorkflowRunId": "41264369414",
   "schemaVersion": 2,
   "sources": {
     "miyorare:inventory-en:18PORNCOMIC": {
@@ -10598,45 +10598,50 @@
       "workflowRunId": "41249985608"
     },
     "miyorare:inventory-en:GENSURA": {
-      "adapterFamily": "custom-paged-html",
-      "approvalState": "NOT_READY",
+      "adapterFamily": "custom-rest-json",
+      "approvalState": "WAITING_FOR_APPROVAL",
       "attempts": 1,
       "authType": "NO_AUTH",
       "evidence": {
         "attempts": 1,
-        "gate": "REAL_PARSER_BLOCKED",
+        "gate": "REAL_PARSER_PASS",
         "parser": {
           "executionMode": "real-live-parser",
-          "gate": "FAIL",
+          "gate": "PASS",
+          "heldProviders": [],
           "memberships": [
             {
               "canonicalId": "miyorare:inventory-en:GENSURA",
-              "chapterTraversal": false,
-              "detailsTraversal": false,
+              "chapterTraversal": true,
+              "detailsTraversal": true,
               "errors": 0,
-              "failureMessage": "java.lang.reflect.InvocationTargetException",
-              "failureType": "java.lang.reflect.InvocationTargetException",
-              "failures": 1,
+              "failureMessage": null,
+              "failureType": null,
+              "failures": 0,
               "locator": "src/en/mangahen",
-              "pageExtraction": false,
+              "pageExtraction": true,
               "parserExecution": true,
               "provider": "keiyoushi",
               "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/mangahen/build/test-results/testDebugUnitTest",
               "skipped": 0,
-              "status": "FAIL",
+              "status": "PASS",
               "testClass": "compatibilityfarm.AutoLive_keiyoushi_220ffea1554c",
               "tests": 1
             }
+          ],
+          "selectedProviders": [
+            "keiyoushi"
           ]
         },
         "profile": {
           "gate": "PASS",
+          "heldProviders": [],
           "memberships": [
             {
               "authType": "NO_AUTH",
               "compile": true,
               "exists": true,
-              "family": "custom-paged-html",
+              "family": "custom-rest-json",
               "locator": "src/en/mangahen",
               "probe": {
                 "httpStatus": 200,
@@ -10648,19 +10653,26 @@
               "provider": "keiyoushi",
               "upstreamBrokenReason": null
             }
+          ],
+          "selectedProviders": [
+            "keiyoushi"
           ]
         }
       },
-      "evidenceSha256": "7716758dceb737e0cc33ee21d283e8c38c501b3092cb1d0f0d3e65e1c258903b",
-      "lastCheckedAt": "2026-09-25T10:17:43Z",
+      "evidenceSha256": "086cb43d93ba274f8d3f50e8f4f5b86d1f2d30d6c0e3320a544f7add93d3a711",
+      "lastCheckedAt": "2026-11-01T02:23:09Z",
+      "lifetimeAttempts": 2,
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
-      "state": "RETRY",
+      "selectedProviders": [
+        "keiyoushi"
+      ],
+      "state": "READY_FOR_APPROVAL",
       "testedVersions": {
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3"
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
-      "workflowRunId": "36122765287"
+      "workflowRunId": "41264369414"
     },
     "miyorare:inventory-en:GENZTOON": {
       "adapterFamily": "gekkoushi-native",
@@ -47946,6 +47958,387 @@
       },
       "workflowRunId": "41249985608"
     },
+    "miyorare:inventory-en:TIMELESSTOONS": {
+      "adapterFamily": "uma-native",
+      "approvalState": "WAITING_FOR_APPROVAL",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "gate": "REAL_PARSER_PASS",
+        "parser": {
+          "executionMode": "real-live-parser",
+          "gate": "PASS",
+          "heldProviders": [
+            "keiyoushi"
+          ],
+          "memberships": [
+            {
+              "canonicalId": "miyorare:inventory-en:TIMELESSTOONS",
+              "chapterTraversal": false,
+              "detailsTraversal": false,
+              "errors": 0,
+              "failureMessage": "java.lang.reflect.InvocationTargetException",
+              "failureType": "java.lang.reflect.InvocationTargetException",
+              "failures": 1,
+              "locator": "src/en/timelesstoons",
+              "pageExtraction": false,
+              "parserExecution": true,
+              "provider": "keiyoushi",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/en/timelesstoons/build/test-results/testDebugUnitTest",
+              "skipped": 0,
+              "status": "FAIL",
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_1a7ce6773756",
+              "tests": 1
+            },
+            {
+              "canonicalId": "miyorare:inventory-en:TIMELESSTOONS",
+              "chapterTraversal": true,
+              "detailsTraversal": true,
+              "errors": 0,
+              "failureMessage": null,
+              "failureType": null,
+              "failures": 0,
+              "fqcn": "tsuki.site.en.TimelessToons",
+              "fqcnCandidates": [
+                "tsuki.site.en.TimelessToons"
+              ],
+              "locator": "src/main/kotlin/tsuki/site/en/TimelessToons.kt",
+              "pageExtraction": true,
+              "parserExecution": true,
+              "provider": "uma",
+              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/uma/build/test-results/test",
+              "skipped": 0,
+              "status": "PASS",
+              "testClass": "compatibilityfarm.AutoLive_uma_d68f2a644c7b",
+              "tests": 1
+            }
+          ],
+          "selectedProviders": [
+            "uma"
+          ]
+        },
+        "profile": {
+          "gate": "PASS",
+          "heldProviders": [],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "keiyoushi-native",
+              "locator": "src/en/timelesstoons",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://timelesstoons.org/"
+              },
+              "probeHost": "timelesstoons.org",
+              "profilePass": true,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            },
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "uma-native",
+              "locator": "src/main/kotlin/tsuki/site/en/TimelessToons.kt",
+              "probe": {
+                "httpStatus": 200,
+                "reachable": true,
+                "url": "https://timelesstoons.org/"
+              },
+              "probeHost": "timelesstoons.org",
+              "profilePass": true,
+              "provider": "uma",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": [
+            "keiyoushi",
+            "uma"
+          ]
+        }
+      },
+      "evidenceSha256": "6f8f65db2c4b09fbb21b67a8a3f42be8111faad5834bb8f99ce7095b4639839d",
+      "lastCheckedAt": "2026-11-01T02:23:09Z",
+      "lifetimeAttempts": 1,
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "selectedProviders": [
+        "uma"
+      ],
+      "state": "READY_FOR_APPROVAL",
+      "testedVersions": {
+        "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
+      },
+      "workflowRunId": "41264369414"
+    },
+    "miyorare:inventory-en:TODAYMANGA": {
+      "adapterFamily": "unclassified",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "heldProviders": [
+            "keiyoushi"
+          ],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "custom-rest-json",
+              "locator": "src/en/todaymanga",
+              "probe": {
+                "detail": "TimeoutError",
+                "reachable": false,
+                "url": "https://todaymanga.com/"
+              },
+              "probeHost": "todaymanga.com",
+              "profilePass": false,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": []
+        }
+      },
+      "evidenceSha256": "e8811c251c49ab77ecd7eff5bb6b3fbb8ee9a39df05d75871d68d6965b18bc99",
+      "failureCategory": "NETWORK_TRANSIENT",
+      "lastCheckedAt": "2026-11-01T02:23:09Z",
+      "lifetimeAttempts": 1,
+      "nextEligibleAt": "2026-11-01T04:23:09Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 2,
+        "baseHours": 2,
+        "baselineReset": false,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "41264369414"
+    },
+    "miyorare:inventory-en:TOOMICSEN": {
+      "adapterFamily": "unclassified",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "heldProviders": [
+            "gekkoushi"
+          ],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "gekkoushi-native",
+              "locator": "src/main/kotlin/tsuki/site/hotcomics/en/TooMicsEn.kt",
+              "probe": {
+                "detail": "no-probe-host",
+                "reachable": false
+              },
+              "probeHost": null,
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": []
+        }
+      },
+      "evidenceSha256": "7b7a474735978d347c895406704b58ef5b995b12debb9df1fd15c6465697decb",
+      "failureCategory": "PROFILE_TRANSIENT",
+      "lastCheckedAt": "2026-11-01T02:23:09Z",
+      "lifetimeAttempts": 1,
+      "nextEligibleAt": "2026-11-01T04:23:09Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 2,
+        "baseHours": 2,
+        "baselineReset": false,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "41264369414"
+    },
+    "miyorare:inventory-en:TOON18": {
+      "adapterFamily": "unclassified",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "heldProviders": [
+            "keiyoushi"
+          ],
+          "memberships": [
+            {
+              "authType": "UNSUPPORTED",
+              "compile": false,
+              "exists": false,
+              "family": null,
+              "locator": "src/en/toon18",
+              "probe": {
+                "detail": "no-probe-host",
+                "reachable": false
+              },
+              "probeHost": null,
+              "profilePass": false,
+              "provider": "keiyoushi",
+              "upstreamBrokenReason": null
+            }
+          ],
+          "selectedProviders": []
+        }
+      },
+      "evidenceSha256": "e8051f00be2f62d254d1df3480e1b425a9a2bce603dcb13359215b21628effb9",
+      "failureCategory": "PROFILE_TRANSIENT",
+      "lastCheckedAt": "2026-11-01T02:23:09Z",
+      "lifetimeAttempts": 1,
+      "nextEligibleAt": "2026-11-01T04:23:09Z",
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 2,
+        "baseHours": 2,
+        "baselineReset": false,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "RETRY",
+      "testedVersions": {
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
+      },
+      "workflowRunId": "41264369414"
+    },
+    "miyorare:inventory-en:TOON69": {
+      "adapterFamily": "unclassified",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "heldProviders": [
+            "gekkoushi"
+          ],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/MangaRosie.kt",
+              "probe": {
+                "detail": "upstream-declared-broken",
+                "reachable": false
+              },
+              "probeHost": "toon69.com",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": "Domain hijacked \u2014 now serves a JS redirect to spam/ads"
+            }
+          ],
+          "selectedProviders": []
+        }
+      },
+      "evidenceSha256": "b68d2a5b678e6cb51e625ab5462edc75beb9a17183ce16ea9e50cbc5261559f8",
+      "failureCategory": "PERMANENT_UPSTREAM",
+      "holdReason": "TERMINAL_EVIDENCE",
+      "lastCheckedAt": "2026-11-01T02:23:09Z",
+      "lifetimeAttempts": 1,
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "NEEDS_ATTENTION",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "41264369414"
+    },
+    "miyorare:inventory-en:TOONCHILL": {
+      "adapterFamily": "unclassified",
+      "approvalState": "NOT_READY",
+      "attempts": 1,
+      "authType": "NO_AUTH",
+      "evidence": {
+        "attempts": 1,
+        "profile": {
+          "gate": "FAIL",
+          "heldProviders": [
+            "gekkoushi"
+          ],
+          "memberships": [
+            {
+              "authType": "NO_AUTH",
+              "compile": true,
+              "exists": true,
+              "family": "madara",
+              "locator": "src/main/kotlin/tsuki/site/madara/en/ToonChill.kt",
+              "probe": {
+                "detail": "upstream-declared-broken",
+                "reachable": false
+              },
+              "probeHost": "toonchill.com",
+              "profilePass": false,
+              "provider": "gekkoushi",
+              "upstreamBrokenReason": "Site is online but parser is broken \u2014 layout/API changed, needs rewrite"
+            }
+          ],
+          "selectedProviders": []
+        }
+      },
+      "evidenceSha256": "6c2c199a561398eb26c70644d1e58145691a8ac39d8395242873fa78560ad9b4",
+      "failureCategory": "PERMANENT_UPSTREAM",
+      "holdReason": "TERMINAL_EVIDENCE",
+      "lastCheckedAt": "2026-11-01T02:23:09Z",
+      "lifetimeAttempts": 1,
+      "ownerActionRequired": false,
+      "publishEligible": false,
+      "schemaVersion": 2,
+      "selectedProviders": [],
+      "state": "NEEDS_ATTENTION",
+      "testedVersions": {
+        "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
+      },
+      "workflowRunId": "41264369414"
+    },
     "miyorare:inventory-id:AARLAS": {
       "adapterFamily": "keiyoushi-native",
       "approvalState": "NOT_READY",
@@ -60617,6 +61010,11 @@
         "parser": {
           "executionMode": "real-live-parser",
           "gate": "FAIL",
+          "heldProviders": [
+            "gekkoushi",
+            "keiyoushi",
+            "uma"
+          ],
           "memberships": [
             {
               "canonicalId": "miyorare:inventory-id:WESTMANGA",
@@ -60642,10 +61040,12 @@
               "status": "FAIL",
               "testClass": "compatibilityfarm.AutoLive_uma_11e121104af2"
             }
-          ]
+          ],
+          "selectedProviders": []
         },
         "profile": {
           "gate": "PASS",
+          "heldProviders": [],
           "memberships": [
             {
               "authType": "NO_AUTH",
@@ -60695,22 +61095,30 @@
               "provider": "uma",
               "upstreamBrokenReason": null
             }
+          ],
+          "selectedProviders": [
+            "gekkoushi",
+            "keiyoushi",
+            "uma"
           ]
         }
       },
-      "evidenceSha256": "6cebc95de7fd61efda87a0c653f2928e92633cf8e8a039fa6087b7c59cc3f0ca",
-      "lastCheckedAt": "2026-09-26T01:40:19Z",
+      "evidenceSha256": "8cfe87c0d68af28710b5b244fcd917e62e16cbcb94453fe9c3a38acc4d28cd8a",
+      "failureCategory": "AUTH_REQUIRED",
+      "holdReason": "TERMINAL_EVIDENCE",
+      "lastCheckedAt": "2026-11-01T02:23:09Z",
+      "lifetimeAttempts": 2,
       "ownerActionRequired": false,
       "publishEligible": false,
-      "revalidationReason": "PROVIDER_BASELINE_CHANGED",
       "schemaVersion": 2,
-      "state": "RETRY",
+      "selectedProviders": [],
+      "state": "NEEDS_ATTENTION",
       "testedVersions": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
-        "keiyoushi": "2025891752e4705effc28e87a043f7205014cde3",
+        "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f",
         "uma": "52185ec4faada143f57dcfb41c6fa49aa346b4db"
       },
-      "workflowRunId": "36208961076"
+      "workflowRunId": "41264369414"
     },
     "miyorare:inventory-id:WORLDMANHWAS": {
       "adapterFamily": "madara",
@@ -61120,5 +61528,5 @@
       "workflowRunId": "36240024118"
     }
   },
-  "updatedAt": "2026-10-31T22:56:54Z"
+  "updatedAt": "2026-11-01T02:23:09Z"
 }
