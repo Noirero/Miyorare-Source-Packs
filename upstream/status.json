@@ -57,15 +57,15 @@
   },
   "automation": {
     "schemaVersion": 2,
-    "state": "ALL_GOOD",
-    "reason": "READY_SOURCE_APPROVAL_WINDOW",
+    "state": "HELD",
+    "reason": "UPSTREAM_INTAKE_NOT_SAFE",
     "candidates": {
       "gekkoushi": {
         "candidate": "12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67",
         "current": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
       "keiyoushi": {
-        "candidate": "efa93f5a3537856fe830450bbe33f69d21d28167",
+        "candidate": "eac81a2c372caffd27abd7100ba25c89b8dcb25e",
         "current": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
       "uma": {
@@ -81,12 +81,20 @@
         "workflowRunId": 39184820113,
         "upstreamRunId": 39184842861,
         "recordedAt": "2026-10-19T01:28:40.167414Z"
+      },
+      "uma": {
+        "current": "52185ec4faada143f57dcfb41c6fa49aa346b4db",
+        "candidate": "a957b28f328e2494bd1b48916b9f7102b8a5c948",
+        "reason": "Validate UMA en candidate / Prepare candidate shard",
+        "workflowRunId": 41592322490,
+        "upstreamRunId": 41592352673,
+        "recordedAt": "2026-11-03T06:57:00.552531Z"
       }
     },
     "ownerActionRequired": false,
-    "lastAttemptProvider": "keiyoushi",
-    "workflowRunId": 41546105297,
-    "updatedAt": "2026-11-02T23:32:05.240336Z"
+    "lastAttemptProvider": "uma",
+    "workflowRunId": 41592322490,
+    "updatedAt": "2026-11-03T06:57:00.552551Z"
   },
   "lastPromotion": {
     "schemaVersion": 1,
