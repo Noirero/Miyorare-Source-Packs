@@ -147,7 +147,7 @@ jobs:
           [[ "$FARM_SHA" =~ ^[0-9a-f]{40}$ ]]
 
           if [[ -z "$MIYORARE_DISPATCH_TOKEN" ]]; then
-            echo "::notice::MIYORARE_DISPATCH_TOKEN is not configured; the existing Miyorare cron sync remains the recovery path."
+            echo "::warning::MIYORARE_DISPATCH_TOKEN is missing; Farm approved, but Amain2 sync was not dispatched. Manually reconcile against Amain2; do not rely on the legacy beta cron."
             echo "dispatched=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -155,12 +155,12 @@ jobs:
           GH_TOKEN="$MIYORARE_DISPATCH_TOKEN" gh workflow run \
             miyorare-farm-pack-membership-sync.yml \
             --repo "$MIYORARE_REPOSITORY" \
-            --ref main \
+            --ref Amain2 \
             -f farm_sha="$FARM_SHA" \
             -f source_run_id="$GITHUB_RUN_ID"
 
           echo "dispatched=true" >> "$GITHUB_OUTPUT"
-          echo "Event-driven Miyorare sync dispatched for exact Farm commit $FARM_SHA."
+          echo "Miyorare Amain2 sync dispatched for exact Farm commit $FARM_SHA."
 
       - name: Upload immutable approval evidence
         if: always()
