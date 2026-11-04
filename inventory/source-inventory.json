@@ -6,7 +6,7 @@
       "commit": "12cd1faa0d5a9f846a048fbb9c7d79328c0f1e67"
     },
     "keiyoushi": {
-      "commit": "6296017a8abcd3ee42297cbbc140a3e711420136"
+      "commit": "ee661f5233b346559fbdd53993d447c318c5aef0"
     },
     "uma": {
       "commit": "a957b28f328e2494bd1b48916b9f7102b8a5c948"
@@ -4254,7 +4254,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://procomic.pro",
-          "extensionVersionCode": 6,
+          "extensionVersionCode": 7,
           "module": "src/ar/procomic",
           "sourceId": 8891921907305143070,
           "sourceName": "ProComic",
@@ -6601,7 +6601,7 @@
         },
         "keiyoushi": {
           "available": true,
-          "extensionVersionCode": 61,
+          "extensionVersionCode": 62,
           "module": "src/en/comix",
           "sourceId": 7537715367149829912,
           "sourceName": "Comix"
@@ -15576,7 +15576,7 @@
         "keiyoushi": {
           "available": true,
           "baseUrl": "https://renascans.net",
-          "extensionVersionCode": 0,
+          "extensionVersionCode": 30,
           "module": "src/en/renascans",
           "sourceId": 3447464472094373275,
           "sourceName": "Renascans"
@@ -22391,6 +22391,13 @@
           "displayName": "CrunchyScan",
           "file": "src/main/kotlin/tsuki/site/madara/fr/MangasOriginesUnofficial.kt",
           "sourceName": "MANGASORIGINESUNOFFICIAL"
+        },
+        "keiyoushi": {
+          "available": true,
+          "extensionVersionCode": 1,
+          "module": "src/fr/crunchyscan",
+          "sourceId": 5122789490740525400,
+          "sourceName": "CrunchyScan"
         }
       }
     },
@@ -28446,6 +28453,42 @@
           "module": "src/it/hentaifantasy",
           "sourceId": 398037379041422243,
           "sourceName": "HentaiFantasy"
+        }
+      }
+    },
+    {
+      "attentionReasons": [],
+      "canonicalId": "miyorare:inventory-it:HENTAIITA",
+      "displayName": "Hentai ITA",
+      "identityConfidence": "exact-name",
+      "language": "it",
+      "needsAttention": false,
+      "providers": {
+        "keiyoushi": {
+          "available": true,
+          "baseUrl": "https://hentai-ita.net",
+          "extensionVersionCode": 1,
+          "module": "src/it/hentaiita",
+          "sourceId": 5279259667822182743,
+          "sourceName": "Hentai ITA"
+        }
+      }
+    },
+    {
+      "attentionReasons": [],
+      "canonicalId": "miyorare:inventory-it:HENTAIZONE",
+      "displayName": "Hentai Zone",
+      "identityConfidence": "exact-name",
+      "language": "it",
+      "needsAttention": false,
+      "providers": {
+        "keiyoushi": {
+          "available": true,
+          "baseUrl": "https://hentaizone.me",
+          "extensionVersionCode": 1,
+          "module": "src/it/hentaizone",
+          "sourceId": 7646644620523526397,
+          "sourceName": "Hentai Zone"
         }
       }
     },
@@ -45348,6 +45391,25 @@
       }
     },
     {
+      "attentionReasons": [
+        "ambiguous-automatic-identity"
+      ],
+      "canonicalId": "miyorare:inventory-zh:UNKNOWN:KEIYOUSHI-6843966789",
+      "displayName": "漫蛙漫画",
+      "identityConfidence": "ambiguous",
+      "language": "zh",
+      "needsAttention": true,
+      "providers": {
+        "keiyoushi": {
+          "available": true,
+          "extensionVersionCode": 0,
+          "module": "src/zh/manwamanhua",
+          "sourceId": 287323144843032723,
+          "sourceName": "漫蛙漫画"
+        }
+      }
+    },
+    {
       "attentionReasons": [],
       "canonicalId": "miyorare:inventory-zh:UNKNOWN:KEIYOUSHI-6EE90355ED",
       "displayName": "無限動漫",
@@ -46095,8 +46157,8 @@
     }
   ],
   "stats": {
-    "allSources": 2513,
-    "needsAttention": 1,
-    "providerMappings": 3000
+    "allSources": 2516,
+    "needsAttention": 2,
+    "providerMappings": 3004
   }
 }
