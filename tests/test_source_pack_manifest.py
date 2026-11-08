@@ -112,6 +112,37 @@ class SourcePackManifestTests(unittest.TestCase):
     def test_valid_schema3_manifest(self):
         MODULE.validate(manifest(), contract(), expected_tag="miyorare-sources-v1.2.3")
 
+    def test_optional_chikari_companion_binds_identity_and_digest(self):
+        old = manifest()
+        MODULE.validate(old, contract())  # historical schema-3 JAR-only release
+        novel = {
+            "provider": "LNREADER",
+            "pluginId": "chikari",
+            "version": "1.0.2.1",
+            "assetName": "miyorare-en-chikari.js",
+            "size": 500,
+            "sha256": "d" * 64,
+        }
+        new = manifest()
+        new["packs"][1]["novelPlugins"] = [novel]
+        MODULE.validate(new, contract())
+        for mutation in (
+            {"assetName": "../chikari.js"},
+            {"provider": "UMA"},
+            {"pluginId": "chikari-v2"},
+            {"version": "0.9.0"},
+            {"size": 0},
+            {"sha256": "bad"},
+        ):
+            damaged = manifest()
+            damaged["packs"][1]["novelPlugins"] = [{**novel, **mutation}]
+            with self.assertRaises(MODULE.ManifestError):
+                MODULE.validate(damaged, contract())
+        wrong_pack = manifest()
+        wrong_pack["packs"][0]["novelPlugins"] = [novel]
+        with self.assertRaises(MODULE.ManifestError):
+            MODULE.validate(wrong_pack, contract())
+
     def test_schema2_is_not_silently_redefined(self):
         data = manifest()
         data["schema"] = 2
@@ -217,6 +248,7 @@ class SourcePackManifestTests(unittest.TestCase):
                     "shards": logical_shards,
                 }), encoding="utf-8")
 
+            (root / MODULE.CHIKARI_ASSET).write_bytes(b"chikari-fixture-javascript")
             result = MODULE.generate(
                 dist=root,
                 version="2.0.0",

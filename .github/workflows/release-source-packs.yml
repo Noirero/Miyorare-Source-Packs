@@ -569,6 +569,23 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Checkout exact pinned builder for Chikari novel companion
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: Noirero/Miyorare
+          ref: ${{ needs.resolve-source.outputs.source_commit }}
+          path: miyorare
+
+      - name: Stage and locally validate Chikari LNReader companion
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f miyorare/extensions/lnreader/chikari.js
+          test -f miyorare/extensions/lnreader/tests/chikari.test.cjs
+          node --test miyorare/extensions/lnreader/tests/chikari.test.cjs
+          cp miyorare/extensions/lnreader/chikari.js dist/miyorare-en-chikari.js
+          (cd dist && sha256sum miyorare-en-chikari.js > miyorare-en-chikari.js.sha256)
+
       - name: Verify release payload and immutable tag namespace
         shell: bash
         run: |
@@ -595,6 +612,8 @@ jobs:
           test -f "dist/miyorare-global-gekkoushi.jar.sha256"
           (cd dist && sha256sum -c "miyorare-global-gekkoushi.jar.sha256")
           test -f "dist/miyorare-global-pack.json"
+          test -f "dist/miyorare-en-chikari.js"
+          (cd dist && sha256sum -c miyorare-en-chikari.js.sha256)
           if gh release view "$TAG" >/dev/null 2>&1 || \
              git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "::error::Release or tag $TAG already exists. Source-pack releases are immutable."
@@ -655,6 +674,8 @@ jobs:
             dist/miyorare-global-gekkoushi.jar.sha256 \
             dist/miyorare-global-pack.json \
             dist/miyorare-source-packs.json \
+            dist/miyorare-en-chikari.js \
+            dist/miyorare-en-chikari.js.sha256 \
             --draft \
             --latest=false \
             --target "$GITHUB_SHA" \
