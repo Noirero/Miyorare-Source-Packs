@@ -8,6 +8,9 @@ on:
       - 'tools/source_pack_outcome.py'
       - 'tools/verify_release_lock.py'
       - 'tests/test_source_pack_manifest.py'
+      - 'tools/lnreader_candidate_registry.py'
+      - 'tests/test_lnreader_candidate_registry.py'
+      - 'registry/lnreader/en-id-candidates.v1.json'
       - 'upstream/status.json'
       - 'upstream/outcome.json'
       - '.github/workflows/release-source-packs.yml'
@@ -23,6 +26,9 @@ on:
       - 'tools/source_pack_outcome.py'
       - 'tools/verify_release_lock.py'
       - 'tests/test_source_pack_manifest.py'
+      - 'tools/lnreader_candidate_registry.py'
+      - 'tests/test_lnreader_candidate_registry.py'
+      - 'registry/lnreader/en-id-candidates.v1.json'
       - 'upstream/status.json'
       - 'upstream/outcome.json'
       - '.github/workflows/release-source-packs.yml'
@@ -101,6 +107,11 @@ jobs:
 
       - name: Test release manifest v3 compatibility rules
         run: python3 -m unittest tests.test_source_pack_manifest -v
+
+      - name: Validate official EN-ID LNReader candidate inventory
+        run: |
+          python3 tools/lnreader_candidate_registry.py
+          python3 -m unittest tests.test_lnreader_candidate_registry -v
 
       - name: Prove PASS HELD FAIL semantics
         shell: bash
