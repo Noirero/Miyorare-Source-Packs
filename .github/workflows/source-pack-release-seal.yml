@@ -239,6 +239,17 @@ jobs:
                   expected_jars[name] = digest.lower()
           if not expected_jars:
               raise SystemExit('release manifest binds no Source Pack jars')
+          # Novel companions are executable assets outside the JAR runtime. Their digests
+          # must be verified against the manifest before the signed release lock is built.
+          for pack in manifest.get('packs', []):
+              for novel in pack.get('novelPlugins', []):
+                  name = novel.get('assetName')
+                  digest = novel.get('sha256')
+                  if not isinstance(name, str) or not isinstance(digest, str) or len(digest) != 64:
+                      raise SystemExit('release manifest contains an invalid novel plugin binding')
+                  if name in expected_jars:
+                      raise SystemExit(f'duplicate release manifest asset binding: {name}')
+                  expected_jars[name] = digest.lower()
           for name, expected in expected_jars.items():
               path = dist / name
               if not path.is_file():

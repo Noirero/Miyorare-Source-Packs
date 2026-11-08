@@ -15,6 +15,8 @@ SEMVER = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 REQUIRED_LOGICAL_PACKS = ("miyorare-id", "miyorare-en", "miyorare-global")
 REQUIRED_PACK_FILES = ("id", "en", "global")
 REQUIRED_UPSTREAMS = ("uma", "gekkoushi", "keiyoushi")
+CHIKARI_ASSET = "miyorare-en-chikari.js"
+CHIKARI_PLUGIN_VERSION = "1.0.2.1"
 
 
 class ManifestError(ValueError):
@@ -205,6 +207,26 @@ def validate(
                 raise ManifestError(f"{asset_name} has an invalid SHA-256")
             if not isinstance(size, int) or isinstance(size, bool) or size < 1 or size > contract["format"]["maxArtifactBytes"]:
                 raise ManifestError(f"{asset_name} has an invalid size")
+        # Optional schema-3 companion field. Historical JAR-only releases remain valid.
+        novels = pack.get("novelPlugins", [])
+        if not isinstance(novels, list):
+            raise ManifestError(f"{plugin_id} novelPlugins must be an array")
+        if novels and (plugin_id != "miyorare-en" or len(novels) != 1):
+            raise ManifestError("pilot novel companion is exclusive to Miyorare-EN")
+        for novel in novels:
+            if not isinstance(novel, dict) or set(novel) != {
+                "provider", "pluginId", "version", "assetName", "size", "sha256"
+            }:
+                raise ManifestError("invalid novel companion metadata")
+            if (novel.get("provider") != "LNREADER"
+                or novel.get("pluginId") != "chikari"
+                or novel.get("version") != CHIKARI_PLUGIN_VERSION
+                or novel.get("assetName") != CHIKARI_ASSET):
+                raise ManifestError("unexpected novel companion provider, identity or asset")
+            size = novel.get("size")
+            if not isinstance(size, int) or isinstance(size, bool) or not 0 < size <= contract["format"].get("maxNovelPluginBytes", 2097152):
+                raise ManifestError("invalid Chikari plugin size")
+            require_hex64(novel.get("sha256"), "Chikari novel companion SHA-256")
     if set(by_id) != set(REQUIRED_LOGICAL_PACKS):
         raise ManifestError("manifest packs must exactly contain ID, EN, and Global")
 
@@ -259,14 +281,23 @@ def generate(
                     "sourceCount": shard["sourceCount"],
                 }
             )
-        packs.append(
-            {
-                "pluginId": logical["packId"],
-                "language": logical["language"],
-                "sourceCount": logical["sourceCount"],
-                "shards": shards,
-            }
-        )
+        pack = {
+            "pluginId": logical["packId"],
+            "language": logical["language"],
+            "sourceCount": logical["sourceCount"],
+            "shards": shards,
+        }
+        if language == "en" and (dist / CHIKARI_ASSET).is_file():
+            novel = dist / CHIKARI_ASSET
+            pack["novelPlugins"] = [{
+                "provider": "LNREADER",
+                "pluginId": "chikari",
+                "version": CHIKARI_PLUGIN_VERSION,
+                "assetName": CHIKARI_ASSET,
+                "size": novel.stat().st_size,
+                "sha256": sha256(novel),
+            }]
+        packs.append(pack)
 
     manifest = {
         "schema": 3,
