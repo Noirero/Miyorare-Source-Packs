@@ -1,0 +1,250 @@
+name: Kotatsu provider compatibility pilot
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/kotatsu-provider-compatibility.yml'
+      - 'compatibility/kotatsu-provider.v1.json'
+      - 'compatibility/kotatsu-bridge/**'
+      - 'tools/prepare_kotatsu_provider.py'
+      - 'tools/package_dex_plugin.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kotatsu-provider-compatibility-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-kotatsu-provider:
+    name: Build isolated Kotatsu runtime with Tsuki facade
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Packs controller
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: source-packs
+
+      - name: Resolve pinned provider metadata
+        id: provider
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+
+          cfg = json.loads(Path('source-packs/compatibility/kotatsu-provider.v1.json').read_text(encoding='utf-8'))
+          if cfg.get('schema') != 2 or cfg.get('provider') != 'KOTATSU':
+              raise SystemExit('invalid Kotatsu provider metadata')
+          commit = cfg.get('commit', '')
+          if len(commit) != 40 or any(ch not in '0123456789abcdef' for ch in commit):
+              raise SystemExit('Kotatsu provider commit must be an exact lowercase SHA')
+          if cfg.get('license') != 'GPL-3.0':
+              raise SystemExit('Kotatsu provider license metadata changed unexpectedly')
+          host = cfg.get('hostTsuki') or {}
+          bridge = cfg.get('bridge') or {}
+          if host.get('api') != '1.0.5' or host.get('ref') != '1.0.5':
+              raise SystemExit('pilot must expose the Miyorare Tsuki 1.0.5 host ABI')
+          if bridge.get('strategy') != 'private-runtime-with-tsuki-facade':
+              raise SystemExit('unexpected Kotatsu bridge strategy')
+          print(f"repository={cfg['repository']}")
+          print(f"commit={commit}")
+          print(f"host_repository={host['repository']}")
+          print(f"host_ref={host['ref']}")
+          print(f"artifact={cfg['artifact']}")
+          PY
+
+      - name: Checkout exact Kotatsu-Redo source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: ${{ steps.provider.outputs.repository }}
+          ref: ${{ steps.provider.outputs.commit }}
+          path: _upstream/kotatsu
+          fetch-depth: 1
+
+      - name: Checkout Tsuki 1.0.5 host ABI
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: ${{ steps.provider.outputs.host_repository }}
+          ref: ${{ steps.provider.outputs.host_ref }}
+          path: _host/tsuki
+          fetch-depth: 1
+
+      - name: Verify exact upstream pin and capture expected source count
+        id: exact
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git -C _upstream/kotatsu rev-parse HEAD)"
+          test "$actual" = '${{ steps.provider.outputs.commit }}'
+          expected="$(awk '/^total: / {print $2}' _upstream/kotatsu/.github/summary.yaml)"
+          [[ "$expected" =~ ^[0-9]+$ ]]
+          test "$expected" -ge 1000
+          echo "source_count=$expected" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          packages: platform-tools
+
+      - name: Install D8 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+
+      - name: Build exact Tsuki host ABI jar
+        working-directory: _host/tsuki
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew jar --no-daemon
+
+      - name: Install Miyorare Kotatsu bridge sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _upstream/kotatsu/src/main/kotlin/miyorare/kotatsuredo/bridge
+          mkdir -p _upstream/kotatsu/kotatsu-parsers-ksp/src/main/kotlin/miyorare/kotatsuredo/ksp
+          cp source-packs/compatibility/kotatsu-bridge/MiyorareTsukiBridge.kt \
+            _upstream/kotatsu/src/main/kotlin/miyorare/kotatsuredo/bridge/
+          cp source-packs/compatibility/kotatsu-bridge/MiyorareFacadeProcessor.kt \
+            _upstream/kotatsu/kotatsu-parsers-ksp/src/main/kotlin/miyorare/kotatsuredo/ksp/
+
+      - name: Prepare isolated Kotatsu provider source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 source-packs/tools/prepare_kotatsu_provider.py \
+            --upstream _upstream/kotatsu \
+            --metadata-out build/kotatsu-provider-prepare.json
+          mkdir -p _upstream/kotatsu/src/main/resources/META-INF
+          cp _upstream/kotatsu/LICENSE \
+            _upstream/kotatsu/src/main/resources/META-INF/LICENSE-kotatsu-parsers-redo.txt
+          printf '%s\n' \
+            'Source: https://github.com/Kotatsu-Redo/kotatsu-parsers-redo' \
+            'Commit: ${{ steps.provider.outputs.commit }}' \
+            'Transformation: isolated runtime namespace org.koitharu.kotatsu.parsers -> miyorare.kotatsuredo' \
+            'Host facade: Tsuki 1.0.5' \
+            > _upstream/kotatsu/src/main/resources/META-INF/MIYORARE-KOTATSU-SOURCE.txt
+
+      - name: Resolve host ABI jar
+        id: hostjar
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t jars < <(find "$GITHUB_WORKSPACE/_host/tsuki/build/libs" -maxdepth 1 -type f -name '*.jar' \
+            ! -name '*-sources.jar' ! -name '*-javadoc.jar' | sort)
+          test "${#jars[@]}" -eq 1
+          echo "path=${jars[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Compile isolated Kotatsu runtime and bridge
+        working-directory: _upstream/kotatsu
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew jar writeMiyorareCompileClasspath --rerun-tasks --no-daemon \
+            -PmiyorareHostTsukiJar='${{ steps.hostjar.outputs.path }}'
+          actual="$(awk '/^total: / {print $2}' .github/summary.yaml)"
+          test "$actual" = '${{ steps.exact.outputs.source_count }}'
+          test -f build/generated/ksp/main/kotlin/miyorare/kotatsuredo/MangaParserFactory.kt
+          test -f build/generated/ksp/main/kotlin/miyorare/kotatsuredo/model/MangaSource.kt
+          test -f build/generated/ksp/main/kotlin/tsuki/MangaParserFactory.kt
+          test -f build/generated/ksp/main/kotlin/tsuki/model/MangaParserSource.kt
+
+      - name: D8 plugin classes against the same compile classpath
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t input_jars < <(find _upstream/kotatsu/build/libs -maxdepth 1 -type f -name '*.jar' \
+            ! -name '*-sources.jar' ! -name '*-javadoc.jar' | sort)
+          test "${#input_jars[@]}" -eq 1
+          input_jar="${input_jars[0]}"
+          d8="$ANDROID_HOME/build-tools/36.0.0/d8"
+          android_jar="$ANDROID_HOME/platforms/android-36/android.jar"
+          test -x "$d8"
+          test -f "$android_jar"
+          rm -rf build/kotatsu-dex
+          mkdir -p build/kotatsu-dex
+          args=(--release --min-api 26 --lib "$android_jar" --output build/kotatsu-dex)
+          classpath="$(cat _upstream/kotatsu/build/miyorare-compile-classpath.txt)"
+          IFS=':' read -r -a cp_entries <<< "$classpath"
+          for entry in "${cp_entries[@]}"; do
+            test -f "$entry" || continue
+            args+=(--classpath "$entry")
+          done
+          "$d8" "${args[@]}" "$input_jar"
+          python3 source-packs/tools/package_dex_plugin.py \
+            --input-jar "$input_jar" \
+            --dex-dir build/kotatsu-dex \
+            --output "build/${{ steps.provider.outputs.artifact }}"
+
+      - name: Verify plugin shape and bridge ABI
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact="build/${{ steps.provider.outputs.artifact }}"
+          test -s "$artifact"
+          unzip -l "$artifact" | grep -E 'classes([0-9]+)?\.dex'
+          if unzip -l "$artifact" | grep -qE '\.class$'; then
+            echo '::error::Runtime plugin must contain dex, not JVM class files.'
+            exit 1
+          fi
+          unzip -l "$artifact" | grep -F 'META-INF/LICENSE-kotatsu-parsers-redo.txt'
+          unzip -l "$artifact" | grep -F 'META-INF/MIYORARE-KOTATSU-SOURCE.txt'
+          dexdump="$ANDROID_HOME/build-tools/36.0.0/dexdump"
+          : > build/kotatsu-dexdump.txt
+          for dex in build/kotatsu-dex/*.dex; do
+            "$dexdump" "$dex" >> build/kotatsu-dexdump.txt
+          done
+          grep -F 'Ltsuki/MangaParserFactoryKt;' build/kotatsu-dexdump.txt
+          grep -F 'Ltsuki/model/MangaParserSource;' build/kotatsu-dexdump.txt
+          grep -F 'Lmiyorare/kotatsuredo/bridge/MiyorareTsukiBridgeKt;' build/kotatsu-dexdump.txt
+          grep -F 'Lmiyorare/kotatsuredo/model/MangaParserSource;' build/kotatsu-dexdump.txt
+
+      - name: Write pilot provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > build/kotatsu-provider-provenance.json <<JSON
+          {
+            "schema": 2,
+            "provider": "KOTATSU",
+            "repository": "${{ steps.provider.outputs.repository }}",
+            "commit": "${{ steps.provider.outputs.commit }}",
+            "hostTsukiApi": "1.0.5",
+            "strategy": "private-runtime-with-tsuki-facade",
+            "sourceCount": ${{ steps.exact.outputs.source_count }},
+            "artifact": "${{ steps.provider.outputs.artifact }}",
+            "published": false
+          }
+          JSON
+          sha256sum "build/${{ steps.provider.outputs.artifact }}" \
+            > "build/${{ steps.provider.outputs.artifact }}.sha256"
+
+      - name: Upload compatibility pilot artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: kotatsu-provider-pilot
+          path: |
+            build/${{ steps.provider.outputs.artifact }}
+            build/${{ steps.provider.outputs.artifact }}.sha256
+            build/kotatsu-provider-prepare.json
+            build/kotatsu-provider-provenance.json
+          if-no-files-found: error
+          retention-days: 3

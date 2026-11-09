@@ -1,0 +1,29 @@
+{
+  "schema": 2,
+  "provider": "KOTATSU",
+  "repository": "Kotatsu-Redo/kotatsu-parsers-redo",
+  "branch": "master",
+  "commit": "dc223c3d8098415b29cf1acfedc401a88d01c9fe",
+  "license": "GPL-3.0",
+  "hostTsuki": {
+    "repository": "UsagiApp/Tsuki",
+    "ref": "1.0.5",
+    "api": "1.0.5"
+  },
+  "artifact": "kotatsu-parsers.jar",
+  "namespace": {
+    "from": "org.koitharu.kotatsu.parsers",
+    "to": "miyorare.kotatsuredo"
+  },
+  "bridge": {
+    "factory": "tsuki.MangaParserFactoryKt",
+    "sourceEnum": "tsuki.model.MangaParserSource",
+    "strategy": "private-runtime-with-tsuki-facade"
+  },
+  "policy": {
+    "optional": true,
+    "enabledByDefault": false,
+    "publishOnlyAfterCompatibilityBuild": true,
+    "keepOtherProvidersIndependent": true
+  }
+}
