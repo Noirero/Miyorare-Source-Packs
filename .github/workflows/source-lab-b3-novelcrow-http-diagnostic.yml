@@ -1,0 +1,95 @@
+name: Source Lab B3 NovelCrow HTTP Diagnostic
+run-name: Source Lab B3 NovelCrow HTTP Diagnostic
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-lab-b3-novelcrow-http-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-lab-b3-novelcrow-http-diagnostic-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Probe NovelCrow browse routes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Validate same-repository PR
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          set -euo pipefail
+          [[ "$PR_HEAD_REPO" == "$GITHUB_REPOSITORY" ]]
+
+      - name: Probe live routes with harness and browser user agents
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/probe
+          report='build/novelcrow-http-probe.txt'
+          : > "$report"
+
+          harness_ua='Mozilla/5.0 (X11; Linux x86_64) MiyorareCompatibilityFarm/1.0'
+          browser_ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
+
+          probe() {
+            local label="$1"
+            local ua="$2"
+            local url="$3"
+            local slug="$4"
+            local body="build/probe/${slug}.html"
+            local headers="build/probe/${slug}.headers"
+            local meta
+            local curl_exit=0
+            meta="$(curl --silent --show-error --location --max-time 35 \
+              --user-agent "$ua" \
+              --header 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' \
+              --dump-header "$headers" \
+              --output "$body" \
+              --write-out 'http=%{http_code} effective=%{url_effective} type=%{content_type} bytes=%{size_download}' \
+              "$url")" || curl_exit=$?
+
+            {
+              echo "[$label] $url"
+              echo "curl_exit=$curl_exit $meta"
+              echo "selector.c-tabs-item__content=$(grep -oF 'c-tabs-item__content' "$body" 2>/dev/null | wc -l | tr -d ' ')"
+              echo "selector.page-item-detail=$(grep -oF 'page-item-detail' "$body" 2>/dev/null | wc -l | tr -d ' ')"
+              echo "selector.manga__item=$(grep -oF 'manga__item' "$body" 2>/dev/null | wc -l | tr -d ' ')"
+              echo "selector.post-title=$(grep -oF 'post-title' "$body" 2>/dev/null | wc -l | tr -d ' ')"
+              echo "link./comic/=$(grep -oF '/comic/' "$body" 2>/dev/null | wc -l | tr -d ' ')"
+              echo "cloudflare.challenge=$(grep -Eio 'cf-chl|just a moment|challenge-platform' "$body" 2>/dev/null | wc -l | tr -d ' ')"
+              echo
+            } | tee -a "$report"
+          }
+
+          for mode in harness browser; do
+            if [[ "$mode" == harness ]]; then ua="$harness_ua"; else ua="$browser_ua"; fi
+            probe "$mode:home" "$ua" 'https://novelcrow.com/' "${mode}-home"
+            probe "$mode:latest" "$ua" 'https://novelcrow.com/?s=&post_type=wp-manga&m_orderby=latest' "${mode}-latest"
+            probe "$mode:trending" "$ua" 'https://novelcrow.com/?s=&post_type=wp-manga&m_orderby=trending' "${mode}-trending"
+            probe "$mode:comic-index" "$ua" 'https://novelcrow.com/comic/' "${mode}-comic-index"
+            probe "$mode:genre" "$ua" 'https://novelcrow.com/comic-genre/vampire/' "${mode}-genre"
+          done
+
+          echo '--- diagnostic report ---'
+          cat "$report"
+
+      - name: Upload HTTP diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: track-b-batch3-novelcrow-http-diagnostic-${{ github.run_id }}
+          path: |
+            build/novelcrow-http-probe.txt
+            build/probe/*.headers
+          if-no-files-found: error
+          retention-days: 14
