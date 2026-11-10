@@ -263,11 +263,11 @@ jobs:
           # A ref surviving an interrupted run must not be overwritten or re-proposed blindly.
           # Reconcile its provenance and any closed PR before allowing another promotion.
           if git -C control ls-remote --exit-code --heads origin "refs/heads/$branch" >/dev/null; then
-            echo "::error::HELD: $branch exists without an eligible open PR. Review its diff and PR history before manual recovery; no new PR or release."
+            echo "::error::HELD: $branch exists without an eligible open PR. Review its diff and PR history before manual recovery; no new PR or release." >&2
             exit 1
           else
             rc="$?"
-            [[ "$rc" == "2" ]] || { echo "::error::Remote branch lookup failed (exit $rc); refusing to create a PR."; exit 1; }
+            [[ "$rc" == "2" ]] || { echo "::error::Remote branch lookup failed (exit $rc); refusing to create a PR." >&2; exit 1; }
           fi
           git -C control switch -c "$branch"
           git -C control config user.name 'github-actions[bot]'
