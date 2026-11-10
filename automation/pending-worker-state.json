@@ -4,7 +4,7 @@
     "promotionRunId": 39020534587,
     "sources": []
   },
-  "lastWorkflowRunId": "42806074736",
+  "lastWorkflowRunId": "42877878856",
   "schemaVersion": 2,
   "sources": {
     "miyorare:inventory-en:18PORNCOMIC": {
@@ -535,10 +535,10 @@
     "miyorare:inventory-en:AKAICOMIC": {
       "adapterFamily": "unclassified",
       "approvalState": "NOT_READY",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
+        "attempts": 2,
         "profile": {
           "gate": "FAIL",
           "heldProviders": [
@@ -564,30 +564,29 @@
           "selectedProviders": []
         }
       },
-      "evidenceSha256": "acebf202be0fc9346dd10141778d3a7f922f6f5a49449b30717772f90b8790bf",
+      "evidenceSha256": "cace15e762065a0841b22119760d7e727f8add6a2f29cb469c07a725a9c47d89",
       "failureCategory": "PROFILE_TRANSIENT",
-      "lastCheckedAt": "2026-10-20T00:49:13Z",
-      "lifetimeAttempts": 3,
-      "nextEligibleAt": "2026-10-20T02:49:13Z",
+      "lastCheckedAt": "2026-11-10T18:46:18Z",
+      "lifetimeAttempts": 4,
+      "nextEligibleAt": "2026-11-10T22:46:18Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "retryPolicy": {
-        "appliedHours": 2,
+        "appliedHours": 4,
         "baseHours": 2,
-        "baselineReset": true,
+        "baselineReset": false,
         "genericFailThresholdAutoHold": false,
         "maxHours": 24,
         "mode": "CATEGORY_BACKOFF",
         "version": 1
       },
-      "revalidationReason": "PROVIDER_BASELINE_CHANGED",
       "schemaVersion": 2,
       "selectedProviders": [],
       "state": "RETRY",
       "testedVersions": {
         "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
-      "workflowRunId": "39349317125"
+      "workflowRunId": "42877878856"
     },
     "miyorare:inventory-en:AKAZASCANS": {
       "adapterFamily": "keiyoushi-native",
@@ -18366,10 +18365,10 @@
     "miyorare:inventory-en:KOKOMANGAS": {
       "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
+        "attempts": 2,
         "gate": "REAL_PARSER_BLOCKED",
         "parser": {
           "executionMode": "real-live-parser",
@@ -18417,15 +18416,15 @@
           ]
         }
       },
-      "evidenceSha256": "9539ebd3c7fdb073b5989efb4622589eac9c66fe5a431ffc0bd2bb986d1b0822",
+      "evidenceSha256": "efc38552abd8353dc265ae51edd090c2dcebdab496ad23fa52d29ee8918198e4",
       "failureCategory": "PARSER_EVIDENCE_MISSING",
-      "lastCheckedAt": "2026-10-19T21:49:09Z",
-      "lifetimeAttempts": 1,
-      "nextEligibleAt": "2026-10-20T03:49:09Z",
+      "lastCheckedAt": "2026-11-10T18:46:18Z",
+      "lifetimeAttempts": 2,
+      "nextEligibleAt": "2026-11-11T06:46:18Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "retryPolicy": {
-        "appliedHours": 6,
+        "appliedHours": 12,
         "baseHours": 6,
         "baselineReset": false,
         "genericFailThresholdAutoHold": false,
@@ -18439,7 +18438,7 @@
       "testedVersions": {
         "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
-      "workflowRunId": "39329956696"
+      "workflowRunId": "42877878856"
     },
     "miyorare:inventory-en:KOMIKLAB": {
       "adapterFamily": "unclassified",
@@ -18491,10 +18490,10 @@
     "miyorare:inventory-en:KOMIX": {
       "adapterFamily": "custom-rest-json",
       "approvalState": "NOT_READY",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
+        "attempts": 2,
         "gate": "REAL_PARSER_BLOCKED",
         "parser": {
           "executionMode": "real-live-parser",
@@ -18527,7 +18526,8 @@
               "family": "custom-rest-json",
               "locator": "src/en/komix",
               "probe": {
-                "httpStatus": 200,
+                "detail": "http-403",
+                "httpStatus": 403,
                 "reachable": true,
                 "url": "https://komix.to/"
               },
@@ -18542,15 +18542,15 @@
           ]
         }
       },
-      "evidenceSha256": "7c802eeb04f66f591fba092620bc0b6a3ccca44226536e6f4fab313e24681a70",
+      "evidenceSha256": "56eef4a4eae142bd499ce6d08f6ad5ae68f847b25381927131a7cdd01ff4622f",
       "failureCategory": "PARSER_EVIDENCE_MISSING",
-      "lastCheckedAt": "2026-10-19T21:49:09Z",
-      "lifetimeAttempts": 1,
-      "nextEligibleAt": "2026-10-20T03:49:09Z",
+      "lastCheckedAt": "2026-11-10T18:46:18Z",
+      "lifetimeAttempts": 2,
+      "nextEligibleAt": "2026-11-11T06:46:18Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "retryPolicy": {
-        "appliedHours": 6,
+        "appliedHours": 12,
         "baseHours": 6,
         "baselineReset": false,
         "genericFailThresholdAutoHold": false,
@@ -18564,7 +18564,7 @@
       "testedVersions": {
         "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
-      "workflowRunId": "39329956696"
+      "workflowRunId": "42877878856"
     },
     "miyorare:inventory-en:KSGROUPSCANS": {
       "adapterFamily": "madara",
@@ -18679,10 +18679,10 @@
     "miyorare:inventory-en:KUNMANGA": {
       "adapterFamily": "madara",
       "approvalState": "NOT_READY",
-      "attempts": 1,
+      "attempts": 2,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 1,
+        "attempts": 2,
         "gate": "REAL_PARSER_BLOCKED",
         "parser": {
           "executionMode": "real-live-parser",
@@ -18700,6 +18700,9 @@
               "failureType": "org.opentest4j.AssertionFailedError",
               "failures": 1,
               "fqcn": "tsuki.site.madara.en.KunManga",
+              "fqcnCandidates": [
+                "tsuki.site.madara.en.KunManga"
+              ],
               "locator": "src/main/kotlin/tsuki/site/madara/en/KunManga.kt",
               "pageExtraction": false,
               "parserExecution": true,
@@ -18724,8 +18727,7 @@
               "family": "madara",
               "locator": "src/main/kotlin/tsuki/site/madara/en/KunManga.kt",
               "probe": {
-                "detail": "http-403",
-                "httpStatus": 403,
+                "httpStatus": 200,
                 "reachable": true,
                 "url": "https://kunmanga.com/"
               },
@@ -18740,15 +18742,15 @@
           ]
         }
       },
-      "evidenceSha256": "a87e93b458da0e9ce82569d0b6f3666482b294890735d43a2f6d5a758d89c4da",
+      "evidenceSha256": "eda855b571f0a980310e3fe386db83db6e255a6275706705e42c784024dab114",
       "failureCategory": "SOURCE_PARSER_FAILURE",
-      "lastCheckedAt": "2026-10-20T00:49:13Z",
-      "lifetimeAttempts": 1,
-      "nextEligibleAt": "2026-10-20T12:49:13Z",
+      "lastCheckedAt": "2026-11-10T18:46:18Z",
+      "lifetimeAttempts": 2,
+      "nextEligibleAt": "2026-11-11T18:46:18Z",
       "ownerActionRequired": false,
       "publishEligible": false,
       "retryPolicy": {
-        "appliedHours": 12,
+        "appliedHours": 24,
         "baseHours": 12,
         "baselineReset": false,
         "genericFailThresholdAutoHold": false,
@@ -18762,7 +18764,7 @@
       "testedVersions": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517"
       },
-      "workflowRunId": "39349317125"
+      "workflowRunId": "42877878856"
     },
     "miyorare:inventory-en:KUNMANGAONLINE": {
       "adapterFamily": "madara",
@@ -58708,45 +58710,17 @@
       "workflowRunId": "42312470052"
     },
     "miyorare:inventory-id:HWAGO": {
-      "adapterFamily": "keiyoushi-native",
+      "adapterFamily": "unclassified",
       "approvalState": "NOT_READY",
-      "attempts": 2,
+      "attempts": 3,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 2,
-        "gate": "REAL_PARSER_BLOCKED",
-        "parser": {
-          "executionMode": "real-live-parser",
+        "attempts": 3,
+        "profile": {
           "gate": "FAIL",
           "heldProviders": [
+            "gekkoushi",
             "keiyoushi"
-          ],
-          "memberships": [
-            {
-              "canonicalId": "miyorare:inventory-id:HWAGO",
-              "chapterTraversal": false,
-              "detailsTraversal": false,
-              "errors": 0,
-              "failureMessage": "java.lang.UnsatisfiedLinkError: no zstd-kmp in java.library.path: /usr/java/packages/lib:/usr/lib64:/lib64:/lib:/usr/lib:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/hwago/src/testDebug/jniLibs:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/hwago/src/test/jniLibs",
-              "failureType": "java.lang.UnsatisfiedLinkError",
-              "failures": 1,
-              "locator": "src/id/hwago",
-              "pageExtraction": false,
-              "parserExecution": true,
-              "provider": "keiyoushi",
-              "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/hwago/build/test-results/testDebugUnitTest",
-              "skipped": 0,
-              "status": "FAIL",
-              "testClass": "compatibilityfarm.AutoLive_keiyoushi_1b9b40d44737",
-              "tests": 1
-            }
-          ],
-          "selectedProviders": []
-        },
-        "profile": {
-          "gate": "PASS",
-          "heldProviders": [
-            "gekkoushi"
           ],
           "memberships": [
             {
@@ -58771,33 +58745,34 @@
               "family": "keiyoushi-native",
               "locator": "src/id/hwago",
               "probe": {
-                "httpStatus": 200,
-                "reachable": true,
+                "detail": "URLError",
+                "reachable": false,
                 "url": "https://02.hwago.xyz/"
               },
               "probeHost": "02.hwago.xyz",
-              "profilePass": true,
+              "profilePass": false,
               "provider": "keiyoushi",
               "upstreamBrokenReason": null
             }
           ],
-          "selectedProviders": [
-            "keiyoushi"
-          ]
+          "selectedProviders": []
         }
       },
-      "evidenceSha256": "cfd4031183188071cd831bfa1b94199a3c86c2d3d51451e6120eac5e152fc569",
-      "lastCheckedAt": "2026-10-19T02:15:46Z",
+      "evidenceSha256": "e56f2b7de5df8d90dd9b6b012d729c7c93ea053b264d680e570e934ffd25e78e",
+      "failureCategory": "PERMANENT_UPSTREAM",
+      "holdReason": "TERMINAL_EVIDENCE",
+      "lastCheckedAt": "2026-11-10T18:46:18Z",
+      "lifetimeAttempts": 3,
       "ownerActionRequired": false,
       "publishEligible": false,
       "schemaVersion": 2,
       "selectedProviders": [],
-      "state": "RETRY",
+      "state": "NEEDS_ATTENTION",
       "testedVersions": {
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
         "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
-      "workflowRunId": "39185136786"
+      "workflowRunId": "42877878856"
     },
     "miyorare:inventory-id:ICHIROMANGA": {
       "adapterFamily": "unclassified",
@@ -62290,14 +62265,17 @@
     "miyorare:inventory-id:KUMOPOI": {
       "adapterFamily": "custom-rest-json",
       "approvalState": "NOT_READY",
-      "attempts": 2,
+      "attempts": 3,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 2,
+        "attempts": 3,
         "gate": "REAL_PARSER_BLOCKED",
         "parser": {
           "executionMode": "real-live-parser",
           "gate": "FAIL",
+          "heldProviders": [
+            "keiyoushi"
+          ],
           "memberships": [
             {
               "canonicalId": "miyorare:inventory-id:KUMOPOI",
@@ -62317,10 +62295,12 @@
               "testClass": "compatibilityfarm.AutoLive_keiyoushi_925bfcb08a65",
               "tests": 1
             }
-          ]
+          ],
+          "selectedProviders": []
         },
         "profile": {
           "gate": "PASS",
+          "heldProviders": [],
           "memberships": [
             {
               "authType": "NO_AUTH",
@@ -62331,61 +62311,74 @@
               "probe": {
                 "httpStatus": 200,
                 "reachable": true,
-                "url": "https://beta.kumopoi.com/"
+                "url": "https://kumo.gorae.my.id/"
               },
-              "probeHost": "beta.kumopoi.com",
+              "probeHost": "kumo.gorae.my.id",
               "profilePass": true,
               "provider": "keiyoushi",
               "upstreamBrokenReason": null
             }
+          ],
+          "selectedProviders": [
+            "keiyoushi"
           ]
         }
       },
-      "evidenceSha256": "812524baf56231cd63e4b3dc5e3e571c6e5bc7ca7ed8b53215b6d219a4dc2719",
-      "lastCheckedAt": "2026-10-18T10:06:42Z",
+      "evidenceSha256": "491c5511f16ca338ce647bd3f5984f55f4cd05b1f1bd3578600cf7016d4ebdd1",
+      "failureCategory": "INITIALIZATION_FAILURE",
+      "lastCheckedAt": "2026-11-10T18:46:18Z",
+      "lifetimeAttempts": 3,
+      "nextEligibleAt": "2026-11-11T18:46:18Z",
       "ownerActionRequired": false,
       "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 24,
+        "baseHours": 6,
+        "baselineReset": false,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
       "schemaVersion": 2,
+      "selectedProviders": [],
       "state": "RETRY",
       "testedVersions": {
         "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
-      "workflowRunId": "39113778682"
+      "workflowRunId": "42877878856"
     },
     "miyorare:inventory-id:KUROMANGA": {
       "adapterFamily": "keiyoushi-native",
       "approvalState": "NOT_READY",
-      "attempts": 2,
+      "attempts": 3,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 2,
+        "attempts": 3,
         "gate": "REAL_PARSER_BLOCKED",
         "parser": {
           "executionMode": "real-live-parser",
           "gate": "FAIL",
+          "heldProviders": [
+            "keiyoushi"
+          ],
           "memberships": [
             {
               "canonicalId": "miyorare:inventory-id:KUROMANGA",
-              "chapterTraversal": false,
-              "detailsTraversal": false,
-              "errors": 0,
-              "failureMessage": "java.lang.UnsatisfiedLinkError: no zstd-kmp in java.library.path: /usr/java/packages/lib:/usr/lib64:/lib64:/lib:/usr/lib:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/kuromanga/src/testDebug/jniLibs:/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/kuromanga/src/test/jniLibs",
-              "failureType": "java.lang.UnsatisfiedLinkError",
-              "failures": 1,
               "locator": "src/id/kuromanga",
-              "pageExtraction": false,
-              "parserExecution": true,
+              "parserExecution": false,
               "provider": "keiyoushi",
+              "reason": "JUNIT_SUITE_MISSING",
               "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/kuromanga/build/test-results/testDebugUnitTest",
-              "skipped": 0,
               "status": "FAIL",
-              "testClass": "compatibilityfarm.AutoLive_keiyoushi_a684baa1e6a7",
-              "tests": 1
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_a684baa1e6a7"
             }
-          ]
+          ],
+          "selectedProviders": []
         },
         "profile": {
           "gate": "PASS",
+          "heldProviders": [],
           "memberships": [
             {
               "authType": "NO_AUTH",
@@ -62404,19 +62397,35 @@
               "provider": "keiyoushi",
               "upstreamBrokenReason": null
             }
+          ],
+          "selectedProviders": [
+            "keiyoushi"
           ]
         }
       },
-      "evidenceSha256": "cc70d937ecb11b87f23d3800015f7a3e7cf6a4999e3fdcdfa4ca30727b3208f7",
-      "lastCheckedAt": "2026-10-18T11:48:41Z",
+      "evidenceSha256": "ee7420c46c55fd77e5453094669cc75a8a5d32696f170d78f8009bac554e4911",
+      "failureCategory": "PARSER_EVIDENCE_MISSING",
+      "lastCheckedAt": "2026-11-10T18:46:18Z",
+      "lifetimeAttempts": 3,
+      "nextEligibleAt": "2026-11-11T18:46:18Z",
       "ownerActionRequired": false,
       "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 24,
+        "baseHours": 6,
+        "baselineReset": false,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
       "schemaVersion": 2,
+      "selectedProviders": [],
       "state": "RETRY",
       "testedVersions": {
         "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
-      "workflowRunId": "39124467928"
+      "workflowRunId": "42877878856"
     },
     "miyorare:inventory-id:KYUMIK": {
       "adapterFamily": "manga-reader-plus-api",
@@ -62460,10 +62469,10 @@
     "miyorare:inventory-id:LEPOYTL": {
       "adapterFamily": "keiyoushi-native",
       "approvalState": "NOT_READY",
-      "attempts": 2,
+      "attempts": 3,
       "authType": "NO_AUTH",
       "evidence": {
-        "attempts": 2,
+        "attempts": 3,
         "gate": "REAL_PARSER_BLOCKED",
         "parser": {
           "executionMode": "real-live-parser",
@@ -62474,21 +62483,13 @@
           "memberships": [
             {
               "canonicalId": "miyorare:inventory-id:LEPOYTL",
-              "chapterTraversal": false,
-              "detailsTraversal": false,
-              "errors": 0,
-              "failureMessage": "java.lang.ExceptionInInitializerError",
-              "failureType": "java.lang.ExceptionInInitializerError",
-              "failures": 1,
               "locator": "src/id/lepoytl",
-              "pageExtraction": false,
-              "parserExecution": true,
+              "parserExecution": false,
               "provider": "keiyoushi",
+              "reason": "JUNIT_SUITE_MISSING",
               "resultsDir": "/home/runner/work/Miyorare-Source-Packs/Miyorare-Source-Packs/_upstream/keiyoushi/src/id/lepoytl/build/test-results/testDebugUnitTest",
-              "skipped": 0,
               "status": "FAIL",
-              "testClass": "compatibilityfarm.AutoLive_keiyoushi_24438d647a4d",
-              "tests": 1
+              "testClass": "compatibilityfarm.AutoLive_keiyoushi_24438d647a4d"
             }
           ],
           "selectedProviders": []
@@ -62538,10 +62539,22 @@
           ]
         }
       },
-      "evidenceSha256": "83103c0dff021687dca44eb3e99386699a4bfd7295c75b1c279246e8fbaded93",
-      "lastCheckedAt": "2026-10-19T02:22:10Z",
+      "evidenceSha256": "152b5bfcbd0943f402c3a9a4bc4602a39868a605a2760c1a264bd83fbff60dd2",
+      "failureCategory": "PARSER_EVIDENCE_MISSING",
+      "lastCheckedAt": "2026-11-10T18:46:18Z",
+      "lifetimeAttempts": 3,
+      "nextEligibleAt": "2026-11-11T18:46:18Z",
       "ownerActionRequired": false,
       "publishEligible": false,
+      "retryPolicy": {
+        "appliedHours": 24,
+        "baseHours": 6,
+        "baselineReset": false,
+        "genericFailThresholdAutoHold": false,
+        "maxHours": 24,
+        "mode": "CATEGORY_BACKOFF",
+        "version": 1
+      },
       "schemaVersion": 2,
       "selectedProviders": [],
       "state": "RETRY",
@@ -62549,7 +62562,7 @@
         "gekkoushi": "9aa770b7cb699c6385f574f13710990e17ef5517",
         "keiyoushi": "23345ef345e3b20d7fcc0b5d8fdc922d025af47f"
       },
-      "workflowRunId": "39185136786"
+      "workflowRunId": "42877878856"
     },
     "miyorare:inventory-id:LIANSCANS": {
       "adapterFamily": "manga-reader-plus-api",
@@ -69932,5 +69945,5 @@
       "workflowRunId": "42131036383"
     }
   },
-  "updatedAt": "2026-11-10T11:19:27Z"
+  "updatedAt": "2026-11-10T18:46:18Z"
 }
