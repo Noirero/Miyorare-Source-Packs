@@ -60,13 +60,20 @@ else:
 
 MOCK_GIT = r'''#!/usr/bin/env python3
 import os, sys
+args = sys.argv[1:]
 with open(os.environ["FAKE_GIT_CALLS"], "a", encoding="utf-8") as f:
-    f.write(" ".join(sys.argv[1:]) + "\n")
+    f.write(" ".join(args) + "\n")
+if "ls-remote" in args:
+    mode = os.environ["FAKE_REMOTE_BRANCH"]
+    if mode == "exists":
+        print("a" * 40 + "\trefs/heads/automation/builder-baseline-" + os.environ["CANDIDATE_SHA"])
+        sys.exit(0)
+    sys.exit(2 if mode == "absent" else 128)
 '''
 
 
 class BuilderBaselinePrReuseTest(unittest.TestCase):
-    def exercise(self, prs, *, files=None, payloads=None):
+    def exercise(self, prs, *, files=None, payloads=None, remote="absent"):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             bindir = root / "bin"
@@ -86,7 +93,7 @@ class BuilderBaselinePrReuseTest(unittest.TestCase):
             calls = root / "git_calls.txt"
             env = dict(os.environ, PATH=str(bindir) + os.pathsep + os.environ["PATH"],
                        FAKE_GH_DATA=str(root / "api.json"), FAKE_GIT_CALLS=str(calls),
-                       GITHUB_OUTPUT=str(out), GITHUB_REPOSITORY=REPOSITORY,
+                       GITHUB_OUTPUT=str(out), GITHUB_REPOSITORY=REPOSITORY, FAKE_REMOTE_BRANCH=remote,
                        CANDIDATE_SHA=CANDIDATE)
             result = subprocess.run(["bash", "-euo", "pipefail", "-c", reuse_bash()],
                                     cwd=root, env=env, text=True, capture_output=True)
@@ -123,6 +130,30 @@ class BuilderBaselinePrReuseTest(unittest.TestCase):
         self.assertEqual(code, 0, stderr)
         self.assertIn(f"switch -c automation/builder-baseline-{CANDIDATE}", calls)
         self.assertEqual(output, "")
+
+    def test_existing_deterministic_branch_without_open_pr_is_held(self):
+        code, output, calls, stderr = self.exercise([], remote="exists")
+        self.assertNotEqual(code, 0)
+        self.assertIn("HELD", stderr)
+        self.assertNotIn("switch -c", calls)
+        self.assertEqual(output, "")
+
+    def test_remote_branch_lookup_failure_is_not_treated_as_absent(self):
+        code, output, calls, stderr = self.exercise([], remote="error")
+        self.assertNotEqual(code, 0)
+        self.assertIn("Remote branch lookup failed", stderr)
+        self.assertNotIn("switch -c", calls)
+        self.assertEqual(output, "")
+
+    def test_workflow_only_merge_does_not_trigger_controller(self):
+        contents = WORKFLOW.read_text(encoding="utf-8")
+        push_config = contents.split("\n  push:\n", 1)[1].split("\npermissions:", 1)[0]
+        self.assertIn("branches:\n      - main", push_config)
+        self.assertIn("'compatibility/miyorare-builder-baseline.json'", push_config)
+        self.assertIn("'.github/workflows/release-source-packs.yml'", push_config)
+        self.assertNotIn("'.github/workflows/source-pack-autonomous-release.yml'", push_config)
+        self.assertIn("    - cron: '13,43 * * * *'", contents)
+        self.assertIn("      - name: Dispatch sealed stable Source Pack release", contents)
 
     def test_remote_validation_error_fails_closed(self):
         code, output, calls, _ = self.exercise([pr()], payloads={})
