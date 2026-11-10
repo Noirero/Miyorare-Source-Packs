@@ -47,7 +47,6 @@ on:
       - main
     paths:
       - 'compatibility/miyorare-builder-baseline.json'
-      - '.github/workflows/source-pack-autonomous-release.yml'
       - '.github/workflows/release-source-packs.yml'
 
 permissions:
@@ -229,24 +228,66 @@ jobs:
           data["compatibilityEpoch"] = expected_epoch
           path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
           PY
-          branch="automation/builder-baseline-${CANDIDATE_SHA:0:12}-$GITHUB_RUN_ID"
+
+          # Reuse exact open PRs, including legacy per-run automation branches.
+          # Controller concurrency serializes runs; a full-SHA branch prevents retry collisions.
+          candidate_branch="automation/builder-baseline-$CANDIDATE_SHA"
+          legacy_prefix="automation/builder-baseline-${CANDIDATE_SHA:0:12}-"
+          open_prs="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100")"
+          pr_rows="$(printf '%s\n' "$open_prs" | jq -r --arg repo "$GITHUB_REPOSITORY" --arg candidate "$candidate_branch" --arg legacy "$legacy_prefix" '
+            .[] | select(.base.ref == "main" and .head.repo.full_name == $repo and .user.login == "github-actions[bot]")
+            | select(.head.ref == $candidate or (.head.ref | startswith($legacy)))
+            | [.number, .head.ref, .head.sha] | @tsv
+          ')"
+          expected="$(jq -S . control/compatibility/miyorare-builder-baseline.json)"
+          while IFS=$'\t' read -r number pr_branch pr_sha; do
+            [[ -n "$number" ]] || continue
+            [[ "$pr_sha" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid existing PR head SHA." >&2; exit 1; }
+            changed_files="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$number/files?per_page=100" --jq '.[].filename')"
+            [[ "$changed_files" == "compatibility/miyorare-builder-baseline.json" ]] || continue
+            remote_b64="$(gh api "repos/$GITHUB_REPOSITORY/contents/compatibility/miyorare-builder-baseline.json?ref=$pr_sha" --jq '.content')"
+            remote_json="$(printf '%s\n' "$remote_b64" | base64 --decode)"
+            remote_normalized="$(printf '%s\n' "$remote_json" | jq -S .)"
+            if [[ "$remote_normalized" == "$expected" ]]; then
+              echo "branch=$pr_branch" >> "$GITHUB_OUTPUT"
+              echo "head_sha=$pr_sha" >> "$GITHUB_OUTPUT"
+              echo "pr_number=$number" >> "$GITHUB_OUTPUT"
+              echo "pr_url=https://github.com/$GITHUB_REPOSITORY/pull/$number" >> "$GITHUB_OUTPUT"
+              echo "reused=true" >> "$GITHUB_OUTPUT"
+              echo "::notice::HELD: reusing exact baseline PR #$number; awaiting protected-main checks."
+              exit 0
+            fi
+          done <<< "$pr_rows"
+
+          branch="$candidate_branch"
+          # A ref surviving an interrupted run must not be overwritten or re-proposed blindly.
+          # Reconcile its provenance and any closed PR before allowing another promotion.
+          if git -C control ls-remote --exit-code --heads origin "refs/heads/$branch" >/dev/null; then
+            echo "::error::HELD: $branch exists without an eligible open PR. Review its diff and PR history before manual recovery; no new PR or release." >&2
+            exit 1
+          else
+            rc="$?"
+            [[ "$rc" == "2" ]] || { echo "::error::Remote branch lookup failed (exit $rc); refusing to create a PR." >&2; exit 1; }
+          fi
           git -C control switch -c "$branch"
           git -C control config user.name 'github-actions[bot]'
           git -C control config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git -C control add compatibility/miyorare-builder-baseline.json
           git -C control diff --cached --quiet && { echo "Builder baseline promotion produced no diff." >&2; exit 1; }
           git -C control commit -m "Promote validated Miyorare pack builder baseline"
+          # Deterministic ref rejects a competing writer rather than making another PR.
           git -C control push origin "HEAD:$branch"
           head_sha="$(git -C control rev-parse HEAD)"
-          url="$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "Promote validated Miyorare pack builder baseline" --body "Automated promotion of exact Miyorare $LINEAGE_BRANCH manifest commit `$CANDIDATE_SHA` after Farm synchronization and ID/EN/Global pack checks passed.")"
+          url="$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "Promote validated Miyorare pack builder baseline" --body "Automated promotion of exact Miyorare $LINEAGE_BRANCH manifest commit $CANDIDATE_SHA after Farm synchronization and ID/EN/Global pack checks passed.")"
           number="$(gh pr view "$url" --repo "$GITHUB_REPOSITORY" --json number --jq '.number')"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
           echo "pr_number=$number" >> "$GITHUB_OUTPUT"
           echo "pr_url=$url" >> "$GITHUB_OUTPUT"
+          echo "reused=false" >> "$GITHUB_OUTPUT"
 
       - name: Validate promoted builder baseline on exact PR head
-        if: steps.builder.outputs.manifest_changed == 'true'
+        if: steps.builder.outputs.manifest_changed == 'true' && steps.promote.outputs.reused != 'true'
         id: baseline_ci
         env:
           BRANCH: ${{ steps.promote.outputs.branch }}
@@ -266,8 +307,26 @@ jobs:
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
           gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 10
 
+
+      - name: Require protected-main check before automated merge
+        if: steps.builder.outputs.manifest_changed == 'true' && steps.promote.outputs.reused != 'true'
+        id: protected_gate
+        env:
+          HEAD_SHA: ${{ steps.promote.outputs.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          conclusion="$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?per_page=100" --jq '[.check_runs[] | select(.name == "Main Required Gates" and .app.id == 15368)] | sort_by(.completed_at // "") | last | .conclusion // "pending"')"
+          if [[ "$conclusion" == "success" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::HELD: Main Required Gates is $conclusion for $HEAD_SHA; no merge or release."
+          fi
+
       - name: Merge validated builder baseline promotion
-        if: steps.builder.outputs.manifest_changed == 'true'
+        id: promotion_merge
+        if: steps.builder.outputs.manifest_changed == 'true' && steps.promote.outputs.reused != 'true' && steps.protected_gate.outputs.ready == 'true'
         env:
           PR_NUMBER: ${{ steps.promote.outputs.pr_number }}
           HEAD_SHA: ${{ steps.promote.outputs.head_sha }}
@@ -279,8 +338,10 @@ jobs:
           gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --squash --delete-branch
           merged="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json mergedAt --jq '.mergedAt')"
           [[ -n "$merged" && "$merged" != "null" ]]
+          echo "merged=true" >> "$GITHUB_OUTPUT"
 
       - name: Resolve desired stable release fingerprint
+        if: steps.builder.outputs.manifest_changed == 'false' || steps.promotion_merge.outputs.merged == 'true'
         id: desired
         shell: bash
         run: |
@@ -294,6 +355,7 @@ jobs:
           PY
 
       - name: Compare against latest published Source Pack release
+        if: steps.desired.outcome == 'success'
         id: release_need
         shell: bash
         run: |
@@ -385,6 +447,9 @@ jobs:
           echo "Active lineage branch: ${{ steps.lineage.outputs.branch }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Latest active-lineage manifest commit: ${{ steps.builder.outputs.candidate }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Manifest promotion needed: ${{ steps.builder.outputs.manifest_changed }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Baseline PR: ${{ steps.promote.outputs.pr_url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Reused existing PR: ${{ steps.promote.outputs.reused }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Protected-main ready: ${{ steps.protected_gate.outputs.ready }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Desired UMA: ${{ steps.providers.outputs.uma }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Desired Gekkoushi: ${{ steps.providers.outputs.gekkoushi }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Desired Keiyoushi: ${{ steps.providers.outputs.keiyoushi }}" >> "$GITHUB_STEP_SUMMARY"
