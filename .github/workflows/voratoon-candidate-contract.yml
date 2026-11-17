@@ -37,4 +37,4 @@ jobs:
           cp compatibility/harness/candidates/voratoon/*.kt _candidate/src/test/kotlin/compatibilityfarm/
       - name: Run candidate VoraToon parser contract
         working-directory: _candidate
-        run: ./gradlew test --no-daemon --tests compatibilityfarm.VoraToonCandidateContractTest
+        run: bash ./gradlew test --no-daemon --tests compatibilityfarm.VoraToonCandidateContractTest
