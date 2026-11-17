@@ -1,0 +1,40 @@
+name: VoraToon isolated candidate contract
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/voratoon-candidate-contract.yml'
+      - 'compatibility/harness/candidates/voratoon/**'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: InvalidDavid/UMA
+          ref: 2462a1f88f277f83c20758e682b7c8882f5dad9f
+          path: _candidate
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: |
+            11
+            17
+      - name: Stage deterministic harness
+        run: |
+          test "$(git -C _candidate rev-parse HEAD)" = 2462a1f88f277f83c20758e682b7c8882f5dad9f
+          mkdir -p _candidate/src/test/kotlin/compatibilityfarm
+          cp compatibility/harness/candidates/voratoon/*.kt _candidate/src/test/kotlin/compatibilityfarm/
+      - name: Run candidate VoraToon parser contract
+        working-directory: _candidate
+        run: bash ./gradlew test --no-daemon --tests compatibilityfarm.VoraToonCandidateContractTest
