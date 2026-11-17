@@ -32,11 +32,11 @@ internal class VoraToonCandidateContractTest {
                 else -> error("Unexpected VoraToon request path: ${url.encodedPath}")
             }
         })
-        val manga = parser.getListPage(1, SortOrder.POPULARITY, MangaListFilter()).single()
+        val manga = parser.getList(0, SortOrder.POPULARITY, MangaListFilter()).single()
         assertEquals("/series/fixture", manga.url)
         assertEquals(
             "/series/search-result",
-            parser.getListPage(1, SortOrder.POPULARITY, MangaListFilter(query = "Fixture Search")).single().url,
+            parser.getList(0, SortOrder.POPULARITY, MangaListFilter(query = "Fixture Search")).single().url,
         )
         val detail = parser.getDetails(manga)
         assertEquals("Fixture detail", detail.title)
