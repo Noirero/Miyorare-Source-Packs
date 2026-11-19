@@ -1,165 +1,801 @@
 {
-  "schema": 2,
-  "packs": [
+ "schema": 2,
+ "packs": [
+  {
+   "id": "literata",
+   "name": "Literata",
+   "version": "1.0.0",
+   "author": "TypeTogether",
+   "license": {
+    "name": "SIL Open Font License 1.1",
+    "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/literata/OFL.txt"
+   },
+   "description": "Serif yang dirancang untuk membaca teks panjang dengan tenang.",
+   "previewText": "Membaca dengan tenang, halaman demi halaman.",
+   "files": [
     {
-      "id": "literata",
-      "name": "Literata",
-      "version": "1.0.0",
-      "author": "TypeTogether",
-      "license": {
-        "name": "SIL Open Font License 1.1",
-        "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/literata/OFL.txt"
-      },
-      "description": "Serif yang dirancang untuk membaca teks panjang dengan tenang.",
-      "previewText": "Membaca dengan tenang, halaman demi halaman.",
-      "files": [
-        {
-          "file": "Literata-Variable.ttf",
-          "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/literata/Literata%5Bopsz%2Cwght%5D.ttf",
-          "sha256": "b41138c9373112f32abb589cc22e8674b06ed4048b0c513be922bdd26f274440",
-          "sizeBytes": 955132,
-          "family": "Literata",
-          "variable": true,
-          "italic": false,
-          "weights": [
-            200,
-            300,
-            400,
-            500,
-            600,
-            700,
-            800,
-            900
-          ]
-        },
-        {
-          "file": "Literata-Italic-Variable.ttf",
-          "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/literata/Literata-Italic%5Bopsz%2Cwght%5D.ttf",
-          "sha256": "d483dfaeba9cbf4ce71d32a52ee65df82f7e35b15fff8d1011cdb242d1fcd465",
-          "sizeBytes": 902728,
-          "family": "Literata",
-          "variable": true,
-          "italic": true,
-          "weights": [
-            200,
-            300,
-            400,
-            500,
-            600,
-            700,
-            800,
-            900
-          ]
-        }
-      ]
+     "file": "Literata-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/literata/Literata%5Bopsz%2Cwght%5D.ttf",
+     "sha256": "b41138c9373112f32abb589cc22e8674b06ed4048b0c513be922bdd26f274440",
+     "sizeBytes": 955132,
+     "family": "Literata",
+     "variable": true,
+     "italic": false,
+     "weights": [
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900
+     ]
     },
     {
-      "id": "inter",
-      "name": "Inter",
-      "version": "1.0.0",
-      "author": "Rasmus Andersson",
-      "license": {
-        "name": "SIL Open Font License 1.1",
-        "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/inter/OFL.txt"
-      },
-      "description": "Sans-serif netral dan jernih, dirancang untuk antarmuka.",
-      "previewText": "Membaca dengan tenang, halaman demi halaman.",
-      "files": [
-        {
-          "file": "Inter-Variable.ttf",
-          "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf",
-          "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
-          "sizeBytes": 876576,
-          "family": "Inter",
-          "variable": true,
-          "italic": false,
-          "weights": [
-            100,
-            200,
-            300,
-            400,
-            500,
-            600,
-            700,
-            800,
-            900
-          ]
-        },
-        {
-          "file": "Inter-Italic-Variable.ttf",
-          "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/inter/Inter-Italic%5Bopsz%2Cwght%5D.ttf",
-          "sha256": "acd98e64795781b2058f07b18475e0ecee2a0fe2b42a49e2f9e37d0d6bf66ce6",
-          "sizeBytes": 906596,
-          "family": "Inter",
-          "variable": true,
-          "italic": true,
-          "weights": [
-            100,
-            200,
-            300,
-            400,
-            500,
-            600,
-            700,
-            800,
-            900
-          ]
-        }
-      ]
-    },
-    {
-      "id": "atkinson-hyperlegible",
-      "name": "Atkinson Hyperlegible",
-      "version": "1.0.0",
-      "author": "Braille Institute",
-      "license": {
-        "name": "SIL Open Font License 1.1",
-        "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/atkinsonhyperlegible/OFL.txt"
-      },
-      "description": "Dirancang untuk keterbacaan maksimal, dengan bentuk huruf yang sulit tertukar.",
-      "previewText": "Membaca dengan tenang, halaman demi halaman.",
-      "files": [
-        {
-          "file": "AtkinsonHyperlegible-Regular.ttf",
-          "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/atkinsonhyperlegible/AtkinsonHyperlegible-Regular.ttf",
-          "sha256": "7fb917c89019896d0b52ee84b7cbb3304c18cb90b19a62f5e32712bd23e97669",
-          "sizeBytes": 54348,
-          "family": "Atkinson Hyperlegible",
-          "variable": false,
-          "italic": false,
-          "weight": 400
-        },
-        {
-          "file": "AtkinsonHyperlegible-Bold.ttf",
-          "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/atkinsonhyperlegible/AtkinsonHyperlegible-Bold.ttf",
-          "sha256": "5a3b0c8cc8ca545155150b4512a1fa248298df121c50d6557e651e61fbdab92f",
-          "sizeBytes": 55256,
-          "family": "Atkinson Hyperlegible",
-          "variable": false,
-          "italic": false,
-          "weight": 700
-        },
-        {
-          "file": "AtkinsonHyperlegible-Italic.ttf",
-          "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/atkinsonhyperlegible/AtkinsonHyperlegible-Italic.ttf",
-          "sha256": "021beda4d3c6edfc78872e436d74009f9a1bcb294331908fe5747c61d3dcc514",
-          "sizeBytes": 54892,
-          "family": "Atkinson Hyperlegible",
-          "variable": false,
-          "italic": true,
-          "weight": 400
-        },
-        {
-          "file": "AtkinsonHyperlegible-BoldItalic.ttf",
-          "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/atkinsonhyperlegible/AtkinsonHyperlegible-BoldItalic.ttf",
-          "sha256": "7a46f1b0ef2f64b61065c1a6b5a11fcb9b019b44062d88ba121a083cc39e86bf",
-          "sizeBytes": 55288,
-          "family": "Atkinson Hyperlegible",
-          "variable": false,
-          "italic": true,
-          "weight": 700
-        }
-      ]
+     "file": "Literata-Italic-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/literata/Literata-Italic%5Bopsz%2Cwght%5D.ttf",
+     "sha256": "d483dfaeba9cbf4ce71d32a52ee65df82f7e35b15fff8d1011cdb242d1fcd465",
+     "sizeBytes": 902728,
+     "family": "Literata",
+     "variable": true,
+     "italic": true,
+     "weights": [
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900
+     ]
     }
-  ]
+   ]
+  },
+  {
+   "id": "inter",
+   "name": "Inter",
+   "version": "1.0.0",
+   "author": "Rasmus Andersson",
+   "license": {
+    "name": "SIL Open Font License 1.1",
+    "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/inter/OFL.txt"
+   },
+   "description": "Sans-serif netral dan jernih, dirancang untuk antarmuka.",
+   "previewText": "Membaca dengan tenang, halaman demi halaman.",
+   "files": [
+    {
+     "file": "Inter-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf",
+     "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+     "sizeBytes": 876576,
+     "family": "Inter",
+     "variable": true,
+     "italic": false,
+     "weights": [
+      100,
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900
+     ]
+    },
+    {
+     "file": "Inter-Italic-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/inter/Inter-Italic%5Bopsz%2Cwght%5D.ttf",
+     "sha256": "acd98e64795781b2058f07b18475e0ecee2a0fe2b42a49e2f9e37d0d6bf66ce6",
+     "sizeBytes": 906596,
+     "family": "Inter",
+     "variable": true,
+     "italic": true,
+     "weights": [
+      100,
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900
+     ]
+    }
+   ]
+  },
+  {
+   "id": "atkinson-hyperlegible",
+   "name": "Atkinson Hyperlegible",
+   "version": "1.0.0",
+   "author": "Braille Institute",
+   "license": {
+    "name": "SIL Open Font License 1.1",
+    "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/atkinsonhyperlegible/OFL.txt"
+   },
+   "description": "Dirancang untuk keterbacaan maksimal, dengan bentuk huruf yang sulit tertukar.",
+   "previewText": "Membaca dengan tenang, halaman demi halaman.",
+   "files": [
+    {
+     "file": "AtkinsonHyperlegible-Regular.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/atkinsonhyperlegible/AtkinsonHyperlegible-Regular.ttf",
+     "sha256": "7fb917c89019896d0b52ee84b7cbb3304c18cb90b19a62f5e32712bd23e97669",
+     "sizeBytes": 54348,
+     "family": "Atkinson Hyperlegible",
+     "variable": false,
+     "italic": false,
+     "weight": 400
+    },
+    {
+     "file": "AtkinsonHyperlegible-Bold.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/atkinsonhyperlegible/AtkinsonHyperlegible-Bold.ttf",
+     "sha256": "5a3b0c8cc8ca545155150b4512a1fa248298df121c50d6557e651e61fbdab92f",
+     "sizeBytes": 55256,
+     "family": "Atkinson Hyperlegible",
+     "variable": false,
+     "italic": false,
+     "weight": 700
+    },
+    {
+     "file": "AtkinsonHyperlegible-Italic.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/atkinsonhyperlegible/AtkinsonHyperlegible-Italic.ttf",
+     "sha256": "021beda4d3c6edfc78872e436d74009f9a1bcb294331908fe5747c61d3dcc514",
+     "sizeBytes": 54892,
+     "family": "Atkinson Hyperlegible",
+     "variable": false,
+     "italic": true,
+     "weight": 400
+    },
+    {
+     "file": "AtkinsonHyperlegible-BoldItalic.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/atkinsonhyperlegible/AtkinsonHyperlegible-BoldItalic.ttf",
+     "sha256": "7a46f1b0ef2f64b61065c1a6b5a11fcb9b019b44062d88ba121a083cc39e86bf",
+     "sizeBytes": 55288,
+     "family": "Atkinson Hyperlegible",
+     "variable": false,
+     "italic": true,
+     "weight": 700
+    }
+   ]
+  },
+  {
+   "id": "roboto",
+   "name": "Roboto",
+   "version": "1.0.0",
+   "author": "Christian Robertson · Google",
+   "license": {
+    "name": "SIL Open Font License 1.1",
+    "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/roboto/OFL.txt"
+   },
+   "description": "Sans bawaan Android yang netral dan akrab di mata.",
+   "previewText": "Membaca dengan tenang, halaman demi halaman.",
+   "files": [
+    {
+     "file": "Roboto-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/roboto/Roboto%5Bwdth%2Cwght%5D.ttf",
+     "sha256": "d7598e12c5dbef095ff8272cfc55da0250bd07fbdecbac8a530b9b277872a134",
+     "sizeBytes": 488584,
+     "family": "Roboto",
+     "variable": true,
+     "italic": false,
+     "weights": [
+      100,
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900
+     ]
+    },
+    {
+     "file": "Roboto-Italic-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/roboto/Roboto-Italic%5Bwdth%2Cwght%5D.ttf",
+     "sha256": "9725a847af6b460ffca162ae66d20dad48b01876137947180b42d7dcd7887182",
+     "sizeBytes": 530944,
+     "family": "Roboto",
+     "variable": true,
+     "italic": true,
+     "weights": [
+      100,
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900
+     ]
+    }
+   ]
+  },
+  {
+   "id": "open-sans",
+   "name": "Open Sans",
+   "version": "1.0.0",
+   "author": "Steve Matteson",
+   "license": {
+    "name": "SIL Open Font License 1.1",
+    "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/opensans/OFL.txt"
+   },
+   "description": "Sans humanis paling populer di web, bersih dan mudah dibaca.",
+   "previewText": "Membaca dengan tenang, halaman demi halaman.",
+   "files": [
+    {
+     "file": "OpenSans-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/opensans/OpenSans%5Bwdth%2Cwght%5D.ttf",
+     "sha256": "36643644f318a812aab2d2ed3bb98f8cf0872527f835fe9398d95fe6b9adb878",
+     "sizeBytes": 532636,
+     "family": "Open Sans",
+     "variable": true,
+     "italic": false,
+     "weights": [
+      300,
+      400,
+      500,
+      600,
+      700,
+      800
+     ]
+    },
+    {
+     "file": "OpenSans-Italic-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/opensans/OpenSans-Italic%5Bwdth%2Cwght%5D.ttf",
+     "sha256": "fe269381e992f32e135801740998544d6235061e37c93ec067ad2be3edd5b17b",
+     "sizeBytes": 583992,
+     "family": "Open Sans",
+     "variable": true,
+     "italic": true,
+     "weights": [
+      300,
+      400,
+      500,
+      600,
+      700,
+      800
+     ]
+    }
+   ]
+  },
+  {
+   "id": "poppins",
+   "name": "Poppins",
+   "version": "1.0.0",
+   "author": "Indian Type Foundry",
+   "license": {
+    "name": "SIL Open Font License 1.1",
+    "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/poppins/OFL.txt"
+   },
+   "description": "Sans geometris modern dengan rasa segar dan tegas.",
+   "previewText": "Membaca dengan tenang, halaman demi halaman.",
+   "files": [
+    {
+     "file": "Poppins-Regular.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/poppins/Poppins-Regular.ttf",
+     "sha256": "7e65201e9b79159e2300267cc885e16c8dcef2424cdfa09a29bfb0980a94a7ba",
+     "sizeBytes": 160316,
+     "family": "Poppins",
+     "variable": false,
+     "italic": false,
+     "weight": 400
+    },
+    {
+     "file": "Poppins-Medium.ttf",
+     "url": "https://raw.githubusercontent.com/google/fonts/5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/poppins/Poppins-Medium.ttf",
+     "sha256": "90373e7d838d32468438fc3e152dca0bdb12edcab99ea639f158790b1ba1fd05",
+     "sizeBytes": 158576,
+     "family": "Poppins",
+     "variable": false,
+     "italic": false,
+     "weight": 500
+    },
+    {
+     "file": "Poppins-SemiBold.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/poppins/Poppins-SemiBold.ttf",
+     "sha256": "d3bf1bdaf0550e83da9ac0b1d1d9fe6db086835a83aa28578e609a394b9a0286",
+     "sizeBytes": 157312,
+     "family": "Poppins",
+     "variable": false,
+     "italic": false,
+     "weight": 600
+    },
+    {
+     "file": "Poppins-Bold.ttf",
+     "url": "https://raw.githubusercontent.com/google/fonts/5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/poppins/Poppins-Bold.ttf",
+     "sha256": "983676516167748b74de6f4771fb384c664fd913acb8b471122ecacf5da5ea6c",
+     "sizeBytes": 155996,
+     "family": "Poppins",
+     "variable": false,
+     "italic": false,
+     "weight": 700
+    },
+    {
+     "file": "Poppins-Italic.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/poppins/Poppins-Italic.ttf",
+     "sha256": "4fa76ae75b40f926420514044722cb97f32186cafd3b38263cc34dad7174d46d",
+     "sizeBytes": 184544,
+     "family": "Poppins",
+     "variable": false,
+     "italic": true,
+     "weight": 400
+    },
+    {
+     "file": "Poppins-BoldItalic.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/poppins/Poppins-BoldItalic.ttf",
+     "sha256": "3572ac8116a0ac7317d342262b29937bcbaf94d8f03f90df6fe666fa7e2fb43a",
+     "sizeBytes": 179108,
+     "family": "Poppins",
+     "variable": false,
+     "italic": true,
+     "weight": 700
+    }
+   ]
+  },
+  {
+   "id": "montserrat",
+   "name": "Montserrat",
+   "version": "1.0.0",
+   "author": "Julieta Ulanovsky dkk.",
+   "license": {
+    "name": "SIL Open Font License 1.1",
+    "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/montserrat/OFL.txt"
+   },
+   "description": "Sans geometris terinspirasi papan nama kota tua Buenos Aires.",
+   "previewText": "Membaca dengan tenang, halaman demi halaman.",
+   "files": [
+    {
+     "file": "Montserrat-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/montserrat/Montserrat%5Bwght%5D.ttf",
+     "sha256": "0f7b311b2f3279e4eef9b2f968bcdbab6e28f4daeb1f049f4f278a902bcd82f7",
+     "sizeBytes": 744936,
+     "family": "Montserrat",
+     "variable": true,
+     "italic": false,
+     "weights": [
+      100,
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900
+     ]
+    },
+    {
+     "file": "Montserrat-Italic-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/montserrat/Montserrat-Italic%5Bwght%5D.ttf",
+     "sha256": "51607f316bc020e59f03cbf51543eecffbea501c0b31d73e5b82927c5cca442c",
+     "sizeBytes": 762376,
+     "family": "Montserrat",
+     "variable": true,
+     "italic": true,
+     "weights": [
+      100,
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900
+     ]
+    }
+   ]
+  },
+  {
+   "id": "lato",
+   "name": "Lato",
+   "version": "1.0.0",
+   "author": "Łukasz Dziedzic",
+   "license": {
+    "name": "SIL Open Font License 1.1",
+    "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/lato/OFL.txt"
+   },
+   "description": "Sans hangat dan ramah untuk antarmuka sehari-hari.",
+   "previewText": "Membaca dengan tenang, halaman demi halaman.",
+   "files": [
+    {
+     "file": "Lato-Regular.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/lato/Lato-Regular.ttf",
+     "sha256": "d636e4683231f931eda222d588e944d082bfd3bdba02f928bee461c0f185b251",
+     "sizeBytes": 656568,
+     "family": "Lato",
+     "variable": false,
+     "italic": false,
+     "weight": 400
+    },
+    {
+     "file": "Lato-Bold.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/lato/Lato-Bold.ttf",
+     "sha256": "8a0aace75d33794eece4b28187bfc1df0bbd2888b5d8a56e01788c8d65d16be1",
+     "sizeBytes": 656544,
+     "family": "Lato",
+     "variable": false,
+     "italic": false,
+     "weight": 700
+    },
+    {
+     "file": "Lato-Italic.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/lato/Lato-Italic.ttf",
+     "sha256": "e399c44efe1387100531d26c7e4800c5d12251b890d6654a3098c7c679cb1786",
+     "sizeBytes": 722900,
+     "family": "Lato",
+     "variable": false,
+     "italic": true,
+     "weight": 400
+    },
+    {
+     "file": "Lato-BoldItalic.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/lato/Lato-BoldItalic.ttf",
+     "sha256": "62c1b7f0d2e74b45960154c3520efc337b553db0961bfdc950d5618334596cc8",
+     "sizeBytes": 698364,
+     "family": "Lato",
+     "variable": false,
+     "italic": true,
+     "weight": 700
+    }
+   ]
+  },
+  {
+   "id": "nunito",
+   "name": "Nunito",
+   "version": "1.0.0",
+   "author": "Vernon Adams",
+   "license": {
+    "name": "SIL Open Font License 1.1",
+    "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/nunito/OFL.txt"
+   },
+   "description": "Sans membulat yang lembut, serasi dengan tampilan Miyorare.",
+   "previewText": "Membaca dengan tenang, halaman demi halaman.",
+   "files": [
+    {
+     "file": "Nunito-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/nunito/Nunito%5Bwght%5D.ttf",
+     "sha256": "bb55a5ca5c2042335b3991af27c4d0705d0ef41cac6164ac737fd8f2a1e85207",
+     "sizeBytes": 276932,
+     "family": "Nunito",
+     "variable": true,
+     "italic": false,
+     "weights": [
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900,
+      1000
+     ]
+    },
+    {
+     "file": "Nunito-Italic-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/nunito/Nunito-Italic%5Bwght%5D.ttf",
+     "sha256": "b520cc871868b0acfca1beda875df7f4a44ebce914f8a89f83977fc9c09529c8",
+     "sizeBytes": 281832,
+     "family": "Nunito",
+     "variable": true,
+     "italic": true,
+     "weights": [
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900,
+      1000
+     ]
+    }
+   ]
+  },
+  {
+   "id": "rubik",
+   "name": "Rubik",
+   "version": "1.0.0",
+   "author": "Hubert and Fischer dkk.",
+   "license": {
+    "name": "SIL Open Font License 1.1",
+    "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/rubik/OFL.txt"
+   },
+   "description": "Sans membulat modern dengan sudut-sudut halus.",
+   "previewText": "Membaca dengan tenang, halaman demi halaman.",
+   "files": [
+    {
+     "file": "Rubik-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/rubik/Rubik%5Bwght%5D.ttf",
+     "sha256": "1b3a7437ba2af80e465e773ed60c5036d1ba6ace492d89046dbcf18fb31e4e88",
+     "sizeBytes": 359804,
+     "family": "Rubik",
+     "variable": true,
+     "italic": false,
+     "weights": [
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900
+     ]
+    },
+    {
+     "file": "Rubik-Italic-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/rubik/Rubik-Italic%5Bwght%5D.ttf",
+     "sha256": "08c6c4018a5ada8b517407b46897e46cf6ebb106853fbd3e89addb51d3b59c62",
+     "sizeBytes": 354984,
+     "family": "Rubik",
+     "variable": true,
+     "italic": true,
+     "weights": [
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900
+     ]
+    }
+   ]
+  },
+  {
+   "id": "work-sans",
+   "name": "Work Sans",
+   "version": "1.0.0",
+   "author": "Wei Huang",
+   "license": {
+    "name": "SIL Open Font License 1.1",
+    "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/worksans/OFL.txt"
+   },
+   "description": "Sans bersih yang dirancang untuk layar dan dokumen kerja.",
+   "previewText": "Membaca dengan tenang, halaman demi halaman.",
+   "files": [
+    {
+     "file": "WorkSans-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/worksans/WorkSans%5Bwght%5D.ttf",
+     "sha256": "f50f61f2ba738e239442d40bf1069adb195c224b6a5a73a581fc2f3ed62a9f63",
+     "sizeBytes": 361072,
+     "family": "Work Sans",
+     "variable": true,
+     "italic": false,
+     "weights": [
+      100,
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900
+     ]
+    },
+    {
+     "file": "WorkSans-Italic-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/worksans/WorkSans-Italic%5Bwght%5D.ttf",
+     "sha256": "0a9f935ea490d3477fc97e40248f356c29bce11a1973939056c4316b122341ec",
+     "sizeBytes": 336756,
+     "family": "Work Sans",
+     "variable": true,
+     "italic": true,
+     "weights": [
+      100,
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900
+     ]
+    }
+   ]
+  },
+  {
+   "id": "noto-sans",
+   "name": "Noto Sans",
+   "version": "1.0.0",
+   "author": "Google Noto",
+   "license": {
+    "name": "SIL Open Font License 1.1",
+    "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/notosans/OFL.txt"
+   },
+   "description": "Sans Google dengan cakupan aksara terluas untuk banyak bahasa.",
+   "previewText": "Membaca dengan tenang, halaman demi halaman.",
+   "files": [
+    {
+     "file": "NotoSans-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/notosans/NotoSans%5Bwdth%2Cwght%5D.ttf",
+     "sha256": "bfb7bb691513f12e734dc346c03a03f784912432d7e3fa8e56efcf906fe86b3d",
+     "sizeBytes": 2049096,
+     "family": "Noto Sans",
+     "variable": true,
+     "italic": false,
+     "weights": [
+      100,
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900
+     ]
+    },
+    {
+     "file": "NotoSans-Italic-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/notosans/NotoSans-Italic%5Bwdth%2Cwght%5D.ttf",
+     "sha256": "58e6e0ebd1931b29a365aa2d3e2ee9a9e831a3af7cf3ad1462d4e72154f0b291",
+     "sizeBytes": 2322640,
+     "family": "Noto Sans",
+     "variable": true,
+     "italic": true,
+     "weights": [
+      100,
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900
+     ]
+    }
+   ]
+  },
+  {
+   "id": "lora",
+   "name": "Lora",
+   "version": "1.0.0",
+   "author": "Cyreal",
+   "license": {
+    "name": "SIL Open Font License 1.1",
+    "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/lora/OFL.txt"
+   },
+   "description": "Serif sastra yang anggun untuk membaca novel panjang.",
+   "previewText": "Membaca dengan tenang, halaman demi halaman.",
+   "files": [
+    {
+     "file": "Lora-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/lora/Lora%5Bwght%5D.ttf",
+     "sha256": "822a6621ccbe8d97d20ac88c1c41f5615c9c2c202eaa75f272cd452aac6475a7",
+     "sizeBytes": 212196,
+     "family": "Lora",
+     "variable": true,
+     "italic": false,
+     "weights": [
+      400,
+      500,
+      600,
+      700
+     ]
+    },
+    {
+     "file": "Lora-Italic-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/lora/Lora-Italic%5Bwght%5D.ttf",
+     "sha256": "22d8d8854b53807aa664ca34f2031a9ed57a1d0dea296b8b96cdd3aad937a2b3",
+     "sizeBytes": 221232,
+     "family": "Lora",
+     "variable": true,
+     "italic": true,
+     "weights": [
+      400,
+      500,
+      600,
+      700
+     ]
+    }
+   ]
+  },
+  {
+   "id": "merriweather",
+   "name": "Merriweather",
+   "version": "1.0.0",
+   "author": "Sorkin Type",
+   "license": {
+    "name": "SIL Open Font License 1.1",
+    "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/merriweather/OFL.txt"
+   },
+   "description": "Serif kokoh yang dirancang khusus untuk membaca di layar.",
+   "previewText": "Membaca dengan tenang, halaman demi halaman.",
+   "files": [
+    {
+     "file": "Merriweather-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/merriweather/Merriweather%5Bopsz%2Cwdth%2Cwght%5D.ttf",
+     "sha256": "d0ed0e359e396af7ad05e73dffd11a3a4c326ea0d0283c56bd9361cb2cc86a96",
+     "sizeBytes": 4628080,
+     "family": "Merriweather",
+     "variable": true,
+     "italic": false,
+     "weights": [
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900
+     ]
+    },
+    {
+     "file": "Merriweather-Italic-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/merriweather/Merriweather-Italic%5Bopsz%2Cwdth%2Cwght%5D.ttf",
+     "sha256": "f68a8f4989258679e4fbaf50aa42400132b5373c2d9d2514ba82ef6e85947a0b",
+     "sizeBytes": 4591168,
+     "family": "Merriweather",
+     "variable": true,
+     "italic": true,
+     "weights": [
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900
+     ]
+    }
+   ]
+  },
+  {
+   "id": "eb-garamond",
+   "name": "EB Garamond",
+   "version": "1.0.0",
+   "author": "Georg Duffner · Octavio Pardo",
+   "license": {
+    "name": "SIL Open Font License 1.1",
+    "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/ebgaramond/OFL.txt"
+   },
+   "description": "Serif klasik bergaya Garamond untuk teks buku yang elegan.",
+   "previewText": "Membaca dengan tenang, halaman demi halaman.",
+   "files": [
+    {
+     "file": "EBGaramond-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/ebgaramond/EBGaramond%5Bwght%5D.ttf",
+     "sha256": "ef9512f92f6d579e5dc75af59a5a4b1b8b47d2eda89e00b954d44520e5369027",
+     "sizeBytes": 851176,
+     "family": "EB Garamond",
+     "variable": true,
+     "italic": false,
+     "weights": [
+      400,
+      500,
+      600,
+      700,
+      800
+     ]
+    },
+    {
+     "file": "EBGaramond-Italic-Variable.ttf",
+     "url": "https://cdn.jsdelivr.net/gh/google/fonts@5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/ebgaramond/EBGaramond-Italic%5Bwght%5D.ttf",
+     "sha256": "bba2c4499c93c9612b90b9825d32b07da52fce2fe57562a1eb6b833553f93c4e",
+     "sizeBytes": 754468,
+     "family": "EB Garamond",
+     "variable": true,
+     "italic": true,
+     "weights": [
+      400,
+      500,
+      600,
+      700,
+      800
+     ]
+    }
+   ]
+  }
+ ]
 }
